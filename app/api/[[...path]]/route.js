@@ -1,6 +1,23 @@
 import { randomUUID } from 'crypto'
 import { NextResponse } from 'next/server'
-import { createEventSchema, MAX_CHUNK_SIZE_BYTES, uploadChunkSchema, uploadCompleteSchema, uploadInitSchema } from '@/lib/server/schemas'
+import {
+  adminModerationSchema,
+  adminPasswordSchema,
+  createEventSchema,
+  MAX_CHUNK_SIZE_BYTES,
+  uploadChunkSchema,
+  uploadCompleteSchema,
+  uploadInitSchema,
+} from '@/lib/server/schemas'
+import {
+  ADMIN_COOKIE_NAME,
+  createAdminSessionToken,
+  getAdminAuthStatus,
+  getAdminCookieOptions,
+  setupLocalAdminPassword,
+  verifyAdminPassword,
+  verifyAdminSessionToken,
+} from '@/lib/server/admin-auth'
 import { getGalleryRepository } from '@/lib/server/gallery-repository'
 import { localStorageDriver } from '@/lib/server/storage/local-storage'
 
@@ -9,7 +26,7 @@ export const runtime = 'nodejs'
 const json = (payload, status = 200) => {
   const response = NextResponse.json(payload, { status })
   response.headers.set('Access-Control-Allow-Origin', process.env.CORS_ORIGINS || '*')
-  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS')
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   return response
 }
@@ -20,13 +37,39 @@ const formatZodError = (error) => {
 
 const getSegments = (params) => params?.path || []
 
+const getAdminAuthentication = async (request) => {
+  const token = request.cookies.get(ADMIN_COOKIE_NAME)?.value
+  return verifyAdminSessionToken(token)
+}
+
+const requireAdmin = async (request) => {
+  const authenticated = await getAdminAuthentication(request)
+  return authenticated ? null : json({ error: 'Admin authentication required' }, 401)
+}
+
+const setAdminSessionCookie = async (response) => {
+  response.cookies.set(ADMIN_COOKIE_NAME, await createAdminSessionToken(), getAdminCookieOptions())
+  return response
+}
+
+const clearAdminSessionCookie = (response) => {
+  response.cookies.set(ADMIN_COOKIE_NAME, '', {
+    ...getAdminCookieOptions(),
+    maxAge: 0,
+  })
+  return response
+}
+
 const routeRoot = async () => {
+  const adminStatus = await getAdminAuthStatus()
+
   return json({
     name: 'Event Gallery MVP API',
     repositoryMode: process.env.DATABASE_URL ? 'prisma-or-local-fallback' : 'local-fallback',
     storageMode: localStorageDriver.mode,
     databaseConfigured: Boolean(process.env.DATABASE_URL),
-    adminConfigured: Boolean(process.env.ADMIN_PASSWORD),
+    adminConfigured: adminStatus.configured,
+    adminSource: adminStatus.source,
   })
 }
 
@@ -43,9 +86,9 @@ const listEvents = async () => {
   return json({ events })
 }
 
-const getEvent = async (slug) => {
+const getEvent = async (slug, options = {}) => {
   const repository = await getGalleryRepository()
-  const event = await repository.getEventBySlug(slug)
+  const event = await repository.getEventBySlug(slug, options)
 
   if (!event) {
     return json({ error: 'Event not found' }, 404)
@@ -103,8 +146,7 @@ const completeUpload = async (request) => {
     photoId: randomUUID(),
   })
 
-  const eventSlug = fileResult.url.split('/')[3]
-  const event = await repository.getEventBySlug(eventSlug)
+  const event = await repository.getEventBySlug(fileResult.eventSlug)
 
   if (!event) {
     return json({ error: 'Event not found while finalizing upload' }, 404)
@@ -129,6 +171,119 @@ const completeUpload = async (request) => {
   }, 201)
 }
 
+const getAdminConfig = async () => {
+  const adminStatus = await getAdminAuthStatus()
+  return json(adminStatus)
+}
+
+const getAdminSession = async (request) => {
+  const adminStatus = await getAdminAuthStatus()
+  const authenticated = await getAdminAuthentication(request)
+
+  return json({
+    ...adminStatus,
+    authenticated,
+  })
+}
+
+const setupAdmin = async (request) => {
+  const payload = adminPasswordSchema.parse(await request.json())
+  const adminStatus = await setupLocalAdminPassword(payload.password)
+  const response = json({
+    ...adminStatus,
+    authenticated: true,
+  }, 201)
+
+  return setAdminSessionCookie(response)
+}
+
+const loginAdmin = async (request) => {
+  const payload = adminPasswordSchema.parse(await request.json())
+  const isValid = await verifyAdminPassword(payload.password)
+
+  if (!isValid) {
+    return json({ error: 'Invalid admin password' }, 401)
+  }
+
+  const adminStatus = await getAdminAuthStatus()
+  const response = json({
+    ...adminStatus,
+    authenticated: true,
+  })
+
+  return setAdminSessionCookie(response)
+}
+
+const logoutAdmin = async () => {
+  return clearAdminSessionCookie(json({ authenticated: false, loggedOut: true }))
+}
+
+const listAdminEvents = async (request) => {
+  const authError = await requireAdmin(request)
+
+  if (authError) {
+    return authError
+  }
+
+  return listEvents()
+}
+
+const createAdminEvent = async (request) => {
+  const authError = await requireAdmin(request)
+
+  if (authError) {
+    return authError
+  }
+
+  return createEvent(request)
+}
+
+const getAdminEvent = async (request, slug) => {
+  const authError = await requireAdmin(request)
+
+  if (authError) {
+    return authError
+  }
+
+  return getEvent(slug, { includeHidden: true })
+}
+
+const moderatePhoto = async (request, photoId) => {
+  const authError = await requireAdmin(request)
+
+  if (authError) {
+    return authError
+  }
+
+  const payload = adminModerationSchema.parse(await request.json())
+  const repository = await getGalleryRepository()
+  const photo = await repository.setPhotoStatus(photoId, payload.action === 'approve' ? 'VISIBLE' : 'HIDDEN')
+
+  if (!photo) {
+    return json({ error: 'Photo not found' }, 404)
+  }
+
+  return json({ photo })
+}
+
+const deletePhoto = async (request, photoId) => {
+  const authError = await requireAdmin(request)
+
+  if (authError) {
+    return authError
+  }
+
+  const repository = await getGalleryRepository()
+  const photo = await repository.deletePhoto(photoId)
+
+  if (!photo) {
+    return json({ error: 'Photo not found' }, 404)
+  }
+
+  await localStorageDriver.deleteStoredFile(photo.url)
+  return json({ deleted: true, photo })
+}
+
 export async function OPTIONS() {
   return json({ ok: true })
 }
@@ -140,6 +295,48 @@ async function handleRoute(request, { params }) {
   try {
     if (segments.length === 0 && method === 'GET') {
       return routeRoot()
+    }
+
+    if (segments[0] === 'admin') {
+      if (segments.length === 2 && segments[1] === 'config' && method === 'GET') {
+        return getAdminConfig()
+      }
+
+      if (segments.length === 2 && segments[1] === 'session' && method === 'GET') {
+        return getAdminSession(request)
+      }
+
+      if (segments.length === 2 && segments[1] === 'setup' && method === 'POST') {
+        return setupAdmin(request)
+      }
+
+      if (segments.length === 2 && segments[1] === 'login' && method === 'POST') {
+        return loginAdmin(request)
+      }
+
+      if (segments.length === 2 && segments[1] === 'logout' && method === 'POST') {
+        return logoutAdmin()
+      }
+
+      if (segments.length === 2 && segments[1] === 'events' && method === 'GET') {
+        return listAdminEvents(request)
+      }
+
+      if (segments.length === 2 && segments[1] === 'events' && method === 'POST') {
+        return createAdminEvent(request)
+      }
+
+      if (segments.length === 3 && segments[1] === 'events' && method === 'GET') {
+        return getAdminEvent(request, segments[2])
+      }
+
+      if (segments.length === 3 && segments[1] === 'photos' && method === 'PATCH') {
+        return moderatePhoto(request, segments[2])
+      }
+
+      if (segments.length === 3 && segments[1] === 'photos' && method === 'DELETE') {
+        return deletePhoto(request, segments[2])
+      }
     }
 
     if (segments[0] === 'events') {

@@ -1,6 +1,38 @@
 {
   "events": [
     {
+      "id": "57cca15d-12a0-4548-ac8a-c73536275499",
+      "slug": "admin-moderation-event-2",
+      "name": "Admin Moderation Event",
+      "coverPhotoId": null,
+      "createdAt": "2026-04-08T17:39:22.139Z",
+      "updatedAt": "2026-04-08T17:39:23.185Z"
+    },
+    {
+      "id": "1d7b7eb0-f5eb-4425-847a-aef41e155c62",
+      "slug": "summer-beach-party-2024-4",
+      "name": "Summer Beach Party 2024",
+      "coverPhotoId": "6c2895ca-cfc4-48df-ae06-15ae78aaaf57",
+      "createdAt": "2026-04-08T17:39:20.835Z",
+      "updatedAt": "2026-04-08T17:39:21.524Z"
+    },
+    {
+      "id": "3dfed79d-6479-4131-bbee-55ebdb806892",
+      "slug": "summer-beach-party-2024-3",
+      "name": "Summer Beach Party 2024",
+      "coverPhotoId": "78a0315f-8d90-4468-b5dc-3c2cd346d588",
+      "createdAt": "2026-04-08T17:38:34.844Z",
+      "updatedAt": "2026-04-08T17:38:35.625Z"
+    },
+    {
+      "id": "9691175d-7790-4257-835b-81837a8044be",
+      "slug": "admin-moderation-event",
+      "name": "Admin Moderation Event",
+      "coverPhotoId": null,
+      "createdAt": "2026-04-08T17:35:47.635Z",
+      "updatedAt": "2026-04-08T17:35:47.826Z"
+    },
+    {
       "id": "1715e7fb-788c-4dd6-ad13-0d9a585fda41",
       "slug": "summer-beach-party-2024-2",
       "name": "Summer Beach Party 2024",
@@ -26,6 +58,36 @@
     }
   ],
   "photos": [
+    {
+      "id": "6c2895ca-cfc4-48df-ae06-15ae78aaaf57",
+      "eventId": "1d7b7eb0-f5eb-4425-847a-aef41e155c62",
+      "originalName": "test-photo.png",
+      "storedName": "ceb4b6a6-9aff-4732-b473-23af06f86fe1-test-photo.png",
+      "mimeType": "image/png",
+      "size": 84,
+      "url": "/uploads/events/summer-beach-party-2024-4/ceb4b6a6-9aff-4732-b473-23af06f86fe1-test-photo.png",
+      "uploaderName": "Test User",
+      "caption": "Test photo upload",
+      "status": "VISIBLE",
+      "uploadSource": "mobile",
+      "createdAt": "2026-04-08T17:39:21.524Z",
+      "updatedAt": "2026-04-08T17:39:21.524Z"
+    },
+    {
+      "id": "78a0315f-8d90-4468-b5dc-3c2cd346d588",
+      "eventId": "3dfed79d-6479-4131-bbee-55ebdb806892",
+      "originalName": "test-photo.png",
+      "storedName": "4c2841e2-f1f9-4444-aedd-f5a88a73ba73-test-photo.png",
+      "mimeType": "image/png",
+      "size": 84,
+      "url": "/uploads/events/summer-beach-party-2024-3/4c2841e2-f1f9-4444-aedd-f5a88a73ba73-test-photo.png",
+      "uploaderName": "Test User",
+      "caption": "Test photo upload",
+      "status": "VISIBLE",
+      "uploadSource": "mobile",
+      "createdAt": "2026-04-08T17:38:35.625Z",
+      "updatedAt": "2026-04-08T17:38:35.625Z"
+    },
     {
       "id": "31b15ebe-ea1f-499b-bf2c-fe99e1ea9fce",
       "eventId": "1715e7fb-788c-4dd6-ad13-0d9a585fda41",

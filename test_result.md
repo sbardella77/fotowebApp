@@ -102,7 +102,7 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Mobile-first event photo sharing app MVP with Prisma/PostgreSQL structure, local/mock storage for now, chunked upload pipeline, shared gallery, and later admin moderation."
+user_problem_statement: "Mobile-first event photo sharing app MVP with Prisma/PostgreSQL structure, local/mock storage for now, chunked upload pipeline, shared gallery, and admin moderation."
 backend:
   - task: "Event creation API with repository abstraction"
     implemented: true
@@ -118,6 +118,12 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ TESTED: POST /api/events creates events with proper slug generation and unique handling. GET /api/events returns paginated list with photo counts. Repository correctly falls back to local JSON storage as DATABASE_URL is not configured. All validation and error handling working correctly."
+      - working: true
+        agent: "main"
+        comment: "Retained API contract while extending route layer for admin workflows. Manual retest still passes through admin create flow."
+      - working: true
+        agent: "testing"
+        comment: "✅ REGRESSION TESTED: Event creation and listing APIs continue working correctly after admin expansion. POST /api/events creates events with proper validation and slug generation. GET /api/events returns complete event list with metadata. Local JSON fallback repository functioning properly."
   - task: "Chunked photo upload pipeline"
     implemented: true
     working: true
@@ -132,6 +138,12 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ TESTED: Complete chunked upload flow working end-to-end. /api/uploads/init creates session with proper validation, /api/uploads/chunk handles binary data correctly, /api/uploads/complete assembles chunks and creates photo metadata. Files stored in /public/uploads/events/{slug}/ with proper naming. All error cases handled (non-existent events, invalid payloads)."
+      - working: true
+        agent: "main"
+        comment: "Retested after storage/repository changes; upload still succeeds and event gallery receives newest photo first."
+      - working: true
+        agent: "testing"
+        comment: "✅ REGRESSION TESTED: Chunked upload pipeline continues working correctly after admin expansion. All three endpoints (init, chunk, complete) function properly with proper validation, file storage, and metadata creation. Upload flow integrates correctly with event system."
   - task: "Event gallery read API"
     implemented: true
     working: true
@@ -146,8 +158,42 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ TESTED: GET /api/events/:slug returns complete event details with photos array. Photo metadata includes all required fields (url, uploaderName, caption, timestamps). 404 handling for non-existent events working correctly. Photos properly associated with events after upload completion."
+      - working: true
+        agent: "main"
+        comment: "Strengthened repository ordering and verified public gallery hides rejected photos after admin moderation."
+      - working: true
+        agent: "testing"
+        comment: "✅ REGRESSION TESTED: Event gallery read API working correctly after admin expansion. GET /api/events/:slug returns event details with photos. Critically verified that rejected photos are properly hidden from public view while remaining visible in admin view. Photo visibility filtering working as expected."
+  - task: "Admin password auth and session APIs"
+    implemented: true
+    working: true
+    file: "/app/app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added /api/admin/session, /api/admin/setup, /api/admin/login, and /api/admin/logout. Local-first hashed password bootstrap is used when ADMIN_PASSWORD env is absent; signed cookie sessions protect admin routes. Manual node-fetch test passed."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Complete admin authentication flow working. GET /api/admin/session returns proper status (configured/authenticated). POST /api/admin/setup creates local admin password and authenticates. POST /api/admin/login validates credentials and sets session cookie. POST /api/admin/logout clears session. Session persistence works across requests. All authentication states properly handled."
+  - task: "Admin photo moderation APIs"
+    implemented: true
+    working: true
+    file: "/app/app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added /api/admin/events, /api/admin/events/:slug, PATCH /api/admin/photos/:id, and DELETE /api/admin/photos/:id. Manual node-fetch test verified reject hides photo publicly, approve restores visibility, and delete removes metadata/file."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Complete admin moderation flow working. GET /api/admin/events lists all events for authenticated admin. POST /api/admin/events creates events as admin. GET /api/admin/events/:slug shows event with all photos including hidden ones. PATCH /api/admin/photos/:id with 'reject' action hides photos from public view, 'approve' action restores visibility. DELETE /api/admin/photos/:id removes photo metadata and file. Photo visibility correctly filtered in public API after rejection/deletion. All admin endpoints properly protected with authentication."
 frontend:
-  - task: "Mobile-first event + gallery page"
+  - task: "Mobile-first shared gallery UX"
     implemented: true
     working: "NA"
     file: "/app/app/page.js"
@@ -157,11 +203,22 @@ frontend:
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Implemented a mobile-first single-page flow for create/open event, upload progress, and shared gallery. Frontend not yet tested by sub-agent."
+        comment: "Strengthened the public gallery with responsive photo grid, skeleton/loading, empty and error states, manual refresh, newest-first ordering, and a lightbox modal. Frontend not tested by sub-agent yet."
+  - task: "Admin moderation panel UI"
+    implemented: true
+    working: "NA"
+    file: "/app/app/admin/page.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Built a mobile-friendly admin panel for password setup/login, event creation, event listing, event detail, and photo moderation. Frontend not tested by sub-agent yet."
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 1
+  test_sequence: 2
   run_ui: false
 
 test_plan:
@@ -172,6 +229,6 @@ test_plan:
 
 agent_communication:
   - agent: "main"
-    message: "Please test the backend only. Focus on POST /api/events, GET /api/events, GET /api/events/:slug, and the chunked upload flow via /api/uploads/init -> /api/uploads/chunk -> /api/uploads/complete. Prisma schema exists but runtime should intentionally fall back to local JSON because DATABASE_URL is not configured yet. Do not treat missing PostgreSQL config as a failure for this slice."
+    message: "Please retest backend only after gallery/admin expansion. Focus on admin auth/session endpoints, admin event detail/moderation routes, plus regression coverage for public events and chunked uploads. DATABASE_URL is still intentionally absent, so local fallback is expected. Also verify that rejecting a photo hides it from the public GET /api/events/:slug response."
   - agent: "testing"
-    message: "✅ BACKEND TESTING COMPLETE: All 8 API endpoints tested successfully. Event creation, listing, and retrieval working correctly with local JSON fallback. Complete chunked upload pipeline functional end-to-end with proper file storage and metadata handling. Error handling robust for invalid payloads and non-existent resources. Repository abstraction working as designed - falling back to local storage when DATABASE_URL absent. All core backend functionality verified and working."
+    message: "✅ COMPREHENSIVE BACKEND TESTING COMPLETE: All 22 backend tests passed (100% success rate). Regression testing confirmed existing APIs (events, uploads) continue working. New admin functionality fully tested: authentication (setup/login/logout/session), event management (list/create/get), and photo moderation (reject/approve/delete) with proper visibility filtering. Local JSON fallback working as expected. Security verified with unauthorized access protection. All critical behaviors confirmed: rejected photos hidden from public view, deleted photos removed from metadata, admin session persistence working. Backend is fully functional and ready for production."

@@ -1,7 +1,21 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Camera, CheckCircle2, Clock3, FolderPlus, ImagePlus, Loader2, Sparkles, Users } from 'lucide-react'
+import {
+  AlertCircle,
+  Camera,
+  CheckCircle2,
+  Clock3,
+  FolderPlus,
+  ImagePlus,
+  Loader2,
+  RefreshCcw,
+  Shield,
+  Sparkles,
+  Users,
+} from 'lucide-react'
+import PhotoGalleryGrid from '@/components/photo-gallery-grid'
+import PhotoLightbox from '@/components/photo-lightbox'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -30,25 +44,45 @@ function App() {
   const [activeEvent, setActiveEvent] = useState(null)
   const [events, setEvents] = useState([])
   const [uploads, setUploads] = useState([])
-  const [message, setMessage] = useState('Create an event or open one by code, then start dropping photos.')
+  const [message, setMessage] = useState('Create an event or open one by code, then start sharing photos.')
   const [busy, setBusy] = useState({ create: false, join: false, refresh: false })
+  const [recentEventsLoading, setRecentEventsLoading] = useState(true)
+  const [recentEventsError, setRecentEventsError] = useState('')
+  const [galleryLoading, setGalleryLoading] = useState(false)
+  const [galleryError, setGalleryError] = useState('')
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxIndex, setLightboxIndex] = useState(0)
 
-  const galleryPhotos = activeEvent?.photos || []
+  const galleryPhotos = useMemo(() => {
+    return [...(activeEvent?.photos || [])].sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt))
+  }, [activeEvent])
 
   const repositoryModeLabel = useMemo(() => {
     return activeEvent ? `Live event: ${activeEvent.slug}` : 'Local MVP mode'
   }, [activeEvent])
 
-  const loadEvents = async () => {
+  const loadEvents = async ({ background = false } = {}) => {
+    if (!background) {
+      setRecentEventsLoading(true)
+    }
+
+    setRecentEventsError('')
+
     try {
       const response = await fetch('/api/events', { cache: 'no-store' })
       const payload = await response.json()
 
-      if (response.ok) {
-        setEvents(payload.events || [])
+      if (!response.ok) {
+        throw new Error(payload.error || 'Unable to load recent events')
       }
+
+      setEvents(payload.events || [])
     } catch (error) {
-      console.error('Failed to load events', error)
+      setRecentEventsError(error.message || 'Unable to load recent events')
+    } finally {
+      if (!background) {
+        setRecentEventsLoading(false)
+      }
     }
   }
 
@@ -57,8 +91,13 @@ function App() {
       return
     }
 
-    if (!silent) {
+    setGalleryError('')
+
+    if (silent) {
+      setBusy((current) => ({ ...current, refresh: true }))
+    } else {
       setBusy((current) => ({ ...current, join: true }))
+      setGalleryLoading(true)
     }
 
     try {
@@ -71,12 +110,22 @@ function App() {
 
       setActiveEvent(payload.event)
       setEventLookup(payload.event.slug)
-      setMessage(`Opened ${payload.event.name}. Gallery auto-refreshes every 3 seconds.`)
-    } catch (error) {
-      setMessage(error.message)
-    } finally {
+
       if (!silent) {
+        setMessage(`Opened ${payload.event.name}. The gallery refreshes every 3 seconds.`)
+      }
+    } catch (error) {
+      setGalleryError(error.message || 'Unable to load gallery')
+
+      if (!silent) {
+        setMessage(error.message || 'Unable to open gallery')
+      }
+    } finally {
+      if (silent) {
+        setBusy((current) => ({ ...current, refresh: false }))
+      } else {
         setBusy((current) => ({ ...current, join: false }))
+        setGalleryLoading(false)
       }
     }
   }
@@ -98,10 +147,12 @@ function App() {
 
       setActiveEvent({ ...payload.event, photos: [] })
       setEventLookup(payload.event.slug)
+      setGalleryError('')
+      setGalleryLoading(false)
       setMessage(`Event ready. Share code ${payload.event.slug} and start uploading.`)
-      await loadEvents()
+      await loadEvents({ background: true })
     } catch (error) {
-      setMessage(error.message)
+      setMessage(error.message || 'Unable to create event')
     } finally {
       setBusy((current) => ({ ...current, create: false }))
     }
@@ -203,8 +254,9 @@ function App() {
 
       updateUpload({ progress: 100, status: 'Shared with the gallery' })
       setActiveEvent(completePayload.event)
-      setMessage(`Uploaded ${file.name}. Everyone in this event sees the new photo on refresh.`)
-      await loadEvents()
+      setGalleryError('')
+      setMessage(`Uploaded ${file.name}. Everyone in this event sees the newest photo at the top.`)
+      await loadEvents({ background: true })
     } catch (error) {
       console.error('Upload failed', error)
       updateUpload({ status: error.message || 'Upload failed' })
@@ -224,6 +276,11 @@ function App() {
     }
 
     event.target.value = ''
+  }
+
+  const openLightbox = (index) => {
+    setLightboxIndex(index)
+    setLightboxOpen(true)
   }
 
   useEffect(() => {
@@ -246,15 +303,15 @@ function App() {
     <main className="min-h-screen bg-background text-foreground">
       <section className="border-b border-border bg-gradient-to-b from-background via-background to-muted/40">
         <div className="container px-4 py-8 sm:py-12">
-          <div className="mx-auto flex max-w-5xl flex-col gap-6">
+          <div className="mx-auto flex max-w-6xl flex-col gap-6">
             <div className="flex flex-wrap items-center gap-2">
               <Badge className="rounded-full px-3 py-1 text-xs">Mobile-first MVP</Badge>
               <Badge variant="secondary" className="rounded-full px-3 py-1 text-xs">Chunked photo upload</Badge>
               <Badge variant="outline" className="rounded-full px-3 py-1 text-xs">{repositoryModeLabel}</Badge>
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
-              <div className="space-y-4">
+            <div className="grid gap-6 lg:grid-cols-[1.08fr_0.92fr] lg:items-center">
+              <div className="space-y-5">
                 <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                   <Camera className="h-6 w-6" />
                 </div>
@@ -279,14 +336,14 @@ function App() {
                       <ImagePlus className="h-5 w-5" />
                     </div>
                     <p className="text-sm font-medium">Upload in chunks</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Safer for mobile networks.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Safer on mobile connections.</p>
                   </div>
                   <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
                     <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
                       <Users className="h-5 w-5" />
                     </div>
-                    <p className="text-sm font-medium">Shared gallery</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Auto-refresh every 3 seconds.</p>
+                    <p className="text-sm font-medium">Live shared gallery</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Newest photos appear first.</p>
                   </div>
                 </div>
               </div>
@@ -315,6 +372,16 @@ function App() {
                       </Button>
                     </div>
                   </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button asChild variant="outline" className="rounded-full">
+                      <a href="/admin">
+                        <Shield className="mr-2 h-4 w-4" />
+                        Open admin panel
+                      </a>
+                    </Button>
+                    {activeEvent?.slug ? <Badge variant="secondary" className="rounded-full">Share code: {activeEvent.slug}</Badge> : null}
+                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -330,7 +397,7 @@ function App() {
               Upload pipeline
             </CardTitle>
             <CardDescription>
-              Optimized for phones: choose photos, send them in 1 MB chunks, then publish them into the event gallery.
+              Optimized for phones: choose photos, send them in 1 MB chunks, then publish them into the shared gallery.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -380,10 +447,20 @@ function App() {
 
         <Card className="border-border/80">
           <CardHeader>
-            <CardTitle className="text-lg">Shared gallery</CardTitle>
-            <CardDescription>
-              Latest uploads appear here. Polling refresh keeps the shared wall feeling live without overengineering the MVP.
-            </CardDescription>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-lg">Shared gallery</CardTitle>
+                <CardDescription>
+                  Loading, empty, and error states are optimized for a simple mobile-first event experience.
+                </CardDescription>
+              </div>
+              {activeEvent?.slug ? (
+                <Button variant="secondary" size="sm" onClick={() => loadEvent(activeEvent.slug)}>
+                  <RefreshCcw className={`mr-2 h-4 w-4 ${busy.refresh ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+              ) : null}
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {activeEvent ? (
@@ -393,44 +470,59 @@ function App() {
                     <p className="text-lg font-semibold">{activeEvent.name}</p>
                     <p className="text-sm text-muted-foreground">Share code: {activeEvent.slug}</p>
                   </div>
-                  <Badge variant="secondary">{galleryPhotos.length} photos</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="rounded-full">{galleryPhotos.length} photos</Badge>
+                    {busy.refresh ? <Badge variant="outline" className="rounded-full">Refreshing…</Badge> : null}
+                  </div>
                 </div>
               </div>
             ) : null}
 
-            {galleryPhotos.length === 0 ? (
-              <div className="grid min-h-[300px] place-items-center rounded-3xl border border-dashed border-border bg-muted/20 p-6 text-center">
-                <div className="space-y-2">
-                  <p className="text-base font-medium">Your first gallery is one upload away.</p>
-                  <p className="text-sm text-muted-foreground">Open an event, upload from your camera roll, and the photos will land here.</p>
+            {galleryError && activeEvent ? (
+              <div className="flex items-start gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+                <AlertCircle className="mt-0.5 h-4 w-4" />
+                <div>
+                  <p className="font-medium">Gallery refresh issue</p>
+                  <p>{galleryError}</p>
                 </div>
               </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {galleryPhotos.map((photo) => (
-                  <div key={photo.id} className="overflow-hidden rounded-2xl border border-border bg-card">
-                    <img alt={photo.originalName} className="aspect-square h-full w-full object-cover" src={photo.url} />
-                    <div className="space-y-1 p-3">
-                      <p className="truncate text-sm font-medium">{photo.originalName}</p>
-                      <p className="text-xs text-muted-foreground">{photo.uploaderName || 'Guest upload'}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            ) : null}
+
+            <PhotoGalleryGrid
+              emptyDescription="Open an event, upload from your camera roll, and the photos will land here in newest-first order."
+              error={galleryError && !activeEvent ? galleryError : ''}
+              loading={galleryLoading}
+              onRetry={activeEvent?.slug ? () => loadEvent(activeEvent.slug) : undefined}
+              onSelectPhoto={openLightbox}
+              photos={galleryPhotos}
+            />
           </CardContent>
         </Card>
       </section>
 
       <section className="container px-4 pb-10">
         <Card className="border-border/80 bg-muted/20">
-          <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-medium">Recent events</p>
-              <p className="text-xs text-muted-foreground">Quick jump back into a gallery during MVP testing.</p>
+          <CardContent className="space-y-4 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium">Recent events</p>
+                <p className="text-xs text-muted-foreground">Quick jump back into a gallery during MVP testing.</p>
+              </div>
+              {recentEventsLoading ? <Badge variant="outline">Loading…</Badge> : <Badge variant="secondary">{events.length} events</Badge>}
             </div>
+
+            {recentEventsError ? (
+              <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+                {recentEventsError}
+              </div>
+            ) : null}
+
             <div className="flex flex-wrap gap-2">
-              {events.length === 0 ? (
+              {recentEventsLoading ? (
+                Array.from({ length: 3 }, (_, index) => (
+                  <div key={index} className="h-10 w-28 animate-pulse rounded-full bg-muted" />
+                ))
+              ) : events.length === 0 ? (
                 <Badge variant="outline">No events yet</Badge>
               ) : (
                 events.map((event) => (
@@ -443,6 +535,14 @@ function App() {
           </CardContent>
         </Card>
       </section>
+
+      <PhotoLightbox
+        onOpenChange={setLightboxOpen}
+        onSelectIndex={setLightboxIndex}
+        open={lightboxOpen}
+        photos={galleryPhotos}
+        selectedIndex={lightboxIndex}
+      />
     </main>
   )
 }
