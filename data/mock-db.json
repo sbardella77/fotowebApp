@@ -1,6 +1,30 @@
 {
   "events": [
     {
+      "id": "09c4c056-00ec-49f1-b458-785941bfdf8e",
+      "slug": "desktop-test-event",
+      "name": "Desktop Test Event",
+      "coverPhotoId": null,
+      "createdAt": "2026-04-08T17:51:31.132Z",
+      "updatedAt": "2026-04-08T17:51:31.132Z"
+    },
+    {
+      "id": "eb2ca74d-20f1-4487-9875-956033c20946",
+      "slug": "test-wedding-mobile-2",
+      "name": "Test Wedding Mobile",
+      "coverPhotoId": null,
+      "createdAt": "2026-04-08T17:50:01.194Z",
+      "updatedAt": "2026-04-08T17:50:01.194Z"
+    },
+    {
+      "id": "3ddef265-2bd1-40c1-a982-52f46aa9446e",
+      "slug": "test-wedding-mobile",
+      "name": "Test Wedding Mobile",
+      "coverPhotoId": null,
+      "createdAt": "2026-04-08T17:49:24.407Z",
+      "updatedAt": "2026-04-08T17:49:24.407Z"
+    },
+    {
       "id": "57cca15d-12a0-4548-ac8a-c73536275499",
       "slug": "admin-moderation-event-2",
       "name": "Admin Moderation Event",
