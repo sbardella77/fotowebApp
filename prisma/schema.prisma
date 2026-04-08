@@ -1,0 +1,47 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PhotoStatus {
+  VISIBLE
+  HIDDEN
+}
+
+model Event {
+  id           String   @id @default(uuid())
+  slug         String   @unique
+  name         String
+  coverPhotoId String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  photos       Photo[]
+
+  @@index([createdAt])
+}
+
+model Photo {
+  id           String      @id @default(uuid())
+  eventId      String
+  originalName String
+  storedName   String
+  mimeType     String
+  size         Int
+  url          String
+  uploaderName String?
+  caption      String?
+  status       PhotoStatus @default(VISIBLE)
+  uploadSource String      @default("mobile")
+  width        Int?
+  height       Int?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  event        Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+}

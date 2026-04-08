@@ -1,0 +1,29 @@
+{
+  "events": [
+    {
+      "id": "88c4227e-9a3d-4652-9b1a-a165af552cd0",
+      "slug": "node-test-event",
+      "name": "Node Test Event",
+      "coverPhotoId": "7f638956-ceda-4c68-b3a3-9a34f50655bb",
+      "createdAt": "2026-04-08T17:03:16.430Z",
+      "updatedAt": "2026-04-08T17:03:16.535Z"
+    }
+  ],
+  "photos": [
+    {
+      "id": "7f638956-ceda-4c68-b3a3-9a34f50655bb",
+      "eventId": "88c4227e-9a3d-4652-9b1a-a165af552cd0",
+      "originalName": "tiny.png",
+      "storedName": "7a2ad72e-a11a-49e2-bf16-7d41e13a1df2-tiny.png",
+      "mimeType": "image/png",
+      "size": 68,
+      "url": "/uploads/events/node-test-event/7a2ad72e-a11a-49e2-bf16-7d41e13a1df2-tiny.png",
+      "uploaderName": "Node Tester",
+      "caption": null,
+      "status": "VISIBLE",
+      "uploadSource": "mobile",
+      "createdAt": "2026-04-08T17:03:16.535Z",
+      "updatedAt": "2026-04-08T17:03:16.535Z"
+    }
+  ]
+}
