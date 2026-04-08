@@ -110,33 +110,42 @@ backend:
     file: "/app/app/api/[[...path]]/route.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Implemented POST /api/events and GET /api/events plus repository abstraction with local JSON fallback. Manual node-fetch sanity test passed."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: POST /api/events creates events with proper slug generation and unique handling. GET /api/events returns paginated list with photo counts. Repository correctly falls back to local JSON storage as DATABASE_URL is not configured. All validation and error handling working correctly."
   - task: "Chunked photo upload pipeline"
     implemented: true
     working: true
     file: "/app/app/api/[[...path]]/route.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Implemented /api/uploads/init, /api/uploads/chunk, /api/uploads/complete with local storage driver and server-side Zod validation. Manual node-fetch upload test passed end-to-end and uploaded file served successfully from /public/uploads."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Complete chunked upload flow working end-to-end. /api/uploads/init creates session with proper validation, /api/uploads/chunk handles binary data correctly, /api/uploads/complete assembles chunks and creates photo metadata. Files stored in /public/uploads/events/{slug}/ with proper naming. All error cases handled (non-existent events, invalid payloads)."
   - task: "Event gallery read API"
     implemented: true
     working: true
     file: "/app/app/api/[[...path]]/route.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Implemented GET /api/events/:slug and verified photo metadata returns after upload."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: GET /api/events/:slug returns complete event details with photos array. Photo metadata includes all required fields (url, uploaderName, caption, timestamps). 404 handling for non-existent events working correctly. Photos properly associated with events after upload completion."
 frontend:
   - task: "Mobile-first event + gallery page"
     implemented: true
@@ -156,9 +165,7 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus:
-    - "Chunked photo upload pipeline"
-    - "Event gallery read API"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -166,3 +173,5 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: "Please test the backend only. Focus on POST /api/events, GET /api/events, GET /api/events/:slug, and the chunked upload flow via /api/uploads/init -> /api/uploads/chunk -> /api/uploads/complete. Prisma schema exists but runtime should intentionally fall back to local JSON because DATABASE_URL is not configured yet. Do not treat missing PostgreSQL config as a failure for this slice."
+  - agent: "testing"
+    message: "✅ BACKEND TESTING COMPLETE: All 8 API endpoints tested successfully. Event creation, listing, and retrieval working correctly with local JSON fallback. Complete chunked upload pipeline functional end-to-end with proper file storage and metadata handling. Error handling robust for invalid payloads and non-existent resources. Repository abstraction working as designed - falling back to local storage when DATABASE_URL absent. All core backend functionality verified and working."

@@ -1,6 +1,22 @@
 {
   "events": [
     {
+      "id": "1715e7fb-788c-4dd6-ad13-0d9a585fda41",
+      "slug": "summer-beach-party-2024-2",
+      "name": "Summer Beach Party 2024",
+      "coverPhotoId": "31b15ebe-ea1f-499b-bf2c-fe99e1ea9fce",
+      "createdAt": "2026-04-08T17:17:44.237Z",
+      "updatedAt": "2026-04-08T17:17:45.144Z"
+    },
+    {
+      "id": "224f7733-9ff7-40d9-a88f-975f03b4e134",
+      "slug": "summer-beach-party-2024",
+      "name": "Summer Beach Party 2024",
+      "coverPhotoId": "b35ef926-3f32-42b7-b05d-ca51be4efc49",
+      "createdAt": "2026-04-08T17:17:30.156Z",
+      "updatedAt": "2026-04-08T17:17:30.955Z"
+    },
+    {
       "id": "88c4227e-9a3d-4652-9b1a-a165af552cd0",
       "slug": "node-test-event",
       "name": "Node Test Event",
@@ -10,6 +26,36 @@
     }
   ],
   "photos": [
+    {
+      "id": "31b15ebe-ea1f-499b-bf2c-fe99e1ea9fce",
+      "eventId": "1715e7fb-788c-4dd6-ad13-0d9a585fda41",
+      "originalName": "test-photo.png",
+      "storedName": "9e5afb1e-17c5-49cf-b27c-786ef173b9e1-test-photo.png",
+      "mimeType": "image/png",
+      "size": 84,
+      "url": "/uploads/events/summer-beach-party-2024-2/9e5afb1e-17c5-49cf-b27c-786ef173b9e1-test-photo.png",
+      "uploaderName": "Test User",
+      "caption": "Test photo upload",
+      "status": "VISIBLE",
+      "uploadSource": "mobile",
+      "createdAt": "2026-04-08T17:17:45.144Z",
+      "updatedAt": "2026-04-08T17:17:45.144Z"
+    },
+    {
+      "id": "b35ef926-3f32-42b7-b05d-ca51be4efc49",
+      "eventId": "224f7733-9ff7-40d9-a88f-975f03b4e134",
+      "originalName": "test-photo.png",
+      "storedName": "fb2daf4e-aa6f-4f71-9e39-9d595c4c87c8-test-photo.png",
+      "mimeType": "image/png",
+      "size": 84,
+      "url": "/uploads/events/summer-beach-party-2024/fb2daf4e-aa6f-4f71-9e39-9d595c4c87c8-test-photo.png",
+      "uploaderName": "Test User",
+      "caption": "Test photo upload",
+      "status": "VISIBLE",
+      "uploadSource": "mobile",
+      "createdAt": "2026-04-08T17:17:30.955Z",
+      "updatedAt": "2026-04-08T17:17:30.955Z"
+    },
     {
       "id": "7f638956-ceda-4c68-b3a3-9a34f50655bb",
       "eventId": "88c4227e-9a3d-4652-9b1a-a165af552cd0",
