@@ -1,0 +1,9 @@
+{
+  "sessionId": "5d035170-3d45-44d8-9daf-34ffbf12e931",
+  "eventSlug": "test-event-for-regression-3",
+  "fileName": "test-photo.jpg",
+  "fileSize": 1024000,
+  "mimeType": "image/jpeg",
+  "totalChunks": 1,
+  "createdAt": "2026-04-08T18:08:43.321Z"
+}

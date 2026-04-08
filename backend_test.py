@@ -1,814 +1,650 @@
 #!/usr/bin/env python3
 """
-Backend API Test Suite for Event Gallery MVP
-Tests all backend endpoints with comprehensive scenarios including invalid payloads.
-Includes admin authentication, session management, and photo moderation APIs.
+Backend regression test suite for Event Gallery MVP after Prisma migration preparation.
+Tests all backend APIs to ensure local fallback works correctly when DATABASE_URL is absent.
 """
 
 import requests
 import json
 import os
-import tempfile
-from io import BytesIO
+import time
+from typing import Dict, Any, Optional
 
 # Get base URL from environment
 BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'https://photo-event-hub-3.preview.emergentagent.com')
 API_BASE = f"{BASE_URL}/api"
 
-# Global session for maintaining cookies
-session = requests.Session()
+class BackendTester:
+    def __init__(self):
+        self.session = requests.Session()
+        self.admin_authenticated = False
+        self.test_event_slug = None
+        self.test_photo_id = None
+        
+    def log_test(self, test_name: str, success: bool, details: str = ""):
+        status = "✅ PASS" if success else "❌ FAIL"
+        print(f"{status}: {test_name}")
+        if details:
+            print(f"   Details: {details}")
+        if not success:
+            print(f"   This is a CRITICAL failure that blocks functionality")
+        print()
 
-def test_api_root():
-    """Test GET /api - API root endpoint"""
-    print("\n=== Testing GET /api ===")
-    try:
-        response = requests.get(f"{API_BASE}")
-        print(f"Status: {response.status_code}")
-        print(f"Response: {response.json()}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            expected_keys = ['name', 'repositoryMode', 'storageMode', 'databaseConfigured', 'adminConfigured']
-            if all(key in data for key in expected_keys):
-                print("✅ GET /api - SUCCESS: All expected fields present")
-                return True
-            else:
-                print("❌ GET /api - FAILED: Missing expected fields")
-                return False
-        else:
-            print(f"❌ GET /api - FAILED: Expected 200, got {response.status_code}")
-            return False
-            
-    except Exception as e:
-        print(f"❌ GET /api - ERROR: {str(e)}")
-        return False
-
-def test_create_event():
-    """Test POST /api/events - Create event"""
-    print("\n=== Testing POST /api/events ===")
-    try:
-        payload = {
-            "name": "Summer Beach Party 2024"
-        }
-        
-        response = requests.post(f"{API_BASE}/events", json=payload)
-        print(f"Status: {response.status_code}")
-        print(f"Response: {response.json()}")
-        
-        if response.status_code == 201:
-            data = response.json()
-            if 'event' in data and 'slug' in data['event']:
-                print("✅ POST /api/events - SUCCESS: Event created")
-                return data['event']['slug']  # Return slug for further tests
-            else:
-                print("❌ POST /api/events - FAILED: Invalid response structure")
-                return None
-        else:
-            print(f"❌ POST /api/events - FAILED: Expected 201, got {response.status_code}")
-            return None
-            
-    except Exception as e:
-        print(f"❌ POST /api/events - ERROR: {str(e)}")
-        return None
-
-def test_list_events():
-    """Test GET /api/events - List events"""
-    print("\n=== Testing GET /api/events ===")
-    try:
-        response = requests.get(f"{API_BASE}/events")
-        print(f"Status: {response.status_code}")
-        print(f"Response: {response.json()}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            if 'events' in data and isinstance(data['events'], list):
-                print("✅ GET /api/events - SUCCESS: Events list retrieved")
-                return True
-            else:
-                print("❌ GET /api/events - FAILED: Invalid response structure")
-                return False
-        else:
-            print(f"❌ GET /api/events - FAILED: Expected 200, got {response.status_code}")
-            return False
-            
-    except Exception as e:
-        print(f"❌ GET /api/events - ERROR: {str(e)}")
-        return False
-
-def test_get_event_by_slug(slug):
-    """Test GET /api/events/:slug - Get specific event"""
-    print(f"\n=== Testing GET /api/events/{slug} ===")
-    try:
-        response = requests.get(f"{API_BASE}/events/{slug}")
-        print(f"Status: {response.status_code}")
-        print(f"Response: {response.json()}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            if 'event' in data and data['event']['slug'] == slug:
-                print("✅ GET /api/events/:slug - SUCCESS: Event retrieved")
-                return True
-            else:
-                print("❌ GET /api/events/:slug - FAILED: Invalid response structure")
-                return False
-        else:
-            print(f"❌ GET /api/events/:slug - FAILED: Expected 200, got {response.status_code}")
-            return False
-            
-    except Exception as e:
-        print(f"❌ GET /api/events/:slug - ERROR: {str(e)}")
-        return False
-
-def test_upload_init(event_slug):
-    """Test POST /api/uploads/init - Initialize upload"""
-    print(f"\n=== Testing POST /api/uploads/init ===")
-    try:
-        # Create a small test image (1x1 pixel PNG)
-        test_image_data = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\tpHYs\x00\x00\x0b\x13\x00\x00\x0b\x13\x01\x00\x9a\x9c\x18\x00\x00\x00\nIDATx\x9cc\xf8\x00\x00\x00\x01\x00\x01\x00\x00\x00\x00IEND\xaeB`\x82'
-        
-        payload = {
-            "eventSlug": event_slug,
-            "fileName": "test-photo.png",
-            "fileSize": len(test_image_data),
-            "mimeType": "image/png",
-            "totalChunks": 1
-        }
-        
-        response = requests.post(f"{API_BASE}/uploads/init", json=payload)
-        print(f"Status: {response.status_code}")
-        print(f"Response: {response.json()}")
-        
-        if response.status_code == 201:
-            data = response.json()
-            if 'session' in data and 'sessionId' in data['session']:
-                print("✅ POST /api/uploads/init - SUCCESS: Upload session initialized")
-                return data['session']['sessionId'], test_image_data
-            else:
-                print("❌ POST /api/uploads/init - FAILED: Invalid response structure")
-                return None, None
-        else:
-            print(f"❌ POST /api/uploads/init - FAILED: Expected 201, got {response.status_code}")
-            return None, None
-            
-    except Exception as e:
-        print(f"❌ POST /api/uploads/init - ERROR: {str(e)}")
-        return None, None
-
-def test_upload_chunk(session_id, chunk_data):
-    """Test POST /api/uploads/chunk - Upload chunk"""
-    print(f"\n=== Testing POST /api/uploads/chunk ===")
-    try:
-        files = {
-            'chunk': ('chunk.png', BytesIO(chunk_data), 'application/octet-stream')
-        }
-        data = {
-            'sessionId': session_id,
-            'chunkIndex': 0,
-            'totalChunks': 1
-        }
-        
-        response = requests.post(f"{API_BASE}/uploads/chunk", files=files, data=data)
-        print(f"Status: {response.status_code}")
-        print(f"Response: {response.json()}")
-        
-        if response.status_code == 200:
-            resp_data = response.json()
-            if 'uploaded' in resp_data and resp_data['uploaded']:
-                print("✅ POST /api/uploads/chunk - SUCCESS: Chunk uploaded")
-                return True
-            else:
-                print("❌ POST /api/uploads/chunk - FAILED: Invalid response structure")
-                return False
-        else:
-            print(f"❌ POST /api/uploads/chunk - FAILED: Expected 200, got {response.status_code}")
-            return False
-            
-    except Exception as e:
-        print(f"❌ POST /api/uploads/chunk - ERROR: {str(e)}")
-        return False
-
-def test_upload_complete(session_id):
-    """Test POST /api/uploads/complete - Complete upload"""
-    print(f"\n=== Testing POST /api/uploads/complete ===")
-    try:
-        payload = {
-            "sessionId": session_id,
-            "uploaderName": "Test User",
-            "caption": "Test photo upload"
-        }
-        
-        response = requests.post(f"{API_BASE}/uploads/complete", json=payload)
-        print(f"Status: {response.status_code}")
-        print(f"Response: {response.json()}")
-        
-        if response.status_code == 201:
-            data = response.json()
-            if 'photo' in data and 'event' in data:
-                print("✅ POST /api/uploads/complete - SUCCESS: Upload completed")
-                return True
-            else:
-                print("❌ POST /api/uploads/complete - FAILED: Invalid response structure")
-                return False
-        else:
-            print(f"❌ POST /api/uploads/complete - FAILED: Expected 201, got {response.status_code}")
-            return False
-            
-    except Exception as e:
-        print(f"❌ POST /api/uploads/complete - ERROR: {str(e)}")
-        return False
-
-def test_invalid_payload():
-    """Test invalid payload handling"""
-    print(f"\n=== Testing Invalid Payload Handling ===")
-    try:
-        # Test invalid event creation
-        invalid_payload = {
-            "name": "ab"  # Too short, should fail validation
-        }
-        
-        response = requests.post(f"{API_BASE}/events", json=invalid_payload)
-        print(f"Invalid event creation - Status: {response.status_code}")
-        
-        # Handle different response types
+    def test_api_root_metadata(self) -> bool:
+        """Test GET /api root metadata reports driver info correctly"""
         try:
-            resp_data = response.json()
-            print(f"Response: {resp_data}")
-        except:
-            print(f"Response (text): {response.text}")
-        
-        if response.status_code == 400:
-            print("✅ Invalid payload handling - SUCCESS: Validation error returned")
+            response = self.session.get(f"{API_BASE}")
+            
+            if response.status_code != 200:
+                self.log_test("API Root Metadata", False, f"Status: {response.status_code}")
+                return False
+                
+            data = response.json()
+            
+            # Verify expected fields are present
+            required_fields = [
+                'name', 'repositoryMode', 'configuredDataAccessDriver', 
+                'configuredAdminAuthDriver', 'storageMode', 'databaseConfigured', 
+                'adminConfigured', 'adminSource'
+            ]
+            
+            missing_fields = [field for field in required_fields if field not in data]
+            if missing_fields:
+                self.log_test("API Root Metadata", False, f"Missing fields: {missing_fields}")
+                return False
+            
+            # Verify driver defaults
+            if data['configuredDataAccessDriver'] != 'local':
+                self.log_test("API Root Metadata", False, f"Expected DATA_ACCESS_DRIVER=local, got {data['configuredDataAccessDriver']}")
+                return False
+                
+            if data['repositoryMode'] != 'local':
+                self.log_test("API Root Metadata", False, f"Expected repositoryMode=local, got {data['repositoryMode']}")
+                return False
+                
+            if data['databaseConfigured'] != False:
+                self.log_test("API Root Metadata", False, f"Expected databaseConfigured=false (no DATABASE_URL), got {data['databaseConfigured']}")
+                return False
+            
+            self.log_test("API Root Metadata", True, f"Driver: {data['configuredDataAccessDriver']}, Mode: {data['repositoryMode']}, DB: {data['databaseConfigured']}")
             return True
-        elif response.status_code == 500:
-            print("⚠️ Invalid payload handling - PARTIAL: Server error (500) instead of validation error (400)")
-            return True  # Still counts as working error handling
-        else:
-            print(f"❌ Invalid payload handling - FAILED: Expected 400 or 500, got {response.status_code}")
+            
+        except Exception as e:
+            self.log_test("API Root Metadata", False, f"Exception: {str(e)}")
             return False
-            
-    except Exception as e:
-        print(f"❌ Invalid payload handling - ERROR: {str(e)}")
-        return False
 
-# ===== ADMIN AUTHENTICATION TESTS =====
-
-def test_admin_session_unauthenticated():
-    """Test GET /api/admin/session without authentication"""
-    print("\n=== Testing GET /api/admin/session (unauthenticated) ===")
-    try:
-        response = session.get(f"{API_BASE}/admin/session")
-        print(f"Status: {response.status_code}")
-        print(f"Response: {response.json()}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            if 'configured' in data and 'authenticated' in data:
-                print("✅ GET /api/admin/session - SUCCESS: Session status retrieved")
-                return data.get('configured', False), data.get('authenticated', False)
-            else:
-                print("❌ GET /api/admin/session - FAILED: Invalid response structure")
-                return False, False
-        else:
-            print(f"❌ GET /api/admin/session - FAILED: Expected 200, got {response.status_code}")
-            return False, False
-            
-    except Exception as e:
-        print(f"❌ GET /api/admin/session - ERROR: {str(e)}")
-        return False, False
-
-def test_admin_setup():
-    """Test POST /api/admin/setup - Setup admin password"""
-    print("\n=== Testing POST /api/admin/setup ===")
-    try:
-        payload = {
-            "password": "testadmin123"
-        }
-        
-        response = session.post(f"{API_BASE}/admin/setup", json=payload)
-        print(f"Status: {response.status_code}")
-        print(f"Response: {response.json()}")
-        
-        if response.status_code == 201:
-            data = response.json()
-            if 'configured' in data and data['configured'] and data.get('authenticated'):
-                print("✅ POST /api/admin/setup - SUCCESS: Admin password setup and authenticated")
-                return True
-            else:
-                print("❌ POST /api/admin/setup - FAILED: Invalid response structure")
-                return False
-        elif response.status_code == 500:
-            # Admin might already be configured
-            resp_data = response.json()
-            if 'already configured' in resp_data.get('error', '').lower():
-                print("⚠️ POST /api/admin/setup - PARTIAL: Admin already configured")
-                return True
-            else:
-                print(f"❌ POST /api/admin/setup - FAILED: Server error: {resp_data}")
-                return False
-        else:
-            print(f"❌ POST /api/admin/setup - FAILED: Expected 201, got {response.status_code}")
-            return False
-            
-    except Exception as e:
-        print(f"❌ POST /api/admin/setup - ERROR: {str(e)}")
-        return False
-
-def test_admin_login():
-    """Test POST /api/admin/login - Admin login"""
-    print("\n=== Testing POST /api/admin/login ===")
-    
-    # Try common test passwords
-    test_passwords = ["testadmin123", "admin123", "password123", "admin", "test123"]
-    
-    for password in test_passwords:
+    def test_create_event(self) -> bool:
+        """Test POST /api/events"""
         try:
-            payload = {
-                "password": password
+            event_data = {
+                "name": "Test Event for Regression",
+                "description": "Testing event creation after Prisma migration prep",
+                "location": "Test Location"
             }
             
-            response = session.post(f"{API_BASE}/admin/login", json=payload)
-            print(f"Trying password '{password}' - Status: {response.status_code}")
+            response = self.session.post(f"{API_BASE}/events", json=event_data)
             
-            if response.status_code == 200:
-                data = response.json()
-                print(f"Response: {data}")
-                if data.get('authenticated'):
-                    print(f"✅ POST /api/admin/login - SUCCESS: Admin logged in with password '{password}'")
-                    return True
-                else:
-                    print("❌ POST /api/admin/login - FAILED: Not authenticated in response")
-            elif response.status_code == 401:
-                print(f"❌ Invalid password: {password}")
-            else:
-                print(f"❌ Unexpected status: {response.status_code}")
+            if response.status_code != 201:
+                self.log_test("Create Event", False, f"Status: {response.status_code}, Response: {response.text}")
+                return False
                 
+            data = response.json()
+            
+            if 'event' not in data:
+                self.log_test("Create Event", False, "Missing 'event' in response")
+                return False
+                
+            event = data['event']
+            required_fields = ['id', 'name', 'slug', 'createdAt']
+            missing_fields = [field for field in required_fields if field not in event]
+            
+            if missing_fields:
+                self.log_test("Create Event", False, f"Missing event fields: {missing_fields}")
+                return False
+            
+            # Store for later tests
+            self.test_event_slug = event['slug']
+            
+            self.log_test("Create Event", True, f"Created event with slug: {event['slug']}")
+            return True
+            
         except Exception as e:
-            print(f"❌ POST /api/admin/login - ERROR with password '{password}': {str(e)}")
-    
-    print("❌ POST /api/admin/login - FAILED: No valid password found")
-    return False
+            self.log_test("Create Event", False, f"Exception: {str(e)}")
+            return False
 
-def test_admin_session_authenticated():
-    """Test GET /api/admin/session with authentication"""
-    print("\n=== Testing GET /api/admin/session (authenticated) ===")
-    try:
-        response = session.get(f"{API_BASE}/admin/session")
-        print(f"Status: {response.status_code}")
-        print(f"Response: {response.json()}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('authenticated'):
-                print("✅ GET /api/admin/session - SUCCESS: Authenticated session confirmed")
-                return True
-            else:
-                print("❌ GET /api/admin/session - FAILED: Not authenticated")
+    def test_list_events(self) -> bool:
+        """Test GET /api/events"""
+        try:
+            response = self.session.get(f"{API_BASE}/events")
+            
+            if response.status_code != 200:
+                self.log_test("List Events", False, f"Status: {response.status_code}")
                 return False
-        else:
-            print(f"❌ GET /api/admin/session - FAILED: Expected 200, got {response.status_code}")
+                
+            data = response.json()
+            
+            if 'events' not in data:
+                self.log_test("List Events", False, "Missing 'events' in response")
+                return False
+                
+            events = data['events']
+            if not isinstance(events, list):
+                self.log_test("List Events", False, "Events should be a list")
+                return False
+            
+            # Should have at least the event we created
+            if len(events) == 0:
+                self.log_test("List Events", False, "No events found, expected at least one")
+                return False
+            
+            self.log_test("List Events", True, f"Found {len(events)} events")
+            return True
+            
+        except Exception as e:
+            self.log_test("List Events", False, f"Exception: {str(e)}")
+            return False
+
+    def test_get_event_by_slug(self) -> bool:
+        """Test GET /api/events/:slug"""
+        if not self.test_event_slug:
+            self.log_test("Get Event by Slug", False, "No test event slug available")
             return False
             
-    except Exception as e:
-        print(f"❌ GET /api/admin/session - ERROR: {str(e)}")
-        return False
-
-# ===== ADMIN EVENT MANAGEMENT TESTS =====
-
-def test_admin_list_events():
-    """Test GET /api/admin/events - List events as admin"""
-    print("\n=== Testing GET /api/admin/events ===")
-    try:
-        response = session.get(f"{API_BASE}/admin/events")
-        print(f"Status: {response.status_code}")
-        print(f"Response: {response.json()}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            if 'events' in data and isinstance(data['events'], list):
-                print("✅ GET /api/admin/events - SUCCESS: Admin events list retrieved")
-                return True
-            else:
-                print("❌ GET /api/admin/events - FAILED: Invalid response structure")
+        try:
+            response = self.session.get(f"{API_BASE}/events/{self.test_event_slug}")
+            
+            if response.status_code != 200:
+                self.log_test("Get Event by Slug", False, f"Status: {response.status_code}")
                 return False
-        else:
-            print(f"❌ GET /api/admin/events - FAILED: Expected 200, got {response.status_code}")
+                
+            data = response.json()
+            
+            if 'event' not in data:
+                self.log_test("Get Event by Slug", False, "Missing 'event' in response")
+                return False
+                
+            event = data['event']
+            if event['slug'] != self.test_event_slug:
+                self.log_test("Get Event by Slug", False, f"Wrong slug returned: {event['slug']}")
+                return False
+            
+            self.log_test("Get Event by Slug", True, f"Retrieved event: {event['name']}")
+            return True
+            
+        except Exception as e:
+            self.log_test("Get Event by Slug", False, f"Exception: {str(e)}")
+            return False
+
+    def test_upload_init(self) -> bool:
+        """Test POST /api/uploads/init"""
+        if not self.test_event_slug:
+            self.log_test("Upload Init", False, "No test event slug available")
             return False
             
-    except Exception as e:
-        print(f"❌ GET /api/admin/events - ERROR: {str(e)}")
-        return False
-
-def test_admin_create_event():
-    """Test POST /api/admin/events - Create event as admin"""
-    print("\n=== Testing POST /api/admin/events ===")
-    try:
-        payload = {
-            "name": "Admin Moderation Event"
-        }
-        
-        response = session.post(f"{API_BASE}/admin/events", json=payload)
-        print(f"Status: {response.status_code}")
-        print(f"Response: {response.json()}")
-        
-        if response.status_code == 201:
-            data = response.json()
-            if 'event' in data and 'slug' in data['event']:
-                print("✅ POST /api/admin/events - SUCCESS: Admin event created")
-                return data['event']['slug']
-            else:
-                print("❌ POST /api/admin/events - FAILED: Invalid response structure")
-                return None
-        else:
-            print(f"❌ POST /api/admin/events - FAILED: Expected 201, got {response.status_code}")
-            return None
+        try:
+            upload_data = {
+                "eventSlug": self.test_event_slug,
+                "fileName": "test-photo.jpg",
+                "fileSize": 1024000,
+                "mimeType": "image/jpeg",
+                "totalChunks": 1
+            }
             
-    except Exception as e:
-        print(f"❌ POST /api/admin/events - ERROR: {str(e)}")
-        return None
-
-def test_admin_get_event(slug):
-    """Test GET /api/admin/events/:slug - Get event as admin (includes hidden photos)"""
-    print(f"\n=== Testing GET /api/admin/events/{slug} ===")
-    try:
-        response = session.get(f"{API_BASE}/admin/events/{slug}")
-        print(f"Status: {response.status_code}")
-        print(f"Response: {response.json()}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            if 'event' in data and data['event']['slug'] == slug:
-                print("✅ GET /api/admin/events/:slug - SUCCESS: Admin event retrieved")
-                return data['event']
-            else:
-                print("❌ GET /api/admin/events/:slug - FAILED: Invalid response structure")
-                return None
-        else:
-            print(f"❌ GET /api/admin/events/:slug - FAILED: Expected 200, got {response.status_code}")
-            return None
+            response = self.session.post(f"{API_BASE}/uploads/init", json=upload_data)
             
-    except Exception as e:
-        print(f"❌ GET /api/admin/events/:slug - ERROR: {str(e)}")
-        return None
-
-# ===== ADMIN PHOTO MODERATION TESTS =====
-
-def test_admin_moderate_photo_reject(photo_id):
-    """Test PATCH /api/admin/photos/:id - Reject photo"""
-    print(f"\n=== Testing PATCH /api/admin/photos/{photo_id} (reject) ===")
-    try:
-        payload = {
-            "action": "reject"
-        }
-        
-        response = session.patch(f"{API_BASE}/admin/photos/{photo_id}", json=payload)
-        print(f"Status: {response.status_code}")
-        print(f"Response: {response.json()}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            if 'photo' in data:
-                print("✅ PATCH /api/admin/photos/:id (reject) - SUCCESS: Photo rejected")
-                return True
-            else:
-                print("❌ PATCH /api/admin/photos/:id (reject) - FAILED: Invalid response structure")
+            if response.status_code != 201:
+                self.log_test("Upload Init", False, f"Status: {response.status_code}, Response: {response.text}")
                 return False
-        else:
-            print(f"❌ PATCH /api/admin/photos/:id (reject) - FAILED: Expected 200, got {response.status_code}")
+                
+            data = response.json()
+            
+            if 'session' not in data:
+                self.log_test("Upload Init", False, "Missing 'session' in response")
+                return False
+                
+            session = data['session']
+            required_fields = ['sessionId']
+            missing_fields = [field for field in required_fields if field not in session]
+            
+            if missing_fields:
+                self.log_test("Upload Init", False, f"Missing session fields: {missing_fields}")
+                return False
+            
+            self.log_test("Upload Init", True, f"Created upload session: {session['sessionId']}")
+            return True
+            
+        except Exception as e:
+            self.log_test("Upload Init", False, f"Exception: {str(e)}")
+            return False
+
+    def test_upload_chunk(self) -> bool:
+        """Test POST /api/uploads/chunk"""
+        # First init an upload session
+        if not self.test_event_slug:
+            self.log_test("Upload Chunk", False, "No test event slug available")
             return False
             
-    except Exception as e:
-        print(f"❌ PATCH /api/admin/photos/:id (reject) - ERROR: {str(e)}")
-        return False
-
-def test_admin_moderate_photo_approve(photo_id):
-    """Test PATCH /api/admin/photos/:id - Approve photo"""
-    print(f"\n=== Testing PATCH /api/admin/photos/{photo_id} (approve) ===")
-    try:
-        payload = {
-            "action": "approve"
-        }
-        
-        response = session.patch(f"{API_BASE}/admin/photos/{photo_id}", json=payload)
-        print(f"Status: {response.status_code}")
-        print(f"Response: {response.json()}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            if 'photo' in data:
-                print("✅ PATCH /api/admin/photos/:id (approve) - SUCCESS: Photo approved")
-                return True
-            else:
-                print("❌ PATCH /api/admin/photos/:id (approve) - FAILED: Invalid response structure")
+        try:
+            # Init upload
+            upload_data = {
+                "eventSlug": self.test_event_slug,
+                "fileName": "test-chunk.jpg",
+                "fileSize": 1024,
+                "mimeType": "image/jpeg",
+                "totalChunks": 1
+            }
+            
+            init_response = self.session.post(f"{API_BASE}/uploads/init", json=upload_data)
+            if init_response.status_code != 201:
+                self.log_test("Upload Chunk", False, f"Init failed: {init_response.status_code}")
                 return False
-        else:
-            print(f"❌ PATCH /api/admin/photos/:id (approve) - FAILED: Expected 200, got {response.status_code}")
+                
+            session_id = init_response.json()['session']['sessionId']
+            
+            # Create a small test chunk
+            test_chunk_data = b"fake image data for testing"
+            
+            # Upload chunk
+            files = {'chunk': ('chunk.jpg', test_chunk_data, 'image/jpeg')}
+            data = {
+                'sessionId': session_id,
+                'chunkIndex': 0,
+                'totalChunks': 1
+            }
+            
+            response = self.session.post(f"{API_BASE}/uploads/chunk", files=files, data=data)
+            
+            if response.status_code != 200:
+                self.log_test("Upload Chunk", False, f"Status: {response.status_code}, Response: {response.text}")
+                return False
+                
+            result = response.json()
+            
+            if not result.get('uploaded'):
+                self.log_test("Upload Chunk", False, "Upload not confirmed")
+                return False
+            
+            self.log_test("Upload Chunk", True, f"Uploaded chunk {result['chunkIndex']}/{result['totalChunks']}")
+            return True
+            
+        except Exception as e:
+            self.log_test("Upload Chunk", False, f"Exception: {str(e)}")
+            return False
+
+    def test_upload_complete(self) -> bool:
+        """Test POST /api/uploads/complete"""
+        if not self.test_event_slug:
+            self.log_test("Upload Complete", False, "No test event slug available")
             return False
             
-    except Exception as e:
-        print(f"❌ PATCH /api/admin/photos/:id (approve) - ERROR: {str(e)}")
-        return False
-
-def test_admin_delete_photo(photo_id):
-    """Test DELETE /api/admin/photos/:id - Delete photo"""
-    print(f"\n=== Testing DELETE /api/admin/photos/{photo_id} ===")
-    try:
-        response = session.delete(f"{API_BASE}/admin/photos/{photo_id}")
-        print(f"Status: {response.status_code}")
-        print(f"Response: {response.json()}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('deleted') and 'photo' in data:
-                print("✅ DELETE /api/admin/photos/:id - SUCCESS: Photo deleted")
-                return True
-            else:
-                print("❌ DELETE /api/admin/photos/:id - FAILED: Invalid response structure")
+        try:
+            # Init upload
+            upload_data = {
+                "eventSlug": self.test_event_slug,
+                "fileName": "test-complete.jpg",
+                "fileSize": 1024,
+                "mimeType": "image/jpeg",
+                "totalChunks": 1
+            }
+            
+            init_response = self.session.post(f"{API_BASE}/uploads/init", json=upload_data)
+            if init_response.status_code != 201:
+                self.log_test("Upload Complete", False, f"Init failed: {init_response.status_code}")
                 return False
-        else:
-            print(f"❌ DELETE /api/admin/photos/:id - FAILED: Expected 200, got {response.status_code}")
+                
+            session_id = init_response.json()['session']['sessionId']
+            
+            # Upload chunk
+            test_chunk_data = b"fake image data for testing complete"
+            files = {'chunk': ('chunk.jpg', test_chunk_data, 'image/jpeg')}
+            chunk_data = {
+                'sessionId': session_id,
+                'chunkIndex': 0,
+                'totalChunks': 1
+            }
+            
+            chunk_response = self.session.post(f"{API_BASE}/uploads/chunk", files=files, data=chunk_data)
+            if chunk_response.status_code != 200:
+                self.log_test("Upload Complete", False, f"Chunk upload failed: {chunk_response.status_code}")
+                return False
+            
+            # Complete upload
+            complete_data = {
+                "sessionId": session_id,
+                "uploaderName": "Test User",
+                "caption": "Test photo caption"
+            }
+            
+            response = self.session.post(f"{API_BASE}/uploads/complete", json=complete_data)
+            
+            if response.status_code != 201:
+                self.log_test("Upload Complete", False, f"Status: {response.status_code}, Response: {response.text}")
+                return False
+                
+            result = response.json()
+            
+            if 'photo' not in result or 'event' not in result:
+                self.log_test("Upload Complete", False, "Missing 'photo' or 'event' in response")
+                return False
+            
+            photo = result['photo']
+            required_fields = ['id', 'originalName', 'uploaderName', 'caption', 'status']
+            missing_fields = [field for field in required_fields if field not in photo]
+            
+            if missing_fields:
+                self.log_test("Upload Complete", False, f"Missing photo fields: {missing_fields}")
+                return False
+            
+            # Store photo ID for moderation tests
+            self.test_photo_id = photo['id']
+            
+            self.log_test("Upload Complete", True, f"Completed upload, photo ID: {photo['id']}")
+            return True
+            
+        except Exception as e:
+            self.log_test("Upload Complete", False, f"Exception: {str(e)}")
+            return False
+
+    def test_admin_session_unauthenticated(self) -> bool:
+        """Test GET /api/admin/session without authentication"""
+        try:
+            response = self.session.get(f"{API_BASE}/admin/session")
+            
+            if response.status_code != 200:
+                self.log_test("Admin Session (Unauth)", False, f"Status: {response.status_code}")
+                return False
+                
+            data = response.json()
+            
+            if data.get('authenticated') != False:
+                self.log_test("Admin Session (Unauth)", False, f"Expected authenticated=false, got {data.get('authenticated')}")
+                return False
+            
+            self.log_test("Admin Session (Unauth)", True, "Correctly shows unauthenticated")
+            return True
+            
+        except Exception as e:
+            self.log_test("Admin Session (Unauth)", False, f"Exception: {str(e)}")
+            return False
+
+    def test_admin_login(self) -> bool:
+        """Test POST /api/admin/login with password: strongpass123"""
+        try:
+            login_data = {
+                "password": "strongpass123"
+            }
+            
+            response = self.session.post(f"{API_BASE}/admin/login", json=login_data)
+            
+            if response.status_code != 200:
+                self.log_test("Admin Login", False, f"Status: {response.status_code}, Response: {response.text}")
+                return False
+                
+            data = response.json()
+            
+            if data.get('authenticated') != True:
+                self.log_test("Admin Login", False, f"Expected authenticated=true, got {data.get('authenticated')}")
+                return False
+            
+            # Check if session cookie was set
+            cookies = response.cookies
+            if not any('admin' in cookie.name.lower() for cookie in cookies):
+                self.log_test("Admin Login", False, "No admin session cookie set")
+                return False
+            
+            self.admin_authenticated = True
+            self.log_test("Admin Login", True, "Successfully authenticated admin")
+            return True
+            
+        except Exception as e:
+            self.log_test("Admin Login", False, f"Exception: {str(e)}")
+            return False
+
+    def test_admin_session_authenticated(self) -> bool:
+        """Test GET /api/admin/session with authentication"""
+        if not self.admin_authenticated:
+            self.log_test("Admin Session (Auth)", False, "Admin not authenticated")
             return False
             
-    except Exception as e:
-        print(f"❌ DELETE /api/admin/photos/:id - ERROR: {str(e)}")
-        return False
-
-def test_admin_logout():
-    """Test POST /api/admin/logout - Admin logout"""
-    print("\n=== Testing POST /api/admin/logout ===")
-    try:
-        response = session.post(f"{API_BASE}/admin/logout")
-        print(f"Status: {response.status_code}")
-        print(f"Response: {response.json()}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            if not data.get('authenticated') and data.get('loggedOut'):
-                print("✅ POST /api/admin/logout - SUCCESS: Admin logged out")
-                return True
-            else:
-                print("❌ POST /api/admin/logout - FAILED: Invalid response structure")
+        try:
+            response = self.session.get(f"{API_BASE}/admin/session")
+            
+            if response.status_code != 200:
+                self.log_test("Admin Session (Auth)", False, f"Status: {response.status_code}")
                 return False
-        else:
-            print(f"❌ POST /api/admin/logout - FAILED: Expected 200, got {response.status_code}")
+                
+            data = response.json()
+            
+            if data.get('authenticated') != True:
+                self.log_test("Admin Session (Auth)", False, f"Expected authenticated=true, got {data.get('authenticated')}")
+                return False
+            
+            self.log_test("Admin Session (Auth)", True, "Correctly shows authenticated")
+            return True
+            
+        except Exception as e:
+            self.log_test("Admin Session (Auth)", False, f"Exception: {str(e)}")
+            return False
+
+    def test_admin_protected_route(self) -> bool:
+        """Test that admin routes require authentication"""
+        # First test without auth (create new session)
+        unauth_session = requests.Session()
+        
+        try:
+            response = unauth_session.get(f"{API_BASE}/admin/events")
+            
+            if response.status_code != 401:
+                self.log_test("Admin Protected Route", False, f"Expected 401 for unauthenticated request, got {response.status_code}")
+                return False
+            
+            # Now test with auth
+            if not self.admin_authenticated:
+                self.log_test("Admin Protected Route", False, "Admin not authenticated for second test")
+                return False
+                
+            auth_response = self.session.get(f"{API_BASE}/admin/events")
+            
+            if auth_response.status_code != 200:
+                self.log_test("Admin Protected Route", False, f"Expected 200 for authenticated request, got {auth_response.status_code}")
+                return False
+            
+            self.log_test("Admin Protected Route", True, "Correctly protects admin routes")
+            return True
+            
+        except Exception as e:
+            self.log_test("Admin Protected Route", False, f"Exception: {str(e)}")
+            return False
+
+    def test_admin_events_list(self) -> bool:
+        """Test GET /api/admin/events"""
+        if not self.admin_authenticated:
+            self.log_test("Admin Events List", False, "Admin not authenticated")
             return False
             
-    except Exception as e:
-        print(f"❌ POST /api/admin/logout - ERROR: {str(e)}")
-        return False
+        try:
+            response = self.session.get(f"{API_BASE}/admin/events")
+            
+            if response.status_code != 200:
+                self.log_test("Admin Events List", False, f"Status: {response.status_code}")
+                return False
+                
+            data = response.json()
+            
+            if 'events' not in data:
+                self.log_test("Admin Events List", False, "Missing 'events' in response")
+                return False
+            
+            self.log_test("Admin Events List", True, f"Retrieved {len(data['events'])} events")
+            return True
+            
+        except Exception as e:
+            self.log_test("Admin Events List", False, f"Exception: {str(e)}")
+            return False
 
-# ===== UNAUTHORIZED ACCESS TESTS =====
+    def test_admin_event_detail(self) -> bool:
+        """Test GET /api/admin/events/:slug"""
+        if not self.admin_authenticated:
+            self.log_test("Admin Event Detail", False, "Admin not authenticated")
+            return False
+            
+        if not self.test_event_slug:
+            self.log_test("Admin Event Detail", False, "No test event slug available")
+            return False
+            
+        try:
+            response = self.session.get(f"{API_BASE}/admin/events/{self.test_event_slug}")
+            
+            if response.status_code != 200:
+                self.log_test("Admin Event Detail", False, f"Status: {response.status_code}")
+                return False
+                
+            data = response.json()
+            
+            if 'event' not in data:
+                self.log_test("Admin Event Detail", False, "Missing 'event' in response")
+                return False
+            
+            event = data['event']
+            # Admin view should include hidden photos
+            if 'photos' in event:
+                self.log_test("Admin Event Detail", True, f"Retrieved event with {len(event['photos'])} photos")
+            else:
+                self.log_test("Admin Event Detail", True, "Retrieved event detail (no photos yet)")
+            return True
+            
+        except Exception as e:
+            self.log_test("Admin Event Detail", False, f"Exception: {str(e)}")
+            return False
 
-def test_unauthorized_admin_access():
-    """Test unauthorized access to admin endpoints"""
-    print("\n=== Testing Unauthorized Admin Access ===")
-    try:
-        # Test accessing admin events without authentication
-        response = requests.get(f"{API_BASE}/admin/events")  # Using requests, not session
-        print(f"Unauthorized admin events access - Status: {response.status_code}")
+    def test_admin_photo_moderation(self) -> bool:
+        """Test PATCH /api/admin/photos/:id for moderation"""
+        if not self.admin_authenticated:
+            self.log_test("Admin Photo Moderation", False, "Admin not authenticated")
+            return False
+            
+        if not self.test_photo_id:
+            self.log_test("Admin Photo Moderation", False, "No test photo ID available")
+            return False
+            
+        try:
+            # Test approve action
+            moderate_data = {
+                "action": "approve"
+            }
+            
+            response = self.session.patch(f"{API_BASE}/admin/photos/{self.test_photo_id}", json=moderate_data)
+            
+            if response.status_code != 200:
+                self.log_test("Admin Photo Moderation", False, f"Status: {response.status_code}, Response: {response.text}")
+                return False
+                
+            data = response.json()
+            
+            if 'photo' not in data:
+                self.log_test("Admin Photo Moderation", False, "Missing 'photo' in response")
+                return False
+            
+            photo = data['photo']
+            if photo.get('status') != 'VISIBLE':
+                self.log_test("Admin Photo Moderation", False, f"Expected status=VISIBLE, got {photo.get('status')}")
+                return False
+            
+            self.log_test("Admin Photo Moderation", True, f"Successfully moderated photo to {photo['status']}")
+            return True
+            
+        except Exception as e:
+            self.log_test("Admin Photo Moderation", False, f"Exception: {str(e)}")
+            return False
+
+    def test_admin_logout(self) -> bool:
+        """Test POST /api/admin/logout"""
+        if not self.admin_authenticated:
+            self.log_test("Admin Logout", False, "Admin not authenticated")
+            return False
+            
+        try:
+            response = self.session.post(f"{API_BASE}/admin/logout")
+            
+            if response.status_code != 200:
+                self.log_test("Admin Logout", False, f"Status: {response.status_code}")
+                return False
+                
+            data = response.json()
+            
+            if data.get('authenticated') != False:
+                self.log_test("Admin Logout", False, f"Expected authenticated=false, got {data.get('authenticated')}")
+                return False
+            
+            if not data.get('loggedOut'):
+                self.log_test("Admin Logout", False, "Expected loggedOut=true")
+                return False
+            
+            self.admin_authenticated = False
+            self.log_test("Admin Logout", True, "Successfully logged out")
+            return True
+            
+        except Exception as e:
+            self.log_test("Admin Logout", False, f"Exception: {str(e)}")
+            return False
+
+    def run_all_tests(self):
+        """Run all backend regression tests"""
+        print("🧪 Starting Backend Regression Tests after Prisma Migration Preparation")
+        print(f"🌐 Testing against: {API_BASE}")
+        print("=" * 80)
         
-        if response.status_code == 401:
-            print("✅ Unauthorized access - SUCCESS: 401 returned for unauthenticated request")
+        tests = [
+            # Core API metadata
+            ("API Root Metadata", self.test_api_root_metadata),
+            
+            # Public event APIs
+            ("Create Event", self.test_create_event),
+            ("List Events", self.test_list_events),
+            ("Get Event by Slug", self.test_get_event_by_slug),
+            
+            # Upload pipeline
+            ("Upload Init", self.test_upload_init),
+            ("Upload Chunk", self.test_upload_chunk),
+            ("Upload Complete", self.test_upload_complete),
+            
+            # Admin authentication
+            ("Admin Session (Unauth)", self.test_admin_session_unauthenticated),
+            ("Admin Login", self.test_admin_login),
+            ("Admin Session (Auth)", self.test_admin_session_authenticated),
+            ("Admin Protected Route", self.test_admin_protected_route),
+            
+            # Admin functionality
+            ("Admin Events List", self.test_admin_events_list),
+            ("Admin Event Detail", self.test_admin_event_detail),
+            ("Admin Photo Moderation", self.test_admin_photo_moderation),
+            ("Admin Logout", self.test_admin_logout),
+        ]
+        
+        passed = 0
+        failed = 0
+        
+        for test_name, test_func in tests:
+            try:
+                if test_func():
+                    passed += 1
+                else:
+                    failed += 1
+            except Exception as e:
+                print(f"❌ FAIL: {test_name} - Exception: {str(e)}")
+                failed += 1
+        
+        print("=" * 80)
+        print(f"📊 Test Results: {passed} passed, {failed} failed")
+        
+        if failed == 0:
+            print("🎉 All backend regression tests PASSED!")
             return True
         else:
-            print(f"❌ Unauthorized access - FAILED: Expected 401, got {response.status_code}")
+            print(f"⚠️  {failed} critical backend issues found that need attention")
             return False
-            
-    except Exception as e:
-        print(f"❌ Unauthorized access - ERROR: {str(e)}")
-        return False
-
-def test_photo_visibility_after_rejection(event_slug):
-    """Test that rejected photos are hidden from public API"""
-    print(f"\n=== Testing Photo Visibility After Rejection ===")
-    try:
-        # Get public event view
-        response = requests.get(f"{API_BASE}/events/{event_slug}")  # Using requests, not session
-        print(f"Public event view - Status: {response.status_code}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            event = data.get('event', {})
-            photos = event.get('photos', [])
-            
-            # Check if any photos have status HIDDEN (they should not appear in public view)
-            hidden_photos = [p for p in photos if p.get('status') == 'HIDDEN']
-            
-            if len(hidden_photos) == 0:
-                print("✅ Photo visibility - SUCCESS: No hidden photos in public view")
-                return True
-            else:
-                print(f"❌ Photo visibility - FAILED: Found {len(hidden_photos)} hidden photos in public view")
-                return False
-        else:
-            print(f"❌ Photo visibility - FAILED: Expected 200, got {response.status_code}")
-            return False
-            
-    except Exception as e:
-        print(f"❌ Photo visibility - ERROR: {str(e)}")
-        return False
-
-def run_all_tests():
-    """Run all backend tests including admin functionality"""
-    print("🚀 Starting Comprehensive Backend API Tests")
-    print(f"Base URL: {API_BASE}")
-    
-    results = []
-    test_names = []
-    
-    # ===== REGRESSION TESTS =====
-    print("\n" + "="*60)
-    print("🔄 REGRESSION TESTS")
-    print("="*60)
-    
-    # Test API root
-    test_names.append("GET /api")
-    results.append(test_api_root())
-    
-    # Test event creation
-    test_names.append("POST /api/events")
-    event_slug = test_create_event()
-    results.append(event_slug is not None)
-    
-    # Test event listing
-    test_names.append("GET /api/events")
-    results.append(test_list_events())
-    
-    # Test get event by slug (only if event was created)
-    if event_slug:
-        test_names.append("GET /api/events/:slug")
-        results.append(test_get_event_by_slug(event_slug))
-        
-        # Test upload flow (only if event exists)
-        test_names.append("POST /api/uploads/init")
-        session_id, chunk_data = test_upload_init(event_slug)
-        results.append(session_id is not None)
-        
-        if session_id and chunk_data:
-            test_names.append("POST /api/uploads/chunk")
-            results.append(test_upload_chunk(session_id, chunk_data))
-            test_names.append("POST /api/uploads/complete")
-            results.append(test_upload_complete(session_id))
-        else:
-            test_names.extend(["POST /api/uploads/chunk", "POST /api/uploads/complete"])
-            results.extend([False, False])  # Upload chunk and complete failed
-    else:
-        test_names.extend(["GET /api/events/:slug", "POST /api/uploads/init", "POST /api/uploads/chunk", "POST /api/uploads/complete"])
-        results.extend([False, False, False, False])  # All dependent tests failed
-    
-    # Test invalid payload
-    test_names.append("Invalid payload handling")
-    results.append(test_invalid_payload())
-    
-    # ===== ADMIN AUTHENTICATION TESTS =====
-    print("\n" + "="*60)
-    print("🔐 ADMIN AUTHENTICATION TESTS")
-    print("="*60)
-    
-    # Test admin session (unauthenticated)
-    test_names.append("GET /api/admin/session (unauth)")
-    configured, authenticated = test_admin_session_unauthenticated()
-    results.append(configured is not None)  # Any response is good
-    
-    # Test admin setup (if not configured) or login (if configured)
-    if not configured:
-        test_names.append("POST /api/admin/setup")
-        setup_success = test_admin_setup()
-        results.append(setup_success)
-    else:
-        test_names.append("POST /api/admin/login")
-        login_success = test_admin_login()
-        results.append(login_success)
-        if not login_success:
-            # If login failed, try setup (maybe admin was reset)
-            test_names.append("POST /api/admin/setup (fallback)")
-            results.append(test_admin_setup())
-    
-    # Test admin session (authenticated)
-    test_names.append("GET /api/admin/session (auth)")
-    results.append(test_admin_session_authenticated())
-    
-    # ===== ADMIN EVENT MANAGEMENT TESTS =====
-    print("\n" + "="*60)
-    print("📋 ADMIN EVENT MANAGEMENT TESTS")
-    print("="*60)
-    
-    # Test admin list events
-    test_names.append("GET /api/admin/events")
-    results.append(test_admin_list_events())
-    
-    # Test admin create event
-    test_names.append("POST /api/admin/events")
-    admin_event_slug = test_admin_create_event()
-    results.append(admin_event_slug is not None)
-    
-    # Test admin get event
-    if admin_event_slug:
-        test_names.append("GET /api/admin/events/:slug")
-        admin_event = test_admin_get_event(admin_event_slug)
-        results.append(admin_event is not None)
-        
-        # ===== PHOTO MODERATION TESTS =====
-        print("\n" + "="*60)
-        print("🖼️ PHOTO MODERATION TESTS")
-        print("="*60)
-        
-        # Upload a photo to the admin event for moderation testing
-        test_names.append("Upload for moderation test")
-        mod_session_id, mod_chunk_data = test_upload_init(admin_event_slug)
-        upload_success = False
-        photo_id = None
-        
-        if mod_session_id and mod_chunk_data:
-            if test_upload_chunk(mod_session_id, mod_chunk_data):
-                upload_response = test_upload_complete(mod_session_id)
-                upload_success = upload_response
-                
-                # Get the photo ID from the admin event view
-                fresh_admin_event = test_admin_get_event(admin_event_slug)
-                if fresh_admin_event and fresh_admin_event.get('photos'):
-                    photo_id = fresh_admin_event['photos'][0].get('id')
-        
-        results.append(upload_success)
-        
-        if photo_id:
-            # Test photo rejection
-            test_names.append("PATCH /api/admin/photos/:id (reject)")
-            reject_success = test_admin_moderate_photo_reject(photo_id)
-            results.append(reject_success)
-            
-            # Test photo visibility after rejection
-            test_names.append("Photo visibility after rejection")
-            results.append(test_photo_visibility_after_rejection(admin_event_slug))
-            
-            # Test photo approval
-            test_names.append("PATCH /api/admin/photos/:id (approve)")
-            results.append(test_admin_moderate_photo_approve(photo_id))
-            
-            # Test photo deletion
-            test_names.append("DELETE /api/admin/photos/:id")
-            results.append(test_admin_delete_photo(photo_id))
-            
-            # Test photo visibility after deletion
-            test_names.append("Photo visibility after deletion")
-            results.append(test_photo_visibility_after_rejection(admin_event_slug))
-        else:
-            test_names.extend([
-                "PATCH /api/admin/photos/:id (reject)",
-                "Photo visibility after rejection", 
-                "PATCH /api/admin/photos/:id (approve)",
-                "DELETE /api/admin/photos/:id",
-                "Photo visibility after deletion"
-            ])
-            results.extend([False, False, False, False, False])
-    else:
-        test_names.extend([
-            "GET /api/admin/events/:slug",
-            "Upload for moderation test",
-            "PATCH /api/admin/photos/:id (reject)",
-            "Photo visibility after rejection",
-            "PATCH /api/admin/photos/:id (approve)", 
-            "DELETE /api/admin/photos/:id",
-            "Photo visibility after deletion"
-        ])
-        results.extend([False, False, False, False, False, False, False])
-    
-    # ===== SECURITY TESTS =====
-    print("\n" + "="*60)
-    print("🔒 SECURITY TESTS")
-    print("="*60)
-    
-    # Test unauthorized access
-    test_names.append("Unauthorized admin access")
-    results.append(test_unauthorized_admin_access())
-    
-    # Test admin logout
-    test_names.append("POST /api/admin/logout")
-    results.append(test_admin_logout())
-    
-    # Summary
-    passed = sum(results)
-    total = len(results)
-    
-    print(f"\n{'='*60}")
-    print(f"🏁 COMPREHENSIVE TEST SUMMARY")
-    print(f"{'='*60}")
-    
-    # Print detailed results
-    for i, (test_name, result) in enumerate(zip(test_names, results)):
-        status = "✅ PASS" if result else "❌ FAIL"
-        print(f"{i+1:2d}. {status} - {test_name}")
-    
-    print(f"\n📊 OVERALL RESULTS:")
-    print(f"Passed: {passed}/{total}")
-    print(f"Success Rate: {(passed/total)*100:.1f}%")
-    
-    if passed == total:
-        print("🎉 ALL TESTS PASSED!")
-        return True
-    else:
-        print("❌ SOME TESTS FAILED")
-        return False
 
 if __name__ == "__main__":
-    success = run_all_tests()
+    tester = BackendTester()
+    success = tester.run_all_tests()
     exit(0 if success else 1)

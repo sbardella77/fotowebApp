@@ -18,7 +18,8 @@ import {
   verifyAdminPassword,
   verifyAdminSessionToken,
 } from '@/lib/server/admin-auth'
-import { getGalleryRepository } from '@/lib/server/gallery-repository'
+import { getGalleryRepository, getGalleryRepositoryMode } from '@/lib/server/gallery-repository'
+import { getAdminAuthDriver, getDataAccessDriver } from '@/lib/server/prisma-client'
 import { localStorageDriver } from '@/lib/server/storage/local-storage'
 
 export const runtime = 'nodejs'
@@ -62,10 +63,13 @@ const clearAdminSessionCookie = (response) => {
 
 const routeRoot = async () => {
   const adminStatus = await getAdminAuthStatus()
+  const repositoryMode = await getGalleryRepositoryMode()
 
   return json({
     name: 'Event Gallery MVP API',
-    repositoryMode: process.env.DATABASE_URL ? 'prisma-or-local-fallback' : 'local-fallback',
+    repositoryMode,
+    configuredDataAccessDriver: getDataAccessDriver(),
+    configuredAdminAuthDriver: getAdminAuthDriver(),
     storageMode: localStorageDriver.mode,
     databaseConfigured: Boolean(process.env.DATABASE_URL),
     adminConfigured: adminStatus.configured,

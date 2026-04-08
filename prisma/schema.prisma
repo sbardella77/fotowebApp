@@ -45,3 +45,14 @@ model Photo {
   @@index([eventId, createdAt(sort: Desc)])
   @@index([status, createdAt(sort: Desc)])
 }
+
+model AdminCredential {
+  id           String   @id @default(uuid())
+  key          String   @unique @default("primary")
+  passwordSalt String
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([updatedAt])
+}
