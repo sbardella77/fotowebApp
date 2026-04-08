@@ -41,6 +41,10 @@ Optional:
 You can migrate local JSON data by reading:
 - `/app/data/mock-db.json`
 
+A dedicated one-time import script is now prepared:
+- `/app/scripts/migrate-local-json-to-prisma.js`
+- Detailed runbook: `/app/docs/local-json-to-prisma-migration.md`
+
 And inserting into Prisma tables in this order:
 1. `Event`
 2. `Photo`

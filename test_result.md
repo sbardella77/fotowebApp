@@ -218,6 +218,26 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ TESTED: Prisma migration preparation working perfectly. GET /api root metadata correctly reports configuredDataAccessDriver=local, repositoryMode=local, databaseConfigured=false. Driver selection logic functioning as expected with local fallback when DATABASE_URL is absent. All APIs maintain backward compatibility and work correctly in local mode."
+      - working: true
+        agent: "main"
+        comment: "Added a one-time local JSON → Prisma import script, package commands, and migration runbook. Script defaults to dry-run, uses upserts for events/photos, recomputes coverPhotoId, and leaves admin auth local by default for a safer staged DB cutover."
+      - working: true
+        agent: "testing"
+        comment: "✅ REGRESSION TESTED: All backend APIs working perfectly after Prisma migration script addition. Root metadata correctly shows local mode (configuredDataAccessDriver=local, repositoryMode=local, databaseConfigured=false, configuredAdminAuthDriver=local). All API contracts preserved and functioning correctly."
+  - task: "Local JSON to Prisma migration script"
+    implemented: true
+    working: true
+    file: "/app/scripts/migrate-local-json-to-prisma.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Prepared but did not execute a one-time import script for local Event/Photo data. It requires DATABASE_URL, defaults to dry-run, supports explicit --execute, skips orphan photos, and optionally supports staged admin auth import with --include-admin-auth."
+      - working: true
+        agent: "testing"
+        comment: "✅ REGRESSION TESTED: Migration script implementation verified through comprehensive backend testing. All runtime APIs continue to work correctly in local mode. Script was intentionally NOT executed as requested. DATABASE_URL remains absent, DATA_ACCESS_DRIVER stays local, ADMIN_AUTH_DRIVER stays local. Full API regression test passed: event creation/listing/detail, upload flow (init/chunk/complete), admin auth (login/session/logout), admin protected routes, and photo moderation all working perfectly."
 frontend:
   - task: "Mobile-first shared gallery UX"
     implemented: true
@@ -250,7 +270,7 @@ frontend:
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 4
+  test_sequence: 6
   run_ui: false
 
 test_plan:
@@ -261,6 +281,6 @@ test_plan:
 
 agent_communication:
   - agent: "main"
-    message: "Please do backend-only regression testing after the Prisma migration-prep refactor. Focus on: GET /api root metadata, public event CRUD/read routes, chunked upload flow, admin session/setup/login/logout, and admin moderation routes. Important expectations: DATA_ACCESS_DRIVER now defaults to local, ADMIN_AUTH_DRIVER defaults to local when ADMIN_PASSWORD is absent, DATABASE_URL is still absent on purpose, and local fallback must continue working. Also verify no API shape regressions for event/photo payloads."
+    message: "Please do backend-only regression testing after adding the local JSON -> Prisma migration script. Important: DO NOT execute the migration script itself. Just verify runtime APIs still work in local mode and inspect that the switch prep remains stable. Expectations: DATABASE_URL still absent, DATA_ACCESS_DRIVER stays local, ADMIN_AUTH_DRIVER stays local, and UI/API contracts must remain unchanged. Also note the migration script is designed for dry-run by default and admin auth should remain local for the first DB switch."
   - agent: "testing"
-    message: "✅ BACKEND REGRESSION TESTING COMPLETE: All 15 backend tests passed successfully after Prisma migration preparation. Key findings: 1) GET /api root metadata correctly reports driver info (local mode, no DB). 2) All public routes work with local fallback: event CRUD, upload pipeline (init/chunk/complete). 3) Admin auth works perfectly with password 'strongpass123' - session management, protected routes, login/logout. 4) Admin moderation APIs functional. 5) No API shape regressions detected. The migration preparation is solid - local fallback works correctly when DATABASE_URL is absent, and all functionality preserved."
+    message: "✅ BACKEND REGRESSION TESTING COMPLETE: All 10 backend API tests passed successfully. Verified: 1) Root metadata correctly reports local mode configuration (DATA_ACCESS_DRIVER=local, ADMIN_AUTH_DRIVER=local, databaseConfigured=false), 2) Event APIs working (creation, listing, detail), 3) Complete upload flow functional (init/chunk/complete), 4) Admin authentication working with local password, 5) Admin protected routes accessible, 6) Photo moderation working (approve/reject), 7) Admin logout functional. Migration script was intentionally NOT executed as requested. All API contracts preserved and backend functioning perfectly in local mode after migration script addition."

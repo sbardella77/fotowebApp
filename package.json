@@ -10,7 +10,9 @@
         "start": "next start",
         "prisma:generate": "prisma generate",
         "prisma:migrate:dev": "prisma migrate dev",
-        "prisma:push": "prisma db push"
+        "prisma:push": "prisma db push",
+        "migrate:local-to-prisma:dry-run": "node scripts/migrate-local-json-to-prisma.js",
+        "migrate:local-to-prisma": "node scripts/migrate-local-json-to-prisma.js --execute"
     },
     "dependencies": {
         "@hookform/resolvers": "^5.1.1",

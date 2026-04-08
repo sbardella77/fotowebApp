@@ -1,6 +1,70 @@
 {
   "events": [
     {
+      "id": "1dec860a-b9a7-4d7b-bc21-cc8f761c3ff1",
+      "slug": "admin-created-event-3",
+      "name": "Admin Created Event",
+      "coverPhotoId": null,
+      "createdAt": "2026-04-08T18:19:26.132Z",
+      "updatedAt": "2026-04-08T18:19:26.132Z"
+    },
+    {
+      "id": "806c93ef-0ac8-4e0b-bdbd-cdb16a6cceea",
+      "slug": "regression-test-event-4",
+      "name": "Regression Test Event",
+      "coverPhotoId": null,
+      "createdAt": "2026-04-08T18:19:25.240Z",
+      "updatedAt": "2026-04-08T18:19:26.323Z"
+    },
+    {
+      "id": "73a3496d-1b16-4a77-be80-f9e46093853a",
+      "slug": "admin-created-event-2",
+      "name": "Admin Created Event",
+      "coverPhotoId": null,
+      "createdAt": "2026-04-08T18:19:12.579Z",
+      "updatedAt": "2026-04-08T18:19:12.579Z"
+    },
+    {
+      "id": "0c7dcf98-87b6-45f2-a3fe-fbc077ed3478",
+      "slug": "regression-test-event-3",
+      "name": "Regression Test Event",
+      "coverPhotoId": null,
+      "createdAt": "2026-04-08T18:19:12.072Z",
+      "updatedAt": "2026-04-08T18:19:12.072Z"
+    },
+    {
+      "id": "f6a43d81-943a-4b39-9a17-b4902299b21e",
+      "slug": "test-event",
+      "name": "Test Event",
+      "coverPhotoId": null,
+      "createdAt": "2026-04-08T18:18:59.366Z",
+      "updatedAt": "2026-04-08T18:18:59.366Z"
+    },
+    {
+      "id": "5ecceb5d-379f-48d8-b31b-c7edd2e66f20",
+      "slug": "admin-created-event",
+      "name": "Admin Created Event",
+      "coverPhotoId": null,
+      "createdAt": "2026-04-08T18:18:55.062Z",
+      "updatedAt": "2026-04-08T18:18:55.062Z"
+    },
+    {
+      "id": "3067030a-2879-4797-8247-e8194f6671e2",
+      "slug": "regression-test-event-2",
+      "name": "Regression Test Event",
+      "coverPhotoId": null,
+      "createdAt": "2026-04-08T18:18:54.699Z",
+      "updatedAt": "2026-04-08T18:18:54.699Z"
+    },
+    {
+      "id": "ab6deed8-bb4e-4aca-b9f7-d74c1b14e551",
+      "slug": "regression-test-event",
+      "name": "Regression Test Event",
+      "coverPhotoId": null,
+      "createdAt": "2026-04-08T18:17:03.353Z",
+      "updatedAt": "2026-04-08T18:17:03.353Z"
+    },
+    {
       "id": "b25b5fce-6f28-414d-a38d-f24eab45d03c",
       "slug": "test-event-for-regression-4",
       "name": "Test Event for Regression",
@@ -138,6 +202,21 @@
     }
   ],
   "photos": [
+    {
+      "id": "53f9f3d0-51bc-4799-910b-391300f03548",
+      "eventId": "806c93ef-0ac8-4e0b-bdbd-cdb16a6cceea",
+      "originalName": "test-photo.jpg",
+      "storedName": "7be43c18-dfef-45a0-bea0-36aecbc40bcd-test-photo.jpg",
+      "mimeType": "image/jpeg",
+      "size": 30,
+      "url": "/uploads/events/regression-test-event-4/7be43c18-dfef-45a0-bea0-36aecbc40bcd-test-photo.jpg",
+      "uploaderName": "Test User",
+      "caption": "Test photo caption",
+      "status": "HIDDEN",
+      "uploadSource": "mobile",
+      "createdAt": "2026-04-08T18:19:25.785Z",
+      "updatedAt": "2026-04-08T18:19:26.323Z"
+    },
     {
       "id": "65f05df1-ba60-4607-a1b4-c2f6d91e70dc",
       "eventId": "b25b5fce-6f28-414d-a38d-f24eab45d03c",
