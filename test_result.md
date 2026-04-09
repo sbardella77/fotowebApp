@@ -224,6 +224,12 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ REGRESSION TESTED: All backend APIs working perfectly after Prisma migration script addition. Root metadata correctly shows local mode (configuredDataAccessDriver=local, repositoryMode=local, databaseConfigured=false, configuredAdminAuthDriver=local). All API contracts preserved and functioning correctly."
+      - working: true
+        agent: "main"
+        comment: "Configured Prisma datasource for Neon with pooled DATABASE_URL and DIRECT_URL for migrations. prisma generate and prisma migrate dev completed successfully against Neon while DATA_ACCESS_DRIVER and ADMIN_AUTH_DRIVER remain local."
+      - working: true
+        agent: "testing"
+        comment: "✅ NEON REGRESSION TESTED: All backend APIs working perfectly after Neon Prisma setup. Root metadata correctly shows databaseConfigured=true while repositoryMode=local, configuredDataAccessDriver=local, configuredAdminAuthDriver=local. All API contracts preserved: event creation/listing/detail (✅), upload pipeline init/chunk/complete (✅), admin auth login/session/logout (✅), admin protected routes (✅), photo moderation approve/reject (✅). System correctly remains in local mode - migration script NOT executed as required."
   - task: "Local JSON to Prisma migration script"
     implemented: true
     working: true
@@ -238,6 +244,12 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ REGRESSION TESTED: Migration script implementation verified through comprehensive backend testing. All runtime APIs continue to work correctly in local mode. Script was intentionally NOT executed as requested. DATABASE_URL remains absent, DATA_ACCESS_DRIVER stays local, ADMIN_AUTH_DRIVER stays local. Full API regression test passed: event creation/listing/detail, upload flow (init/chunk/complete), admin auth (login/session/logout), admin protected routes, and photo moderation all working perfectly."
+      - working: true
+        agent: "main"
+        comment: "Fixed the script to load .env automatically so dry-run/import commands work in operator execution. Dry-run now succeeds against the configured Neon-ready environment and confirms admin auth remains excluded by default."
+      - working: true
+        agent: "testing"
+        comment: "✅ NEON REGRESSION TESTED: Migration script working perfectly after Neon setup. Dry-run command succeeds and shows 27 events, 9 photos ready for migration. Script correctly loads .env with DATABASE_URL and DIRECT_URL. Admin auth intentionally excluded by default. Real migration script NOT executed as required - system remains in local mode. All backend APIs continue working perfectly in local mode."
 frontend:
   - task: "Mobile-first shared gallery UX"
     implemented: true
@@ -270,7 +282,7 @@ frontend:
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 6
+  test_sequence: 7
   run_ui: false
 
 test_plan:
@@ -281,6 +293,6 @@ test_plan:
 
 agent_communication:
   - agent: "main"
-    message: "Please do backend-only regression testing after adding the local JSON -> Prisma migration script. Important: DO NOT execute the migration script itself. Just verify runtime APIs still work in local mode and inspect that the switch prep remains stable. Expectations: DATABASE_URL still absent, DATA_ACCESS_DRIVER stays local, ADMIN_AUTH_DRIVER stays local, and UI/API contracts must remain unchanged. Also note the migration script is designed for dry-run by default and admin auth should remain local for the first DB switch."
+    message: "Please do backend-only regression testing after Neon Prisma setup. Context: DATABASE_URL and DIRECT_URL are now configured in .env, prisma generate succeeded, prisma migrate dev succeeded against Neon, and the local-to-prisma dry-run script now succeeds after adding .env loading. Important expectations: DATA_ACCESS_DRIVER must remain local, ADMIN_AUTH_DRIVER must remain local, real import must NOT be executed, and public/admin API contracts must remain unchanged in local runtime mode."
   - agent: "testing"
-    message: "✅ BACKEND REGRESSION TESTING COMPLETE: All 10 backend API tests passed successfully. Verified: 1) Root metadata correctly reports local mode configuration (DATA_ACCESS_DRIVER=local, ADMIN_AUTH_DRIVER=local, databaseConfigured=false), 2) Event APIs working (creation, listing, detail), 3) Complete upload flow functional (init/chunk/complete), 4) Admin authentication working with local password, 5) Admin protected routes accessible, 6) Photo moderation working (approve/reject), 7) Admin logout functional. Migration script was intentionally NOT executed as requested. All API contracts preserved and backend functioning perfectly in local mode after migration script addition."
+    message: "✅ BACKEND REGRESSION TESTING COMPLETE: All backend APIs working perfectly after Neon Prisma setup. Comprehensive testing verified: 1) Root metadata correctly shows databaseConfigured=true while repositoryMode/drivers remain local, 2) Public event APIs work in local mode (create/list/detail), 3) Upload pipeline works in local mode (init/chunk/complete), 4) Admin auth/session/moderation work in local mode, 5) No API contract regressions detected, 6) Migration script NOT executed as required. All 8/8 backend tests passed. System ready for production use in local mode with Neon configured for future migration."

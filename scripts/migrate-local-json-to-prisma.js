@@ -1,6 +1,40 @@
 const fs = require('fs')
 const path = require('path')
 
+const ENV_FILE_PATH = path.join(process.cwd(), '.env')
+
+const loadEnvFile = () => {
+  if (!fs.existsSync(ENV_FILE_PATH)) {
+    return
+  }
+
+  const lines = fs.readFileSync(ENV_FILE_PATH, 'utf8').split(/\r?\n/)
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+
+    if (!trimmed || trimmed.startsWith('#')) {
+      continue
+    }
+
+    const separatorIndex = trimmed.indexOf('=')
+
+    if (separatorIndex === -1) {
+      continue
+    }
+
+    const key = trimmed.slice(0, separatorIndex).trim()
+    const value = trimmed.slice(separatorIndex + 1).trim()
+
+    if (key && process.env[key] === undefined) {
+      process.env[key] = value
+    }
+  }
+}
+
+loadEnvFile()
+
+
 const MOCK_DB_PATH = path.join(process.cwd(), 'data', 'mock-db.json')
 const LOCAL_ADMIN_AUTH_PATH = path.join(process.cwd(), 'data', 'admin-auth.json')
 const PRIMARY_ADMIN_KEY = 'primary'

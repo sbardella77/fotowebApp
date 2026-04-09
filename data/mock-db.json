@@ -1,6 +1,22 @@
 {
   "events": [
     {
+      "id": "dd2ffcee-1a81-4ae1-b636-ffcb66b3fae3",
+      "slug": "backend-test-event-2",
+      "name": "Backend Test Event",
+      "coverPhotoId": null,
+      "createdAt": "2026-04-09T09:17:58.589Z",
+      "updatedAt": "2026-04-09T09:17:59.397Z"
+    },
+    {
+      "id": "b30db9c0-7174-42dd-a42e-a2964a2e1655",
+      "slug": "backend-test-event",
+      "name": "Backend Test Event",
+      "coverPhotoId": null,
+      "createdAt": "2026-04-09T09:17:19.787Z",
+      "updatedAt": "2026-04-09T09:17:19.787Z"
+    },
+    {
       "id": "1dec860a-b9a7-4d7b-bc21-cc8f761c3ff1",
       "slug": "admin-created-event-3",
       "name": "Admin Created Event",
@@ -202,6 +218,21 @@
     }
   ],
   "photos": [
+    {
+      "id": "e026cdff-6ac5-43f0-88fa-d67b27e620fa",
+      "eventId": "dd2ffcee-1a81-4ae1-b636-ffcb66b3fae3",
+      "originalName": "test-photo.jpg",
+      "storedName": "bf7be5e9-7701-4d05-9adb-4737c946f2ac-test-photo.jpg",
+      "mimeType": "image/jpeg",
+      "size": 27,
+      "url": "/uploads/events/backend-test-event-2/bf7be5e9-7701-4d05-9adb-4737c946f2ac-test-photo.jpg",
+      "uploaderName": "Backend Tester",
+      "caption": "Test photo from backend test",
+      "status": "HIDDEN",
+      "uploadSource": "mobile",
+      "createdAt": "2026-04-09T09:17:58.905Z",
+      "updatedAt": "2026-04-09T09:17:59.397Z"
+    },
     {
       "id": "53f9f3d0-51bc-4799-910b-391300f03548",
       "eventId": "806c93ef-0ac8-4e0b-bdbd-cdb16a6cceea",
