@@ -124,6 +124,9 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ TESTED: Event creation API working perfectly after Prisma migration prep. POST /api/events creates events with proper structure (id, name, slug, createdAt). GET /api/events returns list of events. GET /api/events/:slug retrieves specific events. All API shapes preserved, local repository mode functioning correctly."
+      - working: true
+        agent: "main"
+        comment: "Switched DATA_ACCESS_DRIVER to prisma while keeping ADMIN_AUTH_DRIVER local. Manual GET /api confirms repositoryMode=prisma and databaseConfigured=true before regression testing."
   - task: "Chunked photo upload pipeline"
     implemented: true
     working: true
@@ -144,6 +147,12 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ TESTED: Chunked upload pipeline working perfectly. POST /api/uploads/init creates upload sessions with sessionId. POST /api/uploads/chunk accepts file chunks correctly. POST /api/uploads/complete finalizes uploads and creates photo records. Full end-to-end upload flow tested successfully."
+      - working: true
+        agent: "main"
+        comment: "Needs regression after switching DATA_ACCESS_DRIVER to prisma. Storage stays local while metadata persistence should now hit PostgreSQL."
+      - working: true
+        agent: "testing"
+        comment: "✅ PRISMA REGRESSION TESTED: Chunked upload pipeline working perfectly after Prisma switch. POST /api/uploads/init creates upload sessions correctly (✅). POST /api/uploads/chunk accepts file chunks properly (✅). POST /api/uploads/complete finalizes uploads and creates photo records in PostgreSQL (✅). Uploaded photos correctly appear in event gallery metadata. Full end-to-end upload flow tested successfully with Prisma backend."
   - task: "Event gallery read API"
     implemented: true
     working: true
@@ -164,6 +173,12 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ TESTED: Event gallery read API working correctly. GET /api/events/:slug returns event details with proper structure. Photo filtering and visibility controls functioning as expected."
+      - working: true
+        agent: "main"
+        comment: "Needs regression after switching DATA_ACCESS_DRIVER to prisma so public reads are confirmed against PostgreSQL-backed metadata."
+      - working: true
+        agent: "testing"
+        comment: "✅ PRISMA REGRESSION TESTED: Event gallery read API working perfectly after Prisma switch. GET /api/events/:slug returns event details with proper structure from PostgreSQL (✅). Photo filtering and visibility controls functioning correctly. Public gallery metadata correctly retrieved from Prisma backend."
   - task: "Admin password auth and session APIs"
     implemented: true
     working: true
@@ -184,6 +199,12 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ TESTED: Admin authentication working perfectly. GET /api/admin/session correctly shows auth status. POST /api/admin/login with password 'strongpass123' authenticates successfully. Session cookies set properly. POST /api/admin/logout clears sessions. Protected routes correctly require authentication (401 for unauth, 200 for auth)."
+      - working: true
+        agent: "main"
+        comment: "Driver switch keeps ADMIN_AUTH_DRIVER local. Needs regression to confirm local auth remains stable while event/photo repository moves to Prisma."
+      - working: true
+        agent: "testing"
+        comment: "✅ PRISMA REGRESSION TESTED: Admin authentication working perfectly after Prisma switch. GET /api/admin/session correctly shows auth status (✅). POST /api/admin/login with password 'strongpass123' authenticates successfully using local auth (✅). Session cookies set properly. POST /api/admin/logout clears sessions correctly (✅). Local admin auth remains stable while data access switched to Prisma."
   - task: "Admin photo moderation APIs"
     implemented: true
     working: true
@@ -204,6 +225,12 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ TESTED: Admin moderation APIs working correctly. GET /api/admin/events lists events for authenticated admins. GET /api/admin/events/:slug shows event details with photos. PATCH /api/admin/photos/:id successfully moderates photos (approve/reject actions). All admin routes properly protected by authentication."
+      - working: true
+        agent: "main"
+        comment: "Needs regression after DATA_ACCESS_DRIVER switch because moderation should now read/write photo metadata in PostgreSQL while auth stays local."
+      - working: true
+        agent: "testing"
+        comment: "✅ PRISMA REGRESSION TESTED: Admin moderation APIs working perfectly after Prisma switch. GET /api/admin/events lists events for authenticated admins from PostgreSQL (✅). GET /api/admin/events/:slug shows event details with photos from PostgreSQL (✅). PATCH /api/admin/photos/:id successfully moderates photos with approve/reject actions persisted to PostgreSQL (✅). DELETE /api/admin/photos/:id successfully deletes photos from PostgreSQL (✅). All admin routes properly protected by local authentication."
   - task: "Prisma migration preparation and driver selection"
     implemented: true
     working: true
@@ -227,6 +254,12 @@ backend:
       - working: true
         agent: "main"
         comment: "Configured Prisma datasource for Neon with pooled DATABASE_URL and DIRECT_URL for migrations. prisma generate and prisma migrate dev completed successfully against Neon while DATA_ACCESS_DRIVER and ADMIN_AUTH_DRIVER remain local."
+      - working: true
+        agent: "main"
+        comment: "Switched DATA_ACCESS_DRIVER to prisma while keeping ADMIN_AUTH_DRIVER local. Manual GET /api confirmed repositoryMode=prisma, configuredDataAccessDriver=prisma, configuredAdminAuthDriver=local, and databaseConfigured=true before regression testing."
+      - working: true
+        agent: "testing"
+        comment: "✅ PRISMA REGRESSION TESTED: All backend APIs working perfectly after DATA_ACCESS_DRIVER switch to Prisma. Root metadata correctly shows repositoryMode=prisma, configuredDataAccessDriver=prisma, configuredAdminAuthDriver=local, databaseConfigured=true. Event creation/listing/detail APIs working with PostgreSQL backend (✅). Upload pipeline init/chunk/complete working correctly with metadata persisted to PostgreSQL (✅). Admin auth login/session/logout working with local auth as expected (✅). Admin protected routes accessible (✅). Photo moderation approve/reject/delete working with PostgreSQL persistence (✅). Uploaded photos correctly appear in gallery metadata. All API contracts preserved and functioning correctly in Prisma mode."
       - working: true
         agent: "testing"
         comment: "✅ NEON REGRESSION TESTED: All backend APIs working perfectly after Neon Prisma setup. Root metadata correctly shows databaseConfigured=true while repositoryMode=local, configuredDataAccessDriver=local, configuredAdminAuthDriver=local. All API contracts preserved: event creation/listing/detail (✅), upload pipeline init/chunk/complete (✅), admin auth login/session/logout (✅), admin protected routes (✅), photo moderation approve/reject (✅). System correctly remains in local mode - migration script NOT executed as required."
@@ -282,7 +315,7 @@ frontend:
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 7
+  test_sequence: 9
   run_ui: false
 
 test_plan:
@@ -293,6 +326,6 @@ test_plan:
 
 agent_communication:
   - agent: "main"
-    message: "Please do backend-only regression testing after Neon Prisma setup. Context: DATABASE_URL and DIRECT_URL are now configured in .env, prisma generate succeeded, prisma migrate dev succeeded against Neon, and the local-to-prisma dry-run script now succeeds after adding .env loading. Important expectations: DATA_ACCESS_DRIVER must remain local, ADMIN_AUTH_DRIVER must remain local, real import must NOT be executed, and public/admin API contracts must remain unchanged in local runtime mode."
+    message: "Please do full backend post-switch regression testing after DATA_ACCESS_DRIVER was changed to prisma. Important expectations: ADMIN_AUTH_DRIVER must remain local, no new migrations were run, imported PostgreSQL data must remain untouched, and runtime contracts must stay unchanged. Please verify: GET /api shows repositoryMode=prisma/configuredDataAccessDriver=prisma/configuredAdminAuthDriver=local/databaseConfigured=true; public event create/list/detail; upload init/chunk/complete and gallery metadata; admin login/event list/event detail/approve/reject/delete/logout. Use admin password strongpass123. If any issue occurs, highlight whether rollback to local is recommended."
   - agent: "testing"
-    message: "✅ BACKEND REGRESSION TESTING COMPLETE: All backend APIs working perfectly after Neon Prisma setup. Comprehensive testing verified: 1) Root metadata correctly shows databaseConfigured=true while repositoryMode/drivers remain local, 2) Public event APIs work in local mode (create/list/detail), 3) Upload pipeline works in local mode (init/chunk/complete), 4) Admin auth/session/moderation work in local mode, 5) No API contract regressions detected, 6) Migration script NOT executed as required. All 8/8 backend tests passed. System ready for production use in local mode with Neon configured for future migration."
+    message: "✅ PRISMA SWITCH REGRESSION COMPLETE: All backend APIs working perfectly after DATA_ACCESS_DRIVER switch to Prisma. Root metadata correctly shows repositoryMode=prisma, configuredDataAccessDriver=prisma, configuredAdminAuthDriver=local, databaseConfigured=true. All public flows tested: event creation/listing/detail (✅), upload init/chunk/complete with gallery metadata (✅). All admin flows tested with password strongpass123: login/session/logout (✅), event list/detail (✅), photo approve/reject/delete (✅). No rollback needed - Prisma switch successful with all runtime contracts preserved. PostgreSQL backend functioning correctly while local admin auth maintained as expected."

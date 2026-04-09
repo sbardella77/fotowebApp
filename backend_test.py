@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend regression test for Event Gallery MVP after Neon Prisma setup.
-Tests all backend APIs to ensure they work correctly in local mode.
+Backend regression test for Event Gallery MVP after DATA_ACCESS_DRIVER switch to Prisma.
+Tests all backend APIs to ensure they work correctly in Prisma mode with PostgreSQL.
 """
 
 import json
@@ -83,11 +83,11 @@ class BackendTester:
                 self.log_test("Root metadata fields", False, f"Missing fields: {missing_fields}")
                 return False
             
-            # Verify specific requirements
+            # Verify specific requirements after Prisma switch
             checks = [
                 (data.get('databaseConfigured') == True, "databaseConfigured should be true"),
-                (data.get('repositoryMode') == 'local', "repositoryMode should be local"),
-                (data.get('configuredDataAccessDriver') == 'local', "configuredDataAccessDriver should be local"),
+                (data.get('repositoryMode') == 'prisma', "repositoryMode should be prisma"),
+                (data.get('configuredDataAccessDriver') == 'prisma', "configuredDataAccessDriver should be prisma"),
                 (data.get('configuredAdminAuthDriver') == 'local', "configuredAdminAuthDriver should be local")
             ]
             
@@ -99,7 +99,8 @@ class BackendTester:
             self.log_test("Root metadata endpoint", True, 
                          f"databaseConfigured={data['databaseConfigured']}, "
                          f"repositoryMode={data['repositoryMode']}, "
-                         f"drivers=local")
+                         f"configuredDataAccessDriver={data['configuredDataAccessDriver']}, "
+                         f"configuredAdminAuthDriver={data['configuredAdminAuthDriver']}")
             return True
             
         except Exception as e:
@@ -233,6 +234,18 @@ class BackendTester:
                 return False
             
             self.log_test("Upload complete API", True, "Upload completed successfully")
+            
+            # Verify photo appears in gallery metadata by checking event detail
+            response = self.make_request('GET', f"/events/{self.test_event['slug']}")
+            if response.status_code == 200:
+                updated_event = response.json().get('event')
+                if updated_event and updated_event.get('photos'):
+                    photo_count = len(updated_event['photos'])
+                    self.log_test("Photo in gallery metadata", True, f"Photo appears in event gallery ({photo_count} photos)")
+                else:
+                    self.log_test("Photo in gallery metadata", False, "Photo not found in event gallery")
+            else:
+                self.log_test("Photo in gallery metadata", False, "Could not verify gallery metadata")
             
             # Store photo for moderation tests
             self.test_photo = complete_response['photo']
@@ -374,6 +387,19 @@ class BackendTester:
                 return False
             
             self.log_test("Photo moderation (reject)", True, "Photo rejected successfully")
+            
+            # Test DELETE /api/admin/photos/:id (delete photo)
+            response = self.make_request('DELETE', f"/admin/photos/{self.test_photo['id']}")
+            if response.status_code != 200:
+                self.log_test("Photo deletion", False, f"Status: {response.status_code}")
+                return False
+            
+            delete_response = response.json()
+            if not delete_response.get('deleted') or not delete_response.get('photo'):
+                self.log_test("Photo deletion", False, "Photo not deleted correctly")
+                return False
+            
+            self.log_test("Photo deletion", True, "Photo deleted successfully")
             return True
             
         except Exception as e:
@@ -420,30 +446,35 @@ class BackendTester:
             return False
 
     def test_migration_script_not_executed(self):
-        """Verify the migration script was not executed (dry-run only)"""
+        """Verify the system is now running in Prisma mode after driver switch"""
         try:
-            # Check that we're still in local mode by verifying root metadata
+            # Check that we're now in Prisma mode by verifying root metadata
             response = self.make_request('GET', '')
             if response.status_code != 200:
-                self.log_test("Migration script verification", False, "Cannot check root metadata")
+                self.log_test("Prisma mode verification", False, "Cannot check root metadata")
                 return False
             
             data = response.json()
             
-            # Verify we're still in local mode
-            if (data.get('repositoryMode') != 'local' or 
-                data.get('configuredDataAccessDriver') != 'local' or
-                data.get('configuredAdminAuthDriver') != 'local'):
-                self.log_test("Migration script verification", False, 
-                             "System appears to have switched to Prisma mode")
+            # Verify we're now in Prisma mode
+            if (data.get('repositoryMode') != 'prisma' or 
+                data.get('configuredDataAccessDriver') != 'prisma'):
+                self.log_test("Prisma mode verification", False, 
+                             "System is not in Prisma mode as expected")
                 return False
             
-            self.log_test("Migration script verification", True, 
-                         "System correctly remains in local mode - migration not executed")
+            # Verify admin auth remains local
+            if data.get('configuredAdminAuthDriver') != 'local':
+                self.log_test("Prisma mode verification", False, 
+                             "Admin auth should remain local")
+                return False
+            
+            self.log_test("Prisma mode verification", True, 
+                         "System correctly switched to Prisma mode with local admin auth")
             return True
             
         except Exception as e:
-            self.log_test("Migration script verification", False, f"Exception: {str(e)}")
+            self.log_test("Prisma mode verification", False, f"Exception: {str(e)}")
             return False
 
     def run_all_tests(self):
@@ -460,7 +491,7 @@ class BackendTester:
             ("Admin Protected Routes", self.test_admin_protected_routes),
             ("Photo Moderation", self.test_photo_moderation),
             ("Admin Logout", self.test_admin_logout),
-            ("Migration Script Verification", self.test_migration_script_not_executed)
+            ("Prisma Mode Verification", self.test_migration_script_not_executed)
         ]
         
         passed = 0
