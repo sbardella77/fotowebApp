@@ -11,6 +11,7 @@
         "postinstall": "prisma generate",
         "prisma:generate": "prisma generate",
         "prisma:migrate:dev": "prisma migrate dev",
+        "prisma:migrate:deploy": "prisma migrate deploy",
         "prisma:push": "prisma db push",
         "migrate:local-to-prisma:dry-run": "node scripts/migrate-local-json-to-prisma.js",
         "migrate:local-to-prisma": "node scripts/migrate-local-json-to-prisma.js --execute"
