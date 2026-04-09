@@ -1,0 +1,9 @@
+{
+  "sessionId": "7b2c3c3e-08d0-42ef-9657-d7845815e675",
+  "eventSlug": "upload-test-event",
+  "fileName": "test-photo.jpg",
+  "fileSize": 1024,
+  "mimeType": "image/jpeg",
+  "totalChunks": 1,
+  "createdAt": "2026-04-09T11:42:44.927Z"
+}

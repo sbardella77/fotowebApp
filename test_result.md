@@ -153,6 +153,12 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ PRISMA REGRESSION TESTED: Chunked upload pipeline working perfectly after Prisma switch. POST /api/uploads/init creates upload sessions correctly (✅). POST /api/uploads/chunk accepts file chunks properly (✅). POST /api/uploads/complete finalizes uploads and creates photo records in PostgreSQL (✅). Uploaded photos correctly appear in event gallery metadata. Full end-to-end upload flow tested successfully with Prisma backend."
+      - working: true
+        agent: "main"
+        comment: "Added a Vercel-specific fail-fast guard to local storage so uploads return a clear unsupported-storage error instead of silently writing to non-persistent/read-only filesystem in production. Local/serverful behavior remains unchanged."
+      - working: true
+        agent: "testing"
+        comment: "✅ VERCEL REGRESSION TESTED: Chunked upload pipeline working perfectly after Vercel-readiness changes. POST /api/uploads/init creates upload sessions correctly (✅). POST /api/uploads/chunk accepts file chunks properly (✅). POST /api/uploads/complete finalizes uploads and creates photo records in PostgreSQL (✅). Full end-to-end upload flow tested with real file upload and verified photos appear in event gallery. Vercel fail-fast guard correctly added to assertWritableLocalStorage() function - will prevent uploads on Vercel deployment while preserving local/serverful functionality. Local behavior completely unchanged and working perfectly."
   - task: "Event gallery read API"
     implemented: true
     working: true
@@ -315,17 +321,20 @@ frontend:
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 9
+  test_sequence: 10
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Chunked photo upload pipeline"
+    - "Prisma migration preparation and driver selection"
+    - "Vercel deployment readiness"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
   - agent: "main"
-    message: "Please do full backend post-switch regression testing after DATA_ACCESS_DRIVER was changed to prisma. Important expectations: ADMIN_AUTH_DRIVER must remain local, no new migrations were run, imported PostgreSQL data must remain untouched, and runtime contracts must stay unchanged. Please verify: GET /api shows repositoryMode=prisma/configuredDataAccessDriver=prisma/configuredAdminAuthDriver=local/databaseConfigured=true; public event create/list/detail; upload init/chunk/complete and gallery metadata; admin login/event list/event detail/approve/reject/delete/logout. Use admin password strongpass123. If any issue occurs, highlight whether rollback to local is recommended."
+    message: "Please do backend-only regression testing after minimal Vercel-readiness changes. Context: runtime stays DATA_ACCESS_DRIVER=prisma and ADMIN_AUTH_DRIVER=local. Changes made: added package.json postinstall=prisma generate for Vercel builds, and added a Vercel-specific fail-fast guard in local storage driver so uploads clearly error on Vercel instead of writing to non-persistent/read-only filesystem. Do NOT do frontend testing. Verify current local/serverful behavior still works: GET /api metadata, public event flows, upload flow, admin login/session/moderation. Also note whether any rollback is needed for these deployment-safe changes."
   - agent: "testing"
-    message: "✅ PRISMA SWITCH REGRESSION COMPLETE: All backend APIs working perfectly after DATA_ACCESS_DRIVER switch to Prisma. Root metadata correctly shows repositoryMode=prisma, configuredDataAccessDriver=prisma, configuredAdminAuthDriver=local, databaseConfigured=true. All public flows tested: event creation/listing/detail (✅), upload init/chunk/complete with gallery metadata (✅). All admin flows tested with password strongpass123: login/session/logout (✅), event list/detail (✅), photo approve/reject/delete (✅). No rollback needed - Prisma switch successful with all runtime contracts preserved. PostgreSQL backend functioning correctly while local admin auth maintained as expected."
+    message: "✅ VERCEL REGRESSION TESTING COMPLETE: All backend APIs working perfectly after Vercel-readiness changes. Comprehensive testing performed: (1) GET /api metadata correctly shows repositoryMode=prisma, configuredDataAccessDriver=prisma, configuredAdminAuthDriver=local, databaseConfigured=true ✅ (2) Public event flows: POST /api/events creates events, GET /api/events lists events, GET /api/events/:slug retrieves details ✅ (3) Upload flow: Complete end-to-end chunked upload tested with real file - init/chunk/complete all working, photos persist to PostgreSQL, appear in gallery ✅ (4) Admin auth: login/session/logout working with local auth ✅ (5) Admin moderation: events list, event detail, photo approve/reject/delete all working with PostgreSQL persistence ✅. Vercel fail-fast guard correctly implemented in assertWritableLocalStorage() - will prevent uploads on Vercel while preserving local functionality. NO ROLLBACK NEEDED - all changes are deployment-safe and preserve local/serverful behavior perfectly."
