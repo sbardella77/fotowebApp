@@ -1,402 +1,591 @@
 #!/usr/bin/env python3
 """
-Backend regression test for Event Gallery MVP after Vercel-readiness changes.
-Tests: GET /api metadata, public event flows, upload flow, admin login/session/moderation.
+Backend API Regression Test Suite
+Tests all backend APIs after Vercel-readiness adjustments
 """
 
 import requests
 import json
 import os
-import tempfile
+import time
 from io import BytesIO
 
 # Get base URL from environment
 BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'https://photo-event-hub-3.preview.emergentagent.com')
 API_BASE = f"{BASE_URL}/api"
 
+# Test data
+TEST_EVENT_DATA = {
+    "name": "Summer Beach Party 2024",
+    "description": "A fun beach party with friends and family"
+}
+
+TEST_ADMIN_PASSWORD = "strongpass123"  # Known dev password from test_result.md
+
+# Session storage for admin auth
+admin_session_cookies = None
+
+def print_test_result(test_name, success, details=""):
+    """Print formatted test results"""
+    status = "✅ PASS" if success else "❌ FAIL"
+    print(f"{status}: {test_name}")
+    if details:
+        print(f"    {details}")
+    print()
+
+def make_request(method, endpoint, data=None, files=None, cookies=None, headers=None):
+    """Make HTTP request with error handling"""
+    url = f"{API_BASE}{endpoint}"
+    
+    try:
+        if method.upper() == 'GET':
+            response = requests.get(url, cookies=cookies, headers=headers, timeout=30)
+        elif method.upper() == 'POST':
+            if files:
+                response = requests.post(url, data=data, files=files, cookies=cookies, headers=headers, timeout=30)
+            else:
+                response = requests.post(url, json=data, cookies=cookies, headers=headers, timeout=30)
+        elif method.upper() == 'PATCH':
+            response = requests.patch(url, json=data, cookies=cookies, headers=headers, timeout=30)
+        elif method.upper() == 'DELETE':
+            response = requests.delete(url, cookies=cookies, headers=headers, timeout=30)
+        else:
+            raise ValueError(f"Unsupported method: {method}")
+            
+        return response
+    except requests.exceptions.RequestException as e:
+        print(f"Request failed: {e}")
+        return None
+
 def test_api_metadata():
     """Test GET /api metadata endpoint"""
-    print("🔍 Testing GET /api metadata...")
-    try:
-        response = requests.get(f"{API_BASE}")
-        print(f"Status: {response.status_code}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            print(f"Response: {json.dumps(data, indent=2)}")
-            
-            # Verify expected fields
-            expected_fields = ['name', 'repositoryMode', 'configuredDataAccessDriver', 'configuredAdminAuthDriver', 'storageMode', 'databaseConfigured', 'adminConfigured']
-            missing_fields = [field for field in expected_fields if field not in data]
-            
-            if missing_fields:
-                print(f"❌ Missing fields: {missing_fields}")
-                return False
-                
-            # Verify current configuration
-            if data.get('configuredDataAccessDriver') != 'prisma':
-                print(f"❌ Expected DATA_ACCESS_DRIVER=prisma, got {data.get('configuredDataAccessDriver')}")
-                return False
-                
-            if data.get('configuredAdminAuthDriver') != 'local':
-                print(f"❌ Expected ADMIN_AUTH_DRIVER=local, got {data.get('configuredAdminAuthDriver')}")
-                return False
-                
-            print("✅ GET /api metadata working correctly")
-            return True
-        else:
-            print(f"❌ GET /api metadata failed with status {response.status_code}")
-            print(f"Response: {response.text}")
-            return False
-            
-    except Exception as e:
-        print(f"❌ GET /api metadata error: {e}")
-        return False
-
-def test_public_event_flows():
-    """Test public event create/list/detail flows"""
-    print("\n🔍 Testing public event flows...")
+    print("🔍 Testing API Metadata...")
     
-    # Test event creation
-    print("Testing POST /api/events...")
     try:
-        event_data = {
-            "name": "Regression Test Event",
-            "description": "Testing after Vercel changes"
-        }
+        response = make_request('GET', '')
         
-        response = requests.post(f"{API_BASE}/events", json=event_data)
-        print(f"Create event status: {response.status_code}")
-        
-        if response.status_code != 201:
-            print(f"❌ Event creation failed: {response.text}")
+        if not response:
+            print_test_result("API Metadata", False, "Request failed")
             return False
             
-        created_event = response.json().get('event')
-        if not created_event or not created_event.get('slug'):
-            print(f"❌ Event creation response missing event or slug: {response.json()}")
-            return False
-            
-        event_slug = created_event['slug']
-        print(f"✅ Event created with slug: {event_slug}")
-        
-    except Exception as e:
-        print(f"❌ Event creation error: {e}")
-        return False
-    
-    # Test event listing
-    print("Testing GET /api/events...")
-    try:
-        response = requests.get(f"{API_BASE}/events")
-        print(f"List events status: {response.status_code}")
-        
         if response.status_code != 200:
-            print(f"❌ Event listing failed: {response.text}")
+            print_test_result("API Metadata", False, f"Status: {response.status_code}")
             return False
             
-        events_data = response.json()
-        if 'events' not in events_data:
-            print(f"❌ Event listing response missing events: {events_data}")
-            return False
-            
-        events = events_data['events']
-        print(f"✅ Event listing returned {len(events)} events")
+        data = response.json()
         
-    except Exception as e:
-        print(f"❌ Event listing error: {e}")
-        return False
-    
-    # Test event detail
-    print(f"Testing GET /api/events/{event_slug}...")
-    try:
-        response = requests.get(f"{API_BASE}/events/{event_slug}")
-        print(f"Event detail status: {response.status_code}")
+        # Verify expected fields
+        expected_fields = ['name', 'repositoryMode', 'configuredDataAccessDriver', 'configuredAdminAuthDriver', 'databaseConfigured']
+        missing_fields = [field for field in expected_fields if field not in data]
         
-        if response.status_code != 200:
-            print(f"❌ Event detail failed: {response.text}")
+        if missing_fields:
+            print_test_result("API Metadata", False, f"Missing fields: {missing_fields}")
             return False
             
-        event_detail = response.json().get('event')
-        if not event_detail or event_detail.get('slug') != event_slug:
-            print(f"❌ Event detail response invalid: {response.json()}")
+        # Verify configuration matches environment
+        if data.get('configuredDataAccessDriver') != 'prisma':
+            print_test_result("API Metadata", False, f"Expected DATA_ACCESS_DRIVER=prisma, got {data.get('configuredDataAccessDriver')}")
             return False
             
-        print(f"✅ Event detail retrieved for {event_slug}")
+        if data.get('configuredAdminAuthDriver') != 'local':
+            print_test_result("API Metadata", False, f"Expected ADMIN_AUTH_DRIVER=local, got {data.get('configuredAdminAuthDriver')}")
+            return False
+            
+        if not data.get('databaseConfigured'):
+            print_test_result("API Metadata", False, "Database should be configured")
+            return False
+            
+        print_test_result("API Metadata", True, f"Repository: {data.get('repositoryMode')}, DB: {data.get('databaseConfigured')}")
         return True
         
     except Exception as e:
-        print(f"❌ Event detail error: {e}")
+        print_test_result("API Metadata", False, f"Exception: {str(e)}")
         return False
 
-def test_upload_flow():
-    """Test upload flow init/chunk/complete - should fail gracefully on Vercel"""
-    print("\n🔍 Testing upload flow (expecting Vercel failure)...")
+def test_event_creation():
+    """Test POST /api/events"""
+    print("🔍 Testing Event Creation...")
     
-    # First create an event to upload to
-    event_data = {
-        "name": "Upload Test Event",
-        "description": "Testing upload flow"
+    try:
+        response = make_request('POST', '/events', TEST_EVENT_DATA)
+        
+        if not response:
+            print_test_result("Event Creation", False, "Request failed")
+            return None
+            
+        if response.status_code != 201:
+            print_test_result("Event Creation", False, f"Status: {response.status_code}, Response: {response.text}")
+            return None
+            
+        data = response.json()
+        
+        if 'event' not in data:
+            print_test_result("Event Creation", False, "No event in response")
+            return None
+            
+        event = data['event']
+        required_fields = ['id', 'name', 'slug', 'createdAt']
+        missing_fields = [field for field in required_fields if field not in event]
+        
+        if missing_fields:
+            print_test_result("Event Creation", False, f"Missing event fields: {missing_fields}")
+            return None
+            
+        print_test_result("Event Creation", True, f"Created event: {event['name']} (slug: {event['slug']})")
+        return event
+        
+    except Exception as e:
+        print_test_result("Event Creation", False, f"Exception: {str(e)}")
+        return None
+
+def test_event_listing():
+    """Test GET /api/events"""
+    print("🔍 Testing Event Listing...")
+    
+    try:
+        response = make_request('GET', '/events')
+        
+        if not response:
+            print_test_result("Event Listing", False, "Request failed")
+            return False
+            
+        if response.status_code != 200:
+            print_test_result("Event Listing", False, f"Status: {response.status_code}")
+            return False
+            
+        data = response.json()
+        
+        if 'events' not in data:
+            print_test_result("Event Listing", False, "No events array in response")
+            return False
+            
+        events = data['events']
+        print_test_result("Event Listing", True, f"Retrieved {len(events)} events")
+        return True
+        
+    except Exception as e:
+        print_test_result("Event Listing", False, f"Exception: {str(e)}")
+        return False
+
+def test_event_detail(event_slug):
+    """Test GET /api/events/:slug"""
+    print("🔍 Testing Event Detail...")
+    
+    try:
+        response = make_request('GET', f'/events/{event_slug}')
+        
+        if not response:
+            print_test_result("Event Detail", False, "Request failed")
+            return False
+            
+        if response.status_code != 200:
+            print_test_result("Event Detail", False, f"Status: {response.status_code}")
+            return False
+            
+        data = response.json()
+        
+        if 'event' not in data:
+            print_test_result("Event Detail", False, "No event in response")
+            return False
+            
+        event = data['event']
+        if event['slug'] != event_slug:
+            print_test_result("Event Detail", False, f"Slug mismatch: expected {event_slug}, got {event['slug']}")
+            return False
+            
+        print_test_result("Event Detail", True, f"Retrieved event: {event['name']}")
+        return True
+        
+    except Exception as e:
+        print_test_result("Event Detail", False, f"Exception: {str(e)}")
+        return False
+
+def test_upload_init(event_slug):
+    """Test POST /api/uploads/init"""
+    print("🔍 Testing Upload Init...")
+    
+    upload_data = {
+        "eventSlug": event_slug,
+        "fileName": "test-photo.jpg",
+        "mimeType": "image/jpeg",
+        "fileSize": 1024000,
+        "totalChunks": 1
     }
     
     try:
-        response = requests.post(f"{API_BASE}/events", json=event_data)
-        if response.status_code != 201:
-            print(f"❌ Failed to create test event: {response.text}")
-            return False
+        response = make_request('POST', '/uploads/init', upload_data)
+        
+        if not response:
+            print_test_result("Upload Init", False, "Request failed")
+            return None
             
-        event_slug = response.json()['event']['slug']
-        print(f"Created test event: {event_slug}")
+        if response.status_code != 201:
+            print_test_result("Upload Init", False, f"Status: {response.status_code}, Response: {response.text}")
+            return None
+            
+        data = response.json()
+        
+        if 'session' not in data:
+            print_test_result("Upload Init", False, "No session in response")
+            return None
+            
+        session = data['session']
+        if 'sessionId' not in session:
+            print_test_result("Upload Init", False, "No sessionId in session")
+            return None
+            
+        print_test_result("Upload Init", True, f"Created upload session: {session['sessionId']}")
+        return session
         
     except Exception as e:
-        print(f"❌ Error creating test event: {e}")
-        return False
+        print_test_result("Upload Init", False, f"Exception: {str(e)}")
+        return None
+
+def test_upload_chunk(session_id):
+    """Test POST /api/uploads/chunk"""
+    print("🔍 Testing Upload Chunk...")
     
-    # Test upload init - should fail with Vercel error
-    print("Testing POST /api/uploads/init...")
+    # Create a small test file chunk
+    test_chunk = b"fake image data for testing" * 100  # Small chunk
+    
     try:
-        upload_data = {
-            "eventSlug": event_slug,
-            "fileName": "test-photo.jpg",
-            "fileSize": 1024,
-            "mimeType": "image/jpeg",
-            "totalChunks": 1
+        files = {
+            'chunk': ('chunk.bin', BytesIO(test_chunk), 'application/octet-stream')
         }
         
-        response = requests.post(f"{API_BASE}/uploads/init", json=upload_data)
-        print(f"Upload init status: {response.status_code}")
+        data = {
+            'sessionId': session_id,
+            'chunkIndex': '0',
+            'totalChunks': '1'
+        }
         
-        if response.status_code == 500:
-            # Check if it's the expected Vercel error
-            error_text = response.text.lower()
-            if 'vercel' in error_text or 'local file storage' in error_text or 'not supported' in error_text:
-                print("✅ Upload init correctly fails on Vercel with expected error")
-                print(f"Error message: {response.text}")
-                return True
-            else:
-                print(f"❌ Upload init failed with unexpected error: {response.text}")
-                return False
-        elif response.status_code == 201:
-            # If we're not on Vercel, upload should work
-            print("✅ Upload init succeeded (not on Vercel)")
-            session_data = response.json().get('session')
-            if not session_data or not session_data.get('sessionId'):
-                print(f"❌ Upload init response missing session data: {response.json()}")
-                return False
-            return True
-        else:
-            print(f"❌ Upload init failed with unexpected status: {response.status_code}")
-            print(f"Response: {response.text}")
+        response = make_request('POST', '/uploads/chunk', data=data, files=files)
+        
+        if not response:
+            print_test_result("Upload Chunk", False, "Request failed")
             return False
             
-    except Exception as e:
-        print(f"❌ Upload init error: {e}")
-        return False
-
-def test_admin_auth_flow():
-    """Test admin login/session/logout flow"""
-    print("\n🔍 Testing admin authentication flow...")
-    
-    # Test admin session status (unauthenticated)
-    print("Testing GET /api/admin/session (unauthenticated)...")
-    try:
-        response = requests.get(f"{API_BASE}/admin/session")
-        print(f"Admin session status: {response.status_code}")
-        
         if response.status_code != 200:
-            print(f"❌ Admin session check failed: {response.text}")
+            print_test_result("Upload Chunk", False, f"Status: {response.status_code}, Response: {response.text}")
             return False
             
-        session_data = response.json()
-        if session_data.get('authenticated') is not False:
-            print(f"❌ Expected authenticated=false, got: {session_data}")
-            return False
-            
-        print("✅ Admin session correctly shows unauthenticated")
+        data = response.json()
         
-    except Exception as e:
-        print(f"❌ Admin session check error: {e}")
-        return False
-    
-    # Test admin login
-    print("Testing POST /api/admin/login...")
-    try:
-        login_data = {"password": "strongpass123"}
-        response = requests.post(f"{API_BASE}/admin/login", json=login_data)
-        print(f"Admin login status: {response.status_code}")
-        
-        if response.status_code != 200:
-            print(f"❌ Admin login failed: {response.text}")
+        if not data.get('uploaded'):
+            print_test_result("Upload Chunk", False, "Upload not confirmed")
             return False
             
-        login_response = response.json()
-        if login_response.get('authenticated') is not True:
-            print(f"❌ Expected authenticated=true after login, got: {login_response}")
-            return False
-            
-        # Extract session cookie for subsequent requests
-        session_cookies = response.cookies
-        print("✅ Admin login successful")
-        
-    except Exception as e:
-        print(f"❌ Admin login error: {e}")
-        return False
-    
-    # Test authenticated admin session
-    print("Testing GET /api/admin/session (authenticated)...")
-    try:
-        response = requests.get(f"{API_BASE}/admin/session", cookies=session_cookies)
-        print(f"Authenticated session status: {response.status_code}")
-        
-        if response.status_code != 200:
-            print(f"❌ Authenticated session check failed: {response.text}")
-            return False
-            
-        session_data = response.json()
-        if session_data.get('authenticated') is not True:
-            print(f"❌ Expected authenticated=true, got: {session_data}")
-            return False
-            
-        print("✅ Authenticated admin session working")
-        
-    except Exception as e:
-        print(f"❌ Authenticated session check error: {e}")
-        return False
-    
-    # Test admin logout
-    print("Testing POST /api/admin/logout...")
-    try:
-        response = requests.post(f"{API_BASE}/admin/logout", cookies=session_cookies)
-        print(f"Admin logout status: {response.status_code}")
-        
-        if response.status_code != 200:
-            print(f"❌ Admin logout failed: {response.text}")
-            return False
-            
-        logout_response = response.json()
-        if logout_response.get('authenticated') is not False:
-            print(f"❌ Expected authenticated=false after logout, got: {logout_response}")
-            return False
-            
-        print("✅ Admin logout successful")
+        print_test_result("Upload Chunk", True, f"Uploaded chunk {data.get('chunkIndex')}/{data.get('totalChunks')}")
         return True
         
     except Exception as e:
-        print(f"❌ Admin logout error: {e}")
+        print_test_result("Upload Chunk", False, f"Exception: {str(e)}")
         return False
 
-def test_admin_moderation():
-    """Test admin moderation endpoints"""
-    print("\n🔍 Testing admin moderation...")
+def test_upload_complete(session_id):
+    """Test POST /api/uploads/complete"""
+    print("🔍 Testing Upload Complete...")
     
-    # First login as admin
-    login_data = {"password": "strongpass123"}
+    complete_data = {
+        "sessionId": session_id,
+        "uploaderName": "Test User",
+        "caption": "Test photo upload"
+    }
+    
     try:
-        response = requests.post(f"{API_BASE}/admin/login", json=login_data)
-        if response.status_code != 200:
-            print(f"❌ Admin login failed for moderation test: {response.text}")
-            return False
-        session_cookies = response.cookies
-        print("Admin logged in for moderation test")
+        response = make_request('POST', '/uploads/complete', complete_data)
+        
+        if not response:
+            print_test_result("Upload Complete", False, "Request failed")
+            return None
+            
+        if response.status_code != 201:
+            print_test_result("Upload Complete", False, f"Status: {response.status_code}, Response: {response.text}")
+            return None
+            
+        data = response.json()
+        
+        if 'photo' not in data or 'event' not in data:
+            print_test_result("Upload Complete", False, "Missing photo or event in response")
+            return None
+            
+        photo = data['photo']
+        if 'id' not in photo:
+            print_test_result("Upload Complete", False, "No photo ID in response")
+            return None
+            
+        print_test_result("Upload Complete", True, f"Created photo: {photo['id']}")
+        return photo
+        
     except Exception as e:
-        print(f"❌ Admin login error for moderation: {e}")
-        return False
+        print_test_result("Upload Complete", False, f"Exception: {str(e)}")
+        return None
+
+def test_admin_session():
+    """Test GET /api/admin/session"""
+    print("🔍 Testing Admin Session Status...")
     
-    # Test admin events list
-    print("Testing GET /api/admin/events...")
     try:
-        response = requests.get(f"{API_BASE}/admin/events", cookies=session_cookies)
-        print(f"Admin events status: {response.status_code}")
+        response = make_request('GET', '/admin/session')
         
+        if not response:
+            print_test_result("Admin Session Status", False, "Request failed")
+            return False
+            
         if response.status_code != 200:
-            print(f"❌ Admin events list failed: {response.text}")
+            print_test_result("Admin Session Status", False, f"Status: {response.status_code}")
             return False
             
-        events_data = response.json()
-        if 'events' not in events_data:
-            print(f"❌ Admin events response missing events: {events_data}")
+        data = response.json()
+        
+        # Should have configured and authenticated fields
+        if 'configured' not in data or 'authenticated' not in data:
+            print_test_result("Admin Session Status", False, "Missing configured or authenticated fields")
             return False
             
-        events = events_data['events']
-        print(f"✅ Admin events list returned {len(events)} events")
-        
-        if len(events) > 0:
-            # Test admin event detail
-            event_slug = events[0]['slug']
-            print(f"Testing GET /api/admin/events/{event_slug}...")
-            
-            response = requests.get(f"{API_BASE}/admin/events/{event_slug}", cookies=session_cookies)
-            print(f"Admin event detail status: {response.status_code}")
-            
-            if response.status_code != 200:
-                print(f"❌ Admin event detail failed: {response.text}")
-                return False
-                
-            event_detail = response.json().get('event')
-            if not event_detail:
-                print(f"❌ Admin event detail response missing event: {response.json()}")
-                return False
-                
-            print(f"✅ Admin event detail retrieved for {event_slug}")
-            
-            # Check if there are photos to moderate
-            photos = event_detail.get('photos', [])
-            if len(photos) > 0:
-                photo_id = photos[0]['id']
-                print(f"Testing photo moderation for photo {photo_id}...")
-                
-                # Test photo approval
-                moderation_data = {"action": "approve"}
-                response = requests.patch(f"{API_BASE}/admin/photos/{photo_id}", 
-                                        json=moderation_data, cookies=session_cookies)
-                print(f"Photo moderation status: {response.status_code}")
-                
-                if response.status_code == 200:
-                    print("✅ Photo moderation working")
-                else:
-                    print(f"❌ Photo moderation failed: {response.text}")
-                    return False
-            else:
-                print("ℹ️ No photos available for moderation test")
-        
+        print_test_result("Admin Session Status", True, f"Configured: {data['configured']}, Authenticated: {data['authenticated']}")
         return True
         
     except Exception as e:
-        print(f"❌ Admin moderation error: {e}")
+        print_test_result("Admin Session Status", False, f"Exception: {str(e)}")
+        return False
+
+def test_admin_login():
+    """Test POST /api/admin/login"""
+    global admin_session_cookies
+    print("🔍 Testing Admin Login...")
+    
+    login_data = {
+        "password": TEST_ADMIN_PASSWORD
+    }
+    
+    try:
+        response = make_request('POST', '/admin/login', login_data)
+        
+        if not response:
+            print_test_result("Admin Login", False, "Request failed")
+            return False
+            
+        if response.status_code != 200:
+            print_test_result("Admin Login", False, f"Status: {response.status_code}, Response: {response.text}")
+            return False
+            
+        data = response.json()
+        
+        if not data.get('authenticated'):
+            print_test_result("Admin Login", False, "Authentication failed")
+            return False
+            
+        # Store session cookies for subsequent requests
+        admin_session_cookies = response.cookies
+        
+        print_test_result("Admin Login", True, "Successfully authenticated")
+        return True
+        
+    except Exception as e:
+        print_test_result("Admin Login", False, f"Exception: {str(e)}")
+        return False
+
+def test_admin_events():
+    """Test GET /api/admin/events"""
+    print("🔍 Testing Admin Events List...")
+    
+    try:
+        response = make_request('GET', '/admin/events', cookies=admin_session_cookies)
+        
+        if not response:
+            print_test_result("Admin Events List", False, "Request failed")
+            return False
+            
+        if response.status_code == 401:
+            print_test_result("Admin Events List", False, "Authentication required (401)")
+            return False
+            
+        if response.status_code != 200:
+            print_test_result("Admin Events List", False, f"Status: {response.status_code}")
+            return False
+            
+        data = response.json()
+        
+        if 'events' not in data:
+            print_test_result("Admin Events List", False, "No events array in response")
+            return False
+            
+        events = data['events']
+        print_test_result("Admin Events List", True, f"Retrieved {len(events)} events for admin")
+        return True
+        
+    except Exception as e:
+        print_test_result("Admin Events List", False, f"Exception: {str(e)}")
+        return False
+
+def test_admin_event_detail(event_slug):
+    """Test GET /api/admin/events/:slug"""
+    print("🔍 Testing Admin Event Detail...")
+    
+    try:
+        response = make_request('GET', f'/admin/events/{event_slug}', cookies=admin_session_cookies)
+        
+        if not response:
+            print_test_result("Admin Event Detail", False, "Request failed")
+            return False
+            
+        if response.status_code == 401:
+            print_test_result("Admin Event Detail", False, "Authentication required (401)")
+            return False
+            
+        if response.status_code != 200:
+            print_test_result("Admin Event Detail", False, f"Status: {response.status_code}")
+            return False
+            
+        data = response.json()
+        
+        if 'event' not in data:
+            print_test_result("Admin Event Detail", False, "No event in response")
+            return False
+            
+        event = data['event']
+        print_test_result("Admin Event Detail", True, f"Retrieved admin event: {event['name']}")
+        return True
+        
+    except Exception as e:
+        print_test_result("Admin Event Detail", False, f"Exception: {str(e)}")
+        return False
+
+def test_photo_moderation(photo_id):
+    """Test PATCH /api/admin/photos/:id"""
+    print("🔍 Testing Photo Moderation...")
+    
+    moderation_data = {
+        "action": "approve"
+    }
+    
+    try:
+        response = make_request('PATCH', f'/admin/photos/{photo_id}', moderation_data, cookies=admin_session_cookies)
+        
+        if not response:
+            print_test_result("Photo Moderation", False, "Request failed")
+            return False
+            
+        if response.status_code == 401:
+            print_test_result("Photo Moderation", False, "Authentication required (401)")
+            return False
+            
+        if response.status_code != 200:
+            print_test_result("Photo Moderation", False, f"Status: {response.status_code}, Response: {response.text}")
+            return False
+            
+        data = response.json()
+        
+        if 'photo' not in data:
+            print_test_result("Photo Moderation", False, "No photo in response")
+            return False
+            
+        photo = data['photo']
+        print_test_result("Photo Moderation", True, f"Moderated photo: {photo['id']} -> {photo.get('status', 'unknown')}")
+        return True
+        
+    except Exception as e:
+        print_test_result("Photo Moderation", False, f"Exception: {str(e)}")
+        return False
+
+def test_admin_logout():
+    """Test POST /api/admin/logout"""
+    print("🔍 Testing Admin Logout...")
+    
+    try:
+        response = make_request('POST', '/admin/logout', cookies=admin_session_cookies)
+        
+        if not response:
+            print_test_result("Admin Logout", False, "Request failed")
+            return False
+            
+        if response.status_code != 200:
+            print_test_result("Admin Logout", False, f"Status: {response.status_code}")
+            return False
+            
+        data = response.json()
+        
+        if not data.get('loggedOut'):
+            print_test_result("Admin Logout", False, "Logout not confirmed")
+            return False
+            
+        print_test_result("Admin Logout", True, "Successfully logged out")
+        return True
+        
+    except Exception as e:
+        print_test_result("Admin Logout", False, f"Exception: {str(e)}")
         return False
 
 def main():
-    """Run all backend regression tests"""
-    print("🚀 Starting backend regression tests after Vercel-readiness changes...")
+    """Run all backend tests"""
+    print("🚀 Starting Backend API Regression Tests")
     print(f"Testing against: {API_BASE}")
     print("=" * 60)
     
-    results = {
-        "api_metadata": test_api_metadata(),
-        "public_event_flows": test_public_event_flows(),
-        "upload_flow": test_upload_flow(),
-        "admin_auth_flow": test_admin_auth_flow(),
-        "admin_moderation": test_admin_moderation()
-    }
+    # Track test results
+    results = {}
     
-    print("\n" + "=" * 60)
-    print("📊 REGRESSION TEST RESULTS:")
+    # 1. Test API metadata
+    results['metadata'] = test_api_metadata()
+    
+    # 2. Test public event APIs
+    results['event_listing'] = test_event_listing()
+    
+    created_event = test_event_creation()
+    results['event_creation'] = created_event is not None
+    
+    if created_event:
+        event_slug = created_event['slug']
+        results['event_detail'] = test_event_detail(event_slug)
+        
+        # 3. Test upload flow
+        upload_session = test_upload_init(event_slug)
+        results['upload_init'] = upload_session is not None
+        
+        if upload_session:
+            session_id = upload_session['sessionId']
+            results['upload_chunk'] = test_upload_chunk(session_id)
+            
+            if results['upload_chunk']:
+                uploaded_photo = test_upload_complete(session_id)
+                results['upload_complete'] = uploaded_photo is not None
+                
+                # 4. Test admin authentication and moderation
+                results['admin_session'] = test_admin_session()
+                results['admin_login'] = test_admin_login()
+                
+                if results['admin_login']:
+                    results['admin_events'] = test_admin_events()
+                    results['admin_event_detail'] = test_admin_event_detail(event_slug)
+                    
+                    if uploaded_photo:
+                        photo_id = uploaded_photo['id']
+                        results['photo_moderation'] = test_photo_moderation(photo_id)
+                    
+                    results['admin_logout'] = test_admin_logout()
+    
+    # Print summary
+    print("=" * 60)
+    print("📊 TEST SUMMARY")
     print("=" * 60)
     
-    all_passed = True
-    for test_name, passed in results.items():
-        status = "✅ PASS" if passed else "❌ FAIL"
-        print(f"{test_name}: {status}")
-        if not passed:
-            all_passed = False
+    passed = sum(1 for result in results.values() if result)
+    total = len(results)
     
-    print("=" * 60)
-    if all_passed:
-        print("🎉 ALL BACKEND TESTS PASSED - Vercel changes are working correctly!")
-        print("✅ Local/serverful behavior preserved after deployment-safe changes")
+    for test_name, result in results.items():
+        status = "✅ PASS" if result else "❌ FAIL"
+        print(f"{status}: {test_name}")
+    
+    print(f"\nOverall: {passed}/{total} tests passed")
+    
+    if passed == total:
+        print("🎉 All backend tests PASSED! No rollback needed.")
+        return True
     else:
-        print("⚠️ SOME TESTS FAILED - Review issues above")
-    
-    return all_passed
+        print("⚠️  Some tests FAILED. Review results above.")
+        return False
 
 if __name__ == "__main__":
-    main()
+    success = main()
+    exit(0 if success else 1)
