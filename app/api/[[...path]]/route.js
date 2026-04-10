@@ -1,12 +1,16 @@
 import { randomUUID } from 'crypto'
+import { handleUpload } from '@vercel/blob/client'
 import { NextResponse } from 'next/server'
 import {
   adminModerationSchema,
   adminPasswordSchema,
+  blobUploadClientPayloadSchema,
+  blobUploadCompleteSchema,
   createEventSchema,
+  localUploadCompleteSchema,
   MAX_CHUNK_SIZE_BYTES,
+  MAX_FILE_SIZE_BYTES,
   uploadChunkSchema,
-  uploadCompleteSchema,
   uploadInitSchema,
 } from '@/lib/server/schemas'
 import {
@@ -20,7 +24,15 @@ import {
 } from '@/lib/server/admin-auth'
 import { getGalleryRepository, getGalleryRepositoryMode } from '@/lib/server/gallery-repository'
 import { getAdminAuthDriver, getDataAccessDriver } from '@/lib/server/prisma-client'
-import { localStorageDriver } from '@/lib/server/storage/local-storage'
+import {
+  buildBlobPathname,
+  deleteStoredFile,
+  getStoredNameFromBlobPathname,
+  getStorageDriver,
+  getStorageMode,
+  isVercelBlobStorageConfigured,
+  localStorageDriver,
+} from '@/lib/server/storage'
 
 export const runtime = 'nodejs'
 
@@ -70,7 +82,7 @@ const routeRoot = async () => {
     repositoryMode,
     configuredDataAccessDriver: getDataAccessDriver(),
     configuredAdminAuthDriver: getAdminAuthDriver(),
-    storageMode: localStorageDriver.mode,
+    storageMode: getStorageMode(),
     databaseConfigured: Boolean(process.env.DATABASE_URL),
     adminConfigured: adminStatus.configured,
     adminSource: adminStatus.source,
@@ -110,8 +122,42 @@ const initUpload = async (request) => {
     return json({ error: 'Event not found' }, 404)
   }
 
-  const session = await localStorageDriver.initUploadSession(payload)
+  const storageDriver = getStorageDriver()
+  const session = await storageDriver.initUploadSession(payload)
   return json({ session }, 201)
+}
+
+const issueBlobUploadToken = async (request) => {
+  if (!isVercelBlobStorageConfigured()) {
+    return json({ error: 'Vercel Blob is not configured' }, 500)
+  }
+
+  const body = await request.json()
+
+  try {
+    return await handleUpload({
+      body,
+      request,
+      onBeforeGenerateToken: async (_pathname, clientPayload) => {
+        const payload = blobUploadClientPayloadSchema.parse(JSON.parse(clientPayload || '{}'))
+        const repository = await getGalleryRepository()
+        const event = await repository.getEventBySlug(payload.eventSlug)
+
+        if (!event) {
+          throw new Error('Event not found')
+        }
+
+        return {
+          pathname: buildBlobPathname({ eventSlug: event.slug, fileName: payload.fileName }),
+          allowedContentTypes: ['image/*'],
+          maximumSizeInBytes: MAX_FILE_SIZE_BYTES,
+          addRandomSuffix: true,
+        }
+      },
+    })
+  } catch (error) {
+    return json({ error: error?.message || 'Unable to initialize Vercel Blob upload' }, 400)
+  }
 }
 
 const uploadChunk = async (request) => {
@@ -143,8 +189,37 @@ const uploadChunk = async (request) => {
 }
 
 const completeUpload = async (request) => {
-  const payload = uploadCompleteSchema.parse(await request.json())
+  const body = await request.json()
   const repository = await getGalleryRepository()
+
+  if (body?.blobUrl) {
+    const payload = blobUploadCompleteSchema.parse(body)
+    const event = await repository.getEventBySlug(payload.eventSlug)
+
+    if (!event) {
+      return json({ error: 'Event not found while finalizing upload' }, 404)
+    }
+
+    const photo = await repository.createPhoto({
+      eventId: event.id,
+      originalName: payload.originalName,
+      storedName: getStoredNameFromBlobPathname(payload.blobPathname),
+      mimeType: payload.mimeType,
+      size: payload.size,
+      url: payload.blobUrl,
+      uploaderName: payload.uploaderName,
+      caption: payload.caption,
+    })
+
+    const freshEvent = await repository.getEventBySlug(event.slug)
+
+    return json({
+      photo,
+      event: freshEvent,
+    }, 201)
+  }
+
+  const payload = localUploadCompleteSchema.parse(body)
   const fileResult = await localStorageDriver.completeUploadSession({
     sessionId: payload.sessionId,
     photoId: randomUUID(),
@@ -284,7 +359,7 @@ const deletePhoto = async (request, photoId) => {
     return json({ error: 'Photo not found' }, 404)
   }
 
-  await localStorageDriver.deleteStoredFile(photo.url)
+  await deleteStoredFile(photo.url)
   return json({ deleted: true, photo })
 }
 
@@ -359,6 +434,10 @@ async function handleRoute(request, { params }) {
 
     if (segments[0] === 'uploads' && segments[1] === 'init' && method === 'POST') {
       return initUpload(request)
+    }
+
+    if (segments[0] === 'uploads' && segments[1] === 'blob' && method === 'POST') {
+      return issueBlobUploadToken(request)
     }
 
     if (segments[0] === 'uploads' && segments[1] === 'chunk' && method === 'POST') {

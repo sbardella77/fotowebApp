@@ -1,5 +1,6 @@
 'use client'
 
+import { upload } from '@vercel/blob/client'
 import { useEffect, useMemo, useState } from 'react'
 import {
   AlertCircle,
@@ -209,6 +210,55 @@ function App() {
 
       if (!initResponse.ok) {
         throw new Error(initPayload.error || 'Unable to initialize upload')
+      }
+
+      if (initPayload.session?.uploadStrategy === 'vercel-blob-client') {
+        updateUpload({ progress: 8, status: 'Uploading to event gallery storage' })
+
+        const blob = await upload(initPayload.session.pathname || file.name, file, {
+          access: 'public',
+          handleUploadUrl: initPayload.session.handleUploadUrl || '/api/uploads/blob',
+          clientPayload: JSON.stringify({
+            eventSlug: activeEvent.slug,
+            fileName: file.name,
+            fileSize: file.size,
+            mimeType: file.type || 'image/jpeg',
+          }),
+          multipart: file.size > 5 * 1024 * 1024,
+          onUploadProgress: ({ percentage }) => {
+            const progress = 10 + Math.round((percentage / 100) * 75)
+            updateUpload({ progress, status: `Uploaded ${Math.round(percentage)}%` })
+          },
+        })
+
+        updateUpload({ progress: 90, status: 'Finalizing gallery entry' })
+
+        const completeResponse = await fetch('/api/uploads/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            eventSlug: activeEvent.slug,
+            blobUrl: blob.url,
+            blobPathname: blob.pathname,
+            originalName: file.name,
+            mimeType: file.type || 'image/jpeg',
+            size: file.size,
+            uploaderName: guestName,
+            caption: '',
+          }),
+        })
+        const completePayload = await completeResponse.json()
+
+        if (!completeResponse.ok) {
+          throw new Error(completePayload.error || 'Unable to finalize upload')
+        }
+
+        updateUpload({ progress: 100, status: 'Shared with the gallery' })
+        setActiveEvent(completePayload.event)
+        setGalleryError('')
+        setMessage(`Uploaded ${file.name}. Everyone in this event sees the newest photo at the top.`)
+        await loadEvents({ background: true })
+        return
       }
 
       updateUpload({ progress: 8, status: 'Uploading chunks' })
