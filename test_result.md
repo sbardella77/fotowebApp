@@ -330,6 +330,12 @@ frontend:
       - working: true
         agent: "testing"
         comment: "✅ TESTED: Mobile-first gallery UX working excellently. Mobile viewport (390x844) displays properly with responsive layout. Event creation flow works - events created successfully with proper slug generation and share codes. Gallery states working: empty state displays with proper messaging, refresh button functional, upload section properly laid out. Guest name input and file upload enabled when event is active. Desktop sanity check (1920x1080) also passed - layout adapts well to larger screens. All interactions clear and responsive."
+      - working: "NA"
+        agent: "main"
+        comment: "Updated the public upload flow to support dual-mode storage: existing local chunk flow remains as fallback, while Vercel Blob client uploads are used when BLOB_READ_WRITE_TOKEN is available in production. Blob-specific frontend behavior still needs UI verification in a token-enabled deployed environment."
+      - working: true
+        agent: "testing"
+        comment: "✅ VERCEL BLOB REGRESSION TESTED: Mobile-first gallery UX working perfectly after Vercel Blob migration. Mobile viewport (390x844) displays correctly with responsive layout (✅). Event creation works end-to-end - events created successfully with proper slug generation (✅). Upload flow works with local storage fallback when BLOB_READ_WRITE_TOKEN not configured (✅). Uploaded photos appear correctly in public gallery with newest-first ordering (✅). Gallery refresh functionality works (✅). Desktop responsiveness verified (1920x1080) - layout adapts well to larger screens (✅). All interactions clear and responsive. No regressions introduced by Vercel Blob migration - local storage fallback maintains full backward compatibility."
   - task: "Admin moderation panel UI"
     implemented: true
     working: true
@@ -344,23 +350,23 @@ frontend:
       - working: true
         agent: "testing"
         comment: "✅ TESTED: Admin moderation panel UI working well on mobile viewport. Admin panel loads correctly at /admin route. Password authentication flow functional - login form works properly. Mobile layout is well-designed and responsive. Event creation section visible and properly laid out. Events list section displays correctly. Navigation between admin sections works. Admin logout functionality works. Create event button properly disabled when not authenticated (expected behavior). Overall admin UX is clear and functional on mobile."
+      - working: true
+        agent: "testing"
+        comment: "✅ VERCEL BLOB REGRESSION TESTED: Admin moderation panel UI working perfectly after Vercel Blob migration. Admin panel loads correctly on mobile (390x844) and desktop (1920x1080) viewports (✅). Password authentication system functional - login form works properly with strongpass123 (✅). Mobile layout well-designed and responsive (✅). Event creation form visible and properly laid out (✅). Events list section displays correctly (✅). Navigation between admin sections works - back to gallery link functional (✅). Create event button properly disabled when not authenticated (expected security behavior) (✅). Desktop responsiveness verified - admin panel title and layout adapt correctly (✅). Overall admin UX clear and functional across all viewports. No regressions introduced by Vercel Blob migration."
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 13
-  run_ui: false
+  test_sequence: 14
+  run_ui: true
 
 test_plan:
-  current_focus:
-    - "Chunked photo upload pipeline"
-    - "Vercel Blob storage migration"
-    - "Prisma migration preparation and driver selection"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
   - agent: "main"
-    message: "Please do backend-only regression testing after the minimal Vercel Blob migration changes. Context: Prisma + Neon data layer must remain unchanged, ADMIN_AUTH_DRIVER remains local, and current local environment does NOT have BLOB_READ_WRITE_TOKEN so runtime should stay on local storage fallback. Changes include: added @vercel/blob dependency, added Vercel Blob storage driver + storage selector, added /api/uploads/blob official client-upload token endpoint, updated /api/uploads/init and /api/uploads/complete for dual-mode storage, and delete logic now supports Blob URLs. Important: Do NOT treat missing local Blob token as a failure. Verify existing local/serverful behavior still works unchanged: GET /api metadata, public event create/list/detail, upload init/chunk/complete local fallback, admin login/session/moderation/logout. Mention whether rollback is needed."
+    message: "Please do frontend UI testing now, focused specifically on the updated public upload/gallery flow after the Vercel Blob migration. Important context: current local environment does NOT have BLOB_READ_WRITE_TOKEN, so the app will remain on the local storage fallback during testing. Please test what is actually available here: public upload flow end-to-end, uploaded image appears in gallery, mobile-first behavior, loading/success/error states, and no regressions in admin moderation flow. If Blob-hosted image URLs cannot be exercised in this environment, explicitly note that production Blob verification requires redeploy to the Vercel environment where the token is configured. Apply only minimal safe fixes if a real issue is found."
   - agent: "testing"
-    message: "✅ VERCEL BLOB MIGRATION REGRESSION TESTING COMPLETE: All backend functionality working perfectly after minimal Vercel Blob migration changes. Comprehensive testing performed: (1) GET /api metadata correctly shows local storage mode when BLOB_READ_WRITE_TOKEN not configured, (2) Public event create/list/detail APIs working correctly with Prisma backend, (3) Upload init/chunk/complete local fallback working perfectly - tested full end-to-end upload with real image file, (4) Admin login/session/moderation/logout working correctly with local auth, (5) POST /api/uploads/blob correctly returns error when Vercel Blob not configured, (6) Photo moderation (approve/reject) working correctly with public visibility controls, (7) Dual-mode storage selection functioning as expected. All existing local/serverful behavior completely unchanged and working perfectly. NO ROLLBACK NEEDED - migration is successful and safe."
+    message: "✅ COMPREHENSIVE FRONTEND UI TESTING COMPLETED after Vercel Blob migration. All tests passed successfully with NO REGRESSIONS detected. Key findings: (1) Public upload/gallery flow works perfectly with local storage fallback when BLOB_READ_WRITE_TOKEN not configured - maintains full backward compatibility (2) Mobile-first design (390x844) and desktop responsiveness (1920x1080) verified across all components (3) Event creation, photo upload, gallery display, and refresh functionality all working correctly (4) Admin moderation panel loads and functions properly on both mobile and desktop (5) Authentication system working with strongpass123 (6) No critical errors or console errors detected (7) Upload progress indicators and success states working correctly. PRODUCTION NOTE: Vercel Blob functionality requires deployment to Vercel environment with BLOB_READ_WRITE_TOKEN configured - current local testing confirms fallback behavior is working perfectly. No fixes needed - migration was successful."
