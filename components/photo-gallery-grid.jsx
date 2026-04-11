@@ -1,10 +1,42 @@
 'use client'
 
-import { AlertCircle, ImageIcon, RefreshCcw } from 'lucide-react'
+import { AlertCircle, ImageIcon, ImageOff, Loader2, RefreshCcw } from 'lucide-react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 
 const skeletonItems = Array.from({ length: 6 }, (_, index) => index)
+
+const ImageWithFallback = ({ src, alt, index, className }) => {
+  const [status, setStatus] = useState('loading')
+
+  return (
+    <div className={`relative h-full w-full ${className}`}>
+      {status === 'loading' && (
+        <div className="absolute inset-0 flex items-center justify-center bg-muted">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      )}
+      {status === 'error' && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted p-4 text-center">
+          <ImageOff className="h-8 w-8 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">Image unavailable</span>
+        </div>
+      )}
+      <img
+        alt={alt}
+        className={`h-full w-full transition duration-300 group-hover:scale-[1.03] ${
+          status === 'loaded' ? 'opacity-100' : 'opacity-0'
+        }`}
+        decoding="async"
+        loading={index < 4 ? 'eager' : 'lazy'}
+        src={src}
+        onError={() => setStatus('error')}
+        onLoad={() => setStatus('loaded')}
+      />
+    </div>
+  )
+}
 
 const PhotoGalleryGrid = ({
   photos = [],
@@ -20,8 +52,11 @@ const PhotoGalleryGrid = ({
     return (
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {skeletonItems.map((item) => (
-          <div key={item} className={`overflow-hidden rounded-3xl border border-border bg-card ${item === 0 ? 'sm:col-span-2' : ''}`}>
-            <div className={`animate-pulse bg-muted/70 ${item === 0 ? 'aspect-[4/5]' : 'aspect-square'}`} />
+          <div
+            key={item}
+            className="overflow-hidden rounded-3xl border border-border bg-card"
+          >
+            <div className="aspect-[4/5] animate-pulse bg-muted/70" />
             <div className="space-y-2 p-3">
               <div className="h-3 w-2/3 animate-pulse rounded-full bg-muted/70" />
               <div className="h-3 w-1/3 animate-pulse rounded-full bg-muted/50" />
@@ -75,29 +110,39 @@ const PhotoGalleryGrid = ({
       {photos.map((photo, index) => (
         <button
           key={photo.id}
-          className={`group overflow-hidden rounded-3xl border border-border bg-card text-left transition hover:-translate-y-0.5 hover:shadow-lg ${index === 0 ? 'sm:col-span-2' : ''}`}
+          className="group overflow-hidden rounded-3xl border border-border bg-card text-left transition hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
           onClick={() => onSelectPhoto?.(index)}
           type="button"
         >
-          <div className={`relative overflow-hidden bg-muted ${index === 0 ? 'aspect-[4/5]' : 'aspect-square'}`}>
-            <img
-              alt={photo.originalName}
-              className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
-              decoding="async"
-              loading={index < 4 ? 'eager' : 'lazy'}
+          <div className="relative aspect-[4/5] overflow-hidden bg-muted">
+            <ImageWithFallback
               src={photo.url}
+              alt={photo.originalName}
+              index={index}
+              className="object-cover"
             />
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/60 to-transparent" />
             <div className="absolute left-3 right-3 top-3 flex items-center justify-between gap-2">
-              {index === 0 ? <Badge className="rounded-full bg-background/90 text-foreground hover:bg-background/90">Newest</Badge> : <span />}
-              <Badge variant="secondary" className="rounded-full bg-background/90 text-foreground hover:bg-background/90">
+              {index === 0 ? (
+                <Badge className="rounded-full bg-background/90 text-foreground hover:bg-background/90">
+                  Newest
+                </Badge>
+              ) : (
+                <span />
+              )}
+              <Badge
+                variant="secondary"
+                className="rounded-full bg-background/90 text-foreground hover:bg-background/90"
+              >
                 Tap to open
               </Badge>
             </div>
             {showUploader ? (
               <div className="absolute bottom-3 left-3 right-3 text-white">
                 <p className="truncate text-sm font-medium">{photo.originalName}</p>
-                <p className="truncate text-xs text-white/80">{photo.uploaderName || 'Guest upload'}</p>
+                <p className="truncate text-xs text-white/80">
+                  {photo.uploaderName || 'Guest upload'}
+                </p>
               </div>
             ) : null}
           </div>
