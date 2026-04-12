@@ -406,11 +406,15 @@ async function handleRoute(request, { params }) {
   })
 
   try {
+    console.log('[API Route] Entered try block')
+    
     if (segments.length === 0 && method === 'GET') {
+      console.log('[API Route] Matched root route')
       return routeRoot()
     }
 
     if (segments[0] === 'admin') {
+      console.log('[API Route] Matched admin section')
       if (segments.length === 2 && segments[1] === 'config' && method === 'GET') {
         return getAdminConfig()
       }
@@ -453,6 +457,7 @@ async function handleRoute(request, { params }) {
     }
 
     if (segments[0] === 'events') {
+      console.log('[API Route] Matched events section')
       if (segments.length === 1 && method === 'GET') {
         return listEvents()
       }
@@ -465,6 +470,12 @@ async function handleRoute(request, { params }) {
         return getEvent(segments[1])
       }
     }
+
+    console.log('[API Route] About to check uploads section', { 
+      segment0: segments[0], 
+      isUploads: segments[0] === 'uploads',
+      segments 
+    })
 
     if (segments[0] === 'uploads') {
       console.log('[API Route] Matched uploads section', { segment1: segments[1], method })
@@ -496,9 +507,15 @@ async function handleRoute(request, { params }) {
       })
     }
 
+    console.log('[API Route] Falling through to 404', { segments: segments.join('/') })
     return json({ error: `Route /${segments.join('/')} not found` }, 404)
   } catch (error) {
-    console.error('Event gallery API error:', error)
+    console.error('[API Route] Caught error:', {
+      message: error?.message,
+      stack: error?.stack,
+      name: error?.name,
+      issues: error?.issues
+    })
 
     if (error?.issues) {
       return json({ error: formatZodError(error) }, 400)
