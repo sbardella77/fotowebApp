@@ -41,6 +41,7 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
   const photo = photos[selectedIndex] || null
   const [isClosing, setIsClosing] = useState(false)
   const [isNavigating, setIsNavigating] = useState(false)
+  const [downloaded, setDownloaded] = useState(false)
   
   // Touch handling refs
   const touchStart = useRef({ x: 0, y: 0, time: 0 })
@@ -80,6 +81,8 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+    setDownloaded(true)
+    setTimeout(() => setDownloaded(false), 2000)
   }, [photo, selectedIndex])
 
   // Touch event handlers for swipe
@@ -204,11 +207,16 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
           <Button
             size="icon"
             variant="ghost"
-            className="h-9 w-9 text-white/80 hover:bg-white/10 hover:text-white"
+            className={`h-9 w-9 transition-colors ${
+              downloaded 
+                ? 'text-green-400 hover:text-green-300' 
+                : 'text-white/80 hover:bg-white/10 hover:text-white'
+            }`}
             onClick={(e) => {
               e.stopPropagation()
               handleDownload()
             }}
+            title={downloaded ? 'Downloaded!' : 'Download photo'}
           >
             <Download className="h-5 w-5" />
           </Button>
