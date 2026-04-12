@@ -456,20 +456,37 @@ function App() {
               <Input value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder="Jane" />
             </div>
 
-            <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-4">
-              <label className="mb-2 block text-sm font-medium">Photo picker</label>
+            <div className={`relative overflow-hidden rounded-2xl border-2 border-dashed p-6 transition-all duration-200 ${
+              activeEvent?.slug 
+                ? 'border-primary/40 bg-primary/5 hover:border-primary/60 hover:bg-primary/10 cursor-pointer' 
+                : 'border-border bg-muted/30 cursor-not-allowed'
+            }`}>
               <input
                 accept="image/*"
                 capture="environment"
-                className="block w-full text-sm text-muted-foreground file:mr-4 file:rounded-full file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary-foreground"
+                className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
                 disabled={!activeEvent?.slug}
                 multiple
                 onChange={onFilesSelected}
                 type="file"
               />
-              <p className="mt-3 text-xs text-muted-foreground">
-                {activeEvent?.slug ? `Uploading into ${activeEvent.slug}` : 'Create or open an event to enable uploads.'}
-              </p>
+              <div className="flex flex-col items-center justify-center gap-3 text-center">
+                <div className={`rounded-full p-3 transition-transform duration-200 ${
+                  activeEvent?.slug ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                }`}>
+                  <ImagePlus className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className={`text-sm font-medium ${activeEvent?.slug ? 'text-primary' : 'text-muted-foreground'}`}>
+                    {activeEvent?.slug ? 'Tap to upload photos' : 'Select an event first'}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {activeEvent?.slug 
+                      ? 'Choose from gallery or take a photo' 
+                      : 'Create or open an event to enable uploads'}
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-3">
