@@ -128,8 +128,6 @@ const initUpload = async (request) => {
 }
 
 const issueBlobUploadToken = async (request) => {
-  console.log('[issueBlobUploadToken] Called')
-  
   // Explicit check for BLOB_READ_WRITE_TOKEN with clear error message
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
     console.error('[issueBlobUploadToken] BLOB_READ_WRITE_TOKEN is not defined')
@@ -144,15 +142,22 @@ const issueBlobUploadToken = async (request) => {
     return json({ error: 'Vercel Blob is not configured' }, 500)
   }
 
-  console.log('[issueBlobUploadToken] Token check passed, calling handleUpload')
+  // Parse request body - required by @vercel/blob/client handleUpload
+  let body
+  try {
+    body = await request.json()
+  } catch (parseError) {
+    console.error('[issueBlobUploadToken] Failed to parse request body:', parseError)
+    return json({ error: 'Invalid request body' }, 400)
+  }
 
-  // handleUpload from @vercel/blob/client parses the body internally
-  // and returns a NextResponse directly - do NOT wrap with json()
+  // handleUpload from @vercel/blob/client requires explicit body parameter
+  // along with request for accessing headers/cookies
   try {
     const result = await handleUpload({
+      body,
       request,
       onBeforeGenerateToken: async (pathname, clientPayload) => {
-        console.log('[issueBlobUploadToken] onBeforeGenerateToken called', { pathname, clientPayload })
         const payload = blobUploadClientPayloadSchema.parse(JSON.parse(clientPayload || '{}'))
         const repository = await getGalleryRepository()
         const event = await repository.getEventBySlug(payload.eventSlug)
@@ -161,18 +166,15 @@ const issueBlobUploadToken = async (request) => {
           throw new Error('Event not found')
         }
 
-        const tokenConfig = {
+        return {
           pathname: buildBlobPathname({ eventSlug: event.slug, fileName: payload.fileName }),
           allowedContentTypes: ['image/*'],
           maximumSizeInBytes: MAX_FILE_SIZE_BYTES,
           addRandomSuffix: true,
         }
-        console.log('[issueBlobUploadToken] Token config:', tokenConfig)
-        return tokenConfig
       },
     })
     
-    console.log('[issueBlobUploadToken] handleUpload succeeded')
     return result
   } catch (error) {
     console.error('[issueBlobUploadToken] Error:', error)
@@ -393,28 +395,13 @@ export async function OPTIONS() {
 async function handleRoute(request, { params }) {
   const segments = getSegments(params)
   const method = request.method
-  
-  // Debug logging for production troubleshooting
-  console.log('[API Route]', {
-    url: request.url,
-    method,
-    params,
-    segments,
-    segment0: segments[0],
-    segment1: segments[1],
-    segmentCount: segments.length
-  })
 
   try {
-    console.log('[API Route] Entered try block')
-    
     if (segments.length === 0 && method === 'GET') {
-      console.log('[API Route] Matched root route')
       return routeRoot()
     }
 
     if (segments[0] === 'admin') {
-      console.log('[API Route] Matched admin section')
       if (segments.length === 2 && segments[1] === 'config' && method === 'GET') {
         return getAdminConfig()
       }
@@ -457,7 +444,6 @@ async function handleRoute(request, { params }) {
     }
 
     if (segments[0] === 'events') {
-      console.log('[API Route] Matched events section')
       if (segments.length === 1 && method === 'GET') {
         return listEvents()
       }
@@ -471,51 +457,27 @@ async function handleRoute(request, { params }) {
       }
     }
 
-    console.log('[API Route] About to check uploads section', { 
-      segment0: segments[0], 
-      isUploads: segments[0] === 'uploads',
-      segments 
-    })
-
     if (segments[0] === 'uploads') {
-      console.log('[API Route] Matched uploads section', { segment1: segments[1], method })
-      
       if (segments.length === 2 && segments[1] === 'init' && method === 'POST') {
-        console.log('[API Route] Handling uploads/init')
         return initUpload(request)
       }
 
       if (segments.length === 2 && segments[1] === 'blob' && method === 'POST') {
-        console.log('[API Route] Handling uploads/blob')
         return issueBlobUploadToken(request)
       }
 
       if (segments.length === 2 && segments[1] === 'chunk' && method === 'POST') {
-        console.log('[API Route] Handling uploads/chunk')
         return uploadChunk(request)
       }
 
       if (segments.length === 2 && segments[1] === 'complete' && method === 'POST') {
-        console.log('[API Route] Handling uploads/complete')
         return completeUpload(request)
       }
-      
-      console.log('[API Route] No uploads sub-route matched', { 
-        segment1: segments[1], 
-        length: segments.length, 
-        method 
-      })
     }
 
-    console.log('[API Route] Falling through to 404', { segments: segments.join('/') })
     return json({ error: `Route /${segments.join('/')} not found` }, 404)
   } catch (error) {
-    console.error('[API Route] Caught error:', {
-      message: error?.message,
-      stack: error?.stack,
-      name: error?.name,
-      issues: error?.issues
-    })
+    console.error('[API Route] Error:', error?.message || error)
 
     if (error?.issues) {
       return json({ error: formatZodError(error) }, 400)
