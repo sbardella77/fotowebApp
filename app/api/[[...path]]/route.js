@@ -142,20 +142,11 @@ const issueBlobUploadToken = async (request) => {
     return json({ error: 'Vercel Blob is not configured' }, 500)
   }
 
-  // Parse request body - required by @vercel/blob/client handleUpload
-  let body
-  try {
-    body = await request.json()
-  } catch (parseError) {
-    console.error('[issueBlobUploadToken] Failed to parse request body:', parseError)
-    return json({ error: 'Invalid request body' }, 400)
-  }
-
-  // handleUpload from @vercel/blob/client requires explicit body parameter
-  // along with request for accessing headers/cookies
+  // IMPORTANT: When using @vercel/blob/client's upload() function on the frontend,
+  // handleUpload() on the backend MUST receive the raw request and parse the body internally.
+  // Do NOT call request.json() before handleUpload - it consumes the stream.
   try {
     const result = await handleUpload({
-      body,
       request,
       onBeforeGenerateToken: async (pathname, clientPayload) => {
         const payload = blobUploadClientPayloadSchema.parse(JSON.parse(clientPayload || '{}'))
@@ -177,7 +168,7 @@ const issueBlobUploadToken = async (request) => {
     
     return result
   } catch (error) {
-    console.error('[issueBlobUploadToken] Error:', error)
+    console.error('[issueBlobUploadToken] Error:', error?.message || error)
     return json(
       { error: error?.message || 'Unable to initialize Vercel Blob upload' },
       400
