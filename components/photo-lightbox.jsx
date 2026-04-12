@@ -45,6 +45,7 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
   // Touch handling refs
   const touchStart = useRef({ x: 0, y: 0, time: 0 })
   const touchEnd = useRef({ x: 0, y: 0, time: 0 })
+  const isSwiping = useRef(false)
   const containerRef = useRef(null)
 
   const handleClose = useCallback(() => {
@@ -83,6 +84,7 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
 
   // Touch event handlers for swipe
   const onTouchStart = (e) => {
+    isSwiping.current = false
     touchStart.current = {
       x: e.touches[0].clientX,
       y: e.touches[0].clientY,
@@ -95,6 +97,18 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
       x: e.touches[0].clientX,
       y: e.touches[0].clientY,
       time: Date.now(),
+    }
+    
+    // Mark as swiping if moved beyond threshold
+    const deltaX = Math.abs(touchStart.current.x - touchEnd.current.x)
+    const deltaY = Math.abs(touchStart.current.y - touchEnd.current.y)
+    if (deltaX > 10 || deltaY > 10) {
+      isSwiping.current = true
+    }
+    
+    // Prevent browser scrolling during horizontal swipe
+    if (deltaX > deltaY) {
+      e.preventDefault()
     }
   }
 
@@ -118,6 +132,15 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
     if (deltaY < -SWIPE_THRESHOLD && Math.abs(deltaY) > Math.abs(deltaX) * 2) {
       handleClose()
     }
+  }
+  
+  // Handle click - only close if not swiping
+  const onContainerClick = (e) => {
+    if (isSwiping.current) {
+      e.stopPropagation()
+      return
+    }
+    handleClose()
   }
 
   // Keyboard navigation
@@ -151,13 +174,21 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
 
   if (!open || !photo) return null
 
+  // Check for reduced motion preference
+  const prefersReducedMotion = typeof window !== 'undefined' 
+    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches 
+    : false
+
   return (
     <div 
       ref={containerRef}
-      className={`fixed inset-0 z-50 bg-black transition-opacity duration-200 ${
-        isClosing ? 'opacity-0' : 'opacity-100'
-      }`}
-      onClick={handleClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Photo viewer"
+      className={`fixed inset-0 z-50 bg-black touch-none ${
+        prefersReducedMotion ? '' : 'transition-opacity duration-200'
+      } ${isClosing ? 'opacity-0' : 'opacity-100'}`}
+      onClick={onContainerClick}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
@@ -197,8 +228,10 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
 
       {/* Main image area */}
       <div 
-        className={`flex h-full items-center justify-center px-12 py-20 transition-transform duration-300 ${
-          isNavigating ? 'scale-95 opacity-80' : 'scale-100 opacity-100'
+        className={`flex h-full items-center justify-center px-12 py-20 ${
+          prefersReducedMotion 
+            ? '' 
+            : `transition-all duration-300 ${isNavigating ? 'scale-95 opacity-80' : 'scale-100 opacity-100'}`
         }`}
         onClick={(e) => e.stopPropagation()}
       >

@@ -125,11 +125,11 @@ const PhotoGalleryGrid = ({
           className="group relative aspect-square overflow-hidden bg-muted transition-transform duration-200 will-change-transform active:scale-95"
           onClick={() => onSelectPhoto?.(index)}
           type="button"
-          style={{ animationDelay: `${index * 30}ms` }}
+          aria-label={`View photo ${index + 1} of ${photos.length}${photo.originalName ? `, ${photo.originalName}` : ''}`}
         >
           <ImageWithLazyLoad
             src={photo.url}
-            alt={photo.originalName || 'Photo'}
+            alt={photo.originalName || `Photo ${index + 1}`}
             className="transition-transform duration-300 group-hover:scale-105"
           />
           <div className="absolute inset-0 bg-black/0 transition-colors duration-200 group-hover:bg-black/10" />

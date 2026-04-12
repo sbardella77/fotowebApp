@@ -456,38 +456,37 @@ function App() {
               <Input value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder="Jane" />
             </div>
 
-            <div className={`relative overflow-hidden rounded-2xl border-2 border-dashed p-6 transition-all duration-200 ${
+            <label className={`relative flex min-h-[140px] cursor-pointer flex-col items-center justify-center gap-3 overflow-hidden rounded-2xl border-2 border-dashed p-6 text-center transition-all duration-200 active:scale-[0.98] ${
               activeEvent?.slug 
-                ? 'border-primary/40 bg-primary/5 hover:border-primary/60 hover:bg-primary/10 cursor-pointer' 
+                ? 'border-primary/40 bg-primary/5 hover:border-primary/60 hover:bg-primary/10' 
                 : 'border-border bg-muted/30 cursor-not-allowed'
             }`}>
               <input
                 accept="image/*"
                 capture="environment"
-                className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
                 disabled={!activeEvent?.slug}
                 multiple
                 onChange={onFilesSelected}
                 type="file"
+                aria-label={activeEvent?.slug ? 'Upload photos' : 'Select an event first to upload'}
               />
-              <div className="flex flex-col items-center justify-center gap-3 text-center">
-                <div className={`rounded-full p-3 transition-transform duration-200 ${
-                  activeEvent?.slug ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-                }`}>
-                  <ImagePlus className="h-6 w-6" />
-                </div>
-                <div>
-                  <p className={`text-sm font-medium ${activeEvent?.slug ? 'text-primary' : 'text-muted-foreground'}`}>
-                    {activeEvent?.slug ? 'Tap to upload photos' : 'Select an event first'}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {activeEvent?.slug 
-                      ? 'Choose from gallery or take a photo' 
-                      : 'Create or open an event to enable uploads'}
-                  </p>
-                </div>
+              <div className={`rounded-full p-3 transition-transform duration-200 group-active:scale-95 ${
+                activeEvent?.slug ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+              }`}>
+                <ImagePlus className="h-6 w-6" />
               </div>
-            </div>
+              <div>
+                <p className={`text-sm font-medium ${activeEvent?.slug ? 'text-primary' : 'text-muted-foreground'}`}>
+                  {activeEvent?.slug ? 'Tap to upload photos' : 'Select an event first'}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {activeEvent?.slug 
+                    ? 'Choose from gallery or take a photo' 
+                    : 'Create or open an event to enable uploads'}
+                </p>
+              </div>
+            </label>
 
             <div className="space-y-3">
               {uploads.length === 0 ? (
