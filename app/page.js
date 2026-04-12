@@ -10,10 +10,13 @@ import {
   Download,
   ImagePlus,
   Loader2,
+  QrCode,
   RefreshCcw,
   Share2,
   Users,
+  X,
 } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 import PhotoGalleryGrid from '@/components/photo-gallery-grid'
 import PhotoLightbox from '@/components/photo-lightbox'
 import { Badge } from '@/components/ui/badge'
@@ -61,7 +64,15 @@ function App() {
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(0)
   const [copied, setCopied] = useState(false)
+  const [qrModalOpen, setQrModalOpen] = useState(false)
   const { showToast, ToastComponent } = useToast()
+
+  // Generate event URL for sharing
+  const eventUrl = useMemo(() => {
+    if (!activeEvent?.slug) return ''
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
+    return `${baseUrl}/?event=${activeEvent.slug}`
+  }, [activeEvent?.slug])
 
   const galleryPhotos = useMemo(() => {
     return [...(activeEvent?.photos || [])].sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt))
@@ -310,10 +321,28 @@ function App() {
     setLightboxOpen(true)
   }
 
+  // Initial load - check for event in URL
   useEffect(() => {
     loadEvents()
+    
+    // Check for event query parameter on load
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const eventSlug = params.get('event')
+      if (eventSlug) {
+        setEventLookup(eventSlug)
+        // Small delay to ensure loadEvent is available
+        setTimeout(() => {
+          loadEvent(eventSlug)
+        }, 0)
+        // Clean up URL after loading
+        window.history.replaceState({}, '', window.location.pathname)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Auto-refresh active event
   useEffect(() => {
     if (!activeEvent?.slug) {
       return undefined
@@ -324,6 +353,7 @@ function App() {
     }, 3000)
 
     return () => window.clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeEvent?.slug])
 
   return (
@@ -514,6 +544,15 @@ function App() {
                         <Share2 className="h-3.5 w-3.5" />
                         Share
                       </Button>
+                      <Button 
+                        size="sm" 
+                        variant="secondary"
+                        className="gap-1.5"
+                        onClick={() => setQrModalOpen(true)}
+                      >
+                        <QrCode className="h-3.5 w-3.5" />
+                        Show QR
+                      </Button>
                     </div>
                   </div>
                   
@@ -645,6 +684,86 @@ function App() {
             </div>
           </div>
         </section>
+      )}
+
+      {/* QR Code Modal */}
+      {qrModalOpen && activeEvent && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+          onClick={() => setQrModalOpen(false)}
+        >
+          <div 
+            className="relative w-full max-w-sm rounded-2xl bg-background p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              className="absolute right-3 top-3 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              onClick={() => setQrModalOpen(false)}
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            {/* Header */}
+            <div className="mb-6 text-center">
+              <h3 className="text-lg font-semibold">{activeEvent.name}</h3>
+              <p className="text-sm text-muted-foreground">
+                Scan to open this event
+              </p>
+            </div>
+
+            {/* QR Code */}
+            <div className="mb-6 flex justify-center">
+              <div className="rounded-xl border-2 border-border bg-white p-4">
+                <QRCodeSVG
+                  value={eventUrl}
+                  size={200}
+                  level="M"
+                  includeMargin={false}
+                />
+              </div>
+            </div>
+
+            {/* Helper text */}
+            <p className="mb-4 text-center text-xs text-muted-foreground">
+              Point your camera at this code to open the event instantly
+            </p>
+
+            {/* Actions */}
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1 gap-1.5"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(eventUrl)
+                    showToast('Link copied!')
+                  } catch {
+                    showToast('Failed to copy', 'error')
+                  }
+                }}
+              >
+                <Copy className="h-4 w-4" />
+                Copy Link
+              </Button>
+              {/* Placeholder for future download functionality */}
+              {/* <Button
+                variant="secondary"
+                className="flex-1 gap-1.5"
+                onClick={() => {
+                  // TODO: Implement QR download
+                  // 1. Create canvas from QR code
+                  // 2. Convert to blob/png
+                  // 3. Trigger download
+                  showToast('Download coming soon!')
+                }}
+              >
+                <Download className="h-4 w-4" />
+                Save QR
+              </Button> */}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Lightbox */}
