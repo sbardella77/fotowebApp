@@ -128,14 +128,29 @@ const initUpload = async (request) => {
 }
 
 const issueBlobUploadToken = async (request) => {
+  // Explicit check for BLOB_READ_WRITE_TOKEN with clear error message
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    console.error('BLOB_READ_WRITE_TOKEN is not defined in environment')
+    return json(
+      { error: 'Server misconfiguration: BLOB_READ_WRITE_TOKEN is missing' },
+      500
+    )
+  }
+
   if (!isVercelBlobStorageConfigured()) {
     return json({ error: 'Vercel Blob is not configured' }, 500)
   }
 
-  const body = await request.json()
+  let body
+  try {
+    body = await request.json()
+  } catch (error) {
+    console.error('Failed to parse request body:', error)
+    return json({ error: 'Invalid request body' }, 400)
+  }
 
   try {
-    return await handleUpload({
+    const result = await handleUpload({
       body,
       request,
       onBeforeGenerateToken: async (_pathname, clientPayload) => {
@@ -155,8 +170,14 @@ const issueBlobUploadToken = async (request) => {
         }
       },
     })
+
+    return result
   } catch (error) {
-    return json({ error: error?.message || 'Unable to initialize Vercel Blob upload' }, 400)
+    console.error('Vercel Blob token generation error:', error)
+    return json(
+      { error: error?.message || 'Unable to initialize Vercel Blob upload' },
+      400
+    )
   }
 }
 
