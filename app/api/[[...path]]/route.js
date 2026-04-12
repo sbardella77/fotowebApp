@@ -141,19 +141,12 @@ const issueBlobUploadToken = async (request) => {
     return json({ error: 'Vercel Blob is not configured' }, 500)
   }
 
-  let body
+  // handleUpload from @vercel/blob/client parses the body internally
+  // and returns a NextResponse directly - do NOT wrap with json()
   try {
-    body = await request.json()
-  } catch (error) {
-    console.error('Failed to parse request body:', error)
-    return json({ error: 'Invalid request body' }, 400)
-  }
-
-  try {
-    const result = await handleUpload({
-      body,
+    return await handleUpload({
       request,
-      onBeforeGenerateToken: async (_pathname, clientPayload) => {
+      onBeforeGenerateToken: async (pathname, clientPayload) => {
         const payload = blobUploadClientPayloadSchema.parse(JSON.parse(clientPayload || '{}'))
         const repository = await getGalleryRepository()
         const event = await repository.getEventBySlug(payload.eventSlug)
@@ -170,8 +163,6 @@ const issueBlobUploadToken = async (request) => {
         }
       },
     })
-
-    return result
   } catch (error) {
     console.error('Vercel Blob token generation error:', error)
     return json(
@@ -453,20 +444,22 @@ async function handleRoute(request, { params }) {
       }
     }
 
-    if (segments[0] === 'uploads' && segments[1] === 'init' && method === 'POST') {
-      return initUpload(request)
-    }
+    if (segments[0] === 'uploads') {
+      if (segments.length === 2 && segments[1] === 'init' && method === 'POST') {
+        return initUpload(request)
+      }
 
-    if (segments[0] === 'uploads' && segments[1] === 'blob' && method === 'POST') {
-      return issueBlobUploadToken(request)
-    }
+      if (segments.length === 2 && segments[1] === 'blob' && method === 'POST') {
+        return issueBlobUploadToken(request)
+      }
 
-    if (segments[0] === 'uploads' && segments[1] === 'chunk' && method === 'POST') {
-      return uploadChunk(request)
-    }
+      if (segments.length === 2 && segments[1] === 'chunk' && method === 'POST') {
+        return uploadChunk(request)
+      }
 
-    if (segments[0] === 'uploads' && segments[1] === 'complete' && method === 'POST') {
-      return completeUpload(request)
+      if (segments.length === 2 && segments[1] === 'complete' && method === 'POST') {
+        return completeUpload(request)
+      }
     }
 
     return json({ error: `Route /${segments.join('/')} not found` }, 404)
