@@ -50,13 +50,30 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
 
   const handleDownload = useCallback(() => {
     if (!photo?.url) return
-    
-    const link = document.createElement('a')
+
     const filename = photo.originalName || `photo-${photo.id || selectedIndex + 1}.jpg`
+
+    // For external URLs (Vercel Blob or other HTTP URLs), open in new tab
+    // This is the most reliable method for cross-origin downloads
+    if (photo.url.startsWith('http')) {
+      // Try direct download first using download attribute
+      const link = document.createElement('a')
+      link.href = photo.url
+      link.download = filename
+      link.target = '_blank'
+      link.rel = 'noopener noreferrer'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      return
+    }
+
+    // For local/relative URLs, use fetch-to-blob approach (original behavior)
+    const link = document.createElement('a')
     link.download = filename
     link.target = '_blank'
     link.rel = 'noopener noreferrer'
-    
+
     fetch(photo.url, { mode: 'cors' })
       .then((response) => {
         if (!response.ok) throw new Error('Network response was not ok')
@@ -71,6 +88,7 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
         setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000)
       })
       .catch(() => {
+        // Fallback: direct navigation
         link.href = photo.url
         document.body.appendChild(link)
         link.click()
