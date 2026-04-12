@@ -128,9 +128,11 @@ const initUpload = async (request) => {
 }
 
 const issueBlobUploadToken = async (request) => {
+  console.log('[issueBlobUploadToken] Called')
+  
   // Explicit check for BLOB_READ_WRITE_TOKEN with clear error message
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    console.error('BLOB_READ_WRITE_TOKEN is not defined in environment')
+    console.error('[issueBlobUploadToken] BLOB_READ_WRITE_TOKEN is not defined')
     return json(
       { error: 'Server misconfiguration: BLOB_READ_WRITE_TOKEN is missing' },
       500
@@ -138,15 +140,19 @@ const issueBlobUploadToken = async (request) => {
   }
 
   if (!isVercelBlobStorageConfigured()) {
+    console.error('[issueBlobUploadToken] Vercel Blob not configured')
     return json({ error: 'Vercel Blob is not configured' }, 500)
   }
+
+  console.log('[issueBlobUploadToken] Token check passed, calling handleUpload')
 
   // handleUpload from @vercel/blob/client parses the body internally
   // and returns a NextResponse directly - do NOT wrap with json()
   try {
-    return await handleUpload({
+    const result = await handleUpload({
       request,
       onBeforeGenerateToken: async (pathname, clientPayload) => {
+        console.log('[issueBlobUploadToken] onBeforeGenerateToken called', { pathname, clientPayload })
         const payload = blobUploadClientPayloadSchema.parse(JSON.parse(clientPayload || '{}'))
         const repository = await getGalleryRepository()
         const event = await repository.getEventBySlug(payload.eventSlug)
@@ -155,16 +161,21 @@ const issueBlobUploadToken = async (request) => {
           throw new Error('Event not found')
         }
 
-        return {
+        const tokenConfig = {
           pathname: buildBlobPathname({ eventSlug: event.slug, fileName: payload.fileName }),
           allowedContentTypes: ['image/*'],
           maximumSizeInBytes: MAX_FILE_SIZE_BYTES,
           addRandomSuffix: true,
         }
+        console.log('[issueBlobUploadToken] Token config:', tokenConfig)
+        return tokenConfig
       },
     })
+    
+    console.log('[issueBlobUploadToken] handleUpload succeeded')
+    return result
   } catch (error) {
-    console.error('Vercel Blob token generation error:', error)
+    console.error('[issueBlobUploadToken] Error:', error)
     return json(
       { error: error?.message || 'Unable to initialize Vercel Blob upload' },
       400
@@ -382,6 +393,17 @@ export async function OPTIONS() {
 async function handleRoute(request, { params }) {
   const segments = getSegments(params)
   const method = request.method
+  
+  // Debug logging for production troubleshooting
+  console.log('[API Route]', {
+    url: request.url,
+    method,
+    params,
+    segments,
+    segment0: segments[0],
+    segment1: segments[1],
+    segmentCount: segments.length
+  })
 
   try {
     if (segments.length === 0 && method === 'GET') {
@@ -445,21 +467,33 @@ async function handleRoute(request, { params }) {
     }
 
     if (segments[0] === 'uploads') {
+      console.log('[API Route] Matched uploads section', { segment1: segments[1], method })
+      
       if (segments.length === 2 && segments[1] === 'init' && method === 'POST') {
+        console.log('[API Route] Handling uploads/init')
         return initUpload(request)
       }
 
       if (segments.length === 2 && segments[1] === 'blob' && method === 'POST') {
+        console.log('[API Route] Handling uploads/blob')
         return issueBlobUploadToken(request)
       }
 
       if (segments.length === 2 && segments[1] === 'chunk' && method === 'POST') {
+        console.log('[API Route] Handling uploads/chunk')
         return uploadChunk(request)
       }
 
       if (segments.length === 2 && segments[1] === 'complete' && method === 'POST') {
+        console.log('[API Route] Handling uploads/complete')
         return completeUpload(request)
       }
+      
+      console.log('[API Route] No uploads sub-route matched', { 
+        segment1: segments[1], 
+        length: segments.length, 
+        method 
+      })
     }
 
     return json({ error: `Route /${segments.join('/')} not found` }, 404)
