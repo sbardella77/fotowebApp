@@ -139,3 +139,36 @@ code {
     @apply bg-background text-foreground;
     }
 }
+
+/* Print styles for QR cards and event sharing */
+@media print {
+  /* Hide scrollbars during print */
+  ::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* Ensure backgrounds print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  /* Hide non-print elements */
+  .print\:hidden {
+    display: none !important;
+  }
+  
+  /* Show print-only elements */
+  .print\:block {
+    display: block !important;
+  }
+  
+  /* Clean page breaks */
+  .page-break {
+    page-break-before: always;
+  }
+  
+  .avoid-break {
+    page-break-inside: avoid;
+  }
+}
