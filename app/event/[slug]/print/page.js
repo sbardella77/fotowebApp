@@ -216,7 +216,7 @@ function PrintCardContent({ event, eventUrl, baseUrl }) {
             value={eventUrl}
             size={200}
             level="M"
-            includeMargin={true
+            includeMargin={true}
             bgColor="#ffffff"
             fgColor="#000000"
           />
