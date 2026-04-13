@@ -27,26 +27,30 @@ const CHUNK_SIZE = 1024 * 1024
 
 const LoadingDot = () => <Loader2 className="h-4 w-4 animate-spin" />
 
-// Simple toast hook
 const useToast = () => {
   const [toast, setToast] = useState(null)
-  
+
   const showToast = (message, type = 'success') => {
     setToast({ message, type })
     setTimeout(() => setToast(null), 2000)
   }
-  
+
   const ToastComponent = () => {
     if (!toast) return null
+
     return (
-      <div className={`fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-full px-4 py-2 text-sm font-medium shadow-lg transition-all ${
-        toast.type === 'success' ? 'bg-foreground text-background' : 'bg-destructive text-destructive-foreground'
-      }`}>
+      <div
+        className={`fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-full px-4 py-2 text-sm font-medium shadow-lg transition-all ${
+          toast.type === 'success'
+            ? 'bg-foreground text-background'
+            : 'bg-destructive text-destructive-foreground'
+        }`}
+      >
         {toast.message}
       </div>
     )
   }
-  
+
   return { showToast, ToastComponent }
 }
 
@@ -66,11 +70,12 @@ function App() {
   const [qrModalOpen, setQrModalOpen] = useState(false)
   const { showToast, ToastComponent } = useToast()
 
-  // Base URL for sharing
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
 
   const galleryPhotos = useMemo(() => {
-    return [...(activeEvent?.photos || [])].sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt))
+    return [...(activeEvent?.photos || [])].sort(
+      (left, right) => new Date(right.createdAt) - new Date(left.createdAt),
+    )
   }, [activeEvent])
 
   const loadEvents = async () => {
@@ -86,9 +91,7 @@ function App() {
   }
 
   const loadEvent = async (slug, { silent = false } = {}) => {
-    if (!slug) {
-      return
-    }
+    if (!slug) return
 
     setGalleryError('')
 
@@ -167,14 +170,8 @@ function App() {
     const updateUpload = (next) => {
       setUploads((current) =>
         current.map((item) => {
-          if (item.id !== localId) {
-            return item
-          }
-
-          return {
-            ...item,
-            ...next,
-          }
+          if (item.id !== localId) return item
+          return { ...item, ...next }
         }),
       )
     }
@@ -252,6 +249,7 @@ function App() {
         const start = chunkIndex * CHUNK_SIZE
         const end = Math.min(start + CHUNK_SIZE, file.size)
         const chunkBlob = file.slice(start, end)
+
         const formData = new FormData()
         formData.append('sessionId', initPayload.session.sessionId)
         formData.append('chunkIndex', String(chunkIndex))
@@ -269,7 +267,10 @@ function App() {
         }
 
         const chunkProgress = 10 + Math.round(((chunkIndex + 1) / totalChunks) * 75)
-        updateUpload({ progress: chunkProgress, status: `Uploaded ${chunkIndex + 1}/${totalChunks} chunks` })
+        updateUpload({
+          progress: chunkProgress,
+          status: `Uploaded ${chunkIndex + 1}/${totalChunks} chunks`,
+        })
       }
 
       const completeResponse = await fetch('/api/uploads/complete', {
@@ -299,10 +300,7 @@ function App() {
 
   const onFilesSelected = async (event) => {
     const fileList = Array.from(event.target.files || [])
-
-    if (fileList.length === 0) {
-      return
-    }
+    if (fileList.length === 0) return
 
     for (const file of fileList) {
       await uploadSingleFile(file)
@@ -316,32 +314,26 @@ function App() {
     setLightboxOpen(true)
   }
 
-  // Initial load - check for event in URL
   useEffect(() => {
     loadEvents()
-    
-    // Check for event query parameter on load (backward compatibility + redirect from /event/slug)
+
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
       const eventSlug = params.get('event')
+
       if (eventSlug) {
         setEventLookup(eventSlug)
-        // Small delay to ensure loadEvent is available
         setTimeout(() => {
           loadEvent(eventSlug)
         }, 0)
-        // Clean up URL after loading
         window.history.replaceState({}, '', window.location.pathname)
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Auto-refresh active event
   useEffect(() => {
-    if (!activeEvent?.slug) {
-      return undefined
-    }
+    if (!activeEvent?.slug) return undefined
 
     const interval = window.setInterval(() => {
       loadEvent(activeEvent.slug, { silent: true })
@@ -353,7 +345,6 @@ function App() {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      {/* Header */}
       <header className="border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-14 items-center justify-between px-4">
           <div className="flex items-center gap-2">
@@ -368,49 +359,49 @@ function App() {
         </div>
       </header>
 
-      {/* Landing Page or App View */}
       {!activeEvent ? (
-        <LandingPage 
+        <LandingPage
           onCreateEvent={createEvent}
           eventName={eventName}
           setEventName={setEventName}
           isCreating={busy.create}
         />
       ) : (
-      /* Main Content - Only shown when event is active */
-      <section className="container px-4 pb-12">
-        <div className="mx-auto max-w-4xl">
-          {/* Event Setup Card */}
-          <Card className="border-border/50 shadow-sm">
-            <CardHeader className="space-y-1">
-              <CardTitle className="text-xl font-semibold">
-                {activeEvent.name}
-              </CardTitle>
-              <CardDescription>
-                Share code: {activeEvent.slug}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                  {/* Event Code - Visual Focal Point */}
+        <section className="container px-4 pb-12">
+          <div className="mx-auto max-w-4xl">
+            <Card className="border-border/50 shadow-sm">
+              <CardHeader className="space-y-1">
+                <CardTitle className="text-xl font-semibold">{activeEvent.name}</CardTitle>
+                <CardDescription>Share code: {activeEvent.slug}</CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
                   <div className="relative overflow-hidden rounded-xl border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10 p-6 text-center">
                     <div className="absolute right-2 top-2">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         className="h-8 w-8 p-0"
                         onClick={() => loadEvent(activeEvent.slug, { silent: true })}
                       >
                         <RefreshCcw className={`h-4 w-4 ${busy.refresh ? 'animate-spin' : ''}`} />
                       </Button>
                     </div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Event Code</p>
-                    <p className="mt-1 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">{activeEvent.slug}</p>
-                    <p className="mt-2 text-xs text-muted-foreground">Share this code with your guests</p>
-                    
+
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Event Code
+                    </p>
+                    <p className="mt-1 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+                      {activeEvent.slug}
+                    </p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Share this code with your guests
+                    </p>
+
                     <div className="mt-4 flex justify-center gap-2">
-                      <Button 
-                        size="sm" 
+                      <Button
+                        size="sm"
                         variant="secondary"
                         className="gap-1.5"
                         onClick={async () => {
@@ -424,11 +415,16 @@ function App() {
                           }
                         }}
                       >
-                        {copied ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                        {copied ? (
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
                         {copied ? 'Copied' : 'Copy'}
                       </Button>
-                      <Button 
-                        size="sm" 
+
+                      <Button
+                        size="sm"
                         variant="outline"
                         className="gap-1.5"
                         onClick={async () => {
@@ -436,16 +432,19 @@ function App() {
                             title: `Join ${activeEvent.name} on Moment`,
                             text: `Upload your photos to ${activeEvent.name}! Use code: ${activeEvent.slug}`,
                           }
+
                           if (navigator.share) {
                             try {
                               await navigator.share(shareData)
                               showToast('Shared!')
                             } catch {
-                              // User cancelled
+                              // user cancelled
                             }
                           } else {
                             try {
-                              await navigator.clipboard.writeText(`Upload your photos to ${activeEvent.name}! Use code: ${activeEvent.slug}`)
+                              await navigator.clipboard.writeText(
+                                `Upload your photos to ${activeEvent.name}! Use code: ${activeEvent.slug}`,
+                              )
                               showToast('Invite copied!')
                             } catch {
                               showToast('Failed to copy', 'error')
@@ -456,8 +455,9 @@ function App() {
                         <Share2 className="h-3.5 w-3.5" />
                         Share
                       </Button>
-                      <Button 
-                        size="sm" 
+
+                      <Button
+                        size="sm"
                         variant="secondary"
                         className="gap-1.5"
                         onClick={() => setQrModalOpen(true)}
@@ -467,8 +467,7 @@ function App() {
                       </Button>
                     </div>
                   </div>
-                  
-                  {/* Quick Stats */}
+
                   <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
                     <div className="flex items-center gap-1.5">
                       <Users className="h-4 w-4" />
@@ -480,12 +479,10 @@ function App() {
                     </div>
                   </div>
                 </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          {/* Upload & Gallery Section */}
-          <div className="mt-6 grid gap-6 lg:grid-cols-2">
-              {/* Upload Card */}
+            <div className="mt-6 grid gap-6 lg:grid-cols-2">
               <Card className="border-border/50">
                 <CardHeader>
                   <CardTitle className="text-lg">Share your moments</CardTitle>
@@ -493,21 +490,24 @@ function App() {
                     Your perspective matters — add your photos to the collection
                   </CardDescription>
                 </CardHeader>
+
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Your name (optional)</label>
-                    <Input 
-                      value={guestName} 
-                      onChange={(event) => setGuestName(event.target.value)} 
+                    <Input
+                      value={guestName}
+                      onChange={(event) => setGuestName(event.target.value)}
                       placeholder="Your name"
                     />
                   </div>
 
-                  <label className={`relative flex min-h-[160px] cursor-pointer flex-col items-center justify-center gap-3 overflow-hidden rounded-xl border-2 border-dashed p-6 text-center transition-all duration-200 active:scale-[0.98] ${
-                    activeEvent?.slug 
-                      ? 'border-primary/40 bg-primary/5 hover:border-primary/60 hover:bg-primary/10' 
-                      : 'border-border bg-muted/30 cursor-not-allowed'
-                  }`}>
+                  <label
+                    className={`relative flex min-h-[160px] cursor-pointer flex-col items-center justify-center gap-3 overflow-hidden rounded-xl border-2 border-dashed p-6 text-center transition-all duration-200 active:scale-[0.98] ${
+                      activeEvent?.slug
+                        ? 'border-primary/40 bg-primary/5 hover:border-primary/60 hover:bg-primary/10'
+                        : 'cursor-not-allowed border-border bg-muted/30'
+                    }`}
+                  >
                     <input
                       accept="image/*"
                       capture="environment"
@@ -523,15 +523,20 @@ function App() {
                     </div>
                     <div>
                       <p className="text-sm font-medium">Tap to upload</p>
-                      <p className="text-xs text-muted-foreground">Choose photos or take a picture</p>
+                      <p className="text-xs text-muted-foreground">
+                        Choose photos or take a picture
+                      </p>
                     </div>
                   </label>
 
                   {uploads.length > 0 && (
                     <div className="space-y-2">
                       {uploads.map((upload) => (
-                        <div key={upload.id} className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3">
-                          <div className="flex-1 min-w-0">
+                        <div
+                          key={upload.id}
+                          className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3"
+                        >
+                          <div className="min-w-0 flex-1">
                             <p className="truncate text-sm">{upload.name}</p>
                             <p className="text-xs text-muted-foreground">{upload.status}</p>
                           </div>
@@ -547,7 +552,6 @@ function App() {
                 </CardContent>
               </Card>
 
-              {/* Gallery Card */}
               <Card className="border-border/50">
                 <CardHeader>
                   <CardTitle className="text-lg">
@@ -560,6 +564,7 @@ function App() {
                     Tap photos to view and download in full quality
                   </CardDescription>
                 </CardHeader>
+
                 <CardContent>
                   <PhotoGalleryGrid
                     photos={galleryPhotos}
@@ -571,12 +576,10 @@ function App() {
                 </CardContent>
               </Card>
             </div>
-          ) : null}
-        </div>
-      </section>
+          </div>
+        </section>
       )}
 
-      {/* QR Code Modal */}
       <EventQRModal
         isOpen={qrModalOpen}
         onClose={() => setQrModalOpen(false)}
@@ -584,7 +587,6 @@ function App() {
         baseUrl={baseUrl}
       />
 
-      {/* Lightbox */}
       <PhotoLightbox
         onOpenChange={setLightboxOpen}
         onSelectIndex={setLightboxIndex}
@@ -592,8 +594,7 @@ function App() {
         photos={galleryPhotos}
         selectedIndex={lightboxIndex}
       />
-      
-      {/* Toast Notifications */}
+
       <ToastComponent />
     </main>
   )
