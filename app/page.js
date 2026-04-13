@@ -67,11 +67,11 @@ function App() {
   const [qrModalOpen, setQrModalOpen] = useState(false)
   const { showToast, ToastComponent } = useToast()
 
-  // Generate event URL for sharing
+  // Generate canonical event URL for sharing (QR codes, links)
   const eventUrl = useMemo(() => {
     if (!activeEvent?.slug) return ''
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
-    return `${baseUrl}/?event=${activeEvent.slug}`
+    return `${baseUrl}/event/${activeEvent.slug}`
   }, [activeEvent?.slug])
 
   const galleryPhotos = useMemo(() => {
@@ -325,7 +325,7 @@ function App() {
   useEffect(() => {
     loadEvents()
     
-    // Check for event query parameter on load
+    // Check for event query parameter on load (backward compatibility + redirect from /event/slug)
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
       const eventSlug = params.get('event')
