@@ -88,23 +88,31 @@ export function LandingPage({
               Create a gallery, share a link, and collect photos from every guest. No apps needed.
             </p>
 
-            {/* CTA - Single button, reduced friction */}
+            {/* CTA */}
             <div id="create" className="mt-8 flex flex-col items-center gap-3">
-              <Button 
-                size="lg" 
-                className="h-12 gap-2 px-8 text-base"
-                onClick={onCreateEvent}
-                disabled={isCreating || !eventName?.trim() || eventName.trim().length < 3}
-              >
-                {isCreating ? (
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                ) : (
-                  <>
-                    Create your event — it's free
-                    <ArrowRight className="h-4 w-4" />
-                  </>
-                )}
-              </Button>
+              <div className="flex w-full max-w-md flex-col gap-3 sm:flex-row">
+                <Input
+                  value={eventName}
+                  onChange={(e) => setEventName(e.target.value)}
+                  placeholder="Event name (e.g. Sarah's Wedding)"
+                  className="h-12 flex-1 text-base"
+                />
+                <Button 
+                  size="lg" 
+                  className="h-12 gap-2 px-8 text-base whitespace-nowrap"
+                  onClick={onCreateEvent}
+                  disabled={isCreating || !eventName?.trim() || eventName.trim().length < 3}
+                >
+                  {isCreating ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  ) : (
+                    <>
+                      Create your event — it's free
+                      <ArrowRight className="h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              </div>
               
               {/* Micro-highlight */}
               <p className="text-xs text-muted-foreground">
@@ -456,10 +464,16 @@ export function LandingPage({
               Your guests are already taking pictures. Give them a simple way to share.
             </p>
             
-            <div className="mt-8">
+            <div className="mt-8 flex w-full max-w-md mx-auto flex-col gap-3 sm:flex-row">
+              <Input
+                value={eventName}
+                onChange={(e) => setEventName(e.target.value)}
+                placeholder="Event name (e.g. Sarah's Wedding)"
+                className="h-12 flex-1 text-base"
+              />
               <Button 
                 size="lg" 
-                className="h-12 gap-2 px-8 text-base"
+                className="h-12 gap-2 px-8 text-base whitespace-nowrap"
                 onClick={onCreateEvent}
                 disabled={isCreating || !eventName?.trim() || eventName.trim().length < 3}
               >
