@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto'
 import { handleUpload } from '@vercel/blob/client'
 import { NextResponse } from 'next/server'
+import { Resend } from 'resend'
 import {
   adminModerationSchema,
   adminPasswordSchema,
@@ -35,6 +36,8 @@ import {
 } from '@/lib/server/storage'
 
 export const runtime = 'nodejs'
+
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 
 const json = (payload, status = 200) => {
   const response = NextResponse.json(payload, { status })
@@ -132,6 +135,90 @@ const getEvent = async (slug, options = {}) => {
   }
 
   return json({ event })
+}
+
+const getAppUrl = (request) => {
+  const envUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL
+  if (envUrl) return envUrl.replace(/\/$/, '')
+
+  const proto = request.headers.get('x-forwarded-proto') || 'http'
+  const host = request.headers.get('host') || 'localhost'
+  return `${proto}://${host}`
+}
+
+const saveEventByEmail = async (request, slug) => {
+  if (!resend) {
+    return json({ error: 'Email service is not configured' }, 503)
+  }
+
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  const email = typeof body?.email === 'string' ? body.email.trim() : ''
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return json({ error: 'A valid email is required' }, 400)
+  }
+
+  const repository = await getGalleryRepository()
+  const event = await repository.getEventBySlug(slug)
+  if (!event) {
+    return json({ error: 'Event not found' }, 404)
+  }
+
+  const from = process.env.RESEND_FROM_EMAIL
+  if (!from) {
+    return json({ error: 'Email sender is not configured' }, 503)
+  }
+
+  const appUrl = getAppUrl(request)
+  const eventUrl = `${appUrl}/event/${event.slug}`
+
+  try {
+    const { data, error: sendError } = await resend.emails.send({
+      from,
+      to: email,
+      subject: `Your Moment event: ${event.name}`,
+      text: `Hi there,
+
+Here is the link to your Moment event "${event.name}":
+${eventUrl}
+
+Keep this email safe — you can use the link above to reopen your event gallery and share it with guests anytime.
+
+– Moment`,
+      html: `<div style="font-family:system-ui,sans-serif;line-height:1.5;max-width:480px;padding:24px;">
+  <h2 style="margin:0 0 12px;font-size:18px;">Your Moment event is ready</h2>
+  <p style="margin:0 0 16px;color:#555;">
+    Here is the link to <strong>${event.name}</strong>:
+  </p>
+  <p style="margin:0 0 24px;">
+    <a href="${eventUrl}" style="display:inline-block;padding:10px 16px;background:#111;color:#fff;text-decoration:none;border-radius:6px;">Open your event</a>
+  </p>
+  <p style="margin:0 0 8px;color:#555;font-size:14px;">
+    Or copy this link into your browser:
+  </p>
+  <p style="margin:0 0 16px;font-size:14px;word-break:break-all;color:#333;">${eventUrl}</p>
+  <p style="margin:24px 0 0;font-size:13px;color:#777;">
+    Keep this email safe — you can use the link above to reopen your event gallery and share it with guests anytime.
+  </p>
+  <p style="margin:16px 0 0;font-size:13px;color:#777;">– Moment</p>
+</div>`,
+    })
+
+    if (sendError) {
+      console.error('[saveEventByEmail] Resend error:', sendError)
+      return json({ error: sendError.message || 'Unable to send email' }, 502)
+    }
+
+    return json({ success: true, id: data?.id })
+  } catch (error) {
+    console.error('[saveEventByEmail] Unexpected error:', error)
+    return json({ error: error?.message || 'Unable to send email' }, 502)
+  }
 }
 
 const initUpload = async (request) => {
@@ -480,6 +567,10 @@ async function handleRoute(request, { params }) {
 
       if (segments.length === 2 && method === 'GET') {
         return getEvent(segments[1])
+      }
+
+      if (segments.length === 3 && segments[2] === 'email' && method === 'POST') {
+        return saveEventByEmail(request, segments[1])
       }
     }
 
