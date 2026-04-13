@@ -94,7 +94,7 @@ export function LandingPage({
                 size="lg" 
                 className="h-12 gap-2 px-8 text-base"
                 onClick={onCreateEvent}
-                disabled={isCreating}
+                disabled={isCreating || !eventName?.trim() || eventName.trim().length < 3}
               >
                 {isCreating ? (
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
@@ -461,7 +461,7 @@ export function LandingPage({
                 size="lg" 
                 className="h-12 gap-2 px-8 text-base"
                 onClick={onCreateEvent}
-                disabled={isCreating}
+                disabled={isCreating || !eventName?.trim() || eventName.trim().length < 3}
               >
                 {isCreating ? (
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />

@@ -128,13 +128,20 @@ function App() {
   const router = useRouter()
 
   const createEvent = async () => {
+    // Frontend validation guard
+    const trimmedName = eventName?.trim()
+    if (!trimmedName || trimmedName.length < 3) {
+      showToast('Event name must be at least 3 characters', 'error')
+      return
+    }
+
     setBusy((current) => ({ ...current, create: true }))
 
     try {
       const response = await fetch('/api/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: eventName }),
+        body: JSON.stringify({ name: trimmedName }),
       })
       const payload = await response.json()
 
