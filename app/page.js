@@ -2,6 +2,7 @@
 
 import { upload } from '@vercel/blob/client'
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Camera,
   CheckCircle2,
@@ -124,6 +125,8 @@ function App() {
     }
   }
 
+  const router = useRouter()
+
   const createEvent = async () => {
     setBusy((current) => ({ ...current, create: true }))
 
@@ -139,11 +142,8 @@ function App() {
         throw new Error(payload.error || 'Unable to create event')
       }
 
-      setActiveEvent({ ...payload.event, photos: [] })
-      setEventLookup(payload.event.slug)
-      setGalleryError('')
-      setGalleryLoading(false)
-      await loadEvents()
+      // Redirect to canonical event URL
+      router.push(`/event/${payload.event.slug}`)
     } catch {
       // Error handled by UI state
     } finally {
