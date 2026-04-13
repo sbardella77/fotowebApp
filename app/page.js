@@ -17,6 +17,7 @@ import {
 import PhotoGalleryGrid from '@/components/photo-gallery-grid'
 import PhotoLightbox from '@/components/photo-lightbox'
 import { EventQRModal } from '@/components/event-qr-modal'
+import { LandingPage } from '@/components/landing-page'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -367,113 +368,30 @@ function App() {
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-background" />
-        <div className="container relative px-4 py-10 sm:py-14">
-          <div className="mx-auto max-w-2xl text-center">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-              Your guests are taking photos.<br />
-              <span className="text-primary">Collect them all.</span>
-            </h1>
-            <p className="mt-3 text-base text-muted-foreground">
-              Create an event, share the code, and gather every photo in one place. 
-              No app needed — guests just tap and upload.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* How it Works */}
-      {!activeEvent && (
-        <section className="container px-4 pb-8">
-          <div className="mx-auto max-w-4xl">
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="flex flex-col items-center rounded-xl border border-border/50 bg-card p-4 text-center">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <span className="text-sm font-bold">1</span>
-                </div>
-                <h3 className="mt-3 text-sm font-medium">Create event</h3>
-                <p className="mt-1 text-xs text-muted-foreground">Name your event and get a unique code</p>
-              </div>
-              <div className="flex flex-col items-center rounded-xl border border-border/50 bg-card p-4 text-center">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <span className="text-sm font-bold">2</span>
-                </div>
-                <h3 className="mt-3 text-sm font-medium">Share the code</h3>
-                <p className="mt-1 text-xs text-muted-foreground">Text or show the code to your guests</p>
-              </div>
-              <div className="flex flex-col items-center rounded-xl border border-border/50 bg-card p-4 text-center">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <span className="text-sm font-bold">3</span>
-                </div>
-                <h3 className="mt-3 text-sm font-medium">Collect photos</h3>
-                <p className="mt-1 text-xs text-muted-foreground">Watch the gallery fill up in real-time</p>
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* Main Content */}
+      {/* Landing Page or App View */}
+      {!activeEvent ? (
+        <LandingPage 
+          onCreateEvent={createEvent}
+          eventName={eventName}
+          setEventName={setEventName}
+          isCreating={busy.create}
+        />
+      ) : (
+      /* Main Content - Only shown when event is active */
       <section className="container px-4 pb-12">
         <div className="mx-auto max-w-4xl">
           {/* Event Setup Card */}
           <Card className="border-border/50 shadow-sm">
             <CardHeader className="space-y-1">
               <CardTitle className="text-xl font-semibold">
-                {activeEvent ? activeEvent.name : 'Create your event'}
+                {activeEvent.name}
               </CardTitle>
               <CardDescription>
-                {activeEvent 
-                  ? `Share code: ${activeEvent.slug}` 
-                  : 'Set up an event in seconds'}
+                Share code: {activeEvent.slug}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {!activeEvent ? (
-                <>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Event name</label>
-                    <Input 
-                      value={eventName} 
-                      onChange={(event) => setEventName(event.target.value)} 
-                      placeholder="Sarah & Mike's Wedding"
-                    />
-                    <Button className="w-full" onClick={createEvent} disabled={busy.create}>
-                      {busy.create ? <LoadingDot /> : 'Create event'}
-                    </Button>
-                  </div>
-
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <span className="w-full border-t" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-card px-2 text-muted-foreground">or</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Join an event</label>
-                    <div className="flex gap-2">
-                      <Input 
-                        value={eventLookup} 
-                        onChange={(event) => setEventLookup(event.target.value.toLowerCase())} 
-                        placeholder="Enter event code"
-                      />
-                      <Button 
-                        variant="secondary" 
-                        onClick={() => loadEvent(eventLookup)} 
-                        disabled={busy.join || !eventLookup.trim()}
-                      >
-                        {busy.join ? <LoadingDot /> : 'Join'}
-                      </Button>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="space-y-4">
+              <div className="space-y-4">
                   {/* Event Code - Visual Focal Point */}
                   <div className="relative overflow-hidden rounded-xl border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10 p-6 text-center">
                     <div className="absolute right-2 top-2">
@@ -562,13 +480,11 @@ function App() {
                     </div>
                   </div>
                 </div>
-              )}
             </CardContent>
           </Card>
 
           {/* Upload & Gallery Section */}
-          {activeEvent && (
-            <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <div className="mt-6 grid gap-6 lg:grid-cols-2">
               {/* Upload Card */}
               <Card className="border-border/50">
                 <CardHeader>
@@ -655,29 +571,9 @@ function App() {
                 </CardContent>
               </Card>
             </div>
-          )}
+          ) : null}
         </div>
       </section>
-
-      {/* Recent Events Footer */}
-      {!activeEvent && events.length > 0 && (
-        <section className="container px-4 pb-12">
-          <div className="mx-auto max-w-4xl">
-            <p className="mb-3 text-sm font-medium text-muted-foreground">Recent events</p>
-            <div className="flex flex-wrap gap-2">
-              {events.slice(0, 6).map((event) => (
-                <Button 
-                  key={event.id} 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => loadEvent(event.slug)}
-                >
-                  {event.name}
-                </Button>
-              ))}
-            </div>
-          </div>
-        </section>
       )}
 
       {/* QR Code Modal */}

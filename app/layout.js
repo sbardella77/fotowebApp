@@ -1,8 +1,8 @@
 import './globals.css'
 
 export const metadata = {
-  title: 'Event Gallery MVP',
-  description: 'Mobile-first event photo sharing with chunked uploads and live galleries.',
+  title: 'Moment — Collect Every Photo From Your Event',
+  description: 'The easiest way to collect photos from everyone at your wedding, party, or event. No app download, no sign-up — guests just scan and upload.',
 }
 
 function App({ children }) {
