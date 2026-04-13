@@ -90,7 +90,28 @@ const routeRoot = async () => {
 }
 
 const createEvent = async (request) => {
-  const payload = createEventSchema.parse(await request.json())
+  // Safe JSON parsing
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  // Manual validation before Zod to ensure clean error messages
+  const name = typeof body?.name === 'string' ? body.name.trim() : ''
+  if (!name || name.length < 3) {
+    return json({ error: 'Event name must be at least 3 characters' }, 400)
+  }
+
+  // Now safe to use Zod for full validation
+  let payload
+  try {
+    payload = createEventSchema.parse({ name })
+  } catch (zodError) {
+    return json({ error: formatZodError(zodError) }, 400)
+  }
+
   const repository = await getGalleryRepository()
   const event = await repository.createEvent(payload)
   return json({ event }, 201)
