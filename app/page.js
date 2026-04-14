@@ -385,13 +385,21 @@ function RoomManagementCard({ event, managementToken, onEventUpdated, onEventDel
 }
 
 function App() {
+  const initialEventSlug = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('event') || ''
+    : ''
+
   const [eventName, setEventName] = useState('')
-  const [eventLookup, setEventLookup] = useState('')
+  const [eventLookup, setEventLookup] = useState(initialEventSlug)
   const [guestName, setGuestName] = useState('')
   const [activeEvent, setActiveEvent] = useState(null)
   const [events, setEvents] = useState([])
   const [uploads, setUploads] = useState([])
-  const [busy, setBusy] = useState({ create: false, join: false, refresh: false })
+  const [busy, setBusy] = useState({
+    create: false,
+    join: Boolean(initialEventSlug),
+    refresh: false,
+  })
   const [galleryLoading, setGalleryLoading] = useState(false)
   const [galleryError, setGalleryError] = useState('')
   const [lightboxOpen, setLightboxOpen] = useState(false)
@@ -752,7 +760,17 @@ function App() {
         </div>
       </header>
 
-      {!activeEvent ? (
+      {busy.join && !activeEvent ? (
+        <div className="flex min-h-[calc(100vh-3.5rem)] flex-col items-center justify-center gap-4 px-4">
+          <img
+            src="/snaprooms-logo.svg"
+            alt="SnapRooms"
+            className="h-12 w-12 rounded-lg object-cover"
+          />
+          <p className="text-lg font-medium text-foreground">Opening your room...</p>
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : !activeEvent ? (
         <LandingPage
           onCreateEvent={createEvent}
           eventName={eventName}
