@@ -1,5 +1,10 @@
 import { randomUUID } from 'crypto'
 import { handleUpload } from '@vercel/blob/client'
+import {
+  generateManagementToken,
+  hashManagementToken,
+  verifyManagementToken,
+} from '@/lib/server/management-token'
 import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import {
@@ -11,6 +16,8 @@ import {
   localUploadCompleteSchema,
   MAX_CHUNK_SIZE_BYTES,
   MAX_FILE_SIZE_BYTES,
+  saveOwnerEmailSchema,
+  updateEventSchema,
   uploadChunkSchema,
   uploadInitSchema,
 } from '@/lib/server/schemas'
@@ -223,6 +230,140 @@ SnapRooms — Every guest photo. One room.`,
     console.error('[saveEventByEmail] Unexpected error:', error)
     return json({ error: error?.message || 'Unable to send email' }, 502)
   }
+}
+
+const getManagementTokenFromRequest = (request) => {
+  const auth = request.headers.get('authorization') || ''
+  const match = auth.match(/^Bearer\s+(.+)$/i)
+  return match ? match[1] : null
+}
+
+const saveEventOwner = async (request, slug) => {
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  let payload
+  try {
+    payload = saveOwnerEmailSchema.parse(body)
+  } catch (zodError) {
+    return json({ error: formatZodError(zodError) }, 400)
+  }
+
+  const repository = await getGalleryRepository()
+  const event = await repository.getEventBySlug(slug)
+
+  if (!event) {
+    return json({ error: 'Event not found' }, 404)
+  }
+
+  const managementToken = generateManagementToken()
+  const managementTokenHash = hashManagementToken(managementToken)
+
+  const updatedEvent = await repository.setEventOwnerEmail(slug, {
+    ownerEmail: payload.email,
+    managementTokenHash,
+  })
+
+  if (resend) {
+    const from = process.env.RESEND_FROM_EMAIL
+    if (from) {
+      const appUrl = getAppUrl(request)
+      const manageUrl = `${appUrl}/event/${event.slug}`
+      try {
+        await resend.emails.send({
+          from,
+          to: payload.email,
+          subject: `Your SnapRooms room management link`,
+          text: `Hi,
+
+Your room "${event.name}" has been claimed.
+
+You can manage your room (rename or delete it) using this link on the device where you claimed it:
+${manageUrl}
+
+If you need to manage the room from another device, save this email.
+
+SnapRooms — Every guest photo. One room.`,
+          html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
+  <div style="text-align:center;margin-bottom:24px;">
+    <span style="font-size:20px;font-weight:700;color:#FF6B4A;letter-spacing:-0.5px;">SnapRooms</span>
+  </div>
+  <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Room claimed ✅</h1>
+  <p style="margin:0 0 24px;text-align:center;color:#4b5563;">
+    Your room <strong style="color:#111111;">${event.name}</strong> is now under your ownership.
+  </p>
+  <p style="margin:0 0 24px;text-align:center;">
+    <a href="${manageUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B4A;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Manage your room</a>
+  </p>
+  <p style="margin:0 0 32px;text-align:center;color:#6b7280;font-size:14px;">
+    You can rename or delete this room from the device where you claimed it. Keep this email safe if you need to access management controls later.
+  </p>
+  <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">
+    SnapRooms — Every guest photo. One room.
+  </p>
+</div>`,
+        })
+      } catch (emailError) {
+        console.error('[saveEventOwner] Failed to send management email:', emailError)
+      }
+    }
+  }
+
+  return json({ event: updatedEvent, managementToken })
+}
+
+const updateEvent = async (request, slug) => {
+  const token = getManagementTokenFromRequest(request)
+
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  let payload
+  try {
+    payload = updateEventSchema.parse(body)
+  } catch (zodError) {
+    return json({ error: formatZodError(zodError) }, 400)
+  }
+
+  const repository = await getGalleryRepository()
+  const event = await repository.getEventBySlug(slug)
+
+  if (!event) {
+    return json({ error: 'Event not found' }, 404)
+  }
+
+  if (!verifyManagementToken(token, event.managementTokenHash)) {
+    return json({ error: 'Management token required' }, 403)
+  }
+
+  const updatedEvent = await repository.updateEvent(slug, payload)
+  return json({ event: updatedEvent })
+}
+
+const deleteEvent = async (request, slug) => {
+  const token = getManagementTokenFromRequest(request)
+
+  const repository = await getGalleryRepository()
+  const event = await repository.getEventBySlug(slug)
+
+  if (!event) {
+    return json({ error: 'Event not found' }, 404)
+  }
+
+  if (!verifyManagementToken(token, event.managementTokenHash)) {
+    return json({ error: 'Management token required' }, 403)
+  }
+
+  await repository.deleteEvent(slug)
+  return json({ deleted: true })
 }
 
 const initUpload = async (request) => {
@@ -575,6 +716,18 @@ async function handleRoute(request, { params }) {
 
       if (segments.length === 3 && segments[2] === 'email' && method === 'POST') {
         return saveEventByEmail(request, segments[1])
+      }
+
+      if (segments.length === 3 && segments[2] === 'owner' && method === 'POST') {
+        return saveEventOwner(request, segments[1])
+      }
+
+      if (segments.length === 2 && method === 'PATCH') {
+        return updateEvent(request, segments[1])
+      }
+
+      if (segments.length === 2 && method === 'DELETE') {
+        return deleteEvent(request, segments[1])
       }
     }
 

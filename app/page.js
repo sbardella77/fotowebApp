@@ -28,7 +28,34 @@ const CHUNK_SIZE = 1024 * 1024
 
 const LoadingDot = () => <Loader2 className="h-4 w-4 animate-spin" />
 
-function SaveEventCard({ event, onDismiss }) {
+const useToast = () => {
+  const [toast, setToast] = useState(null)
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 2000)
+  }
+
+  const ToastComponent = () => {
+    if (!toast) return null
+
+    return (
+      <div
+        className={`fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-full px-4 py-2 text-sm font-medium shadow-lg transition-all ${
+          toast.type === 'success'
+            ? 'bg-foreground text-background'
+            : 'bg-destructive text-destructive-foreground'
+        }`}
+      >
+        {toast.message}
+      </div>
+    )
+  }
+
+  return { showToast, ToastComponent }
+}
+
+function SaveEventCard({ event, onDismiss, onClaim }) {
   const [email, setEmail] = useState('')
   const [status, setStatus] = useState('idle')
   const [error, setError] = useState('')
@@ -41,15 +68,27 @@ function SaveEventCard({ event, onDismiss }) {
     setStatus('loading')
     setError('')
     try {
-      const response = await fetch(`/api/events/${event.slug}/email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
-      })
-      const payload = await response.json()
-      if (!response.ok) {
-        throw new Error(payload.error || 'Unable to send email')
+      const [emailRes, ownerRes] = await Promise.all([
+        fetch(`/api/events/${event.slug}/email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email.trim() }),
+        }),
+        fetch(`/api/events/${event.slug}/owner`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email.trim() }),
+        }),
+      ])
+      const emailPayload = await emailRes.json()
+      const ownerPayload = await ownerRes.json()
+      if (!emailRes.ok) {
+        throw new Error(emailPayload.error || 'Unable to send email')
       }
+      if (!ownerRes.ok) {
+        throw new Error(ownerPayload.error || 'Unable to claim room')
+      }
+      onClaim?.(email.trim(), ownerPayload.managementToken)
       setStatus('success')
     } catch (err) {
       setStatus('error')
@@ -128,31 +167,221 @@ function SaveEventCard({ event, onDismiss }) {
   )
 }
 
-const useToast = () => {
-  const [toast, setToast] = useState(null)
+function ClaimRoomCard({ event, onClaim }) {
+  const [email, setEmail] = useState('')
+  const [status, setStatus] = useState('idle')
+  const [error, setError] = useState('')
 
-  const showToast = (message, type = 'success') => {
-    setToast({ message, type })
-    setTimeout(() => setToast(null), 2000)
+  const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!isValid) return
+    setStatus('loading')
+    setError('')
+    try {
+      const response = await fetch(`/api/events/${event.slug}/owner`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      })
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload.error || 'Unable to claim room')
+      }
+      onClaim(email.trim(), payload.managementToken)
+      setStatus('success')
+    } catch (err) {
+      setStatus('error')
+      setError(err.message || 'Something went wrong')
+    }
   }
 
-  const ToastComponent = () => {
-    if (!toast) return null
-
+  if (status === 'success') {
     return (
-      <div
-        className={`fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-full px-4 py-2 text-sm font-medium shadow-lg transition-all ${
-          toast.type === 'success'
-            ? 'bg-foreground text-background'
-            : 'bg-destructive text-destructive-foreground'
-        }`}
-      >
-        {toast.message}
-      </div>
+      <Card className="mt-6 border-green-200 bg-green-50/50">
+        <CardContent className="flex items-center gap-3 py-6">
+          <CheckCircle2 className="h-5 w-5 text-green-600" />
+          <div>
+            <p className="font-medium text-green-900">Room claimed!</p>
+            <p className="text-sm text-green-700">You can manage this room anytime.</p>
+          </div>
+        </CardContent>
+      </Card>
     )
   }
 
-  return { showToast, ToastComponent }
+  return (
+    <Card className="mt-6 border-border/50 bg-muted/20">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base font-semibold flex items-center gap-2">
+          <Mail className="h-4 w-4 text-primary" />
+          Claim this room
+        </CardTitle>
+        <CardDescription>
+          Enter your email to become the owner and manage this room later.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3 sm:flex-row">
+          <Input
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="h-10 flex-1"
+            disabled={status === 'loading'}
+          />
+          <Button
+            type="submit"
+            size="sm"
+            disabled={!isValid || status === 'loading'}
+            className="h-10 whitespace-nowrap"
+          >
+            {status === 'loading' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              'Claim room'
+            )}
+          </Button>
+        </form>
+        {status === 'error' && (
+          <p className="text-xs text-destructive">{error}</p>
+        )}
+        <p className="text-xs text-muted-foreground">
+          Optional — you can keep using SnapRooms without this.
+        </p>
+      </CardContent>
+    </Card>
+  )
+}
+
+function RoomManagementCard({ event, managementToken, onEventUpdated, onEventDeleted }) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [newName, setNewName] = useState(event.name)
+  const [busy, setBusy] = useState({ rename: false, delete: false })
+  const { showToast } = useToast()
+
+  const handleRename = async (e) => {
+    e.preventDefault()
+    const trimmed = newName.trim()
+    if (!trimmed || trimmed.length < 3 || trimmed === event.name) {
+      setIsEditing(false)
+      return
+    }
+    setBusy((c) => ({ ...c, rename: true }))
+    try {
+      const response = await fetch(`/api/events/${event.slug}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${managementToken}`,
+        },
+        body: JSON.stringify({ name: trimmed }),
+      })
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload.error || 'Unable to rename room')
+      }
+      onEventUpdated(payload.event)
+      showToast('Room renamed!')
+      setIsEditing(false)
+    } catch (err) {
+      showToast(err.message || 'Rename failed', 'error')
+    } finally {
+      setBusy((c) => ({ ...c, rename: false }))
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!confirm('Are you sure you want to delete this room and all its photos? This cannot be undone.')) {
+      return
+    }
+    setBusy((c) => ({ ...c, delete: true }))
+    try {
+      const response = await fetch(`/api/events/${event.slug}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${managementToken}`,
+        },
+      })
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload.error || 'Unable to delete room')
+      }
+      showToast('Room deleted')
+      onEventDeleted()
+    } catch (err) {
+      showToast(err.message || 'Delete failed', 'error')
+    } finally {
+      setBusy((c) => ({ ...c, delete: false }))
+    }
+  }
+
+  return (
+    <Card className="mt-6 border-border/50 bg-muted/20">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base font-semibold">Room settings</CardTitle>
+        <CardDescription>Manage your room name or delete it.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isEditing ? (
+          <form onSubmit={handleRename} className="flex flex-col gap-3 sm:flex-row">
+            <Input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              className="h-10 flex-1"
+              disabled={busy.rename}
+            />
+            <div className="flex gap-2">
+              <Button type="submit" size="sm" disabled={busy.rename} className="h-10">
+                {busy.rename ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={busy.rename}
+                className="h-10"
+                onClick={() => {
+                  setNewName(event.name)
+                  setIsEditing(false)
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Room name</p>
+              <p className="truncate text-sm text-muted-foreground">{event.name}</p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8"
+              onClick={() => setIsEditing(true)}
+            >
+              Rename
+            </Button>
+          </div>
+        )}
+        <div className="pt-2 border-t border-border/50">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={handleDelete}
+            disabled={busy.delete}
+          >
+            {busy.delete ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Delete room'}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
 }
 
 function App() {
@@ -170,6 +399,8 @@ function App() {
   const [copied, setCopied] = useState(false)
   const [qrModalOpen, setQrModalOpen] = useState(false)
   const [saveEmailDismissed, setSaveEmailDismissed] = useState(false)
+  const [claimedEmail, setClaimedEmail] = useState('')
+  const [managementToken, setManagementToken] = useState('')
   const { showToast, ToastComponent } = useToast()
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
@@ -179,6 +410,11 @@ function App() {
       (left, right) => new Date(right.createdAt) - new Date(left.createdAt),
     )
   }, [activeEvent])
+
+  const isOwner = useMemo(() => {
+    if (!activeEvent?.ownerEmail || !claimedEmail || !managementToken) return false
+    return activeEvent.ownerEmail.toLowerCase() === claimedEmail.toLowerCase()
+  }, [activeEvent, claimedEmail, managementToken])
 
   const loadEvents = async () => {
     try {
@@ -443,6 +679,26 @@ function App() {
   useEffect(() => {
     if (!activeEvent?.slug) return undefined
 
+    if (typeof window !== 'undefined') {
+      const ownerKey = `snaprooms:owner:${activeEvent.slug}`
+      const legacyKey = `snaprooms:claimed:${activeEvent.slug}`
+      const stored = window.localStorage.getItem(ownerKey)
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored)
+          if (parsed.email) setClaimedEmail(parsed.email)
+          if (parsed.token) setManagementToken(parsed.token)
+        } catch {
+          // ignore parse errors
+        }
+      } else {
+        const legacy = window.localStorage.getItem(legacyKey)
+        if (legacy) {
+          setClaimedEmail(legacy)
+        }
+      }
+    }
+
     const interval = window.setInterval(() => {
       loadEvent(activeEvent.slug, { silent: true })
     }, 3000)
@@ -450,6 +706,33 @@ function App() {
     return () => window.clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeEvent?.slug])
+
+  const handleClaimRoom = (email, token) => {
+    setClaimedEmail(email)
+    setManagementToken(token)
+    if (activeEvent?.slug && typeof window !== 'undefined') {
+      window.localStorage.setItem(
+        `snaprooms:owner:${activeEvent.slug}`,
+        JSON.stringify({ email, token }),
+      )
+      window.localStorage.removeItem(`snaprooms:claimed:${activeEvent.slug}`)
+    }
+  }
+
+  const handleEventUpdated = (event) => {
+    setActiveEvent(event)
+  }
+
+  const handleEventDeleted = () => {
+    if (activeEvent?.slug && typeof window !== 'undefined') {
+      window.localStorage.removeItem(`snaprooms:owner:${activeEvent.slug}`)
+      window.localStorage.removeItem(`snaprooms:claimed:${activeEvent.slug}`)
+    }
+    setClaimedEmail('')
+    setManagementToken('')
+    setActiveEvent(null)
+    router.push('/')
+  }
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -596,6 +879,20 @@ function App() {
               <SaveEventCard
                 event={activeEvent}
                 onDismiss={() => setSaveEmailDismissed(true)}
+                onClaim={handleClaimRoom}
+              />
+            )}
+
+            {!activeEvent?.ownerEmail && saveEmailDismissed && (
+              <ClaimRoomCard event={activeEvent} onClaim={handleClaimRoom} />
+            )}
+
+            {isOwner && (
+              <RoomManagementCard
+                event={activeEvent}
+                managementToken={managementToken}
+                onEventUpdated={handleEventUpdated}
+                onEventDeleted={handleEventDeleted}
               />
             )}
 

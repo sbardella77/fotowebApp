@@ -14,13 +14,15 @@ enum PhotoStatus {
 }
 
 model Event {
-  id           String   @id @default(uuid())
-  slug         String   @unique
-  name         String
-  coverPhotoId String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  photos       Photo[]
+  id                  String   @id @default(uuid())
+  slug                String   @unique
+  name                String
+  ownerEmail          String?
+  managementTokenHash String?
+  coverPhotoId        String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  photos              Photo[]
 
   @@index([createdAt])
 }
