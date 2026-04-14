@@ -1,9 +1,6 @@
-import { redirect } from 'next/navigation'
+import RoomPageClient from '@/components/room-page-client'
 
-// Server-side redirect from /event/SLUG to /?event=SLUG
-// This preserves the canonical URL structure for QR codes while
-// maintaining backward compatibility with the existing query-param loading
-export default function EventRedirectPage({ params }) {
+export default function EventPage({ params }) {
   const { slug } = params
-  redirect(`/?event=${slug}`)
+  return <RoomPageClient slug={slug} />
 }
