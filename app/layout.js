@@ -3,6 +3,9 @@ import './globals.css'
 export const metadata = {
   title: 'SnapRooms — Every Guest Photo. One Room.',
   description: 'Create a room, share a QR code, and collect every guest photo instantly. No app download, no signup needed.',
+  icons: {
+    icon: '/favicon.svg',
+  },
 }
 
 function App({ children }) {

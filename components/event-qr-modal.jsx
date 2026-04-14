@@ -237,18 +237,32 @@ export function EventQRModal({
               <p className="mt-1 text-lg font-semibold text-foreground">{event.name}</p>
             </div>
 
+            {/* Logo */}
+            <img
+              src="/snaprooms-logo.svg"
+              alt="SnapRooms"
+              className="h-10 w-10 mx-auto mb-3 rounded-md object-cover"
+            />
+
             {/* QR Code Card */}
             <div className="relative mb-4 rounded-xl border-2 border-primary/20 bg-white p-6">
               {/* QR Code */}
               <div className="mb-4 flex justify-center" ref={qrContainerRef}>
-                <QRCodeSVG
-                  value={eventUrl}
-                  size={200}
-                  level="M"
-                  includeMargin={true}
-                  bgColor="#ffffff"
-                  fgColor="#000000"
-                />
+                <div className="relative inline-block">
+                  <QRCodeSVG
+                    value={eventUrl}
+                    size={200}
+                    level="H"
+                    includeMargin={true}
+                    bgColor="#ffffff"
+                    fgColor="#000000"
+                  />
+                  <img
+                    src="/snaprooms-logo.svg"
+                    alt="SnapRooms"
+                    className="absolute left-1/2 top-1/2 h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-md bg-white p-1"
+                  />
+                </div>
               </div>
 
               {/* Helper text */}
@@ -356,7 +370,7 @@ export function EventQRModal({
               <QRCodeSVG
                 value={eventUrl}
                 size={180}
-                level="M"
+                level="H"
                 includeMargin={true}
                 bgColor="#ffffff"
                 fgColor="#000000"

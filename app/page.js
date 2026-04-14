@@ -4,7 +4,6 @@ import { upload } from '@vercel/blob/client'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Camera,
   CheckCircle2,
   Clock3,
   Copy,
@@ -457,9 +456,11 @@ function App() {
       <header className="border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-14 items-center justify-between px-4">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Camera className="h-4 w-4" />
-            </div>
+            <img
+              src="/snaprooms-logo.svg"
+              alt="SnapRooms"
+              className="h-8 w-8 rounded-md object-cover"
+            />
             <span className="font-semibold tracking-tight">SnapRooms</span>
           </div>
           <Button asChild variant="ghost" size="sm" className="text-muted-foreground">

@@ -71,13 +71,20 @@ export function LandingPage({
         
         <div className="container relative px-4">
           <div className="mx-auto max-w-3xl text-center">
+            {/* Logo */}
+            <img
+              src="/snaprooms-logo.svg"
+              alt="SnapRooms"
+              className="mx-auto mb-6 h-12 w-12 rounded-lg object-cover"
+            />
+
             {/* Badge */}
             <div className="mb-6 inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-medium text-primary">
               <Sparkles className="h-3 w-3" />
               <span>No apps • No signup</span>
             </div>
 
-            {/* Headline */}
+            {/* Headline -->
             <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl sm:leading-tight lg:text-6xl">
               Every guest photo.
               <span className="block text-primary">One room.</span>
