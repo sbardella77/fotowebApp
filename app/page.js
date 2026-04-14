@@ -10,6 +10,7 @@ import {
   Copy,
   ImagePlus,
   Loader2,
+  Mail,
   QrCode,
   RefreshCcw,
   Share2,
@@ -27,6 +28,106 @@ import { Input } from '@/components/ui/input'
 const CHUNK_SIZE = 1024 * 1024
 
 const LoadingDot = () => <Loader2 className="h-4 w-4 animate-spin" />
+
+function SaveEventCard({ event, onDismiss }) {
+  const [email, setEmail] = useState('')
+  const [status, setStatus] = useState('idle')
+  const [error, setError] = useState('')
+
+  const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!isValid) return
+    setStatus('loading')
+    setError('')
+    try {
+      const response = await fetch(`/api/events/${event.slug}/email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      })
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload.error || 'Unable to send email')
+      }
+      setStatus('success')
+    } catch (err) {
+      setStatus('error')
+      setError(err.message || 'Something went wrong')
+    }
+  }
+
+  if (status === 'success') {
+    return (
+      <Card className="mt-6 border-green-200 bg-green-50/50">
+        <CardContent className="flex items-center gap-3 py-6">
+          <CheckCircle2 className="h-5 w-5 text-green-600" />
+          <div>
+            <p className="font-medium text-green-900">Room link sent!</p>
+            <p className="text-sm text-green-700">Check your inbox for {email.trim()}</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card className="mt-6 border-border/50 bg-muted/20">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base font-semibold flex items-center gap-2">
+          <Mail className="h-4 w-4 text-primary" />
+          Save this room
+        </CardTitle>
+        <CardDescription>
+          Enter your email and we&apos;ll send you the room link so you can open it later.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3 sm:flex-row">
+          <Input
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="h-10 flex-1"
+            disabled={status === 'loading'}
+          />
+          <Button
+            type="submit"
+            size="sm"
+            disabled={!isValid || status === 'loading'}
+            className="h-10 whitespace-nowrap"
+          >
+            {status === 'loading' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              'Send me the link'
+            )}
+          </Button>
+        </form>
+        {status === 'error' && (
+          <p className="text-xs text-destructive">{error}</p>
+        )}
+        <div className="flex flex-col-reverse items-start justify-between gap-2 sm:flex-row sm:items-center">
+          <p className="text-xs text-muted-foreground">
+            Optional — you can keep using SnapRooms without this.
+          </p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-auto px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+            onClick={onDismiss}
+            disabled={status === 'loading'}
+          >
+            Skip for now
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
 
 const useToast = () => {
   const [toast, setToast] = useState(null)
@@ -69,6 +170,7 @@ function App() {
   const [lightboxIndex, setLightboxIndex] = useState(0)
   const [copied, setCopied] = useState(false)
   const [qrModalOpen, setQrModalOpen] = useState(false)
+  const [saveEmailDismissed, setSaveEmailDismissed] = useState(false)
   const { showToast, ToastComponent } = useToast()
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
@@ -358,7 +460,7 @@ function App() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Camera className="h-4 w-4" />
             </div>
-            <span className="font-semibold tracking-tight">Moment</span>
+            <span className="font-semibold tracking-tight">SnapRooms</span>
           </div>
           <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
             <a href="/admin">Admin</a>
@@ -379,7 +481,7 @@ function App() {
             <Card className="border-border/50 shadow-sm">
               <CardHeader className="space-y-1">
                 <CardTitle className="text-xl font-semibold">{activeEvent.name}</CardTitle>
-                <CardDescription>Share code: {activeEvent.slug}</CardDescription>
+                <CardDescription>Room code: {activeEvent.slug}</CardDescription>
               </CardHeader>
 
               <CardContent className="space-y-6">
@@ -397,13 +499,13 @@ function App() {
                     </div>
 
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Event Code
+                      Room code
                     </p>
                     <p className="mt-1 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
                       {activeEvent.slug}
                     </p>
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Share this code with your guests
+                      Share this code so guests can join
                     </p>
 
                     <div className="mt-4 flex justify-center gap-2">
@@ -436,7 +538,7 @@ function App() {
                         className="gap-1.5"
                         onClick={async () => {
                           const shareData = {
-                            title: `Join ${activeEvent.name} on Moment`,
+                            title: `Join ${activeEvent.name} on SnapRooms`,
                             text: `Upload your photos to ${activeEvent.name}! Use code: ${activeEvent.slug}`,
                           }
 
@@ -489,12 +591,19 @@ function App() {
               </CardContent>
             </Card>
 
+            {!saveEmailDismissed && (
+              <SaveEventCard
+                event={activeEvent}
+                onDismiss={() => setSaveEmailDismissed(true)}
+              />
+            )}
+
             <div className="mt-6 grid gap-6 lg:grid-cols-2">
               <Card className="border-border/50">
                 <CardHeader>
-                  <CardTitle className="text-lg">Share your moments</CardTitle>
+                  <CardTitle className="text-lg">Add your photos</CardTitle>
                   <CardDescription>
-                    Your perspective matters — add your photos to the collection
+                    Upload photos from your phone in seconds.
                   </CardDescription>
                 </CardHeader>
 
@@ -509,7 +618,7 @@ function App() {
                   </div>
 
                   <label
-                    className={`relative flex min-h-[160px] cursor-pointer flex-col items-center justify-center gap-3 overflow-hidden rounded-xl border-2 border-dashed p-6 text-center transition-all duration-200 active:scale-[0.98] ${
+                    className={`relative flex min-h-[220px] cursor-pointer flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border-2 border-dashed p-6 text-center transition-all duration-200 active:scale-[0.98] ${
                       activeEvent?.slug
                         ? 'border-primary/40 bg-primary/5 hover:border-primary/60 hover:bg-primary/10'
                         : 'cursor-not-allowed border-border bg-muted/30'
@@ -525,12 +634,12 @@ function App() {
                       type="file"
                       aria-label="Upload photos"
                     />
-                    <div className="rounded-full bg-primary p-3 text-primary-foreground">
-                      <ImagePlus className="h-6 w-6" />
+                    <div className="rounded-full bg-primary p-4 text-primary-foreground">
+                      <ImagePlus className="h-8 w-8" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium">Tap to upload</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-base font-medium">Tap to upload</p>
+                      <p className="text-sm text-muted-foreground">
                         Choose photos or take a picture
                       </p>
                     </div>
@@ -562,13 +671,13 @@ function App() {
               <Card className="border-border/50">
                 <CardHeader>
                   <CardTitle className="text-lg">
-                    Photo gallery
+                    Room photos
                     <Badge variant="secondary" className="ml-2">
                       {galleryPhotos.length}
                     </Badge>
                   </CardTitle>
                   <CardDescription>
-                    Tap photos to view and download in full quality
+                    Tap any photo to view and download in full quality.
                   </CardDescription>
                 </CardHeader>
 

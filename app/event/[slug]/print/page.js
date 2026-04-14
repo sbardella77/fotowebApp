@@ -83,7 +83,7 @@ export default function PrintEventPage() {
           <p className="text-muted-foreground mb-4">{error || 'This event does not exist or has been removed.'}</p>
           <a 
             href="/" 
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-[#E85A3D]"
           >
             Go home
           </a>
@@ -99,8 +99,8 @@ export default function PrintEventPage() {
         <div className="mx-auto max-w-4xl flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Camera className="h-5 w-5 text-primary" />
-            <span className="font-semibold">Moment</span>
-            <span className="text-muted-foreground">— Print Event QR Card</span>
+            <span className="font-semibold">SnapRooms</span>
+            <span className="text-muted-foreground">— Print Room QR Card</span>
           </div>
           
           <div className="flex items-center gap-3">
@@ -117,7 +117,7 @@ export default function PrintEventPage() {
             
             <button
               onClick={() => window.print()}
-              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:bg-[#E85A3D]"
             >
               Print
             </button>
@@ -197,7 +197,7 @@ function PrintCardContent({ event, eventUrl, baseUrl }) {
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
           <Camera className="h-5 w-5 text-primary" />
         </div>
-        <span className="text-xl font-bold tracking-tight">Moment</span>
+        <span className="text-xl font-bold tracking-tight">SnapRooms</span>
       </div>
 
       {/* Event Name */}
@@ -206,7 +206,7 @@ function PrintCardContent({ event, eventUrl, baseUrl }) {
       </h1>
       
       <p className="text-base text-gray-500 mb-8">
-        Scan to join the photo gallery
+        Join the room
       </p>
 
       {/* QR Code - Large */}
@@ -235,14 +235,14 @@ function PrintCardContent({ event, eventUrl, baseUrl }) {
 
       {/* Event Code */}
       <div className="mb-8">
-        <p className="text-xs uppercase tracking-wide text-gray-400 mb-1">Event Code</p>
+        <p className="text-xs uppercase tracking-wide text-gray-400 mb-1">Room code</p>
         <p className="text-2xl font-mono font-bold text-gray-900">{event.slug}</p>
       </div>
 
       {/* Footer */}
       <div className="mt-auto pt-6 border-t border-gray-200 w-full max-w-xs">
         <p className="text-xs text-gray-400">
-          Share your moments • No app required
+          Add your photos • No app required
         </p>
       </div>
     </div>

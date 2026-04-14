@@ -1,8 +1,8 @@
 import './globals.css'
 
 export const metadata = {
-  title: 'Moment — Collect Every Photo From Your Event',
-  description: 'The easiest way to collect photos from everyone at your wedding, party, or event. No app download, no sign-up — guests just scan and upload.',
+  title: 'SnapRooms — Every Guest Photo. One Room.',
+  description: 'Create a room, share a QR code, and collect every guest photo instantly. No app download, no signup needed.',
 }
 
 function App({ children }) {

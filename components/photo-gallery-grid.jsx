@@ -70,7 +70,7 @@ const PhotoGalleryGrid = ({
   onRetry,
   onSelectPhoto,
   emptyTitle = 'No photos yet',
-  emptyDescription = 'Upload your first photo to get started.',
+  emptyDescription = 'Be the first to add a photo.',
 }) => {
   if (loading && photos.length === 0) {
     return (

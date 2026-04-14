@@ -46,7 +46,7 @@ function generateFilename(eventName) {
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-')
     .substring(0, 40)
-  return `moment-${clean || 'event'}-qr.png`
+  return `snaprooms-${clean || 'event'}-qr.png`
 }
 
 
@@ -68,7 +68,7 @@ export function EventQRModal({
   }, [event?.slug, baseUrl])
 
   const filename = useMemo(() => {
-    if (!event?.name) return 'moment-event-qr.png'
+    if (!event?.name) return 'snaprooms-event-qr.png'
     return generateFilename(event.name)
   }, [event?.name])
 
@@ -171,7 +171,7 @@ export function EventQRModal({
   // Share (native or fallback)
   const handleShare = useCallback(async () => {
     const shareData = {
-      title: `Join ${event?.name} on Moment`,
+      title: `Join ${event?.name} on SnapRooms`,
       text: `Upload your photos to ${event?.name}! Use code: ${event?.slug}`,
       url: eventUrl,
     }
@@ -207,7 +207,7 @@ export function EventQRModal({
           onClick={(e) => e.stopPropagation()}
         >
           {/* Modal Header with gradient */}
-          <div className="relative bg-gradient-to-br from-primary/10 via-background to-background px-6 pb-4 pt-6">
+          <div className="relative bg-gradient-to-br from-primary/5 via-background to-background px-6 pb-4 pt-6">
             {/* Close button */}
             <button
               className="absolute right-3 top-3 rounded-full p-2 text-muted-foreground transition-all hover:bg-muted hover:text-foreground"
@@ -222,9 +222,9 @@ export function EventQRModal({
               <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
                 <Camera className="h-6 w-6 text-primary" />
               </div>
-              <h2 className="text-xl font-semibold tracking-tight">Share this event</h2>
+              <h2 className="text-xl font-semibold tracking-tight">Share this room</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Guests can scan the QR code to open the gallery and upload photos instantly
+                Guests scan the QR code to open the room and add photos instantly.
               </p>
             </div>
           </div>
@@ -233,7 +233,7 @@ export function EventQRModal({
           <div className="px-6 pb-6">
             {/* Event Name Card */}
             <div className="mb-4 rounded-xl border border-border/50 bg-muted/30 p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Event</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Room</p>
               <p className="mt-1 text-lg font-semibold text-foreground">{event.name}</p>
             </div>
 
@@ -254,7 +254,7 @@ export function EventQRModal({
               {/* Helper text */}
               <div className="text-center">
                 <p className="text-sm font-medium text-foreground">
-                  Scan to join and share your photos
+                  Scan to join and add your photos
                 </p>
               </div>
             </div>
@@ -347,7 +347,7 @@ export function EventQRModal({
           {/* Header */}
           <div className="mb-6 text-center">
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">{event.name}</h1>
-            <p className="mt-1 text-sm text-gray-500">Join the photo gallery</p>
+            <p className="mt-1 text-sm text-gray-500">Join the room</p>
           </div>
 
           {/* QR Code */}
@@ -376,14 +376,14 @@ export function EventQRModal({
 
           {/* Event Code */}
           <div className="mb-6 text-center">
-            <p className="text-xs uppercase tracking-wide text-gray-400">Event Code</p>
+            <p className="text-xs uppercase tracking-wide text-gray-400">Room code</p>
             <p className="text-xl font-mono font-semibold text-gray-900">{event.slug}</p>
           </div>
 
           {/* Footer */}
           <div className="flex items-center justify-center gap-2 border-t border-gray-200 pt-4">
             <Camera className="h-4 w-4 text-gray-400" />
-            <span className="text-sm text-gray-500">Powered by Moment</span>
+            <span className="text-sm text-gray-500">Powered by SnapRooms</span>
           </div>
         </div>
       </div>

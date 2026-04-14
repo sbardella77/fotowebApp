@@ -46,7 +46,7 @@ export function LandingPage({
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Camera className="h-4 w-4" />
             </div>
-            <span className="font-semibold tracking-tight">Moment</span>
+            <span className="font-semibold tracking-tight">SnapRooms</span>
           </div>
           <div className="flex items-center gap-4">
             <button 
@@ -56,7 +56,7 @@ export function LandingPage({
               How it works
             </button>
             <Button size="sm" onClick={() => scrollToSection('create')}>
-              Create event
+              Create room
             </Button>
           </div>
         </div>
@@ -74,18 +74,18 @@ export function LandingPage({
             {/* Badge */}
             <div className="mb-6 inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-medium text-primary">
               <Sparkles className="h-3 w-3" />
-              <span>No app download required</span>
+              <span>No apps • No signup</span>
             </div>
 
             {/* Headline */}
             <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl sm:leading-tight lg:text-6xl">
-              All your event photos.
-              <span className="block text-primary">In one place.</span>
+              Every guest photo.
+              <span className="block text-primary">One room.</span>
             </h1>
 
             {/* Subheadline */}
             <p className="mx-auto mt-6 max-w-xl text-lg text-muted-foreground">
-              Create a gallery, share a link, and collect photos from every guest. No apps needed.
+              Create a room, share a QR code, collect every moment instantly.
             </p>
 
             {/* CTA */}
@@ -94,7 +94,7 @@ export function LandingPage({
                 <Input
                   value={eventName}
                   onChange={(e) => setEventName(e.target.value)}
-                  placeholder="Event name (e.g. Sarah's Wedding)"
+                  placeholder="Room name (e.g. Sarah's Wedding)"
                   className="h-12 flex-1 text-base"
                 />
                 <Button 
@@ -107,19 +107,19 @@ export function LandingPage({
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                   ) : (
                     <>
-                      Create your event — it's free
+                      Create your room — it's free
                       <ArrowRight className="h-4 w-4" />
                     </>
                   )}
                 </Button>
               </div>
               
-              {/* Micro-highlight */}
+              {/* Micro-trust */}
               <p className="text-xs text-muted-foreground">
-                Guests just tap and upload — no apps, no signup
+                No apps • No signup • Works instantly
               </p>
               
-              {/* Micro-trust */}
+              {/* Social proof */}
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground/60">
                 Used at weddings, parties & events worldwide
               </p>
@@ -160,9 +160,9 @@ export function LandingPage({
               </div>
               <div className="mt-4">
                 <div className="text-xs font-semibold uppercase tracking-wide text-primary">Step 1</div>
-                <h3 className="mt-1 text-lg font-semibold">Create your event</h3>
+                <h3 className="mt-1 text-lg font-semibold">Create your room</h3>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Name your event and get a unique code and QR code instantly.
+                  Name your room and get a unique code and QR code instantly.
                 </p>
               </div>
             </div>
@@ -198,7 +198,7 @@ export function LandingPage({
         </div>
       </section>
 
-      {/* Why Moment - Pain Point */}
+      {/* Why SnapRooms - Pain Point */}
       <section className="py-16 sm:py-24">
         <div className="container px-4">
           <div className="mx-auto max-w-6xl">
@@ -416,7 +416,7 @@ export function LandingPage({
                         <QrCode className="h-20 w-20 text-gray-400" />
                       </div>
                       <p className="text-sm font-medium">Scan to upload your photos</p>
-                      <p className="mt-1 text-xs text-muted-foreground">moment.app/event/sarah-mike</p>
+                      <p className="mt-1 text-xs text-muted-foreground">snaprooms.app/room/sarah-mike</p>
                     </div>
                   </div>
                   
@@ -468,7 +468,7 @@ export function LandingPage({
               <Input
                 value={eventName}
                 onChange={(e) => setEventName(e.target.value)}
-                placeholder="Event name (e.g. Sarah's Wedding)"
+                placeholder="Room name (e.g. Sarah's Wedding)"
                 className="h-12 flex-1 text-base"
               />
               <Button 
@@ -481,7 +481,7 @@ export function LandingPage({
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                 ) : (
                   <>
-                    Create your free event
+                    Create your free room
                     <ArrowRight className="h-4 w-4" />
                   </>
                 )}
@@ -503,10 +503,10 @@ export function LandingPage({
               <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
                 <Camera className="h-3 w-3" />
               </div>
-              <span className="text-sm font-semibold">Moment</span>
+              <span className="text-sm font-semibold">SnapRooms</span>
             </div>
             <p className="text-xs text-muted-foreground">
-              The easiest way to collect event photos.
+              The easiest way to collect guest photos.
             </p>
             <div className="flex items-center gap-4">
               <a href="/admin" className="text-xs text-muted-foreground hover:text-foreground">
