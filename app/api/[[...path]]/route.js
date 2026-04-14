@@ -181,31 +181,35 @@ const saveEventByEmail = async (request, slug) => {
     const { data, error: sendError } = await resend.emails.send({
       from,
       to: email,
-      subject: `Your Moment event: ${event.name}`,
-      text: `Hi there,
+      subject: `Your SnapRooms room is ready`,
+      text: `Your room is ready
 
-Here is the link to your Moment event "${event.name}":
+Everyone can now add photos to "${event.name}".
+
+Open your room here:
 ${eventUrl}
 
-Keep this email safe — you can use the link above to reopen your event gallery and share it with guests anytime.
+Share this link with your guests or show them the QR code at your event.
 
-– Moment`,
-      html: `<div style="font-family:system-ui,sans-serif;line-height:1.5;max-width:480px;padding:24px;">
-  <h2 style="margin:0 0 12px;font-size:18px;">Your Moment event is ready</h2>
-  <p style="margin:0 0 16px;color:#555;">
-    Here is the link to <strong>${event.name}</strong>:
+SnapRooms — Every guest photo. One room.`,
+      html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
+  <div style="text-align:center;margin-bottom:24px;">
+    <span style="font-size:20px;font-weight:700;color:#FF6B4A;letter-spacing:-0.5px;">SnapRooms</span>
+  </div>
+  <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Your room is ready 📸</h1>
+  <p style="margin:0 0 24px;text-align:center;color:#4b5563;">
+    Everyone can now add photos to <strong style="color:#111111;">${event.name}</strong>.
   </p>
-  <p style="margin:0 0 24px;">
-    <a href="${eventUrl}" style="display:inline-block;padding:10px 16px;background:#111;color:#fff;text-decoration:none;border-radius:6px;">Open your event</a>
+  <p style="margin:0 0 24px;text-align:center;">
+    <a href="${eventUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B4A;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Open your room</a>
   </p>
-  <p style="margin:0 0 8px;color:#555;font-size:14px;">
-    Or copy this link into your browser:
+  <p style="margin:0 0 8px;text-align:center;color:#6b7280;font-size:14px;">
+    Share this link with your guests or show them the QR code at your event.
   </p>
-  <p style="margin:0 0 16px;font-size:14px;word-break:break-all;color:#333;">${eventUrl}</p>
-  <p style="margin:24px 0 0;font-size:13px;color:#777;">
-    Keep this email safe — you can use the link above to reopen your event gallery and share it with guests anytime.
+  <p style="margin:0 0 32px;text-align:center;font-size:14px;word-break:break-all;color:#374151;">${eventUrl}</p>
+  <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">
+    SnapRooms — Every guest photo. One room.
   </p>
-  <p style="margin:16px 0 0;font-size:13px;color:#777;">– Moment</p>
 </div>`,
     })
 
