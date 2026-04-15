@@ -165,7 +165,7 @@ const saveEventByEmail = async (request, slug) => {
     return json({ error: 'Invalid JSON body' }, 400)
   }
 
-  const email = typeof body?.email === 'string' ? body.email.trim() : ''
+  const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return json({ error: 'A valid email is required' }, 400)
   }
