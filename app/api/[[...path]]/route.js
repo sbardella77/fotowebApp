@@ -188,32 +188,40 @@ const saveEventByEmail = async (request, slug) => {
     const { data, error: sendError } = await resend.emails.send({
       from,
       to: email,
+      reply_to: 'hello@snaprooms.app',
       subject: `Your SnapRooms room is ready`,
-      text: `Your room is ready
+      text: `Hi,
 
-Everyone can now add photos to "${event.name}".
+Your SnapRooms room "${event.name}" is ready.
 
 Open your room here:
 ${eventUrl}
 
-Share this link with your guests or show them the QR code at your event.
+Share this link with your guests so they can upload their photos.
 
-SnapRooms — Every guest photo. One room.`,
+If you didn't request this email, you can ignore it.
+
+– SnapRooms
+Every guest photo. One room.`,
       html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
   <div style="text-align:center;margin-bottom:24px;">
     <span style="font-size:20px;font-weight:700;color:#FF6B4A;letter-spacing:-0.5px;">SnapRooms</span>
   </div>
-  <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Your room is ready 📸</h1>
+  <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Your room is ready</h1>
   <p style="margin:0 0 24px;text-align:center;color:#4b5563;">
-    Everyone can now add photos to <strong style="color:#111111;">${event.name}</strong>.
+    Your room <strong style="color:#111111;">${event.name}</strong> is ready.<br />
+    Share the link below with your guests so they can upload their photos.
   </p>
   <p style="margin:0 0 24px;text-align:center;">
     <a href="${eventUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B4A;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Open your room</a>
   </p>
-  <p style="margin:0 0 8px;text-align:center;color:#6b7280;font-size:14px;">
-    Share this link with your guests or show them the QR code at your event.
+  <div style="margin:0 0 24px;padding:16px;background:#F7F7F8;border:1px solid #E5E7EB;border-radius:8px;text-align:center;">
+    <p style="margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;color:#9ca3af;">Room link</p>
+    <p style="margin:0;font-size:14px;word-break:break-all;color:#374151;">${eventUrl}</p>
+  </div>
+  <p style="margin:0 0 32px;text-align:center;color:#6b7280;font-size:14px;">
+    If you didn't request this email, you can ignore it.
   </p>
-  <p style="margin:0 0 32px;text-align:center;font-size:14px;word-break:break-all;color:#374151;">${eventUrl}</p>
   <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">
     SnapRooms — Every guest photo. One room.
   </p>
