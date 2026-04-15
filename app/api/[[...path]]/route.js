@@ -89,18 +89,18 @@ const clearAdminSessionCookie = (response) => {
   return response
 }
 
-const getOwnerAuthentication = (request) => {
+const getOwnerAuthentication = async (request) => {
   const token = request.cookies.get(OWNER_COOKIE_NAME)?.value
   return verifyOwnerSessionToken(token)
 }
 
-const requireOwner = (request) => {
-  const email = getOwnerAuthentication(request)
+const requireOwner = async (request) => {
+  const email = await getOwnerAuthentication(request)
   return email ? email : json({ error: 'Owner authentication required' }, 401)
 }
 
-const setOwnerSessionCookie = (response, email) => {
-  response.cookies.set(OWNER_COOKIE_NAME, createOwnerSessionToken(email), getOwnerCookieOptions())
+const setOwnerSessionCookie = async (response, email) => {
+  response.cookies.set(OWNER_COOKIE_NAME, await createOwnerSessionToken(email), getOwnerCookieOptions())
   return response
 }
 
@@ -683,8 +683,8 @@ const deletePhoto = async (request, photoId) => {
   return json({ deleted: true, photo })
 }
 
-const getOwnerSession = (request) => {
-  const email = getOwnerAuthentication(request)
+const getOwnerSession = async (request) => {
+  const email = await getOwnerAuthentication(request)
   return json({ authenticated: Boolean(email), email })
 }
 
@@ -720,7 +720,7 @@ const loginOwner = async (request) => {
   }
 
   const response = json({ authenticated: true, email })
-  return setOwnerSessionCookie(response, email)
+  return await setOwnerSessionCookie(response, email)
 }
 
 const logoutOwner = () => {
@@ -728,18 +728,18 @@ const logoutOwner = () => {
 }
 
 const listOwnerEvents = async (request) => {
-  const ownerEmail = requireOwner(request)
+  const ownerEmail = await requireOwner(request)
   if (typeof ownerEmail !== 'string') {
     return ownerEmail
   }
 
   const repository = await getGalleryRepository()
   const events = await repository.listEventsByOwnerEmail(ownerEmail)
-  return json({ events })
+  return json({ events: events.map(({ managementTokenHash, ...event }) => event) })
 }
 
 const getOwnerEvent = async (request, slug) => {
-  const ownerEmail = requireOwner(request)
+  const ownerEmail = await requireOwner(request)
   if (typeof ownerEmail !== 'string') {
     return ownerEmail
   }
@@ -751,11 +751,12 @@ const getOwnerEvent = async (request, slug) => {
     return json({ error: 'Event not found' }, 404)
   }
 
-  return json({ event })
+  const { managementTokenHash, ...safeEvent } = event
+  return json({ event: safeEvent })
 }
 
 const moderateOwnerPhoto = async (request, photoId) => {
-  const ownerEmail = requireOwner(request)
+  const ownerEmail = await requireOwner(request)
   if (typeof ownerEmail !== 'string') {
     return ownerEmail
   }
@@ -772,7 +773,7 @@ const moderateOwnerPhoto = async (request, photoId) => {
 }
 
 const deleteOwnerPhoto = async (request, photoId) => {
-  const ownerEmail = requireOwner(request)
+  const ownerEmail = await requireOwner(request)
   if (typeof ownerEmail !== 'string') {
     return ownerEmail
   }

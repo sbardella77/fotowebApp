@@ -517,7 +517,7 @@ export function LandingPage({
             </p>
             <div className="flex items-center gap-4">
               <a href="/dashboard" className="text-xs text-muted-foreground hover:text-foreground">
-                Dashboard
+                Manage rooms
               </a>
             </div>
           </div>
