@@ -30,6 +30,12 @@ import {
   verifyAdminPassword,
   verifyAdminSessionToken,
 } from '@/lib/server/admin-auth'
+import {
+  OWNER_COOKIE_NAME,
+  createOwnerSessionToken,
+  getOwnerCookieOptions,
+  verifyOwnerSessionToken,
+} from '@/lib/server/owner-auth'
 import { getGalleryRepository, getGalleryRepositoryMode } from '@/lib/server/gallery-repository'
 import { getAdminAuthDriver, getDataAccessDriver } from '@/lib/server/prisma-client'
 import {
@@ -78,6 +84,29 @@ const setAdminSessionCookie = async (response) => {
 const clearAdminSessionCookie = (response) => {
   response.cookies.set(ADMIN_COOKIE_NAME, '', {
     ...getAdminCookieOptions(),
+    maxAge: 0,
+  })
+  return response
+}
+
+const getOwnerAuthentication = (request) => {
+  const token = request.cookies.get(OWNER_COOKIE_NAME)?.value
+  return verifyOwnerSessionToken(token)
+}
+
+const requireOwner = (request) => {
+  const email = getOwnerAuthentication(request)
+  return email ? email : json({ error: 'Owner authentication required' }, 401)
+}
+
+const setOwnerSessionCookie = (response, email) => {
+  response.cookies.set(OWNER_COOKIE_NAME, createOwnerSessionToken(email), getOwnerCookieOptions())
+  return response
+}
+
+const clearOwnerSessionCookie = (response) => {
+  response.cookies.set(OWNER_COOKIE_NAME, '', {
+    ...getOwnerCookieOptions(),
     maxAge: 0,
   })
   return response
@@ -654,6 +683,111 @@ const deletePhoto = async (request, photoId) => {
   return json({ deleted: true, photo })
 }
 
+const getOwnerSession = (request) => {
+  const email = getOwnerAuthentication(request)
+  return json({ authenticated: Boolean(email), email })
+}
+
+const loginOwner = async (request) => {
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
+  const token = typeof body?.token === 'string' ? body.token.trim() : ''
+
+  if (!email || !token) {
+    return json({ error: 'Email and management token are required' }, 400)
+  }
+
+  const repository = await getGalleryRepository()
+  const events = await repository.listEventsByOwnerEmail(email)
+
+  let valid = false
+  for (const event of events) {
+    const fullEvent = await repository.getEventBySlug(event.slug)
+    if (fullEvent && verifyManagementToken(token, fullEvent.managementTokenHash)) {
+      valid = true
+      break
+    }
+  }
+
+  if (!valid) {
+    return json({ error: 'Invalid email or management token' }, 401)
+  }
+
+  const response = json({ authenticated: true, email })
+  return setOwnerSessionCookie(response, email)
+}
+
+const logoutOwner = () => {
+  return clearOwnerSessionCookie(json({ authenticated: false, loggedOut: true }))
+}
+
+const listOwnerEvents = async (request) => {
+  const ownerEmail = requireOwner(request)
+  if (typeof ownerEmail !== 'string') {
+    return ownerEmail
+  }
+
+  const repository = await getGalleryRepository()
+  const events = await repository.listEventsByOwnerEmail(ownerEmail)
+  return json({ events })
+}
+
+const getOwnerEvent = async (request, slug) => {
+  const ownerEmail = requireOwner(request)
+  if (typeof ownerEmail !== 'string') {
+    return ownerEmail
+  }
+
+  const repository = await getGalleryRepository()
+  const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
+
+  if (!event) {
+    return json({ error: 'Event not found' }, 404)
+  }
+
+  return json({ event })
+}
+
+const moderateOwnerPhoto = async (request, photoId) => {
+  const ownerEmail = requireOwner(request)
+  if (typeof ownerEmail !== 'string') {
+    return ownerEmail
+  }
+
+  const payload = adminModerationSchema.parse(await request.json())
+  const repository = await getGalleryRepository()
+  const photo = await repository.setPhotoStatusByOwner(photoId, payload.action === 'approve' ? 'VISIBLE' : 'HIDDEN', ownerEmail)
+
+  if (!photo) {
+    return json({ error: 'Photo not found' }, 404)
+  }
+
+  return json({ photo })
+}
+
+const deleteOwnerPhoto = async (request, photoId) => {
+  const ownerEmail = requireOwner(request)
+  if (typeof ownerEmail !== 'string') {
+    return ownerEmail
+  }
+
+  const repository = await getGalleryRepository()
+  const photo = await repository.deletePhotoByOwner(photoId, ownerEmail)
+
+  if (!photo) {
+    return json({ error: 'Photo not found' }, 404)
+  }
+
+  await deleteStoredFile(photo.url)
+  return json({ deleted: true, photo })
+}
+
 export async function OPTIONS() {
   return json({ ok: true })
 }
@@ -706,6 +840,36 @@ async function handleRoute(request, { params }) {
 
       if (segments.length === 3 && segments[1] === 'photos' && method === 'DELETE') {
         return deletePhoto(request, segments[2])
+      }
+    }
+
+    if (segments[0] === 'owner') {
+      if (segments.length === 2 && segments[1] === 'session' && method === 'GET') {
+        return getOwnerSession(request)
+      }
+
+      if (segments.length === 2 && segments[1] === 'session' && method === 'POST') {
+        return loginOwner(request)
+      }
+
+      if (segments.length === 2 && segments[1] === 'logout' && method === 'POST') {
+        return logoutOwner()
+      }
+
+      if (segments.length === 2 && segments[1] === 'events' && method === 'GET') {
+        return listOwnerEvents(request)
+      }
+
+      if (segments.length === 3 && segments[1] === 'events' && method === 'GET') {
+        return getOwnerEvent(request, segments[2])
+      }
+
+      if (segments.length === 3 && segments[1] === 'photos' && method === 'PATCH') {
+        return moderateOwnerPhoto(request, segments[2])
+      }
+
+      if (segments.length === 3 && segments[1] === 'photos' && method === 'DELETE') {
+        return deleteOwnerPhoto(request, segments[2])
       }
     }
 

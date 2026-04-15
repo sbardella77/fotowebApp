@@ -516,8 +516,8 @@ export function LandingPage({
               The easiest way to collect guest photos.
             </p>
             <div className="flex items-center gap-4">
-              <a href="/admin" className="text-xs text-muted-foreground hover:text-foreground">
-                Admin
+              <a href="/dashboard" className="text-xs text-muted-foreground hover:text-foreground">
+                Dashboard
               </a>
             </div>
           </div>

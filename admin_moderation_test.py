@@ -8,7 +8,7 @@ import json
 import os
 
 # Get base URL from environment
-BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'https://photo-event-hub-3.preview.emergentagent.com')
+BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'http://localhost:3000')
 API_BASE = f"{BASE_URL}/api"
 
 def test_admin_moderation():

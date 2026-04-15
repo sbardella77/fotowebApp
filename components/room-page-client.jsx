@@ -709,7 +709,7 @@ export default function RoomPageClient({ slug }) {
               <span className="font-semibold tracking-tight">SnapRooms</span>
             </div>
             <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
-              <a href="/admin">Admin</a>
+              <a href="/dashboard">Dashboard</a>
             </Button>
           </div>
         </header>
@@ -731,7 +731,7 @@ export default function RoomPageClient({ slug }) {
             <span className="font-semibold tracking-tight">SnapRooms</span>
           </div>
           <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
-            <a href="/admin">Admin</a>
+            <a href="/dashboard">Dashboard</a>
           </Button>
         </div>
       </header>
