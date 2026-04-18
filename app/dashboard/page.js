@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Loader2, Lock, LogOut, Pencil, Shield, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -53,6 +54,8 @@ const DashboardPhotoCard = ({ photo, onApprove, onReject, onDelete, onOpenLightb
 }
 
 export default function DashboardPage() {
+  const router = useRouter()
+
   const [authState, setAuthState] = useState({ loading: true, authenticated: false, email: '' })
   const [email, setEmail] = useState('')
   const [token, setToken] = useState('')
@@ -66,8 +69,23 @@ export default function DashboardPage() {
   const [isEditingName, setIsEditingName] = useState(false)
   const [newEventName, setNewEventName] = useState('')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [recoveryMode, setRecoveryMode] = useState(false)
+  const [recoveryEmail, setRecoveryEmail] = useState('')
+  const [recoveryBusy, setRecoveryBusy] = useState(false)
+  const [recoverySent, setRecoverySent] = useState(false)
+  const [redirectParam, setRedirectParam] = useState('')
 
   const photos = useMemo(() => selectedEvent?.photos || [], [selectedEvent])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const redirect = params.get('redirect') || ''
+      if (redirect && redirect.startsWith('/')) {
+        setRedirectParam(redirect)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -116,6 +134,9 @@ export default function DashboardPage() {
       }
       setAuthState({ loading: false, authenticated: true, email: payload.email })
       setMessage('Signed in.')
+      if (redirectParam && redirectParam.startsWith('/')) {
+        router.push(redirectParam)
+      }
     } catch (error) {
       setMessage(error.message)
     } finally {
@@ -246,6 +267,28 @@ export default function DashboardPage() {
     }
   }
 
+  const sendRecoveryLink = async () => {
+    setRecoveryBusy(true)
+    try {
+      const response = await fetch('/api/owner/resend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: recoveryEmail.trim(),
+          ...(redirectParam && redirectParam.startsWith('/') ? { redirect: redirectParam } : {}),
+        }),
+      })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Unable to send recovery link')
+      setRecoverySent(true)
+    } catch (error) {
+      setMessage(error.message)
+      setRecoverySent(true)
+    } finally {
+      setRecoveryBusy(false)
+    }
+  }
+
   useEffect(() => {
     loadSession()
   }, [])
@@ -285,9 +328,15 @@ export default function DashboardPage() {
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Button asChild variant="outline" className="rounded-full">
-                  <a href="/">Back to gallery</a>
-                </Button>
+                {authState.authenticated && redirectParam && redirectParam.startsWith('/') ? (
+                  <Button asChild variant="outline" className="rounded-full">
+                    <a href={redirectParam}>Back to room</a>
+                  </Button>
+                ) : (
+                  <Button asChild variant="outline" className="rounded-full">
+                    <a href="/">Back to gallery</a>
+                  </Button>
+                )}
                 {authState.authenticated ? (
                   <Button variant="secondary" className="rounded-full" onClick={logout}>
                     <LogOut className="mr-2 h-4 w-4" />
@@ -340,6 +389,62 @@ export default function DashboardPage() {
                 <Button className="w-full" disabled={busy.auth || !email.trim() || !token.trim()} onClick={login}>
                   {busy.auth ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sign in'}
                 </Button>
+
+                {!recoveryMode && !recoverySent ? (
+                  <button
+                    type="button"
+                    className="w-full text-center text-sm text-muted-foreground underline-offset-4 hover:underline"
+                    onClick={() => setRecoveryMode(true)}
+                  >
+                    Lost your access?
+                  </button>
+                ) : null}
+
+                {recoveryMode && !recoverySent ? (
+                  <div className="space-y-3 pt-2">
+                    <div className="border-t border-border pt-3">
+                      <p className="mb-2 text-sm text-muted-foreground">
+                        Enter your email and we&apos;ll send you a secure link to access your rooms.
+                      </p>
+                      <div className="space-y-2">
+                        <Input
+                          type="email"
+                          value={recoveryEmail}
+                          onChange={(e) => setRecoveryEmail(e.target.value)}
+                          placeholder="you@example.com"
+                          disabled={recoveryBusy}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && recoveryEmail.trim()) sendRecoveryLink()
+                          }}
+                        />
+                        <Button
+                          className="w-full"
+                          disabled={recoveryBusy || !recoveryEmail.trim()}
+                          onClick={sendRecoveryLink}
+                        >
+                          {recoveryBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Send recovery link'}
+                        </Button>
+                        <button
+                          type="button"
+                          className="w-full text-center text-sm text-muted-foreground underline-offset-4 hover:underline"
+                          onClick={() => {
+                            setRecoveryMode(false)
+                            setRecoveryEmail('')
+                            setRecoverySent(false)
+                          }}
+                        >
+                          Back to sign in
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {recoverySent ? (
+                  <div className="rounded-2xl border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+                    If that email is linked to any rooms, we&apos;ve sent a recovery link.
+                  </div>
+                ) : null}
               </div>
             )}
           </CardContent>

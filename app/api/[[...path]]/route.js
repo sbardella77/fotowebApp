@@ -33,8 +33,10 @@ import {
 import {
   OWNER_COOKIE_NAME,
   createOwnerSessionToken,
+  createRecoveryToken,
   getOwnerCookieOptions,
   verifyOwnerSessionToken,
+  verifyRecoveryToken,
 } from '@/lib/server/owner-auth'
 import { getGalleryRepository, getGalleryRepositoryMode } from '@/lib/server/gallery-repository'
 import { getAdminAuthDriver, getDataAccessDriver } from '@/lib/server/prisma-client'
@@ -731,6 +733,153 @@ const logoutOwner = () => {
   return clearOwnerSessionCookie(json({ authenticated: false, loggedOut: true }))
 }
 
+const resendOwnerAccess = async (request) => {
+  if (!resend) {
+    return json({ error: 'Email service is not configured' }, 503)
+  }
+
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return json({ error: 'A valid email is required' }, 400)
+  }
+
+  const from = process.env.RESEND_FROM_EMAIL
+  if (!from) {
+    return json({ error: 'Email sender is not configured' }, 503)
+  }
+
+  const repository = await getGalleryRepository()
+  const events = await repository.listEventsByOwnerEmail(email)
+
+  if (events.length > 0) {
+    const appUrl = getAppUrl(request)
+    const recoveryToken = await createRecoveryToken(email)
+    const redirectParam = typeof body?.redirect === 'string' && body.redirect.startsWith('/') ? body.redirect : ''
+    const redirectQuery = redirectParam ? `&redirect=${encodeURIComponent(redirectParam)}` : ''
+    const recoveryUrl = `${appUrl}/api/owner/recover?token=${encodeURIComponent(recoveryToken)}${redirectQuery}`
+
+    try {
+      await resend.emails.send({
+        from,
+        to: email,
+        reply_to: 'hello@snaprooms.app',
+        subject: `Your SnapRooms access link`,
+        text: `Hi,
+
+You requested a secure link to access your SnapRooms dashboard.
+
+Open dashboard: ${recoveryUrl}
+
+This link expires in 30 minutes. If you didn't request it, you can safely ignore this email — no one can access your rooms without it.
+
+– SnapRooms
+Every guest photo. One room.`,
+        html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your SnapRooms access link</title>
+</head>
+<body style="margin:0;padding:0;background-color:#F7F7F8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+        <table role="presentation" width="100%" max-width="480" cellspacing="0" cellpadding="0" border="0" style="max-width:480px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;">
+          <tr>
+            <td style="padding:32px 32px 16px;text-align:center;">
+              <span style="font-size:22px;font-weight:700;color:#FF6B4A;letter-spacing:-0.5px;">SnapRooms</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 32px 8px;text-align:center;">
+              <h1 style="margin:0;font-size:20px;font-weight:700;color:#111111;line-height:1.3;">Your access link is ready</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px 32px 24px;text-align:center;">
+              <p style="margin:0;font-size:15px;color:#4b5563;line-height:1.6;">
+                Tap the button below to open your dashboard. This link is valid for 30 minutes.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 32px 24px;text-align:center;">
+              <a href="${recoveryUrl}" style="display:inline-block;padding:14px 28px;background:#FF6B4A;color:#ffffff;text-decoration:none;border-radius:10px;font-weight:600;font-size:15px;">Open dashboard</a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 32px 24px;text-align:center;">
+              <p style="margin:0;font-size:13px;color:#9ca3af;line-height:1.5;word-break:break-all;">
+                Or copy this link:<br>
+                <a href="${recoveryUrl}" style="color:#FF6B4A;text-decoration:underline;">${recoveryUrl}</a>
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 32px 32px;text-align:center;">
+              <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.5;">
+                If you didn't request this link, you can safely ignore this email. No one can access your rooms without it.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 32px;border-top:1px solid #e5e7eb;text-align:center;">
+              <p style="margin:0;font-size:12px;color:#9ca3af;">
+                SnapRooms — Every guest photo. One room.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
+      })
+    } catch (emailError) {
+      console.error('[resendOwnerAccess] Failed to send recovery email:', emailError)
+    }
+  }
+
+  return json({ success: true })
+}
+
+const recoverOwnerAccess = async (request) => {
+  const { searchParams } = new URL(request.url)
+  const token = searchParams.get('token')
+  const redirect = searchParams.get('redirect') || ''
+
+  if (!token) {
+    return json({ error: 'Recovery token required' }, 400)
+  }
+
+  const email = await verifyRecoveryToken(token)
+
+  if (!email) {
+    return json({ error: 'Invalid or expired recovery link' }, 400)
+  }
+
+  const repository = await getGalleryRepository()
+  const events = await repository.listEventsByOwnerEmail(email)
+
+  if (events.length === 0) {
+    return json({ error: 'Invalid or expired recovery link' }, 400)
+  }
+
+  const destination = redirect && redirect.startsWith('/') ? redirect : '/dashboard'
+  const response = NextResponse.redirect(new URL(destination, request.url))
+  response.cookies.set(OWNER_COOKIE_NAME, await createOwnerSessionToken(email), getOwnerCookieOptions())
+  return response
+}
+
 const listOwnerEvents = async (request) => {
   const ownerEmail = await requireOwner(request)
   if (typeof ownerEmail !== 'string') {
@@ -911,6 +1060,14 @@ async function handleRoute(request, { params }) {
 
       if (segments.length === 2 && segments[1] === 'logout' && method === 'POST') {
         return logoutOwner()
+      }
+
+      if (segments.length === 2 && segments[1] === 'resend' && method === 'POST') {
+        return resendOwnerAccess(request)
+      }
+
+      if (segments.length === 2 && segments[1] === 'recover' && method === 'GET') {
+        return recoverOwnerAccess(request)
       }
 
       if (segments.length === 2 && segments[1] === 'events' && method === 'GET') {

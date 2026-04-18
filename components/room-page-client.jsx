@@ -1,7 +1,7 @@
 'use client'
 
 import { upload } from '@vercel/blob/client'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   CheckCircle2,
@@ -13,7 +13,9 @@ import {
   QrCode,
   RefreshCcw,
   Share2,
+  Upload,
   Users,
+  X,
 } from 'lucide-react'
 import PhotoGalleryGrid from '@/components/photo-gallery-grid'
 import PhotoLightbox from '@/components/photo-lightbox'
@@ -451,6 +453,10 @@ export default function RoomPageClient({ slug }) {
   const [claimedEmail, setClaimedEmail] = useState('')
   const [managementToken, setManagementToken] = useState('')
   const [notFound, setNotFound] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadSuccess, setUploadSuccess] = useState(false)
+  const [showViralSection, setShowViralSection] = useState(false)
+  const heroFileInputRef = useRef(null)
   const { showToast, ToastComponent } = useToast()
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
@@ -649,13 +655,22 @@ export default function RoomPageClient({ slug }) {
 
   const onFilesSelected = async (event) => {
     const fileList = Array.from(event.target.files || [])
+    const input = event.target
     if (fileList.length === 0) return
+
+    input.value = ''
+    setIsUploading(true)
+    setUploadSuccess(false)
+    setShowViralSection(false)
 
     for (const file of fileList) {
       await uploadSingleFile(file)
     }
 
-    event.target.value = ''
+    setIsUploading(false)
+    setUploadSuccess(true)
+    setShowViralSection(true)
+    showToast('Your photos are now in the room')
   }
 
   const openLightbox = (index) => {
@@ -740,7 +755,7 @@ export default function RoomPageClient({ slug }) {
               <span className="font-semibold tracking-tight">SnapRooms</span>
             </div>
             <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
-              <a href="/dashboard">Manage rooms</a>
+              <a href={`/dashboard?redirect=/event/${slug}`}>Manage rooms</a>
             </Button>
           </div>
         </header>
@@ -762,7 +777,7 @@ export default function RoomPageClient({ slug }) {
             <span className="font-semibold tracking-tight">SnapRooms</span>
           </div>
           <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
-            <a href="/dashboard">Manage rooms</a>
+            <a href={`/dashboard?redirect=/event/${slug}`}>Manage rooms</a>
           </Button>
         </div>
       </header>
@@ -892,6 +907,138 @@ export default function RoomPageClient({ slug }) {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Upload-first hero */}
+            <Card className="mt-6 overflow-hidden border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
+              <CardContent className="p-6 text-center sm:p-8">
+                <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+                  Add your photos to this room
+                </h2>
+                <p className="mt-2 text-base text-muted-foreground">
+                  Be part of {activeEvent.name}
+                </p>
+
+                <p className="mt-2 text-sm font-medium text-primary">
+                  {galleryPhotos.length > 0
+                    ? `${galleryPhotos.length} photos already shared`
+                    : 'Be one of the first to share'}
+                </p>
+
+                {isUploading ? (
+                  <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-background px-5 py-3 text-sm font-medium shadow-sm">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    Uploading {uploads.filter((u) => u.progress < 100).length} photos...
+                  </div>
+                ) : uploadSuccess ? (
+                  <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-green-50 px-5 py-3 text-sm font-medium text-green-700 shadow-sm">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Your photos are now in the room
+                  </div>
+                ) : (
+                  <Button
+                    size="lg"
+                    className="mt-5 gap-2 rounded-full px-6 text-base"
+                    onClick={() => heroFileInputRef.current?.click()}
+                  >
+                    <Upload className="h-5 w-5" />
+                    Upload your photos
+                  </Button>
+                )}
+
+                <p className="mt-3 text-xs text-muted-foreground">No app. No signup.</p>
+              </CardContent>
+            </Card>
+
+            <input
+              ref={heroFileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              multiple
+              className="hidden"
+              onChange={onFilesSelected}
+            />
+
+            {/* Viral share section */}
+            {showViralSection && (
+              <Card className="mt-4 border-green-200 bg-green-50/50">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-foreground">Invite others to share their photos</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        The more people share, the better the memories.
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 shrink-0 p-0"
+                      onClick={() => setShowViralSection(false)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 bg-background"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(`${baseUrl}/event/${activeEvent.slug}`)
+                          showToast('Link copied!')
+                        } catch {
+                          showToast('Failed to copy', 'error')
+                        }
+                      }}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      Copy link
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 bg-background"
+                      onClick={async () => {
+                        const shareData = {
+                          title: `Join ${activeEvent.name} on SnapRooms`,
+                          text: `Upload your photos to ${activeEvent.name}!`,
+                          url: `${baseUrl}/event/${activeEvent.slug}`,
+                        }
+                        if (navigator.share) {
+                          try {
+                            await navigator.share(shareData)
+                            showToast('Shared!')
+                          } catch {
+                            // user cancelled
+                          }
+                        } else {
+                          try {
+                            await navigator.clipboard.writeText(`${baseUrl}/event/${activeEvent.slug}`)
+                            showToast('Link copied!')
+                          } catch {
+                            showToast('Failed to copy', 'error')
+                          }
+                        }
+                      }}
+                    >
+                      <Share2 className="h-3.5 w-3.5" />
+                      Share
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 bg-background"
+                      onClick={() => setQrModalOpen(true)}
+                    >
+                      <QrCode className="h-3.5 w-3.5" />
+                      QR code
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {!saveEmailDismissed && (
               <SaveEventCard
