@@ -22,6 +22,16 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 const CHUNK_SIZE = 1024 * 1024
 
@@ -257,6 +267,7 @@ function RoomManagementCard({ event, managementToken, onEventUpdated, onEventDel
   const [isEditing, setIsEditing] = useState(false)
   const [newName, setNewName] = useState(event.name)
   const [busy, setBusy] = useState({ rename: false, delete: false })
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   const handleRename = async (e) => {
     e.preventDefault()
@@ -290,9 +301,7 @@ function RoomManagementCard({ event, managementToken, onEventUpdated, onEventDel
   }
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this room and all its photos? This cannot be undone.')) {
-      return
-    }
+    setDeleteDialogOpen(false)
     setBusy((c) => ({ ...c, delete: true }))
     try {
       const response = await fetch(`/api/events/${event.slug}`, {
@@ -315,68 +324,90 @@ function RoomManagementCard({ event, managementToken, onEventUpdated, onEventDel
   }
 
   return (
-    <Card className="mt-6 border-border/50 bg-muted/20">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base font-semibold">Room settings</CardTitle>
-        <CardDescription>Manage your room name or delete it.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {isEditing ? (
-          <form onSubmit={handleRename} className="flex flex-col gap-3 sm:flex-row">
-            <Input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              className="h-10 flex-1"
-              disabled={busy.rename}
-            />
-            <div className="flex gap-2">
-              <Button type="submit" size="sm" disabled={busy.rename} className="h-10">
-                {busy.rename ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
+    <>
+      <Card className="mt-6 border-border/50 bg-muted/20">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold">Room settings</CardTitle>
+          <CardDescription>Manage your room name or delete it.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {isEditing ? (
+            <form onSubmit={handleRename} className="flex flex-col gap-3 sm:flex-row">
+              <Input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                className="h-10 flex-1"
                 disabled={busy.rename}
-                className="h-10"
-                onClick={() => {
-                  setNewName(event.name)
-                  setIsEditing(false)
-                }}
+              />
+              <div className="flex gap-2">
+                <Button type="submit" size="sm" disabled={busy.rename} className="h-10">
+                  {busy.rename ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy.rename}
+                  className="h-10"
+                  onClick={() => {
+                    setNewName(event.name)
+                    setIsEditing(false)
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Room name</p>
+                <p className="truncate text-sm text-muted-foreground">{event.name}</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8"
+                onClick={() => setIsEditing(true)}
               >
-                Cancel
+                Rename
               </Button>
             </div>
-          </form>
-        ) : (
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-sm font-medium">Room name</p>
-              <p className="truncate text-sm text-muted-foreground">{event.name}</p>
-            </div>
+          )}
+          <div className="pt-2 border-t border-border/50">
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
-              className="h-8"
-              onClick={() => setIsEditing(true)}
+              className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={() => setDeleteDialogOpen(true)}
+              disabled={busy.delete}
             >
-              Rename
+              {busy.delete ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Delete room'}
             </Button>
           </div>
-        )}
-        <div className="pt-2 border-t border-border/50">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-            onClick={handleDelete}
-            disabled={busy.delete}
-          >
-            {busy.delete ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Delete room'}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete room?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <strong>{event.name}</strong> and all {event.photos?.length || 0} photos. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }
 

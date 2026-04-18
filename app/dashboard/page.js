@@ -1,12 +1,22 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Eye, EyeOff, Loader2, Lock, LogOut, Shield, Trash2 } from 'lucide-react'
+import { Eye, EyeOff, Loader2, Lock, LogOut, Pencil, Shield, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import PhotoLightbox from '@/components/photo-lightbox'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 const DashboardPhotoCard = ({ photo, onApprove, onReject, onDelete, onOpenLightbox, busyId }) => {
   const isBusy = busyId === photo.id
@@ -53,6 +63,9 @@ export default function DashboardPage() {
   const [busy, setBusy] = useState({ auth: false, detail: false, photoId: '' })
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(0)
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [newEventName, setNewEventName] = useState('')
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   const photos = useMemo(() => selectedEvent?.photos || [], [selectedEvent])
 
@@ -189,6 +202,50 @@ export default function DashboardPage() {
     }
   }
 
+  const renameEvent = async () => {
+    const trimmed = newEventName.trim()
+    if (!trimmed || trimmed.length < 3 || trimmed === selectedEvent.name) {
+      setIsEditingName(false)
+      return
+    }
+    setBusy((c) => ({ ...c, detail: true }))
+    try {
+      const response = await fetch(`/api/owner/events/${selectedSlug}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmed }),
+      })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Unable to rename room')
+      setSelectedEvent(payload.event)
+      setMessage('Room renamed.')
+      await loadEvents()
+      setIsEditingName(false)
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setBusy((c) => ({ ...c, detail: false }))
+    }
+  }
+
+  const deleteEvent = async () => {
+    setDeleteDialogOpen(false)
+    setBusy((c) => ({ ...c, detail: true }))
+    try {
+      const response = await fetch(`/api/owner/events/${selectedSlug}`, { method: 'DELETE' })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Unable to delete room')
+      setMessage('Room deleted.')
+      setSelectedEvent(null)
+      setSelectedSlug('')
+      await loadEvents()
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setBusy((c) => ({ ...c, detail: false }))
+    }
+  }
+
   useEffect(() => {
     loadSession()
   }, [])
@@ -204,6 +261,13 @@ export default function DashboardPage() {
     loadEventDetail(selectedSlug)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authState.authenticated, selectedSlug])
+
+  useEffect(() => {
+    if (selectedEvent) {
+      setNewEventName(selectedEvent.name)
+      setIsEditingName(false)
+    }
+  }, [selectedEvent])
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -324,13 +388,66 @@ export default function DashboardPage() {
                   <div className="rounded-2xl border border-border bg-muted/30 p-4 text-sm text-muted-foreground">Loading room detail...</div>
                 ) : selectedEvent ? (
                   <>
-                    <div className="rounded-2xl border border-border bg-muted/20 p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <p className="text-lg font-semibold">{selectedEvent.name}</p>
-                          <p className="text-sm text-muted-foreground">Share code: {selectedEvent.slug}</p>
+                    <div className="rounded-2xl border border-border bg-muted/20 p-4 space-y-3">
+                      {isEditingName ? (
+                        <div className="flex flex-col gap-3 sm:flex-row">
+                          <Input
+                            value={newEventName}
+                            onChange={(e) => setNewEventName(e.target.value)}
+                            className="h-10 flex-1"
+                            disabled={busy.detail}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') renameEvent()
+                              if (e.key === 'Escape') {
+                                setNewEventName(selectedEvent.name)
+                                setIsEditingName(false)
+                              }
+                            }}
+                          />
+                          <div className="flex gap-2">
+                            <Button size="sm" disabled={busy.detail} className="h-10" onClick={renameEvent}>
+                              {busy.detail ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={busy.detail}
+                              className="h-10"
+                              onClick={() => {
+                                setNewEventName(selectedEvent.name)
+                                setIsEditingName(false)
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
                         </div>
-                        <Badge variant="secondary" className="rounded-full">{photos.length} total</Badge>
+                      ) : (
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-lg font-semibold">{selectedEvent.name}</p>
+                            <p className="text-sm text-muted-foreground">Share code: {selectedEvent.slug}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary" className="rounded-full">{photos.length} total</Badge>
+                            <Button size="sm" variant="outline" className="h-8 gap-1" onClick={() => setIsEditingName(true)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                              Rename
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex justify-end pt-2 border-t border-border/50">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => setDeleteDialogOpen(true)}
+                          disabled={busy.detail}
+                        >
+                          <Trash2 className="mr-1.5 h-4 w-4" />
+                          Delete room
+                        </Button>
                       </div>
                     </div>
 
@@ -375,6 +492,26 @@ export default function DashboardPage() {
         photos={photos}
         selectedIndex={lightboxIndex}
       />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete room?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <strong>{selectedEvent?.name}</strong> and all {selectedEvent?.photos?.length || 0} photos. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={deleteEvent}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   )
 }

@@ -389,7 +389,7 @@ const deleteEvent = async (request, slug) => {
   const token = getManagementTokenFromRequest(request)
 
   const repository = await getGalleryRepository()
-  const event = await repository.getEventBySlug(slug)
+  const event = await repository.getEventBySlug(slug, { includeHidden: true })
 
   if (!event) {
     return json({ error: 'Event not found' }, 404)
@@ -397,6 +397,10 @@ const deleteEvent = async (request, slug) => {
 
   if (!verifyManagementToken(token, event.managementTokenHash)) {
     return json({ error: 'Management token required' }, 403)
+  }
+
+  for (const photo of event.photos || []) {
+    await deleteStoredFile(photo.url)
   }
 
   await repository.deleteEvent(slug)
@@ -755,6 +759,58 @@ const getOwnerEvent = async (request, slug) => {
   return json({ event: safeEvent })
 }
 
+const updateOwnerEvent = async (request, slug) => {
+  const ownerEmail = await requireOwner(request)
+  if (typeof ownerEmail !== 'string') {
+    return ownerEmail
+  }
+
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  let payload
+  try {
+    payload = updateEventSchema.parse(body)
+  } catch (zodError) {
+    return json({ error: formatZodError(zodError) }, 400)
+  }
+
+  const repository = await getGalleryRepository()
+  const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
+
+  if (!event) {
+    return json({ error: 'Event not found' }, 404)
+  }
+
+  const updatedEvent = await repository.updateEvent(slug, payload)
+  return json({ event: updatedEvent })
+}
+
+const deleteOwnerEvent = async (request, slug) => {
+  const ownerEmail = await requireOwner(request)
+  if (typeof ownerEmail !== 'string') {
+    return ownerEmail
+  }
+
+  const repository = await getGalleryRepository()
+  const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
+
+  if (!event) {
+    return json({ error: 'Event not found' }, 404)
+  }
+
+  for (const photo of event.photos || []) {
+    await deleteStoredFile(photo.url)
+  }
+
+  await repository.deleteEvent(slug)
+  return json({ deleted: true })
+}
+
 const moderateOwnerPhoto = async (request, photoId) => {
   const ownerEmail = await requireOwner(request)
   if (typeof ownerEmail !== 'string') {
@@ -863,6 +919,14 @@ async function handleRoute(request, { params }) {
 
       if (segments.length === 3 && segments[1] === 'events' && method === 'GET') {
         return getOwnerEvent(request, segments[2])
+      }
+
+      if (segments.length === 3 && segments[1] === 'events' && method === 'PATCH') {
+        return updateOwnerEvent(request, segments[2])
+      }
+
+      if (segments.length === 3 && segments[1] === 'events' && method === 'DELETE') {
+        return deleteOwnerEvent(request, segments[2])
       }
 
       if (segments.length === 3 && segments[1] === 'photos' && method === 'PATCH') {
