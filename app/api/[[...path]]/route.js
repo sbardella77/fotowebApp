@@ -42,6 +42,7 @@ import {
 } from '@/lib/server/owner-auth'
 import { getGalleryRepository, getGalleryRepositoryMode } from '@/lib/server/gallery-repository'
 import { createPasswordHash, verifyPassword, validatePassword } from '@/lib/server/owner-password'
+import { rateLimit, getClientIp, AUTH_LIMITS } from '@/lib/server/rate-limiter'
 import { getAdminAuthDriver, getDataAccessDriver } from '@/lib/server/prisma-client'
 import {
   buildBlobPathname,
@@ -333,7 +334,7 @@ Your room "${event.name}" is ready.
 To manage your rooms securely, set your password here:
 ${setupUrl}
 
-This link expires in 7 days.
+This link expires in 24 hours.
 
 SnapRooms — Every guest photo. One room.`,
             html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
@@ -348,7 +349,7 @@ SnapRooms — Every guest photo. One room.`,
     <a href="${setupUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B4A;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Set password</a>
   </p>
   <p style="margin:0 0 32px;text-align:center;color:#6b7280;font-size:14px;">
-    This link expires in 7 days. If you didn't create this room, you can safely ignore this email.
+    This link expires in 24 hours. If you didn't create this room, you can safely ignore this email.
   </p>
   <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">
     SnapRooms — Every guest photo. One room.
@@ -751,6 +752,13 @@ const loginOwner = async (request) => {
     return json({ error: 'Email is required' }, 400)
   }
 
+  const clientIp = getClientIp(request)
+  const ipLimit = rateLimit(`session:ip:${clientIp}`, AUTH_LIMITS.session.ip.max, AUTH_LIMITS.session.ip.window)
+  const emailLimit = rateLimit(`session:email:${email}`, AUTH_LIMITS.session.email.max, AUTH_LIMITS.session.email.window)
+  if (ipLimit.limited || emailLimit.limited) {
+    return json({ error: 'Too many attempts. Please try again later.' }, 429)
+  }
+
   const repository = await getGalleryRepository()
 
   // Password-based login takes priority
@@ -927,7 +935,7 @@ You requested access to your SnapRooms dashboard.
 Set your password here:
 ${setupUrl}
 
-This link expires in 7 days.
+This link expires in 24 hours.
 
 – SnapRooms
 Every guest photo. One room.`,
@@ -943,7 +951,7 @@ Every guest photo. One room.`,
     <a href="${setupUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B4A;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Set password</a>
   </p>
   <p style="margin:0 0 32px;text-align:center;color:#6b7280;font-size:14px;">
-    This link expires in 7 days. If you didn't request this, you can safely ignore this email.
+    This link expires in 24 hours. If you didn't request this, you can safely ignore this email.
   </p>
   <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">
     SnapRooms — Every guest photo. One room.
@@ -993,6 +1001,13 @@ const loginOwnerWithPassword = async (request) => {
     return json({ error: 'Email and password are required' }, 400)
   }
 
+  const clientIp = getClientIp(request)
+  const ipLimit = rateLimit(`login:ip:${clientIp}`, AUTH_LIMITS.login.ip.max, AUTH_LIMITS.login.ip.window)
+  const emailLimit = rateLimit(`login:email:${email}`, AUTH_LIMITS.login.email.max, AUTH_LIMITS.login.email.window)
+  if (ipLimit.limited || emailLimit.limited) {
+    return json({ error: 'Too many attempts. Please try again later.' }, 429)
+  }
+
   const repository = await getGalleryRepository()
   const owner = await repository.getOwnerByEmail(email)
 
@@ -1009,10 +1024,6 @@ const loginOwnerWithPassword = async (request) => {
 }
 
 const forgotOwnerPassword = async (request) => {
-  if (!resend) {
-    return json({ error: 'Email service is not configured' }, 503)
-  }
-
   let body
   try {
     body = await request.json()
@@ -1023,6 +1034,17 @@ const forgotOwnerPassword = async (request) => {
   const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return json({ error: 'A valid email is required' }, 400)
+  }
+
+  const clientIp = getClientIp(request)
+  const ipLimit = rateLimit(`forgot:ip:${clientIp}`, AUTH_LIMITS.forgotPassword.ip.max, AUTH_LIMITS.forgotPassword.ip.window)
+  const emailLimit = rateLimit(`forgot:email:${email}`, AUTH_LIMITS.forgotPassword.email.max, AUTH_LIMITS.forgotPassword.email.window)
+  if (ipLimit.limited || emailLimit.limited) {
+    return json({ error: 'Too many attempts. Please try again later.' }, 429)
+  }
+
+  if (!resend) {
+    return json({ error: 'Email service is not configured' }, 503)
   }
 
   const from = process.env.RESEND_FROM_EMAIL
@@ -1084,7 +1106,7 @@ You requested access to your SnapRooms dashboard.
 Set your password here:
 ${setupUrl}
 
-This link expires in 7 days.
+This link expires in 24 hours.
 
 – SnapRooms`,
           html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
@@ -1117,6 +1139,12 @@ const resetOwnerPassword = async (request) => {
 
   if (!token || !password) {
     return json({ error: 'Token and password are required' }, 400)
+  }
+
+  const clientIp = getClientIp(request)
+  const ipLimit = rateLimit(`reset:ip:${clientIp}`, AUTH_LIMITS.reset.ip.max, AUTH_LIMITS.reset.ip.window)
+  if (ipLimit.limited) {
+    return json({ error: 'Too many attempts. Please try again later.' }, 429)
   }
 
   const { valid, errors } = validatePassword(password)
@@ -1187,6 +1215,12 @@ const setupOwnerPassword = async (request) => {
 
   if (!token || !password) {
     return json({ error: 'Token and password are required' }, 400)
+  }
+
+  const clientIp = getClientIp(request)
+  const ipLimit = rateLimit(`setup:ip:${clientIp}`, AUTH_LIMITS.setup.ip.max, AUTH_LIMITS.setup.ip.window)
+  if (ipLimit.limited) {
+    return json({ error: 'Too many attempts. Please try again later.' }, 429)
   }
 
   const { valid, errors } = validatePassword(password)
