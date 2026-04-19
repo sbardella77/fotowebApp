@@ -201,12 +201,12 @@ export function EventQRModal({
   return (
     <>
       {/* Main Modal Overlay */}
-      <div 
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm print:hidden"
+      <div
+        className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm print:hidden"
         onClick={onClose}
       >
-        <div 
-          className="relative w-full max-w-md overflow-hidden rounded-2xl bg-background shadow-2xl"
+        <div
+          className="relative my-auto w-full max-w-md overflow-hidden rounded-2xl bg-background shadow-2xl max-h-[90vh] overflow-y-auto overscroll-contain"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Modal Header with gradient */}

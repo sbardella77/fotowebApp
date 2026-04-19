@@ -81,6 +81,10 @@ export default function DashboardPage() {
   const [qrEvent, setQrEvent] = useState(null)
   const [editingSlug, setEditingSlug] = useState('')
   const [editName, setEditName] = useState('')
+  const [forgotMode, setForgotMode] = useState(false)
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [forgotBusy, setForgotBusy] = useState(false)
+  const [forgotSent, setForgotSent] = useState(false)
 
   const photos = useMemo(() => selectedEvent?.photos || [], [selectedEvent])
 
@@ -297,6 +301,28 @@ export default function DashboardPage() {
     }
   }
 
+  const sendForgotLink = async () => {
+    setForgotBusy(true)
+    setMessage('')
+    try {
+      const response = await fetch('/api/owner/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail.trim() }),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload.error || 'Something went wrong')
+      }
+      setForgotSent(true)
+      setMessage('')
+    } catch (error) {
+      setMessage(error.message || 'Something went wrong')
+    } finally {
+      setForgotBusy(false)
+    }
+  }
+
   const shareEvent = async (event) => {
     const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/event/${event.slug}`
     if (navigator.share) {
@@ -368,6 +394,26 @@ export default function DashboardPage() {
     setSelectedSlug(event.slug)
     setSelectedEvent(event)
     setDeleteDialogOpen(true)
+  }
+
+  const sendForgotLink = async () => {
+    setForgotBusy(true)
+    try {
+      const response = await fetch('/api/owner/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail.trim() }),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload.error || 'Unable to send reset link')
+      }
+      setForgotSent(true)
+    } catch (error) {
+      setMessage(error.message || 'Unable to send reset link')
+    } finally {
+      setForgotBusy(false)
+    }
   }
 
   const sendRecoveryLink = async () => {
@@ -452,53 +498,128 @@ export default function DashboardPage() {
               <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                 <Lock className="h-6 w-6" />
               </div>
-              <h1 className="text-2xl font-semibold tracking-tight">Sign in to manage your rooms</h1>
-              <p className="mt-2 text-sm text-muted-foreground">Enter your email and password to continue.</p>
+              <h1 className="text-2xl font-semibold tracking-tight">
+                {forgotMode ? 'Reset your password' : 'Sign in to manage your rooms'}
+              </h1>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {forgotMode
+                  ? 'Enter your email and we\'ll send you a secure reset link.'
+                  : 'Enter your email and password to continue.'}
+              </p>
             </div>
 
-            <Card>
-              <CardContent className="space-y-4 pt-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Email</label>
-                  <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Password</label>
-                  <div className="relative">
-                    <Input
-                      type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Enter your password"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && email.trim() && password) loginWithPassword()
-                      }}
-                    />
+            {forgotMode ? (
+              <Card>
+                <CardContent className="space-y-4 pt-6">
+                  <div className="text-center">
+                    <h2 className="text-lg font-semibold">Reset your password</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Enter your email and we&apos;ll send you a secure reset link.
+                    </p>
+                  </div>
+
+                  {forgotSent ? (
+                    <div className="rounded-xl border border-border bg-muted/30 p-4 text-sm text-muted-foreground text-center">
+                      If that email is linked to an account, we&apos;ve sent a reset link.
+                    </div>
+                  ) : (
+                    <>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Email</label>
+                        <Input
+                          type="email"
+                          value={forgotEmail}
+                          onChange={(e) => setForgotEmail(e.target.value)}
+                          placeholder="you@example.com"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && forgotEmail.trim()) sendForgotLink()
+                          }}
+                        />
+                      </div>
+
+                      {message && (
+                        <p className="text-sm text-destructive">{message}</p>
+                      )}
+
+                      <Button
+                        className="w-full"
+                        disabled={forgotBusy || !forgotEmail.trim()}
+                        onClick={sendForgotLink}
+                      >
+                        {forgotBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Send reset link'}
+                      </Button>
+                    </>
+                  )}
+
+                  <div className="text-center">
                     <button
                       type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+                      onClick={() => {
+                        setForgotMode(false)
+                        setForgotEmail('')
+                        setForgotSent(false)
+                        setMessage('')
+                      }}
                     >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      Back to sign in
                     </button>
                   </div>
-                </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="space-y-4 pt-6">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Email</label>
+                    <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Password</label>
+                    <div className="relative">
+                      <Input
+                        type={showPassword ? 'text' : 'password'}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Enter your password"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && email.trim() && password) loginWithPassword()
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
 
-                {message && (
-                  <p className="text-sm text-destructive">{message}</p>
-                )}
+                  {message && (
+                    <p className="text-sm text-destructive">{message}</p>
+                  )}
 
-                <Button className="w-full" disabled={busy.auth || !email.trim() || !password} onClick={loginWithPassword}>
-                  {busy.auth ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sign in'}
-                </Button>
+                  <Button className="w-full" disabled={busy.auth || !email.trim() || !password} onClick={loginWithPassword}>
+                    {busy.auth ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sign in'}
+                  </Button>
 
-                <div className="text-center">
-                  <a href="/dashboard/login" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
-                    Forgot password?
-                  </a>
-                </div>
-              </CardContent>
-            </Card>
+                  <div className="text-center">
+                    <button
+                      type="button"
+                      className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+                      onClick={() => {
+                        setForgotMode(true)
+                        setMessage('')
+                        if (email.trim()) setForgotEmail(email.trim())
+                      }}
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         ) : events.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
