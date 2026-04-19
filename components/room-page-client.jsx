@@ -603,6 +603,17 @@ export default function RoomPageClient({ slug, isNew }) {
                     : 'Be one of the first to share'}
                 </p>
 
+                <div className="mt-5 mx-auto max-w-sm">
+                  <div className="space-y-2 text-left">
+                    <label className="text-sm font-medium">Your name (optional)</label>
+                    <Input
+                      value={guestName}
+                      onChange={(event) => setGuestName(event.target.value)}
+                      placeholder="Your name"
+                    />
+                  </div>
+                </div>
+
                 {isUploading ? (
                   <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-background px-5 py-3 text-sm font-medium shadow-sm">
                     <Loader2 className="h-4 w-4 animate-spin text-primary" />
@@ -614,25 +625,14 @@ export default function RoomPageClient({ slug, isNew }) {
                     Your photos are now in the room
                   </div>
                 ) : (
-                  <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-center">
-                    <Button
-                      size="lg"
-                      className="gap-2 rounded-full px-6 text-base"
-                      onClick={() => heroFileInputRef.current?.click()}
-                    >
-                      <Upload className="h-5 w-5" />
-                      Upload your photos
-                    </Button>
-                    <Button
-                      size="lg"
-                      variant="outline"
-                      className="gap-2 rounded-full px-6 text-base"
-                      onClick={() => cameraFileInputRef.current?.click()}
-                    >
-                      <Camera className="h-5 w-5" />
-                      Snap a photo
-                    </Button>
-                  </div>
+                  <Button
+                    size="lg"
+                    className="mt-5 gap-2 rounded-full px-6 text-base"
+                    onClick={() => heroFileInputRef.current?.click()}
+                  >
+                    <Upload className="h-5 w-5" />
+                    Upload your photo
+                  </Button>
                 )}
 
                 <p className="mt-3 text-xs text-muted-foreground">No app. No signup.</p>
@@ -765,9 +765,9 @@ export default function RoomPageClient({ slug, isNew }) {
             <div className="mt-6 grid gap-6 lg:grid-cols-2">
               <Card className="border-border/50">
                 <CardHeader>
-                  <CardTitle className="text-lg">Add your photos</CardTitle>
+                  <CardTitle className="text-lg">Snap your photo</CardTitle>
                   <CardDescription>
-                    Upload photos from your phone in seconds.
+                    Take a picture and add it to the room instantly.
                   </CardDescription>
                 </CardHeader>
 
@@ -793,18 +793,17 @@ export default function RoomPageClient({ slug, isNew }) {
                       capture="environment"
                       className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
                       disabled={!activeEvent?.slug}
-                      multiple
                       onChange={onFilesSelected}
                       type="file"
-                      aria-label="Upload photos"
+                      aria-label="Snap a photo"
                     />
                     <div className="rounded-full bg-primary p-4 text-primary-foreground">
-                      <ImagePlus className="h-8 w-8" />
+                      <Camera className="h-8 w-8" />
                     </div>
                     <div>
-                      <p className="text-base font-medium">Tap to upload</p>
+                      <p className="text-base font-medium">Snap your photo</p>
                       <p className="text-sm text-muted-foreground">
-                        Choose photos or take a picture
+                        Open your camera and add to the room
                       </p>
                     </div>
                   </label>
