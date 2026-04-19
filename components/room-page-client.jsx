@@ -625,14 +625,25 @@ export default function RoomPageClient({ slug, isNew }) {
                     Your photos are now in the room
                   </div>
                 ) : (
-                  <Button
-                    size="lg"
-                    className="mt-5 gap-2 rounded-full px-6 text-base"
-                    onClick={() => heroFileInputRef.current?.click()}
-                  >
-                    <Upload className="h-5 w-5" />
-                    Upload your photo
-                  </Button>
+                  <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-center">
+                    <Button
+                      size="lg"
+                      className="gap-2 rounded-full px-6 text-base"
+                      onClick={() => cameraFileInputRef.current?.click()}
+                    >
+                      <Camera className="h-5 w-5" />
+                      Snap your photo
+                    </Button>
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      className="gap-2 rounded-full px-6 text-base"
+                      onClick={() => heroFileInputRef.current?.click()}
+                    >
+                      <Upload className="h-5 w-5" />
+                      Upload your photo
+                    </Button>
+                  </div>
                 )}
 
                 <p className="mt-3 text-xs text-muted-foreground">No app. No signup.</p>
@@ -762,99 +773,50 @@ export default function RoomPageClient({ slug, isNew }) {
               />
             )}
 
-            <div className="mt-6 grid gap-6 lg:grid-cols-2">
-              <Card className="border-border/50">
-                <CardHeader>
-                  <CardTitle className="text-lg">Snap your photo</CardTitle>
-                  <CardDescription>
-                    Take a picture and add it to the room instantly.
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Your name (optional)</label>
-                    <Input
-                      value={guestName}
-                      onChange={(event) => setGuestName(event.target.value)}
-                      placeholder="Your name"
-                    />
-                  </div>
-
-                  <label
-                    className={`relative flex min-h-[220px] cursor-pointer flex-col items-center justify-center gap-4 overflow-hidden rounded-xl border-2 border-dashed p-6 text-center transition-all duration-200 active:scale-[0.98] ${
-                      activeEvent?.slug
-                        ? 'border-primary/40 bg-primary/5 hover:border-primary/60 hover:bg-primary/10'
-                        : 'cursor-not-allowed border-border bg-muted/30'
-                    }`}
+            {uploads.length > 0 && (
+              <div className="mt-4 space-y-2">
+                {uploads.map((upload) => (
+                  <div
+                    key={upload.id}
+                    className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3"
                   >
-                    <input
-                      accept="image/*"
-                      capture="environment"
-                      className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
-                      disabled={!activeEvent?.slug}
-                      onChange={onFilesSelected}
-                      type="file"
-                      aria-label="Snap a photo"
-                    />
-                    <div className="rounded-full bg-primary p-4 text-primary-foreground">
-                      <Camera className="h-8 w-8" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm">{upload.name}</p>
+                      <p className="text-xs text-muted-foreground">{upload.status}</p>
                     </div>
-                    <div>
-                      <p className="text-base font-medium">Snap your photo</p>
-                      <p className="text-sm text-muted-foreground">
-                        Open your camera and add to the room
-                      </p>
-                    </div>
-                  </label>
+                    {upload.progress === 100 ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <Clock3 className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
 
-                  {uploads.length > 0 && (
-                    <div className="space-y-2">
-                      {uploads.map((upload) => (
-                        <div
-                          key={upload.id}
-                          className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm">{upload.name}</p>
-                            <p className="text-xs text-muted-foreground">{upload.status}</p>
-                          </div>
-                          {upload.progress === 100 ? (
-                            <CheckCircle2 className="h-4 w-4 text-green-600" />
-                          ) : (
-                            <Clock3 className="h-4 w-4 text-muted-foreground" />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+            <Card className="mt-6 border-border/50">
+              <CardHeader>
+                <CardTitle className="text-lg">
+                  Room photos
+                  <Badge variant="secondary" className="ml-2">
+                    {galleryPhotos.length}
+                  </Badge>
+                </CardTitle>
+                <CardDescription>
+                  Tap any photo to view and download in full quality.
+                </CardDescription>
+              </CardHeader>
 
-              <Card className="border-border/50">
-                <CardHeader>
-                  <CardTitle className="text-lg">
-                    Room photos
-                    <Badge variant="secondary" className="ml-2">
-                      {galleryPhotos.length}
-                    </Badge>
-                  </CardTitle>
-                  <CardDescription>
-                    Tap any photo to view and download in full quality.
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent>
-                  <PhotoGalleryGrid
-                    photos={galleryPhotos}
-                    loading={galleryLoading}
-                    error={galleryError}
-                    onRetry={() => activeEvent?.slug && loadEvent(activeEvent.slug)}
-                    onSelectPhoto={openLightbox}
-                  />
-                </CardContent>
-              </Card>
-            </div>
+              <CardContent>
+                <PhotoGalleryGrid
+                  photos={galleryPhotos}
+                  loading={galleryLoading}
+                  error={galleryError}
+                  onRetry={() => activeEvent?.slug && loadEvent(activeEvent.slug)}
+                  onSelectPhoto={openLightbox}
+                />
+              </CardContent>
+            </Card>
           </div>
         </section>
       )}
