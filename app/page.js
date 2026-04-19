@@ -38,7 +38,7 @@ export default function HomePage() {
       })
       const payload = await response.json()
       if (response.ok && payload.event?.slug) {
-        router.push(`/event/${payload.event.slug}`)
+        router.push(`/event/${payload.event.slug}?new=1`)
       }
     } finally {
       setIsCreating(false)

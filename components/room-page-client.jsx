@@ -2,14 +2,13 @@
 
 import { upload } from '@vercel/blob/client'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import {
+  Camera,
   CheckCircle2,
   Clock3,
   Copy,
   ImagePlus,
   Loader2,
-  Mail,
   QrCode,
   RefreshCcw,
   Share2,
@@ -24,16 +23,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+
 
 const CHUNK_SIZE = 1024 * 1024
 
@@ -64,352 +54,91 @@ const useToast = () => {
   return { showToast, ToastComponent }
 }
 
-function SaveEventCard({ event, onDismiss, onClaim }) {
-  const [email, setEmail] = useState('')
-  const [status, setStatus] = useState('idle')
-  const [error, setError] = useState('')
+function NewRoomShareBanner({ event, baseUrl, onDismiss, showToast, onShowQR }) {
+  const eventUrl = `${baseUrl}/event/${event.slug}`
 
-  const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+  const shareText = `📸 Photos from ${event.name}\n\nAdd yours here 👇\n${eventUrl}`
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (!isValid) return
-    setStatus('loading')
-    setError('')
+  const openWhatsApp = () => {
+    const url = `https://wa.me/?text=${encodeURIComponent(shareText)}`
+    window.open(url, '_blank')
+  }
+
+  const openTelegram = () => {
+    const url = `https://t.me/share/url?url=${encodeURIComponent(eventUrl)}&text=${encodeURIComponent(`📸 Photos from ${event.name}`)}`
+    window.open(url, '_blank')
+  }
+
+  const copyLink = async () => {
     try {
-      const [emailRes, ownerRes] = await Promise.all([
-        fetch(`/api/events/${event.slug}/email`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email.trim() }),
-        }),
-        fetch(`/api/events/${event.slug}/owner`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email.trim() }),
-        }),
-      ])
-      const emailPayload = await emailRes.json()
-      const ownerPayload = await ownerRes.json()
-      if (!emailRes.ok) {
-        throw new Error(emailPayload.error || 'Unable to send email')
-      }
-      if (!ownerRes.ok) {
-        throw new Error(ownerPayload.error || 'Unable to claim room')
-      }
-      onClaim?.(email.trim(), ownerPayload.managementToken)
-      setStatus('success')
-    } catch (err) {
-      setStatus('error')
-      setError(err.message || 'Something went wrong')
+      await navigator.clipboard.writeText(eventUrl)
+      showToast('Link copied!')
+    } catch {
+      showToast('Failed to copy', 'error')
     }
   }
 
-  if (status === 'success') {
-    return (
-      <Card className="mt-6 border-green-200 bg-green-50/50">
-        <CardContent className="flex items-center gap-3 py-6">
-          <CheckCircle2 className="h-5 w-5 text-green-600" />
-          <div>
-            <p className="font-medium text-green-900">Room link sent!</p>
-            <p className="text-sm text-green-700">Check your inbox for {email.trim()}</p>
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
-
   return (
-    <Card className="mt-6 border-border/50 bg-muted/20">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base font-semibold flex items-center gap-2">
-          <Mail className="h-4 w-4 text-primary" />
-          Save this room
-        </CardTitle>
-        <CardDescription>
-          Enter your email and we&apos;ll send you the room link so you can open it later.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3 sm:flex-row">
-          <Input
-            type="email"
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="h-10 flex-1"
-            disabled={status === 'loading'}
-          />
+    <Card className="mt-6 border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="font-semibold text-foreground">Your room is ready!</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Invite guests to start sharing photos.
+            </p>
+          </div>
           <Button
-            type="submit"
-            size="sm"
-            disabled={!isValid || status === 'loading'}
-            className="h-10 whitespace-nowrap"
-          >
-            {status === 'loading' ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              'Send me the link'
-            )}
-          </Button>
-        </form>
-        {status === 'error' && (
-          <p className="text-xs text-destructive">{error}</p>
-        )}
-        <div className="flex flex-col-reverse items-start justify-between gap-2 sm:flex-row sm:items-center">
-          <p className="text-xs text-muted-foreground">
-            Optional — you can keep using SnapRooms without this.
-          </p>
-          <Button
-            type="button"
             variant="ghost"
             size="sm"
-            className="h-auto px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+            className="h-8 w-8 shrink-0 p-0"
             onClick={onDismiss}
-            disabled={status === 'loading'}
           >
-            Skip for now
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Button
+            size="sm"
+            className="gap-1.5 bg-[#25D366] text-white hover:bg-[#128C7E] border-transparent"
+            onClick={openWhatsApp}
+          >
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+            </svg>
+            WhatsApp
+          </Button>
+          <Button
+            size="sm"
+            className="gap-1.5 bg-[#0088cc] text-white hover:bg-[#0077b3] border-transparent"
+            onClick={openTelegram}
+          >
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" />
+            </svg>
+            Telegram
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 bg-background"
+            onClick={copyLink}
+          >
+            <Copy className="h-3.5 w-3.5" />
+            Copy link
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 bg-background"
+            onClick={onShowQR}
+          >
+            <QrCode className="h-3.5 w-3.5" />
+            QR code
           </Button>
         </div>
       </CardContent>
     </Card>
-  )
-}
-
-function ClaimRoomCard({ event, onClaim }) {
-  const [email, setEmail] = useState('')
-  const [status, setStatus] = useState('idle')
-  const [error, setError] = useState('')
-
-  const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (!isValid) return
-    setStatus('loading')
-    setError('')
-    try {
-      const response = await fetch(`/api/events/${event.slug}/owner`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
-      })
-      const payload = await response.json()
-      if (!response.ok) {
-        throw new Error(payload.error || 'Unable to claim room')
-      }
-      onClaim(email.trim(), payload.managementToken)
-      setStatus('success')
-    } catch (err) {
-      setStatus('error')
-      setError(err.message || 'Something went wrong')
-    }
-  }
-
-  if (status === 'success') {
-    return (
-      <Card className="mt-6 border-green-200 bg-green-50/50">
-        <CardContent className="flex items-center gap-3 py-6">
-          <CheckCircle2 className="h-5 w-5 text-green-600" />
-          <div>
-            <p className="font-medium text-green-900">Room claimed!</p>
-            <p className="text-sm text-green-700">You can manage this room anytime.</p>
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  return (
-    <Card className="mt-6 border-border/50 bg-muted/20">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base font-semibold flex items-center gap-2">
-          <Mail className="h-4 w-4 text-primary" />
-          Claim this room
-        </CardTitle>
-        <CardDescription>
-          Enter your email to become the owner and manage this room later.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3 sm:flex-row">
-          <Input
-            type="email"
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="h-10 flex-1"
-            disabled={status === 'loading'}
-          />
-          <Button
-            type="submit"
-            size="sm"
-            disabled={!isValid || status === 'loading'}
-            className="h-10 whitespace-nowrap"
-          >
-            {status === 'loading' ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              'Claim room'
-            )}
-          </Button>
-        </form>
-        {status === 'error' && (
-          <p className="text-xs text-destructive">{error}</p>
-        )}
-        <p className="text-xs text-muted-foreground">
-          Optional — you can keep using SnapRooms without this.
-        </p>
-      </CardContent>
-    </Card>
-  )
-}
-
-function RoomManagementCard({ event, managementToken, onEventUpdated, onEventDeleted, showToast }) {
-  const [isEditing, setIsEditing] = useState(false)
-  const [newName, setNewName] = useState(event.name)
-  const [busy, setBusy] = useState({ rename: false, delete: false })
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-
-  const handleRename = async (e) => {
-    e.preventDefault()
-    const trimmed = newName.trim()
-    if (!trimmed || trimmed.length < 3 || trimmed === event.name) {
-      setIsEditing(false)
-      return
-    }
-    setBusy((c) => ({ ...c, rename: true }))
-    try {
-      const response = await fetch(`/api/events/${event.slug}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${managementToken}`,
-        },
-        body: JSON.stringify({ name: trimmed }),
-      })
-      const payload = await response.json()
-      if (!response.ok) {
-        throw new Error(payload.error || 'Unable to rename room')
-      }
-      onEventUpdated(payload.event)
-      showToast('Room renamed!')
-      setIsEditing(false)
-    } catch (err) {
-      showToast(err.message || 'Rename failed', 'error')
-    } finally {
-      setBusy((c) => ({ ...c, rename: false }))
-    }
-  }
-
-  const handleDelete = async () => {
-    setDeleteDialogOpen(false)
-    setBusy((c) => ({ ...c, delete: true }))
-    try {
-      const response = await fetch(`/api/events/${event.slug}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${managementToken}`,
-        },
-      })
-      const payload = await response.json()
-      if (!response.ok) {
-        throw new Error(payload.error || 'Unable to delete room')
-      }
-      showToast('Room deleted')
-      onEventDeleted()
-    } catch (err) {
-      showToast(err.message || 'Delete failed', 'error')
-    } finally {
-      setBusy((c) => ({ ...c, delete: false }))
-    }
-  }
-
-  return (
-    <>
-      <Card className="mt-6 border-border/50 bg-muted/20">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold">Room settings</CardTitle>
-          <CardDescription>Manage your room name or delete it.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {isEditing ? (
-            <form onSubmit={handleRename} className="flex flex-col gap-3 sm:flex-row">
-              <Input
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                className="h-10 flex-1"
-                disabled={busy.rename}
-              />
-              <div className="flex gap-2">
-                <Button type="submit" size="sm" disabled={busy.rename} className="h-10">
-                  {busy.rename ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={busy.rename}
-                  className="h-10"
-                  onClick={() => {
-                    setNewName(event.name)
-                    setIsEditing(false)
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          ) : (
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-sm font-medium">Room name</p>
-                <p className="truncate text-sm text-muted-foreground">{event.name}</p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8"
-                onClick={() => setIsEditing(true)}
-              >
-                Rename
-              </Button>
-            </div>
-          )}
-          <div className="pt-2 border-t border-border/50">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-              onClick={() => setDeleteDialogOpen(true)}
-              disabled={busy.delete}
-            >
-              {busy.delete ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Delete room'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete room?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete <strong>{event.name}</strong> and all {event.photos?.length || 0} photos. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
   )
 }
 
@@ -437,8 +166,7 @@ function RoomNotFound() {
   )
 }
 
-export default function RoomPageClient({ slug }) {
-  const router = useRouter()
+export default function RoomPageClient({ slug, isNew }) {
   const [guestName, setGuestName] = useState('')
   const [activeEvent, setActiveEvent] = useState(null)
   const [uploads, setUploads] = useState([])
@@ -449,14 +177,13 @@ export default function RoomPageClient({ slug }) {
   const [lightboxIndex, setLightboxIndex] = useState(0)
   const [copied, setCopied] = useState(false)
   const [qrModalOpen, setQrModalOpen] = useState(false)
-  const [saveEmailDismissed, setSaveEmailDismissed] = useState(false)
-  const [claimedEmail, setClaimedEmail] = useState('')
-  const [managementToken, setManagementToken] = useState('')
   const [notFound, setNotFound] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadSuccess, setUploadSuccess] = useState(false)
   const [showViralSection, setShowViralSection] = useState(false)
+  const [newRoomBannerDismissed, setNewRoomBannerDismissed] = useState(false)
   const heroFileInputRef = useRef(null)
+  const cameraFileInputRef = useRef(null)
   const { showToast, ToastComponent } = useToast()
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
@@ -466,11 +193,6 @@ export default function RoomPageClient({ slug }) {
       (left, right) => new Date(right.createdAt) - new Date(left.createdAt),
     )
   }, [activeEvent])
-
-  const isOwner = useMemo(() => {
-    if (!activeEvent?.ownerEmail || !claimedEmail || !managementToken) return false
-    return activeEvent.ownerEmail.toLowerCase() === claimedEmail.toLowerCase()
-  }, [activeEvent, claimedEmail, managementToken])
 
   const loadEvent = async (targetSlug, { silent = false } = {}) => {
     if (!targetSlug) return
@@ -686,26 +408,6 @@ export default function RoomPageClient({ slug }) {
   useEffect(() => {
     if (!activeEvent?.slug) return undefined
 
-    if (typeof window !== 'undefined') {
-      const ownerKey = `snaprooms:owner:${activeEvent.slug}`
-      const legacyKey = `snaprooms:claimed:${activeEvent.slug}`
-      const stored = window.localStorage.getItem(ownerKey)
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored)
-          if (parsed.email) setClaimedEmail(parsed.email)
-          if (parsed.token) setManagementToken(parsed.token)
-        } catch {
-          // ignore parse errors
-        }
-      } else {
-        const legacy = window.localStorage.getItem(legacyKey)
-        if (legacy) {
-          setClaimedEmail(legacy)
-        }
-      }
-    }
-
     const interval = window.setInterval(() => {
       loadEvent(activeEvent.slug, { silent: true })
     }, 3000)
@@ -714,32 +416,15 @@ export default function RoomPageClient({ slug }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeEvent?.slug])
 
-  const handleClaimRoom = (email, token) => {
-    setClaimedEmail(email)
-    setManagementToken(token)
-    if (activeEvent?.slug && typeof window !== 'undefined') {
-      window.localStorage.setItem(
-        `snaprooms:owner:${activeEvent.slug}`,
-        JSON.stringify({ email, token }),
-      )
-      window.localStorage.removeItem(`snaprooms:claimed:${activeEvent.slug}`)
+  useEffect(() => {
+    if (isNew && typeof window !== 'undefined') {
+      const url = new URL(window.location.href)
+      if (url.searchParams.has('new')) {
+        url.searchParams.delete('new')
+        window.history.replaceState({}, '', url.toString())
+      }
     }
-  }
-
-  const handleEventUpdated = (event) => {
-    setActiveEvent(event)
-  }
-
-  const handleEventDeleted = () => {
-    if (activeEvent?.slug && typeof window !== 'undefined') {
-      window.localStorage.removeItem(`snaprooms:owner:${activeEvent.slug}`)
-      window.localStorage.removeItem(`snaprooms:claimed:${activeEvent.slug}`)
-    }
-    setClaimedEmail('')
-    setManagementToken('')
-    setActiveEvent(null)
-    router.push('/')
-  }
+  }, [isNew])
 
   if (notFound) {
     return (
@@ -754,12 +439,6 @@ export default function RoomPageClient({ slug }) {
               />
               <span className="font-semibold tracking-tight">SnapRooms</span>
             </div>
-            <a
-              href={`/dashboard/login?redirect=/event/${slug}`}
-              className="text-xs text-muted-foreground hover:text-foreground"
-            >
-              Organizer sign in
-            </a>
           </div>
         </header>
         <RoomNotFound />
@@ -770,7 +449,7 @@ export default function RoomPageClient({ slug }) {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-14 items-center justify-between px-4">
+        <div className="container flex h-14 items-center px-4">
           <div className="flex items-center gap-2">
             <img
               src="/snaprooms-logo.svg"
@@ -779,12 +458,6 @@ export default function RoomPageClient({ slug }) {
             />
             <span className="font-semibold tracking-tight">SnapRooms</span>
           </div>
-          <a
-            href={`/dashboard/login?redirect=/event/${slug}`}
-            className="text-xs text-muted-foreground hover:text-foreground"
-          >
-            Organizer sign in
-          </a>
         </div>
       </header>
 
@@ -941,14 +614,25 @@ export default function RoomPageClient({ slug }) {
                     Your photos are now in the room
                   </div>
                 ) : (
-                  <Button
-                    size="lg"
-                    className="mt-5 gap-2 rounded-full px-6 text-base"
-                    onClick={() => heroFileInputRef.current?.click()}
-                  >
-                    <Upload className="h-5 w-5" />
-                    Upload your photos
-                  </Button>
+                  <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-center">
+                    <Button
+                      size="lg"
+                      className="gap-2 rounded-full px-6 text-base"
+                      onClick={() => heroFileInputRef.current?.click()}
+                    >
+                      <Upload className="h-5 w-5" />
+                      Upload your photos
+                    </Button>
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      className="gap-2 rounded-full px-6 text-base"
+                      onClick={() => cameraFileInputRef.current?.click()}
+                    >
+                      <Camera className="h-5 w-5" />
+                      Snap a photo
+                    </Button>
+                  </div>
                 )}
 
                 <p className="mt-3 text-xs text-muted-foreground">No app. No signup.</p>
@@ -959,8 +643,15 @@ export default function RoomPageClient({ slug }) {
               ref={heroFileInputRef}
               type="file"
               accept="image/*"
-              capture="environment"
               multiple
+              className="hidden"
+              onChange={onFilesSelected}
+            />
+            <input
+              ref={cameraFileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
               className="hidden"
               onChange={onFilesSelected}
             />
@@ -1061,25 +752,13 @@ export default function RoomPageClient({ slug }) {
               </Card>
             )}
 
-            {!saveEmailDismissed && (
-              <SaveEventCard
+            {isNew && !newRoomBannerDismissed && (
+              <NewRoomShareBanner
                 event={activeEvent}
-                onDismiss={() => setSaveEmailDismissed(true)}
-                onClaim={handleClaimRoom}
-              />
-            )}
-
-            {!activeEvent?.ownerEmail && saveEmailDismissed && (
-              <ClaimRoomCard event={activeEvent} onClaim={handleClaimRoom} />
-            )}
-
-            {isOwner && (
-              <RoomManagementCard
-                event={activeEvent}
-                managementToken={managementToken}
-                onEventUpdated={handleEventUpdated}
-                onEventDeleted={handleEventDeleted}
+                baseUrl={baseUrl}
+                onDismiss={() => setNewRoomBannerDismissed(true)}
                 showToast={showToast}
+                onShowQR={() => setQrModalOpen(true)}
               />
             )}
 
