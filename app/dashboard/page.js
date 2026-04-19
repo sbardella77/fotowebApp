@@ -24,29 +24,49 @@ const DashboardPhotoCard = ({ photo, onApprove, onReject, onDelete, onOpenLightb
   const isBusy = busyId === photo.id
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-border bg-card">
+    <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card">
       <button className="block w-full text-left" onClick={onOpenLightbox} type="button">
         <img alt={photo.originalName} className="aspect-square w-full object-cover" src={photo.url} />
       </button>
       <div className="space-y-3 p-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{photo.originalName}</p>
-            <p className="truncate text-xs text-muted-foreground">{photo.uploaderName || 'Guest upload'}</p>
+            <p className="truncate text-sm font-medium text-foreground">{photo.originalName}</p>
+            <p className="truncate text-xs font-light text-muted-foreground">{photo.uploaderName || 'Guest upload'}</p>
           </div>
-          <Badge variant={photo.status === 'VISIBLE' ? 'default' : 'secondary'} className="rounded-full capitalize">
+          <Badge
+            variant={photo.status === 'VISIBLE' ? 'default' : 'secondary'}
+            className="rounded-full capitalize font-mono text-[0.6rem]"
+          >
             {photo.status.toLowerCase()}
           </Badge>
         </div>
         <div className="grid grid-cols-3 gap-2">
-          <Button disabled={isBusy || photo.status === 'VISIBLE'} size="sm" onClick={onApprove}>
-            {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+          <Button
+            disabled={isBusy || photo.status === 'VISIBLE'}
+            size="sm"
+            onClick={onApprove}
+            className="h-8"
+          >
+            {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
           </Button>
-          <Button disabled={isBusy || photo.status === 'HIDDEN'} size="sm" variant="secondary" onClick={onReject}>
-            <EyeOff className="h-4 w-4" />
+          <Button
+            disabled={isBusy || photo.status === 'HIDDEN'}
+            size="sm"
+            variant="outline"
+            onClick={onReject}
+            className="h-8 border-white/[0.07] bg-[#0D1220] hover:bg-[#111827]"
+          >
+            <EyeOff className="h-3.5 w-3.5" />
           </Button>
-          <Button disabled={isBusy} size="sm" variant="destructive" onClick={onDelete}>
-            <Trash2 className="h-4 w-4" />
+          <Button
+            disabled={isBusy}
+            size="sm"
+            variant="destructive"
+            onClick={onDelete}
+            className="h-8"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>
@@ -444,73 +464,74 @@ export default function DashboardPage() {
   }, [selectedEvent])
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <main className="dark relative min-h-screen bg-background font-body text-foreground">
+      {/* Subtle grid background for dashboard */}
+      <div className="absolute inset-0 bg-grid opacity-[0.03] pointer-events-none" aria-hidden="true" />
+
+      <header className="relative z-10 border-b border-white/[0.07] bg-background/80 backdrop-blur-md">
         <div className="container flex h-14 items-center justify-between px-4">
-          <div className="flex items-center gap-2">
-            <img src="/snaprooms-logo.svg" alt="SnapRooms" className="h-8 w-8 rounded-md object-cover" />
-            <span className="font-semibold tracking-tight">SnapRooms</span>
-          </div>
+          <a href="/" className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <Camera className="h-4 w-4" />
+            </div>
+            <span className="font-display text-sm font-bold tracking-tight">SnapRooms</span>
+          </a>
           {authState.authenticated ? (
-            <div className="flex items-center gap-2">
-              <span className="hidden text-sm text-muted-foreground sm:inline">{authState.email}</span>
-              <Button variant="ghost" size="sm" onClick={logout}>
+            <div className="flex items-center gap-3">
+              <span className="hidden font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground sm:inline">
+                {authState.email}
+              </span>
+              <Button variant="ghost" size="sm" onClick={logout} className="font-body text-muted-foreground hover:text-foreground">
                 <LogOut className="mr-2 h-4 w-4" />
                 Sign out
               </Button>
             </div>
           ) : (
-            <Button size="sm" variant="ghost" asChild>
+            <Button size="sm" variant="ghost" asChild className="font-body">
               <a href="/">Create room</a>
             </Button>
           )}
         </div>
       </header>
 
-      <section className="container px-4 py-8">
+      <section className="container relative z-10 px-4 py-10 sm:py-16">
         {authState.loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : !authState.authenticated ? (
           <div className="mx-auto max-w-sm py-12">
-            <div className="mb-6 text-center">
-              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <div className="mb-8 text-center">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                 <Lock className="h-6 w-6" />
               </div>
-              <h1 className="text-2xl font-semibold tracking-tight">
+              <h1 className="font-display text-2xl font-bold tracking-[-0.03em] text-white">
                 {forgotMode ? 'Reset your password' : 'Sign in to manage your rooms'}
               </h1>
-              <p className="mt-2 text-sm text-muted-foreground">
+              <p className="mt-3 text-sm font-light text-muted-foreground">
                 {forgotMode
                   ? 'Enter your email and we\'ll send you a secure reset link.'
-                  : 'Enter your email and password to continue.'}
+                  : 'Access your rooms, share them again, and manage uploads in one place.'}
               </p>
             </div>
 
             {forgotMode ? (
-              <Card>
-                <CardContent className="space-y-4 pt-6">
-                  <div className="text-center">
-                    <h2 className="text-lg font-semibold">Reset your password</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Enter your email and we&apos;ll send you a secure reset link.
-                    </p>
-                  </div>
-
+              <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card">
+                <div className="space-y-4">
                   {forgotSent ? (
-                    <div className="rounded-xl border border-border bg-muted/30 p-4 text-sm text-muted-foreground text-center">
+                    <div className="rounded-xl border border-white/[0.07] bg-[#111827] p-4 text-sm text-muted-foreground text-center">
                       If that email is linked to an account, we&apos;ve sent a reset link.
                     </div>
                   ) : (
                     <>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium">Email</label>
+                        <label className="text-sm font-medium text-foreground">Email</label>
                         <Input
                           type="email"
                           value={forgotEmail}
                           onChange={(e) => setForgotEmail(e.target.value)}
                           placeholder="you@example.com"
+                          className="h-11 rounded-lg border-white/[0.07] bg-[#0D1220] text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' && forgotEmail.trim()) sendForgotLink()
                           }}
@@ -522,7 +543,7 @@ export default function DashboardPage() {
                       )}
 
                       <Button
-                        className="w-full"
+                        className="w-full h-11 glow-blue"
                         disabled={forgotBusy || !forgotEmail.trim()}
                         onClick={sendForgotLink}
                       >
@@ -531,10 +552,10 @@ export default function DashboardPage() {
                     </>
                   )}
 
-                  <div className="text-center">
+                  <div className="text-center pt-2">
                     <button
                       type="button"
-                      className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+                      className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline transition-colors"
                       onClick={() => {
                         setForgotMode(false)
                         setForgotEmail('')
@@ -545,23 +566,30 @@ export default function DashboardPage() {
                       Back to sign in
                     </button>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             ) : (
-              <Card>
-                <CardContent className="space-y-4 pt-6">
+              <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card">
+                <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Email</label>
-                    <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
+                    <label className="text-sm font-medium text-foreground">Email</label>
+                    <Input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className="h-11 rounded-lg border-white/[0.07] bg-[#0D1220] text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                    />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Password</label>
+                    <label className="text-sm font-medium text-foreground">Password</label>
                     <div className="relative">
                       <Input
                         type={showPassword ? 'text' : 'password'}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="Enter your password"
+                        className="h-11 rounded-lg border-white/[0.07] bg-[#0D1220] text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && email.trim() && password) loginWithPassword()
                         }}
@@ -569,7 +597,7 @@ export default function DashboardPage() {
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                       >
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
@@ -580,14 +608,18 @@ export default function DashboardPage() {
                     <p className="text-sm text-destructive">{message}</p>
                   )}
 
-                  <Button className="w-full" disabled={busy.auth || !email.trim() || !password} onClick={loginWithPassword}>
+                  <Button
+                    className="w-full h-11 glow-blue"
+                    disabled={busy.auth || !email.trim() || !password}
+                    onClick={loginWithPassword}
+                  >
                     {busy.auth ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sign in'}
                   </Button>
 
-                  <div className="text-center">
+                  <div className="text-center pt-1">
                     <button
                       type="button"
-                      className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+                      className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline transition-colors"
                       onClick={() => {
                         setForgotMode(true)
                         setMessage('')
@@ -597,42 +629,66 @@ export default function DashboardPage() {
                       Forgot password?
                     </button>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             )}
           </div>
         ) : events.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               <Camera className="h-8 w-8" />
             </div>
-            <h2 className="text-xl font-semibold">You don&apos;t have any rooms yet</h2>
-            <p className="mt-2 text-sm text-muted-foreground">Create your first room to start collecting photos.</p>
-            <Button className="mt-6" asChild>
+            <h2 className="font-display text-xl font-bold tracking-tight text-white">
+              You don&apos;t have any rooms yet
+            </h2>
+            <p className="mt-3 max-w-sm text-sm font-light text-muted-foreground">
+              Create your first room and start collecting photos in seconds.
+            </p>
+            <Button className="mt-8 glow-blue" asChild>
               <a href="/">Create your room</a>
             </Button>
           </div>
         ) : (
-          <div className="mx-auto max-w-5xl space-y-6">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Your rooms</h1>
-              <p className="mt-1 text-sm text-muted-foreground">Manage and share the rooms you own.</p>
+          <div className="mx-auto max-w-5xl space-y-8">
+            {/* Top summary area */}
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h1 className="font-display text-2xl font-bold tracking-[-0.03em] text-white">
+                  Your rooms
+                </h1>
+                <p className="mt-1 text-sm font-light text-muted-foreground">
+                  Open, share, rename, or manage the rooms you&apos;ve created.
+                </p>
+              </div>
+              <Button size="sm" asChild className="mt-3 sm:mt-0 glow-blue">
+                <a href="/">Create new room</a>
+              </Button>
             </div>
 
             {message ? (
-              <div className="rounded-xl border border-border bg-card p-3 text-sm text-muted-foreground">{message}</div>
+              <div className="rounded-xl border border-white/[0.07] bg-[#141C2E] p-3 text-sm text-muted-foreground">{message}</div>
             ) : null}
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {/* Mono label above grid */}
+            <div>
+              <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
+                Rooms you created
+              </span>
+            </div>
+
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {events.map((event) => (
-                <Card key={event.id} className="border-border/80">
-                  <CardHeader className="pb-3">
+                <div
+                  key={event.id}
+                  className="group relative overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141C2E] transition-all duration-200 hover:-translate-y-px hover:border-white/[0.12]"
+                >
+                  <div className="p-5">
                     {editingSlug === event.slug ? (
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         <Input
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
-                          className="h-9"
+                          className="h-9 rounded-lg border-white/[0.07] bg-[#0D1220] text-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                           disabled={busy.detail}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') saveRename(event.slug)
@@ -651,83 +707,114 @@ export default function DashboardPage() {
                       </div>
                     ) : (
                       <>
-                        <CardTitle className="text-base font-semibold">{event.name}</CardTitle>
-                        <CardDescription>Code: {event.slug}</CardDescription>
+                        <h3 className="font-display text-base font-bold tracking-tight text-white truncate">
+                          {event.name}
+                        </h3>
+                        <p className="mt-1 font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
+                          Code: {event.slug}
+                        </p>
                       </>
                     )}
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="text-sm text-muted-foreground">{event.photoCount || event.photos?.length || 0} photos</p>
-                    <div className="flex flex-wrap gap-2">
-                      <Button size="sm" asChild>
-                        <a href={`/event/${event.slug}`}>Open room</a>
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => shareEvent(event)}>
-                        <Share2 className="mr-1.5 h-3.5 w-3.5" />
-                        Share
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => openQR(event)}>
-                        <QrCode className="mr-1.5 h-3.5 w-3.5" />
-                        QR
-                      </Button>
-                    </div>
-                    <div className="flex gap-2 pt-3 border-t border-border/50">
-                      <Button size="sm" variant="ghost" className="h-8" onClick={() => startRename(event)}>
-                        <Pencil className="mr-1.5 h-3.5 w-3.5" />
-                        Rename
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => startDelete(event)}
-                      >
-                        <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                        Delete
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+
+                    {editingSlug !== event.slug && (
+                      <>
+                        <p className="mt-3 text-sm font-light text-muted-foreground">
+                          {event.photoCount || event.photos?.length || 0} photos
+                        </p>
+
+                        {/* Primary actions */}
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <Button size="sm" asChild className="glow-blue">
+                            <a href={`/event/${event.slug}`}>Open room</a>
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => shareEvent(event)} className="border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground">
+                            <Share2 className="mr-1.5 h-3.5 w-3.5" />
+                            Share
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => openQR(event)} className="border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground">
+                            <QrCode className="mr-1.5 h-3.5 w-3.5" />
+                            QR
+                          </Button>
+                        </div>
+
+                        {/* Tertiary actions */}
+                        <div className="mt-4 flex gap-3 pt-4 border-t border-white/[0.07]">
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1.5 text-xs font-light text-muted-foreground hover:text-foreground transition-colors"
+                            onClick={() => startRename(event)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            Rename
+                          </button>
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1.5 text-xs font-light text-destructive hover:text-destructive/80 transition-colors"
+                            onClick={() => startDelete(event)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Delete
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
               ))}
             </div>
 
-            {/* Photo moderation detail view kept for selected room */}
+            {/* Photo moderation detail view */}
             {selectedEvent && (
-              <Card className="border-border/80">
-                <CardHeader>
-                  <CardTitle className="text-lg">Room photos</CardTitle>
-                  <CardDescription>{selectedEvent.name} • {photos.length} total photos</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {busy.detail ? (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Loading photos...
+              <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card">
+                <div className="p-5 sm:p-6">
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
+                        Room photos
+                      </span>
+                      <h3 className="mt-1 font-display text-lg font-bold tracking-tight text-white">
+                        {selectedEvent.name}
+                      </h3>
+                      <p className="text-sm font-light text-muted-foreground">
+                        {photos.length} total photos
+                      </p>
                     </div>
-                  ) : photos.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-border bg-muted/20 p-6 text-sm text-muted-foreground">
-                      No photos uploaded to this room yet.
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                      {photos.map((photo, index) => (
-                        <DashboardPhotoCard
-                          key={photo.id}
-                          busyId={busy.photoId}
-                          photo={photo}
-                          onApprove={() => moderatePhoto(photo.id, 'approve')}
-                          onDelete={() => deletePhoto(photo.id)}
-                          onOpenLightbox={() => {
-                            setLightboxIndex(index)
-                            setLightboxOpen(true)
-                          }}
-                          onReject={() => moderatePhoto(photo.id, 'reject')}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                    <Button size="sm" variant="outline" asChild className="mt-2 sm:mt-0 border-white/[0.07] bg-[#0D1220] hover:bg-[#111827]">
+                      <a href={`/event/${selectedEvent.slug}`}>View public room</a>
+                    </Button>
+                  </div>
+
+                  <div className="mt-6">
+                    {busy.detail ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading photos...
+                      </div>
+                    ) : photos.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-white/[0.07] bg-[#0D1220] p-6 text-sm font-light text-muted-foreground">
+                        No photos uploaded to this room yet.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                        {photos.map((photo, index) => (
+                          <DashboardPhotoCard
+                            key={photo.id}
+                            busyId={busy.photoId}
+                            photo={photo}
+                            onApprove={() => moderatePhoto(photo.id, 'approve')}
+                            onDelete={() => deletePhoto(photo.id)}
+                            onOpenLightbox={() => {
+                              setLightboxIndex(index)
+                              setLightboxOpen(true)
+                            }}
+                            onReject={() => moderatePhoto(photo.id, 'reject')}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         )}
@@ -744,15 +831,17 @@ export default function DashboardPage() {
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="border-white/[0.07] bg-[#141C2E]">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete room?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete <strong>{selectedEvent?.name}</strong> and all {selectedEvent?.photos?.length || 0} photos. This action cannot be undone.
+            <AlertDialogTitle className="font-display text-lg font-bold text-white">Delete room?</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm font-light text-muted-foreground">
+              This will permanently delete <strong className="text-foreground">{selectedEvent?.name}</strong> and all {selectedEvent?.photos?.length || 0} photos. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)} className="border-white/[0.07] bg-[#0D1220] text-foreground hover:bg-[#111827] hover:text-foreground">
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={deleteEvent}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -763,14 +852,20 @@ export default function DashboardPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <footer className="border-t py-6">
+      <footer className="relative z-10 border-t border-white/[0.07] bg-[#0D1220] py-8">
         <div className="container px-4">
-          <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
-            <p className="text-xs text-muted-foreground">
-              SnapRooms — Every guest photo. One room.
+          <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
+            <div className="flex items-center gap-2">
+              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                <Camera className="h-3 w-3" />
+              </div>
+              <span className="font-display text-sm font-bold tracking-tight">SnapRooms</span>
+            </div>
+            <p className="text-xs font-light text-muted-foreground">
+              The easiest way to collect guest photos.
             </p>
             <div className="flex items-center gap-4">
-              <a href="/privacy" className="text-xs text-muted-foreground hover:text-foreground">
+              <a href="/privacy" className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
                 Privacy Policy
               </a>
             </div>
