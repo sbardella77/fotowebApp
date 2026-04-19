@@ -754,9 +754,12 @@ export default function RoomPageClient({ slug }) {
               />
               <span className="font-semibold tracking-tight">SnapRooms</span>
             </div>
-            <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
-              <a href={`/dashboard?redirect=/event/${slug}`}>Manage rooms</a>
-            </Button>
+            <a
+              href={`/dashboard?redirect=/event/${slug}`}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Organizer sign in
+            </a>
           </div>
         </header>
         <RoomNotFound />
@@ -776,9 +779,12 @@ export default function RoomPageClient({ slug }) {
             />
             <span className="font-semibold tracking-tight">SnapRooms</span>
           </div>
-          <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
-            <a href={`/dashboard?redirect=/event/${slug}`}>Manage rooms</a>
-          </Button>
+          <a
+            href={`/dashboard?redirect=/event/${slug}`}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            Organizer sign in
+          </a>
         </div>
       </header>
 

@@ -59,7 +59,7 @@ export default function HomePage() {
               <span className="font-semibold tracking-tight">SnapRooms</span>
             </div>
             <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
-              <a href="/dashboard">Manage rooms</a>
+              <a href="/dashboard">Sign in</a>
             </Button>
           </div>
         </header>
@@ -89,7 +89,7 @@ export default function HomePage() {
             <span className="font-semibold tracking-tight">SnapRooms</span>
           </div>
           <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
-            <a href="/dashboard">Manage rooms</a>
+            <a href="/dashboard">Sign in</a>
           </Button>
         </div>
       </header>

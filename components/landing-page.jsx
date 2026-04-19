@@ -55,6 +55,12 @@ export function LandingPage({
             >
               How it works
             </button>
+            <a
+              href="/dashboard"
+              className="text-sm text-muted-foreground hover:text-foreground"
+            >
+              Sign in
+            </a>
             <Button size="sm" onClick={() => scrollToSection('create')}>
               Create room
             </Button>
@@ -124,6 +130,14 @@ export function LandingPage({
               {/* Micro-trust */}
               <p className="text-xs text-muted-foreground">
                 No apps • No signup • Works instantly
+              </p>
+              
+              {/* Secondary owner CTA */}
+              <p className="text-xs text-muted-foreground">
+                Already have rooms?{' '}
+                <a href="/dashboard" className="underline underline-offset-2 hover:text-foreground">
+                  Sign in
+                </a>
               </p>
               
               {/* Social proof */}
@@ -517,7 +531,7 @@ export function LandingPage({
             </p>
             <div className="flex items-center gap-4">
               <a href="/dashboard" className="text-xs text-muted-foreground hover:text-foreground">
-                Manage rooms
+                Organizer sign in
               </a>
             </div>
           </div>

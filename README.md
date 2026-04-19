@@ -42,6 +42,8 @@ One link. One gallery. Zero effort.
 - 🖼️ **Entrance Posters** — A4 and A5 sizes for displays
 - 💻 **Digital Share** — Link works in invites, texts, email
 - 🎨 **Clean Design** — Matches your event aesthetic
+- 🎯 **Event-Specific Copy** — QR headlines and instructions adapt to weddings, birthdays, parties, and corporate events
+- 🔓 **No App Needed** — Universal trust line on every QR card to reduce guest friction
 
 ### For Event Organizers
 
@@ -151,6 +153,7 @@ fotowebApp/
 │   ├── ui/                # shadcn/ui components
 │   └── ...
 ├── lib/                   # Utilities & helpers
+│   └── qr-copy.js         # Event-type-specific QR copy mapping
 ├── prisma/               # Database schema
 └── public/               # Static assets
 ```
@@ -190,7 +193,8 @@ Clean design that works for weddings, corporate events, and casual parties alike
 - [ ] Custom branding options
 - [ ] Batch download as ZIP
 - [ ] Guest commenting on photos
-- [ ] Event templates (wedding, party, corporate)
+- [x] Event-specific QR copy (wedding, birthday, party, corporate)
+- [ ] Event templates (themes, colors, layouts)
 
 ---
 
