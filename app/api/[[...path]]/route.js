@@ -1205,6 +1205,10 @@ const setupOwnerPassword = async (request) => {
     owner = await repository.getOrCreateOwnerByEmail(email)
   }
 
+  if (owner.passwordHash) {
+    return json({ error: 'Password already set. Sign in or use forgot password.' }, 400)
+  }
+
   const { salt, hash } = createPasswordHash(password)
   await repository.setOwnerPassword(owner.id, { passwordHash: hash, passwordSalt: salt })
 
