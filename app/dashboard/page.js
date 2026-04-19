@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Camera, Eye, EyeOff, Loader2, Lock, LogOut, Pencil, QrCode, Share2, Trash2 } from 'lucide-react'
+import { Camera, Eye, EyeOff, ImagePlus, Loader2, Lock, LogOut, Pencil, QrCode, Share2, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -767,7 +767,8 @@ export default function DashboardPage() {
             {selectedEvent && (
               <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card">
                 <div className="p-5 sm:p-6">
-                  <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                  {/* Room context header */}
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
                         Room photos
@@ -775,13 +776,26 @@ export default function DashboardPage() {
                       <h3 className="mt-1 font-display text-lg font-bold tracking-tight text-white">
                         {selectedEvent.name}
                       </h3>
-                      <p className="text-sm font-light text-muted-foreground">
+                      <p className="mt-1 font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
+                        Code: {selectedEvent.slug}
+                      </p>
+                      <p className="mt-1 text-sm font-light text-muted-foreground">
                         {photos.length} total photos
                       </p>
                     </div>
-                    <Button size="sm" variant="outline" asChild className="mt-2 sm:mt-0 border-white/[0.07] bg-[#0D1220] hover:bg-[#111827]">
-                      <a href={`/event/${selectedEvent.slug}`}>View public room</a>
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" asChild className="glow-blue">
+                        <a href={`/event/${selectedEvent.slug}`}>Open room</a>
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => shareEvent(selectedEvent)} className="border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground">
+                        <Share2 className="mr-1.5 h-3.5 w-3.5" />
+                        Share
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => openQR(selectedEvent)} className="border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground">
+                        <QrCode className="mr-1.5 h-3.5 w-3.5" />
+                        QR
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="mt-6">
@@ -791,8 +805,16 @@ export default function DashboardPage() {
                         Loading photos...
                       </div>
                     ) : photos.length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-white/[0.07] bg-[#0D1220] p-6 text-sm font-light text-muted-foreground">
-                        No photos uploaded to this room yet.
+                      <div className="rounded-xl border border-dashed border-white/[0.07] bg-[#0D1220] p-8 text-center">
+                        <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                          <ImagePlus className="h-5 w-5" />
+                        </div>
+                        <p className="text-sm font-light text-muted-foreground">
+                          No photos uploaded to this room yet.
+                        </p>
+                        <p className="mt-1 text-xs font-light text-muted-foreground/70">
+                          Share the room link so guests can start adding photos.
+                        </p>
                       </div>
                     ) : (
                       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
