@@ -294,6 +294,15 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
+    if (authState.loading) return
+    if (!authState.authenticated) {
+      const redirect = redirectParam ? `?redirect=${encodeURIComponent(redirectParam)}` : ''
+      router.push(`/dashboard/login${redirect}`)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authState.loading, authState.authenticated])
+
+  useEffect(() => {
     if (!authState.authenticated) return
     loadEvents()
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -34,11 +34,14 @@ import {
   OWNER_COOKIE_NAME,
   createOwnerSessionToken,
   createRecoveryToken,
+  createSetupToken,
   getOwnerCookieOptions,
   verifyOwnerSessionToken,
   verifyRecoveryToken,
+  verifySetupToken,
 } from '@/lib/server/owner-auth'
 import { getGalleryRepository, getGalleryRepositoryMode } from '@/lib/server/gallery-repository'
+import { createPasswordHash, verifyPassword, validatePassword } from '@/lib/server/owner-password'
 import { getAdminAuthDriver, getDataAccessDriver } from '@/lib/server/prisma-client'
 import {
   buildBlobPathname,
@@ -299,11 +302,13 @@ const saveEventOwner = async (request, slug) => {
     return json({ error: 'Event not found' }, 404)
   }
 
+  const owner = await repository.getOrCreateOwnerByEmail(payload.email)
   const managementToken = generateManagementToken()
   const managementTokenHash = hashManagementToken(managementToken)
 
   const updatedEvent = await repository.setEventOwnerEmail(slug, {
     ownerEmail: payload.email,
+    ownerId: owner?.id || null,
     managementTokenHash,
   })
 
@@ -311,43 +316,79 @@ const saveEventOwner = async (request, slug) => {
     const from = process.env.RESEND_FROM_EMAIL
     if (from) {
       const appUrl = getAppUrl(request)
-      const manageUrl = `${appUrl}/event/${event.slug}`
       try {
-        await resend.emails.send({
-          from,
-          to: payload.email,
-          subject: `Your SnapRooms room management link`,
-          text: `Hi,
+        const isFirstTime = !owner?.passwordHash
+        if (isFirstTime) {
+          const setupToken = await createSetupToken(payload.email)
+          const setupUrl = `${appUrl}/dashboard/setup-password?token=${encodeURIComponent(setupToken)}`
+          await resend.emails.send({
+            from,
+            to: payload.email,
+            reply_to: 'hello@snaprooms.app',
+            subject: `Set your SnapRooms password`,
+            text: `Hi,
 
-Your room "${event.name}" has been claimed.
+Your room "${event.name}" is ready.
 
-You can manage your room (rename or delete it) using this link on the device where you claimed it:
-${manageUrl}
+To manage your rooms securely, set your password here:
+${setupUrl}
 
-If you need to manage the room from another device, save this email.
+This link expires in 7 days.
 
 SnapRooms — Every guest photo. One room.`,
-          html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
+            html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
   <div style="text-align:center;margin-bottom:24px;">
     <span style="font-size:20px;font-weight:700;color:#FF6B4A;letter-spacing:-0.5px;">SnapRooms</span>
   </div>
-  <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Room claimed ✅</h1>
+  <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Set your password</h1>
   <p style="margin:0 0 24px;text-align:center;color:#4b5563;">
-    Your room <strong style="color:#111111;">${event.name}</strong> is now under your ownership.
+    Your room <strong style="color:#111111;">${event.name}</strong> is ready. Create a password to manage all your rooms in one place.
   </p>
   <p style="margin:0 0 24px;text-align:center;">
-    <a href="${manageUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B4A;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Manage your room</a>
+    <a href="${setupUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B4A;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Set password</a>
   </p>
   <p style="margin:0 0 32px;text-align:center;color:#6b7280;font-size:14px;">
-    You can rename or delete this room from the device where you claimed it. Keep this email safe if you need to access management controls later.
+    This link expires in 7 days. If you didn't create this room, you can safely ignore this email.
   </p>
   <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">
     SnapRooms — Every guest photo. One room.
   </p>
 </div>`,
-        })
+          })
+        } else {
+          const dashboardUrl = `${appUrl}/dashboard`
+          await resend.emails.send({
+            from,
+            to: payload.email,
+            reply_to: 'hello@snaprooms.app',
+            subject: `Your SnapRooms room "${event.name}"`,
+            text: `Hi,
+
+Your room "${event.name}" has been added to your dashboard.
+
+Open your dashboard:
+${dashboardUrl}
+
+SnapRooms — Every guest photo. One room.`,
+            html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
+  <div style="text-align:center;margin-bottom:24px;">
+    <span style="font-size:20px;font-weight:700;color:#FF6B4A;letter-spacing:-0.5px;">SnapRooms</span>
+  </div>
+  <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Room added to your dashboard</h1>
+  <p style="margin:0 0 24px;text-align:center;color:#4b5563;">
+    Your room <strong style="color:#111111;">${event.name}</strong> is now in your dashboard.
+  </p>
+  <p style="margin:0 0 24px;text-align:center;">
+    <a href="${dashboardUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B4A;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Open dashboard</a>
+  </p>
+  <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">
+    SnapRooms — Every guest photo. One room.
+  </p>
+</div>`,
+          })
+        }
       } catch (emailError) {
-        console.error('[saveEventOwner] Failed to send management email:', emailError)
+        console.error('[saveEventOwner] Failed to send owner email:', emailError)
       }
     }
   }
@@ -704,12 +745,32 @@ const loginOwner = async (request) => {
 
   const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
   const token = typeof body?.token === 'string' ? body.token.trim() : ''
+  const password = typeof body?.password === 'string' ? body.password : ''
 
-  if (!email || !token) {
-    return json({ error: 'Email and management token are required' }, 400)
+  if (!email) {
+    return json({ error: 'Email is required' }, 400)
   }
 
   const repository = await getGalleryRepository()
+
+  // Password-based login takes priority
+  if (password) {
+    const owner = await repository.getOwnerByEmail(email)
+    if (!owner || !owner.passwordHash || !owner.passwordSalt) {
+      return json({ error: 'Invalid email or password' }, 401)
+    }
+    if (!verifyPassword(password, owner.passwordSalt, owner.passwordHash)) {
+      return json({ error: 'Invalid email or password' }, 401)
+    }
+    const response = json({ authenticated: true, email })
+    return await setOwnerSessionCookie(response, email)
+  }
+
+  // Fallback to management token login (backward compatibility)
+  if (!token) {
+    return json({ error: 'Password or management token is required' }, 400)
+  }
+
   const events = await repository.listEventsByOwnerEmail(email)
 
   let valid = false
@@ -756,37 +817,38 @@ const resendOwnerAccess = async (request) => {
   }
 
   const repository = await getGalleryRepository()
-  const events = await repository.listEventsByOwnerEmail(email)
+  const owner = await repository.getOwnerByEmail(email)
 
-  if (events.length > 0) {
+  // Always return generic success — do not reveal whether email exists
+  if (owner) {
     const appUrl = getAppUrl(request)
-    const recoveryToken = await createRecoveryToken(email)
-    const redirectParam = typeof body?.redirect === 'string' && body.redirect.startsWith('/') ? body.redirect : ''
-    const redirectQuery = redirectParam ? `&redirect=${encodeURIComponent(redirectParam)}` : ''
-    const recoveryUrl = `${appUrl}/api/owner/recover?token=${encodeURIComponent(recoveryToken)}${redirectQuery}`
+    if (owner.passwordHash) {
+      const recoveryToken = await createRecoveryToken(email)
+      const resetUrl = `${appUrl}/dashboard/reset-password?token=${encodeURIComponent(recoveryToken)}`
 
-    try {
-      await resend.emails.send({
-        from,
-        to: email,
-        reply_to: 'hello@snaprooms.app',
-        subject: `Your SnapRooms access link`,
-        text: `Hi,
+      try {
+        await resend.emails.send({
+          from,
+          to: email,
+          reply_to: 'hello@snaprooms.app',
+          subject: `Reset your SnapRooms password`,
+          text: `Hi,
 
-You requested a secure link to access your SnapRooms dashboard.
+You requested to reset your SnapRooms password.
 
-Open dashboard: ${recoveryUrl}
+Reset your password here:
+${resetUrl}
 
-This link expires in 30 minutes. If you didn't request it, you can safely ignore this email — no one can access your rooms without it.
+This link expires in 30 minutes. If you didn't request it, you can safely ignore this email.
 
 – SnapRooms
 Every guest photo. One room.`,
-        html: `<!DOCTYPE html>
+          html: `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Your SnapRooms access link</title>
+  <title>Reset your SnapRooms password</title>
 </head>
 <body style="margin:0;padding:0;background-color:#F7F7F8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
@@ -800,33 +862,33 @@ Every guest photo. One room.`,
           </tr>
           <tr>
             <td style="padding:16px 32px 8px;text-align:center;">
-              <h1 style="margin:0;font-size:20px;font-weight:700;color:#111111;line-height:1.3;">Your access link is ready</h1>
+              <h1 style="margin:0;font-size:20px;font-weight:700;color:#111111;line-height:1.3;">Reset your password</h1>
             </td>
           </tr>
           <tr>
             <td style="padding:8px 32px 24px;text-align:center;">
               <p style="margin:0;font-size:15px;color:#4b5563;line-height:1.6;">
-                Tap the button below to open your dashboard. This link is valid for 30 minutes.
+                Tap the button below to reset your password. This link is valid for 30 minutes.
               </p>
             </td>
           </tr>
           <tr>
             <td style="padding:0 32px 24px;text-align:center;">
-              <a href="${recoveryUrl}" style="display:inline-block;padding:14px 28px;background:#FF6B4A;color:#ffffff;text-decoration:none;border-radius:10px;font-weight:600;font-size:15px;">Open dashboard</a>
+              <a href="${resetUrl}" style="display:inline-block;padding:14px 28px;background:#FF6B4A;color:#ffffff;text-decoration:none;border-radius:10px;font-weight:600;font-size:15px;">Reset password</a>
             </td>
           </tr>
           <tr>
             <td style="padding:0 32px 24px;text-align:center;">
               <p style="margin:0;font-size:13px;color:#9ca3af;line-height:1.5;word-break:break-all;">
                 Or copy this link:<br>
-                <a href="${recoveryUrl}" style="color:#FF6B4A;text-decoration:underline;">${recoveryUrl}</a>
+                <a href="${resetUrl}" style="color:#FF6B4A;text-decoration:underline;">${resetUrl}</a>
               </p>
             </td>
           </tr>
           <tr>
             <td style="padding:0 32px 32px;text-align:center;">
               <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.5;">
-                If you didn't request this link, you can safely ignore this email. No one can access your rooms without it.
+                If you didn't request this, you can safely ignore this email.
               </p>
             </td>
           </tr>
@@ -843,9 +905,54 @@ Every guest photo. One room.`,
   </table>
 </body>
 </html>`,
-      })
-    } catch (emailError) {
-      console.error('[resendOwnerAccess] Failed to send recovery email:', emailError)
+        })
+      } catch (emailError) {
+        console.error('[resendOwnerAccess] Failed to send reset email:', emailError)
+      }
+    } else {
+      // Owner exists but has no password yet — send setup link
+      const setupToken = await createSetupToken(email)
+      const setupUrl = `${appUrl}/dashboard/setup-password?token=${encodeURIComponent(setupToken)}`
+
+      try {
+        await resend.emails.send({
+          from,
+          to: email,
+          reply_to: 'hello@snaprooms.app',
+          subject: `Set your SnapRooms password`,
+          text: `Hi,
+
+You requested access to your SnapRooms dashboard.
+
+Set your password here:
+${setupUrl}
+
+This link expires in 7 days.
+
+– SnapRooms
+Every guest photo. One room.`,
+          html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
+  <div style="text-align:center;margin-bottom:24px;">
+    <span style="font-size:20px;font-weight:700;color:#FF6B4A;letter-spacing:-0.5px;">SnapRooms</span>
+  </div>
+  <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Set your password</h1>
+  <p style="margin:0 0 24px;text-align:center;color:#4b5563;">
+    You requested access to your SnapRooms dashboard. Create a password to manage all your rooms in one place.
+  </p>
+  <p style="margin:0 0 24px;text-align:center;">
+    <a href="${setupUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B4A;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Set password</a>
+  </p>
+  <p style="margin:0 0 32px;text-align:center;color:#6b7280;font-size:14px;">
+    This link expires in 7 days. If you didn't request this, you can safely ignore this email.
+  </p>
+  <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">
+    SnapRooms — Every guest photo. One room.
+  </p>
+</div>`,
+        })
+      } catch (emailError) {
+        console.error('[resendOwnerAccess] Failed to send setup email:', emailError)
+      }
     }
   }
 
@@ -855,7 +962,6 @@ Every guest photo. One room.`,
 const recoverOwnerAccess = async (request) => {
   const { searchParams } = new URL(request.url)
   const token = searchParams.get('token')
-  const redirect = searchParams.get('redirect') || ''
 
   if (!token) {
     return json({ error: 'Recovery token required' }, 400)
@@ -867,17 +973,243 @@ const recoverOwnerAccess = async (request) => {
     return json({ error: 'Invalid or expired recovery link' }, 400)
   }
 
-  const repository = await getGalleryRepository()
-  const events = await repository.listEventsByOwnerEmail(email)
+  const appUrl = getAppUrl(request)
+  const resetUrl = `${appUrl}/dashboard/reset-password?token=${encodeURIComponent(token)}`
+  return NextResponse.redirect(new URL(resetUrl, request.url))
+}
 
-  if (events.length === 0) {
-    return json({ error: 'Invalid or expired recovery link' }, 400)
+const loginOwnerWithPassword = async (request) => {
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return json({ error: 'Invalid JSON body' }, 400)
   }
 
-  const destination = redirect && redirect.startsWith('/') ? redirect : '/dashboard'
-  const response = NextResponse.redirect(new URL(destination, request.url))
-  response.cookies.set(OWNER_COOKIE_NAME, await createOwnerSessionToken(email), getOwnerCookieOptions())
-  return response
+  const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
+  const password = typeof body?.password === 'string' ? body.password : ''
+
+  if (!email || !password) {
+    return json({ error: 'Email and password are required' }, 400)
+  }
+
+  const repository = await getGalleryRepository()
+  const owner = await repository.getOwnerByEmail(email)
+
+  if (!owner || !owner.passwordHash || !owner.passwordSalt) {
+    return json({ error: 'Invalid email or password' }, 401)
+  }
+
+  if (!verifyPassword(password, owner.passwordSalt, owner.passwordHash)) {
+    return json({ error: 'Invalid email or password' }, 401)
+  }
+
+  const response = json({ authenticated: true, email })
+  return await setOwnerSessionCookie(response, email)
+}
+
+const forgotOwnerPassword = async (request) => {
+  if (!resend) {
+    return json({ error: 'Email service is not configured' }, 503)
+  }
+
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return json({ error: 'A valid email is required' }, 400)
+  }
+
+  const from = process.env.RESEND_FROM_EMAIL
+  if (!from) {
+    return json({ error: 'Email sender is not configured' }, 503)
+  }
+
+  const repository = await getGalleryRepository()
+  const owner = await repository.getOwnerByEmail(email)
+
+  if (owner) {
+    const appUrl = getAppUrl(request)
+    if (owner.passwordHash) {
+      const recoveryToken = await createRecoveryToken(email)
+      const resetUrl = `${appUrl}/dashboard/reset-password?token=${encodeURIComponent(recoveryToken)}`
+
+      try {
+        await resend.emails.send({
+          from,
+          to: email,
+          reply_to: 'hello@snaprooms.app',
+          subject: `Reset your SnapRooms password`,
+          text: `Hi,
+
+You requested to reset your SnapRooms password.
+
+Reset your password here:
+${resetUrl}
+
+This link expires in 30 minutes.
+
+– SnapRooms`,
+          html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
+  <div style="text-align:center;margin-bottom:24px;"><span style="font-size:20px;font-weight:700;color:#FF6B4A;letter-spacing:-0.5px;">SnapRooms</span></div>
+  <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Reset your password</h1>
+  <p style="margin:0 0 24px;text-align:center;color:#4b5563;">Tap the button below to reset your password. This link is valid for 30 minutes.</p>
+  <p style="margin:0 0 24px;text-align:center;"><a href="${resetUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B4A;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Reset password</a></p>
+  <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">SnapRooms — Every guest photo. One room.</p>
+</div>`,
+        })
+      } catch (emailError) {
+        console.error('[forgotOwnerPassword] Failed to send reset email:', emailError)
+      }
+    } else {
+      // Owner exists but has no password yet — send setup link
+      const setupToken = await createSetupToken(email)
+      const setupUrl = `${appUrl}/dashboard/setup-password?token=${encodeURIComponent(setupToken)}`
+
+      try {
+        await resend.emails.send({
+          from,
+          to: email,
+          reply_to: 'hello@snaprooms.app',
+          subject: `Set your SnapRooms password`,
+          text: `Hi,
+
+You requested access to your SnapRooms dashboard.
+
+Set your password here:
+${setupUrl}
+
+This link expires in 7 days.
+
+– SnapRooms`,
+          html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
+  <div style="text-align:center;margin-bottom:24px;"><span style="font-size:20px;font-weight:700;color:#FF6B4A;letter-spacing:-0.5px;">SnapRooms</span></div>
+  <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Set your password</h1>
+  <p style="margin:0 0 24px;text-align:center;color:#4b5563;">You requested access to your SnapRooms dashboard. Create a password to manage all your rooms in one place.</p>
+  <p style="margin:0 0 24px;text-align:center;"><a href="${setupUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B4A;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Set password</a></p>
+  <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">SnapRooms — Every guest photo. One room.</p>
+</div>`,
+        })
+      } catch (emailError) {
+        console.error('[forgotOwnerPassword] Failed to send setup email:', emailError)
+      }
+    }
+  }
+
+  return json({ success: true })
+}
+
+const resetOwnerPassword = async (request) => {
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  const token = typeof body?.token === 'string' ? body.token.trim() : ''
+  const password = typeof body?.password === 'string' ? body.password : ''
+
+  if (!token || !password) {
+    return json({ error: 'Token and password are required' }, 400)
+  }
+
+  const { valid, errors } = validatePassword(password)
+  if (!valid) {
+    return json({ error: `Password requirements: ${errors.join(', ')}` }, 400)
+  }
+
+  const email = await verifyRecoveryToken(token)
+  if (!email) {
+    return json({ error: 'Invalid or expired reset token' }, 400)
+  }
+
+  const repository = await getGalleryRepository()
+  const owner = await repository.getOwnerByEmail(email)
+  if (!owner) {
+    return json({ error: 'Invalid or expired reset token' }, 400)
+  }
+
+  const { salt, hash } = createPasswordHash(password)
+  await repository.setOwnerPassword(owner.id, { passwordHash: hash, passwordSalt: salt })
+
+  const response = json({ authenticated: true, email })
+  return await setOwnerSessionCookie(response, email)
+}
+
+const getSetupTokenStatus = async (request) => {
+  const { searchParams } = new URL(request.url)
+  const token = searchParams.get('token')
+
+  if (!token) {
+    return json({ error: 'Setup token required' }, 400)
+  }
+
+  const email = await verifySetupToken(token)
+  if (!email) {
+    return json({ error: 'Invalid or expired setup link' }, 400)
+  }
+
+  return json({ valid: true, email })
+}
+
+const getResetTokenStatus = async (request) => {
+  const { searchParams } = new URL(request.url)
+  const token = searchParams.get('token')
+
+  if (!token) {
+    return json({ error: 'Reset token required' }, 400)
+  }
+
+  const email = await verifyRecoveryToken(token)
+  if (!email) {
+    return json({ error: 'Invalid or expired reset link' }, 400)
+  }
+
+  return json({ valid: true, email })
+}
+
+const setupOwnerPassword = async (request) => {
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  const token = typeof body?.token === 'string' ? body.token.trim() : ''
+  const password = typeof body?.password === 'string' ? body.password : ''
+
+  if (!token || !password) {
+    return json({ error: 'Token and password are required' }, 400)
+  }
+
+  const { valid, errors } = validatePassword(password)
+  if (!valid) {
+    return json({ error: `Password requirements: ${errors.join(', ')}` }, 400)
+  }
+
+  const email = await verifySetupToken(token)
+  if (!email) {
+    return json({ error: 'Invalid or expired setup token' }, 400)
+  }
+
+  const repository = await getGalleryRepository()
+  let owner = await repository.getOwnerByEmail(email)
+  if (!owner) {
+    owner = await repository.getOrCreateOwnerByEmail(email)
+  }
+
+  const { salt, hash } = createPasswordHash(password)
+  await repository.setOwnerPassword(owner.id, { passwordHash: hash, passwordSalt: salt })
+
+  const response = json({ authenticated: true, email })
+  return await setOwnerSessionCookie(response, email)
 }
 
 const listOwnerEvents = async (request) => {
@@ -1058,6 +1390,10 @@ async function handleRoute(request, { params }) {
         return loginOwner(request)
       }
 
+      if (segments.length === 2 && segments[1] === 'login' && method === 'POST') {
+        return loginOwnerWithPassword(request)
+      }
+
       if (segments.length === 2 && segments[1] === 'logout' && method === 'POST') {
         return logoutOwner()
       }
@@ -1068,6 +1404,26 @@ async function handleRoute(request, { params }) {
 
       if (segments.length === 2 && segments[1] === 'recover' && method === 'GET') {
         return recoverOwnerAccess(request)
+      }
+
+      if (segments.length === 2 && segments[1] === 'forgot-password' && method === 'POST') {
+        return forgotOwnerPassword(request)
+      }
+
+      if (segments.length === 2 && segments[1] === 'reset-password' && method === 'GET') {
+        return getResetTokenStatus(request)
+      }
+
+      if (segments.length === 2 && segments[1] === 'reset-password' && method === 'POST') {
+        return resetOwnerPassword(request)
+      }
+
+      if (segments.length === 2 && segments[1] === 'setup' && method === 'GET') {
+        return getSetupTokenStatus(request)
+      }
+
+      if (segments.length === 2 && segments[1] === 'setup' && method === 'POST') {
+        return setupOwnerPassword(request)
       }
 
       if (segments.length === 2 && segments[1] === 'events' && method === 'GET') {

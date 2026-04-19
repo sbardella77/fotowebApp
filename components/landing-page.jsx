@@ -56,7 +56,7 @@ export function LandingPage({
               How it works
             </button>
             <a
-              href="/dashboard"
+              href="/dashboard/login"
               className="text-sm text-muted-foreground hover:text-foreground"
             >
               Sign in
@@ -135,7 +135,7 @@ export function LandingPage({
               {/* Secondary owner CTA */}
               <p className="text-xs text-muted-foreground">
                 Already have rooms?{' '}
-                <a href="/dashboard" className="underline underline-offset-2 hover:text-foreground">
+                <a href="/dashboard/login" className="underline underline-offset-2 hover:text-foreground">
                   Sign in
                 </a>
               </p>
@@ -530,7 +530,7 @@ export function LandingPage({
               The easiest way to collect guest photos.
             </p>
             <div className="flex items-center gap-4">
-              <a href="/dashboard" className="text-xs text-muted-foreground hover:text-foreground">
+              <a href="/dashboard/login" className="text-xs text-muted-foreground hover:text-foreground">
                 Organizer sign in
               </a>
             </div>

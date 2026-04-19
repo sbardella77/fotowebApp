@@ -755,7 +755,7 @@ export default function RoomPageClient({ slug }) {
               <span className="font-semibold tracking-tight">SnapRooms</span>
             </div>
             <a
-              href={`/dashboard?redirect=/event/${slug}`}
+              href={`/dashboard/login?redirect=/event/${slug}`}
               className="text-xs text-muted-foreground hover:text-foreground"
             >
               Organizer sign in
@@ -780,7 +780,7 @@ export default function RoomPageClient({ slug }) {
             <span className="font-semibold tracking-tight">SnapRooms</span>
           </div>
           <a
-            href={`/dashboard?redirect=/event/${slug}`}
+            href={`/dashboard/login?redirect=/event/${slug}`}
             className="text-xs text-muted-foreground hover:text-foreground"
           >
             Organizer sign in

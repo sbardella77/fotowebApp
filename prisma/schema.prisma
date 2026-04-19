@@ -13,11 +13,25 @@ enum PhotoStatus {
   HIDDEN
 }
 
+model Owner {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String?
+  passwordSalt  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  events        Event[]
+
+  @@index([email])
+}
+
 model Event {
   id                  String   @id @default(uuid())
   slug                String   @unique
   name                String
   ownerEmail          String?
+  ownerId             String?
+  owner               Owner?   @relation(fields: [ownerId], references: [id])
   managementTokenHash String?
   coverPhotoId        String?
   createdAt           DateTime @default(now())
@@ -25,6 +39,7 @@ model Event {
   photos              Photo[]
 
   @@index([createdAt])
+  @@index([ownerId])
 }
 
 model Photo {
