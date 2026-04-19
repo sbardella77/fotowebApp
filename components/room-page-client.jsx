@@ -40,9 +40,9 @@ const useToast = () => {
 
     return (
       <div
-        className={`fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-full px-4 py-2 text-sm font-medium shadow-lg transition-all ${
+        className={`fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-full px-4 py-2 text-sm font-medium shadow-lg transition-all font-body ${
           toast.type === 'success'
-            ? 'bg-foreground text-background'
+            ? 'bg-white text-[#080C14]'
             : 'bg-destructive text-destructive-foreground'
         }`}
       >
@@ -79,19 +79,19 @@ function NewRoomShareBanner({ event, baseUrl, onDismiss, showToast, onShowQR }) 
   }
 
   return (
-    <Card className="mt-6 border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
-      <CardContent className="p-5">
+    <div className="mt-6 rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card">
+      <div className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="font-semibold text-foreground">Your room is ready!</p>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="font-display text-base font-bold text-white">Your room is ready!</p>
+            <p className="mt-1 text-sm font-light text-muted-foreground">
               Invite guests to start sharing photos.
             </p>
           </div>
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 w-8 shrink-0 p-0"
+            className="h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground"
             onClick={onDismiss}
           >
             <X className="h-4 w-4" />
@@ -121,7 +121,7 @@ function NewRoomShareBanner({ event, baseUrl, onDismiss, showToast, onShowQR }) 
           <Button
             size="sm"
             variant="outline"
-            className="gap-1.5 bg-background"
+            className="gap-1.5 border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground"
             onClick={copyLink}
           >
             <Copy className="h-3.5 w-3.5" />
@@ -130,36 +130,34 @@ function NewRoomShareBanner({ event, baseUrl, onDismiss, showToast, onShowQR }) 
           <Button
             size="sm"
             variant="outline"
-            className="gap-1.5 bg-background"
+            className="gap-1.5 border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground"
             onClick={onShowQR}
           >
             <QrCode className="h-3.5 w-3.5" />
             QR code
           </Button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }
 
 function RoomNotFound() {
   return (
     <div className="flex min-h-[calc(100vh-3.5rem)] flex-col items-center justify-center gap-5 px-4 text-center">
-      <img
-        src="/snaprooms-logo.svg"
-        alt="SnapRooms"
-        className="h-12 w-12 rounded-lg object-cover"
-      />
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <Camera className="h-6 w-6" />
+      </div>
       <div className="max-w-sm">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Room not found</h1>
-        <p className="mt-2 text-muted-foreground">
+        <h1 className="font-display text-2xl font-bold tracking-tight text-white">Room not found</h1>
+        <p className="mt-2 text-sm font-light text-muted-foreground">
           The room you&apos;re looking for doesn&apos;t exist or may have been removed.
         </p>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 text-sm font-light text-muted-foreground">
           Check the link or ask the organizer to share it again.
         </p>
       </div>
-      <Button asChild>
+      <Button asChild className="glow-blue">
         <a href="/">Back to home</a>
       </Button>
     </div>
@@ -428,17 +426,15 @@ export default function RoomPageClient({ slug, isNew }) {
 
   if (notFound) {
     return (
-      <main className="min-h-screen bg-background text-foreground">
-        <header className="border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <main className="dark min-h-screen bg-background font-body text-foreground">
+        <header className="border-b border-white/[0.07] bg-background/80 backdrop-blur-md">
           <div className="container flex h-14 items-center justify-between px-4">
-            <div className="flex items-center gap-2">
-              <img
-                src="/snaprooms-logo.svg"
-                alt="SnapRooms"
-                className="h-8 w-8 rounded-md object-cover"
-              />
-              <span className="font-semibold tracking-tight">SnapRooms</span>
-            </div>
+            <a href="/" className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                <Camera className="h-4 w-4" />
+              </div>
+              <span className="font-display text-sm font-bold tracking-tight">SnapRooms</span>
+            </a>
           </div>
         </header>
         <RoomNotFound />
@@ -447,157 +443,159 @@ export default function RoomPageClient({ slug, isNew }) {
   }
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <main className="dark relative min-h-screen bg-background font-body text-foreground">
+      {/* Subtle grid background */}
+      <div className="absolute inset-0 bg-grid opacity-[0.03] pointer-events-none" aria-hidden="true" />
+
+      <header className="relative z-10 border-b border-white/[0.07] bg-background/80 backdrop-blur-md">
         <div className="container flex h-14 items-center px-4">
-          <div className="flex items-center gap-2">
-            <img
-              src="/snaprooms-logo.svg"
-              alt="SnapRooms"
-              className="h-8 w-8 rounded-md object-cover"
-            />
-            <span className="font-semibold tracking-tight">SnapRooms</span>
-          </div>
+          <a href="/" className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <Camera className="h-4 w-4" />
+            </div>
+            <span className="font-display text-sm font-bold tracking-tight">SnapRooms</span>
+          </a>
         </div>
       </header>
 
       {busy.join && !activeEvent ? (
-        <div className="flex min-h-[calc(100vh-3.5rem)] flex-col items-center justify-center gap-4 px-4">
-          <img
-            src="/snaprooms-logo.svg"
-            alt="SnapRooms"
-            className="h-12 w-12 rounded-lg object-cover"
-          />
-          <p className="text-lg font-medium text-foreground">Opening your room...</p>
+        <div className="relative z-10 flex min-h-[calc(100vh-3.5rem)] flex-col items-center justify-center gap-4 px-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <Camera className="h-6 w-6" />
+          </div>
+          <p className="text-lg font-light text-foreground">Opening your room...</p>
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <section className="container px-4 pb-12">
-          <div className="mx-auto max-w-4xl">
-            <Card className="border-border/50 shadow-sm">
-              <CardHeader className="space-y-1">
-                <CardTitle className="text-xl font-semibold">{activeEvent.name}</CardTitle>
-                <CardDescription>Room code: {activeEvent.slug}</CardDescription>
-              </CardHeader>
+        <section className="container relative z-10 px-4 py-8 pb-16">
+          <div className="mx-auto max-w-3xl space-y-6">
+            {/* Room info card */}
+            <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card">
+              <div className="p-5 sm:p-6">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
+                      Room
+                    </span>
+                    <h1 className="font-display text-xl font-bold tracking-tight text-white sm:text-2xl">
+                      {activeEvent.name}
+                    </h1>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground"
+                    onClick={() => loadEvent(activeEvent.slug, { silent: true })}
+                  >
+                    <RefreshCcw className={`h-4 w-4 ${busy.refresh ? 'animate-spin' : ''}`} />
+                  </Button>
+                </div>
 
-              <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <div className="relative overflow-hidden rounded-xl border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10 p-6 text-center">
-                    <div className="absolute right-2 top-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={() => loadEvent(activeEvent.slug, { silent: true })}
-                      >
-                        <RefreshCcw className={`h-4 w-4 ${busy.refresh ? 'animate-spin' : ''}`} />
-                      </Button>
-                    </div>
+                <div className="mt-4 flex flex-wrap items-center gap-4 text-sm font-light text-muted-foreground">
+                  <div className="flex items-center gap-1.5">
+                    <Users className="h-4 w-4 text-primary" />
+                    <span>Open for uploads</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <ImagePlus className="h-4 w-4 text-primary" />
+                    <span>{galleryPhotos.length} photos</span>
+                  </div>
+                </div>
 
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Room code
-                    </p>
-                    <p className="mt-1 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-                      {activeEvent.slug}
-                    </p>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      Share this code so guests can join
-                    </p>
+                {/* Room code + share actions */}
+                <div className="mt-5 rounded-xl border border-white/[0.07] bg-[#0D1220] p-4 text-center">
+                  <p className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-muted-foreground">
+                    Room code
+                  </p>
+                  <p className="mt-1 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                    {activeEvent.slug}
+                  </p>
+                  <p className="mt-1 text-xs font-light text-muted-foreground">
+                    Share this code so guests can join
+                  </p>
 
-                    <div className="mt-4 flex justify-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="gap-1.5"
-                        onClick={async () => {
+                  <div className="mt-3 flex flex-wrap justify-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 border-white/[0.07] bg-[#111827] hover:bg-[#0D1220] hover:text-foreground"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(activeEvent.slug)
+                          setCopied(true)
+                          showToast('Code copied!')
+                          setTimeout(() => setCopied(false), 2000)
+                        } catch {
+                          showToast('Failed to copy', 'error')
+                        }
+                      }}
+                    >
+                      {copied ? (
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
+                      {copied ? 'Copied' : 'Copy'}
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 border-white/[0.07] bg-[#111827] hover:bg-[#0D1220] hover:text-foreground"
+                      onClick={async () => {
+                        const shareData = {
+                          title: `Join ${activeEvent.name} on SnapRooms`,
+                          text: `Upload your photos to ${activeEvent.name}! Use code: ${activeEvent.slug}`,
+                        }
+
+                        if (navigator.share) {
                           try {
-                            await navigator.clipboard.writeText(activeEvent.slug)
-                            setCopied(true)
-                            showToast('Code copied!')
-                            setTimeout(() => setCopied(false), 2000)
+                            await navigator.share(shareData)
+                            showToast('Shared!')
+                          } catch {
+                            // user cancelled
+                          }
+                        } else {
+                          try {
+                            await navigator.clipboard.writeText(
+                              `Upload your photos to ${activeEvent.name}! Use code: ${activeEvent.slug}`,
+                            )
+                            showToast('Invite copied!')
                           } catch {
                             showToast('Failed to copy', 'error')
                           }
-                        }}
-                      >
-                        {copied ? (
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                        ) : (
-                          <Copy className="h-3.5 w-3.5" />
-                        )}
-                        {copied ? 'Copied' : 'Copy'}
-                      </Button>
+                        }
+                      }}
+                    >
+                      <Share2 className="h-3.5 w-3.5" />
+                      Share
+                    </Button>
 
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="gap-1.5"
-                        onClick={async () => {
-                          const shareData = {
-                            title: `Join ${activeEvent.name} on SnapRooms`,
-                            text: `Upload your photos to ${activeEvent.name}! Use code: ${activeEvent.slug}`,
-                          }
-
-                          if (navigator.share) {
-                            try {
-                              await navigator.share(shareData)
-                              showToast('Shared!')
-                            } catch {
-                              // user cancelled
-                            }
-                          } else {
-                            try {
-                              await navigator.clipboard.writeText(
-                                `Upload your photos to ${activeEvent.name}! Use code: ${activeEvent.slug}`,
-                              )
-                              showToast('Invite copied!')
-                            } catch {
-                              showToast('Failed to copy', 'error')
-                            }
-                          }
-                        }}
-                      >
-                        <Share2 className="h-3.5 w-3.5" />
-                        Share
-                      </Button>
-
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="gap-1.5"
-                        onClick={() => setQrModalOpen(true)}
-                      >
-                        <QrCode className="h-3.5 w-3.5" />
-                        Show QR
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1.5">
-                      <Users className="h-4 w-4" />
-                      <span>Open for uploads</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <ImagePlus className="h-4 w-4" />
-                      <span>{galleryPhotos.length} photos</span>
-                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 border-white/[0.07] bg-[#111827] hover:bg-[#0D1220] hover:text-foreground"
+                      onClick={() => setQrModalOpen(true)}
+                    >
+                      <QrCode className="h-3.5 w-3.5" />
+                      Show QR
+                    </Button>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            {/* Upload-first hero */}
-            <Card className="mt-6 overflow-hidden border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
-              <CardContent className="p-6 text-center sm:p-8">
-                <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-                  Add your photos to this room
+            {/* Upload hero */}
+            <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card overflow-hidden">
+              <div className="p-6 text-center sm:p-8">
+                <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                  Add your photos
                 </h2>
-                <p className="mt-2 text-base text-muted-foreground">
+                <p className="mt-2 text-base font-light text-muted-foreground">
                   Be part of {activeEvent.name}
                 </p>
 
-                <p className="mt-2 text-sm font-medium text-primary">
+                <p className="mt-2 font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
                   {galleryPhotos.length > 0
                     ? `${galleryPhotos.length} photos already shared`
                     : 'Be one of the first to share'}
@@ -605,30 +603,31 @@ export default function RoomPageClient({ slug, isNew }) {
 
                 <div className="mt-5 mx-auto max-w-sm">
                   <div className="space-y-2 text-left">
-                    <label className="text-sm font-medium">Your name (optional)</label>
+                    <label className="text-sm font-medium text-foreground">Your name (optional)</label>
                     <Input
                       value={guestName}
                       onChange={(event) => setGuestName(event.target.value)}
                       placeholder="Your name"
+                      className="h-11 rounded-lg border-white/[0.07] bg-[#0D1220] text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                     />
                   </div>
                 </div>
 
                 {isUploading ? (
-                  <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-background px-5 py-3 text-sm font-medium shadow-sm">
+                  <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/[0.07] bg-[#0D1220] px-5 py-3 text-sm font-medium text-foreground">
                     <Loader2 className="h-4 w-4 animate-spin text-primary" />
                     Uploading {uploads.filter((u) => u.progress < 100).length} photos...
                   </div>
                 ) : uploadSuccess ? (
-                  <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-green-50 px-5 py-3 text-sm font-medium text-green-700 shadow-sm">
+                  <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-5 py-3 text-sm font-medium text-emerald-400">
                     <CheckCircle2 className="h-4 w-4" />
                     Your photos are now in the room
                   </div>
                 ) : (
-                  <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-center">
+                  <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-center">
                     <Button
                       size="lg"
-                      className="gap-2 rounded-full px-6 text-base"
+                      className="h-12 gap-2 rounded-lg px-6 text-base font-body font-medium glow-blue"
                       onClick={() => cameraFileInputRef.current?.click()}
                     >
                       <Camera className="h-5 w-5" />
@@ -637,7 +636,7 @@ export default function RoomPageClient({ slug, isNew }) {
                     <Button
                       size="lg"
                       variant="outline"
-                      className="gap-2 rounded-full px-6 text-base"
+                      className="h-12 gap-2 rounded-lg px-6 text-base font-body font-medium border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground"
                       onClick={() => heroFileInputRef.current?.click()}
                     >
                       <Upload className="h-5 w-5" />
@@ -646,9 +645,11 @@ export default function RoomPageClient({ slug, isNew }) {
                   </div>
                 )}
 
-                <p className="mt-3 text-xs text-muted-foreground">No app. No signup.</p>
-              </CardContent>
-            </Card>
+                <p className="mt-4 text-xs font-light text-muted-foreground">
+                  No app. No signup. Works instantly on any phone.
+                </p>
+              </div>
+            </div>
 
             <input
               ref={heroFileInputRef}
@@ -669,19 +670,19 @@ export default function RoomPageClient({ slug, isNew }) {
 
             {/* Viral share section */}
             {showViralSection && (
-              <Card className="mt-4 border-green-200 bg-green-50/50">
-                <CardContent className="p-5">
+              <div className="mt-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06]">
+                <div className="p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-semibold text-foreground">Invite others to share their photos</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
+                      <p className="font-display text-base font-bold text-white">Invite others to share</p>
+                      <p className="mt-1 text-sm font-light text-muted-foreground">
                         The more people share, the better the memories.
                       </p>
                     </div>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-8 w-8 shrink-0 p-0"
+                      className="h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground"
                       onClick={() => setShowViralSection(false)}
                     >
                       <X className="h-4 w-4" />
@@ -706,7 +707,7 @@ export default function RoomPageClient({ slug, isNew }) {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="gap-1.5 bg-background"
+                      className="gap-1.5 border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground"
                       onClick={async () => {
                         try {
                           await navigator.clipboard.writeText(`${baseUrl}/event/${activeEvent.slug}`)
@@ -722,7 +723,7 @@ export default function RoomPageClient({ slug, isNew }) {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="gap-1.5 bg-background"
+                      className="gap-1.5 border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground"
                       onClick={async () => {
                         const shareData = {
                           title: `Join ${activeEvent.name} on SnapRooms`,
@@ -752,15 +753,15 @@ export default function RoomPageClient({ slug, isNew }) {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="gap-1.5 bg-background"
+                      className="gap-1.5 border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground"
                       onClick={() => setQrModalOpen(true)}
                     >
                       <QrCode className="h-3.5 w-3.5" />
                       QR code
                     </Button>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             )}
 
             {isNew && !newRoomBannerDismissed && (
@@ -778,14 +779,14 @@ export default function RoomPageClient({ slug, isNew }) {
                 {uploads.map((upload) => (
                   <div
                     key={upload.id}
-                    className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3"
+                    className="flex items-center gap-3 rounded-lg border border-white/[0.07] bg-[#141C2E] p-3"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm">{upload.name}</p>
-                      <p className="text-xs text-muted-foreground">{upload.status}</p>
+                      <p className="truncate text-sm font-medium text-foreground">{upload.name}</p>
+                      <p className="text-xs font-light text-muted-foreground">{upload.status}</p>
                     </div>
                     {upload.progress === 100 ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      <CheckCircle2 className="h-4 w-4 text-emerald-400" />
                     ) : (
                       <Clock3 className="h-4 w-4 text-muted-foreground" />
                     )}
@@ -794,29 +795,32 @@ export default function RoomPageClient({ slug, isNew }) {
               </div>
             )}
 
-            <Card className="mt-6 border-border/50">
-              <CardHeader>
-                <CardTitle className="text-lg">
-                  Room photos
-                  <Badge variant="secondary" className="ml-2">
+            {/* Gallery */}
+            <div className="mt-6 rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card">
+              <div className="p-5 sm:p-6">
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
+                    Room photos
+                  </span>
+                  <Badge variant="secondary" className="rounded-full font-mono text-[0.6rem] bg-[#111827] text-muted-foreground border-white/[0.07]">
                     {galleryPhotos.length}
                   </Badge>
-                </CardTitle>
-                <CardDescription>
+                </div>
+                <p className="mt-1 text-sm font-light text-muted-foreground">
                   Tap any photo to view and download in full quality.
-                </CardDescription>
-              </CardHeader>
+                </p>
 
-              <CardContent>
-                <PhotoGalleryGrid
-                  photos={galleryPhotos}
-                  loading={galleryLoading}
-                  error={galleryError}
-                  onRetry={() => activeEvent?.slug && loadEvent(activeEvent.slug)}
-                  onSelectPhoto={openLightbox}
-                />
-              </CardContent>
-            </Card>
+                <div className="mt-5">
+                  <PhotoGalleryGrid
+                    photos={galleryPhotos}
+                    loading={galleryLoading}
+                    error={galleryError}
+                    onRetry={() => activeEvent?.slug && loadEvent(activeEvent.slug)}
+                    onSelectPhoto={openLightbox}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
         </section>
       )}
