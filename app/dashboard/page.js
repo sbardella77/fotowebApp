@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Eye, EyeOff, Loader2, Lock, LogOut, Pencil, Shield, Trash2 } from 'lucide-react'
+import { Camera, Eye, EyeOff, Loader2, Lock, LogOut, Pencil, QrCode, Share2, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import PhotoLightbox from '@/components/photo-lightbox'
+import { EventQRModal } from '@/components/event-qr-modal'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -74,6 +75,12 @@ export default function DashboardPage() {
   const [recoveryBusy, setRecoveryBusy] = useState(false)
   const [recoverySent, setRecoverySent] = useState(false)
   const [redirectParam, setRedirectParam] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [qrOpen, setQrOpen] = useState(false)
+  const [qrEvent, setQrEvent] = useState(null)
+  const [editingSlug, setEditingSlug] = useState('')
+  const [editName, setEditName] = useState('')
 
   const photos = useMemo(() => selectedEvent?.photos || [], [selectedEvent])
 
@@ -267,6 +274,102 @@ export default function DashboardPage() {
     }
   }
 
+  const loginWithPassword = async () => {
+    setBusy((c) => ({ ...c, auth: true }))
+    setMessage('')
+    try {
+      const response = await fetch('/api/owner/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
+      })
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload.error || 'Sign in failed')
+      }
+      setAuthState({ loading: false, authenticated: true, email: payload.email })
+      setMessage('')
+      await loadEvents()
+    } catch (error) {
+      setMessage(error.message || 'Sign in failed')
+    } finally {
+      setBusy((c) => ({ ...c, auth: false }))
+    }
+  }
+
+  const shareEvent = async (event) => {
+    const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/event/${event.slug}`
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: event.name, url })
+      } catch {
+        // user cancelled
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(url)
+        setMessage('Link copied!')
+        setTimeout(() => setMessage(''), 2000)
+      } catch {
+        setMessage('Unable to copy link')
+      }
+    }
+  }
+
+  const openQR = (event) => {
+    setQrEvent(event)
+    setQrOpen(true)
+  }
+
+  const startRename = (event) => {
+    setEditingSlug(event.slug)
+    setEditName(event.name)
+  }
+
+  const saveRename = async (slug) => {
+    const trimmed = editName.trim()
+    if (!trimmed || trimmed.length < 3) {
+      setEditingSlug('')
+      return
+    }
+    const original = events.find((e) => e.slug === slug)
+    if (trimmed === original?.name) {
+      setEditingSlug('')
+      return
+    }
+    setBusy((c) => ({ ...c, detail: true }))
+    try {
+      const response = await fetch(`/api/owner/events/${slug}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmed }),
+      })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Unable to rename room')
+      setMessage('Room renamed.')
+      await loadEvents()
+      if (selectedSlug === slug) {
+        setSelectedEvent(payload.event)
+      }
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setBusy((c) => ({ ...c, detail: false }))
+      setEditingSlug('')
+    }
+  }
+
+  const cancelRename = () => {
+    setEditingSlug('')
+    setEditName('')
+  }
+
+  const startDelete = (event) => {
+    setSelectedSlug(event.slug)
+    setSelectedEvent(event)
+    setDeleteDialogOpen(true)
+  }
+
   const sendRecoveryLink = async () => {
     setRecoveryBusy(true)
     try {
@@ -293,14 +396,7 @@ export default function DashboardPage() {
     loadSession()
   }, [])
 
-  useEffect(() => {
-    if (authState.loading) return
-    if (!authState.authenticated) {
-      const redirect = redirectParam ? `?redirect=${encodeURIComponent(redirectParam)}` : ''
-      router.push(`/dashboard/login${redirect}`)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authState.loading, authState.authenticated])
+  // Removed auto-redirect: dashboard now shows inline login card when not authenticated
 
   useEffect(() => {
     if (!authState.authenticated) return
@@ -323,281 +419,220 @@ export default function DashboardPage() {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <section className="border-b border-border bg-gradient-to-b from-background to-muted/40">
-        <div className="container px-4 py-8 sm:py-10">
-          <div className="mx-auto flex max-w-6xl flex-col gap-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div className="mb-2 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                  <Shield className="h-6 w-6" />
-                </div>
-                <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Your rooms</h1>
-                <p className="mt-2 max-w-2xl text-sm text-muted-foreground sm:text-base">
-                  Manage the rooms you own, review uploads, and hide or delete photos.
-                </p>
+      <header className="border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container flex h-14 items-center justify-between px-4">
+          <div className="flex items-center gap-2">
+            <img src="/snaprooms-logo.svg" alt="SnapRooms" className="h-8 w-8 rounded-md object-cover" />
+            <span className="font-semibold tracking-tight">SnapRooms</span>
+          </div>
+          {authState.authenticated ? (
+            <div className="flex items-center gap-2">
+              <span className="hidden text-sm text-muted-foreground sm:inline">{authState.email}</span>
+              <Button variant="ghost" size="sm" onClick={logout}>
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign out
+              </Button>
+            </div>
+          ) : (
+            <Button size="sm" variant="ghost" asChild>
+              <a href="/">Create room</a>
+            </Button>
+          )}
+        </div>
+      </header>
+
+      <section className="container px-4 py-8">
+        {authState.loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : !authState.authenticated ? (
+          <div className="mx-auto max-w-sm py-12">
+            <div className="mb-6 text-center">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <Lock className="h-6 w-6" />
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {authState.authenticated && redirectParam && redirectParam.startsWith('/') ? (
-                  <Button asChild variant="outline" className="rounded-full">
-                    <a href={redirectParam}>Back to room</a>
-                  </Button>
-                ) : (
-                  <Button asChild variant="outline" className="rounded-full">
-                    <a href="/">Back to gallery</a>
-                  </Button>
-                )}
-                {authState.authenticated ? (
-                  <Button variant="secondary" className="rounded-full" onClick={logout}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Sign out
-                  </Button>
-                ) : null}
-              </div>
+              <h1 className="text-2xl font-semibold tracking-tight">Sign in to manage your rooms</h1>
+              <p className="mt-2 text-sm text-muted-foreground">Enter your email and password to continue.</p>
             </div>
 
-            {message ? (
-              <div className="rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">{message}</div>
-            ) : null}
-          </div>
-        </div>
-      </section>
-
-      <section className="container grid gap-6 px-4 py-8 lg:grid-cols-[320px_minmax(0,1fr)]">
-        <Card className="border-border/80">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Lock className="h-5 w-5 text-primary" />
-              {authState.loading ? 'Checking access' : authState.authenticated ? 'Access granted' : 'Sign in to your rooms'}
-            </CardTitle>
-            <CardDescription>
-              {authState.authenticated
-                ? 'You are signed in to manage your rooms.'
-                : 'Enter the email and management token from your room claim email.'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {authState.loading ? (
-              <div className="flex items-center gap-2 rounded-2xl border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Loading session...
-              </div>
-            ) : authState.authenticated ? (
-              <div className="rounded-2xl border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
-                You are signed in as <strong>{authState.email}</strong>. Select a room to manage photos.
-              </div>
-            ) : (
-              <div className="space-y-3">
+            <Card>
+              <CardContent className="space-y-4 pt-6">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Email</label>
                   <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Management token</label>
-                  <Input type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder="Paste your token" />
+                  <label className="text-sm font-medium">Password</label>
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Enter your password"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && email.trim() && password) loginWithPassword()
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
-                <Button className="w-full" disabled={busy.auth || !email.trim() || !token.trim()} onClick={login}>
+
+                {message && (
+                  <p className="text-sm text-destructive">{message}</p>
+                )}
+
+                <Button className="w-full" disabled={busy.auth || !email.trim() || !password} onClick={loginWithPassword}>
                   {busy.auth ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sign in'}
                 </Button>
 
-                {!recoveryMode && !recoverySent ? (
-                  <button
-                    type="button"
-                    className="w-full text-center text-sm text-muted-foreground underline-offset-4 hover:underline"
-                    onClick={() => setRecoveryMode(true)}
-                  >
-                    Lost your access?
-                  </button>
-                ) : null}
-
-                {recoveryMode && !recoverySent ? (
-                  <div className="space-y-3 pt-2">
-                    <div className="border-t border-border pt-3">
-                      <p className="mb-2 text-sm text-muted-foreground">
-                        Enter your email and we&apos;ll send you a secure link to access your rooms.
-                      </p>
-                      <div className="space-y-2">
-                        <Input
-                          type="email"
-                          value={recoveryEmail}
-                          onChange={(e) => setRecoveryEmail(e.target.value)}
-                          placeholder="you@example.com"
-                          disabled={recoveryBusy}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && recoveryEmail.trim()) sendRecoveryLink()
-                          }}
-                        />
-                        <Button
-                          className="w-full"
-                          disabled={recoveryBusy || !recoveryEmail.trim()}
-                          onClick={sendRecoveryLink}
-                        >
-                          {recoveryBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Send recovery link'}
-                        </Button>
-                        <button
-                          type="button"
-                          className="w-full text-center text-sm text-muted-foreground underline-offset-4 hover:underline"
-                          onClick={() => {
-                            setRecoveryMode(false)
-                            setRecoveryEmail('')
-                            setRecoverySent(false)
-                          }}
-                        >
-                          Back to sign in
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-
-                {recoverySent ? (
-                  <div className="rounded-2xl border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
-                    If that email is linked to any rooms, we&apos;ve sent a recovery link.
-                  </div>
-                ) : null}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <div className="space-y-6">
-          <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
-            <Card className="border-border/80">
-              <CardHeader>
-                <CardTitle className="text-lg">Your rooms</CardTitle>
-                <CardDescription>Open a room to review every photo, including hidden ones.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {!authState.authenticated ? (
-                  <div className="rounded-2xl border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-                    Sign in to see your rooms.
-                  </div>
-                ) : events.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-                    You don&apos;t own any rooms yet.
-                  </div>
-                ) : (
-                  events.map((event) => (
-                    <button
-                      key={event.id}
-                      className={`w-full rounded-2xl border p-3 text-left transition ${selectedSlug === event.slug ? 'border-primary bg-primary/5' : 'border-border bg-card'}`}
-                      onClick={() => setSelectedSlug(event.slug)}
-                      type="button"
-                    >
-                      <p className="truncate text-sm font-medium">{event.name}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{event.slug}</p>
-                      <p className="mt-2 text-xs text-muted-foreground">{event.photoCount} public photos</p>
-                    </button>
-                  ))
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="border-border/80">
-              <CardHeader>
-                <CardTitle className="text-lg">Room photos</CardTitle>
-                <CardDescription>{selectedEvent ? `${selectedEvent.name} • ${photos.length} total photos` : 'Select a room to manage photos.'}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {busy.detail && !selectedEvent ? (
-                  <div className="rounded-2xl border border-border bg-muted/30 p-4 text-sm text-muted-foreground">Loading room detail...</div>
-                ) : selectedEvent ? (
-                  <>
-                    <div className="rounded-2xl border border-border bg-muted/20 p-4 space-y-3">
-                      {isEditingName ? (
-                        <div className="flex flex-col gap-3 sm:flex-row">
-                          <Input
-                            value={newEventName}
-                            onChange={(e) => setNewEventName(e.target.value)}
-                            className="h-10 flex-1"
-                            disabled={busy.detail}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') renameEvent()
-                              if (e.key === 'Escape') {
-                                setNewEventName(selectedEvent.name)
-                                setIsEditingName(false)
-                              }
-                            }}
-                          />
-                          <div className="flex gap-2">
-                            <Button size="sm" disabled={busy.detail} className="h-10" onClick={renameEvent}>
-                              {busy.detail ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              disabled={busy.detail}
-                              className="h-10"
-                              onClick={() => {
-                                setNewEventName(selectedEvent.name)
-                                setIsEditingName(false)
-                              }}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <p className="text-lg font-semibold">{selectedEvent.name}</p>
-                            <p className="text-sm text-muted-foreground">Share code: {selectedEvent.slug}</p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className="rounded-full">{photos.length} total</Badge>
-                            <Button size="sm" variant="outline" className="h-8 gap-1" onClick={() => setIsEditingName(true)}>
-                              <Pencil className="h-3.5 w-3.5" />
-                              Rename
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                      <div className="flex justify-end pt-2 border-t border-border/50">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => setDeleteDialogOpen(true)}
-                          disabled={busy.detail}
-                        >
-                          <Trash2 className="mr-1.5 h-4 w-4" />
-                          Delete room
-                        </Button>
-                      </div>
-                    </div>
-
-                    {photos.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-border bg-muted/20 p-6 text-sm text-muted-foreground">
-                        No photos uploaded to this room yet.
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
-                        {photos.map((photo, index) => (
-                          <DashboardPhotoCard
-                            key={photo.id}
-                            busyId={busy.photoId}
-                            photo={photo}
-                            onApprove={() => moderatePhoto(photo.id, 'approve')}
-                            onDelete={() => deletePhoto(photo.id)}
-                            onOpenLightbox={() => {
-                              setLightboxIndex(index)
-                              setLightboxOpen(true)
-                            }}
-                            onReject={() => moderatePhoto(photo.id, 'reject')}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-border bg-muted/20 p-6 text-sm text-muted-foreground">
-                    Sign in and select a room to start managing photos.
-                  </div>
-                )}
+                <div className="text-center">
+                  <a href="/dashboard/login" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
+                    Forgot password?
+                  </a>
+                </div>
               </CardContent>
             </Card>
           </div>
-        </div>
+        ) : events.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <Camera className="h-8 w-8" />
+            </div>
+            <h2 className="text-xl font-semibold">You don&apos;t have any rooms yet</h2>
+            <p className="mt-2 text-sm text-muted-foreground">Create your first room to start collecting photos.</p>
+            <Button className="mt-6" asChild>
+              <a href="/">Create your room</a>
+            </Button>
+          </div>
+        ) : (
+          <div className="mx-auto max-w-5xl space-y-6">
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">Your rooms</h1>
+              <p className="mt-1 text-sm text-muted-foreground">Manage and share the rooms you own.</p>
+            </div>
+
+            {message ? (
+              <div className="rounded-xl border border-border bg-card p-3 text-sm text-muted-foreground">{message}</div>
+            ) : null}
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {events.map((event) => (
+                <Card key={event.id} className="border-border/80">
+                  <CardHeader className="pb-3">
+                    {editingSlug === event.slug ? (
+                      <div className="space-y-2">
+                        <Input
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          className="h-9"
+                          disabled={busy.detail}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveRename(event.slug)
+                            if (e.key === 'Escape') cancelRename()
+                          }}
+                          autoFocus
+                        />
+                        <div className="flex gap-2">
+                          <Button size="sm" className="h-8" disabled={busy.detail} onClick={() => saveRename(event.slug)}>
+                            {busy.detail ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save'}
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-8" onClick={cancelRename}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <CardTitle className="text-base font-semibold">{event.name}</CardTitle>
+                        <CardDescription>Code: {event.slug}</CardDescription>
+                      </>
+                    )}
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p className="text-sm text-muted-foreground">{event.photoCount || event.photos?.length || 0} photos</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" asChild>
+                        <a href={`/event/${event.slug}`}>Open room</a>
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => shareEvent(event)}>
+                        <Share2 className="mr-1.5 h-3.5 w-3.5" />
+                        Share
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => openQR(event)}>
+                        <QrCode className="mr-1.5 h-3.5 w-3.5" />
+                        QR
+                      </Button>
+                    </div>
+                    <div className="flex gap-2 pt-3 border-t border-border/50">
+                      <Button size="sm" variant="ghost" className="h-8" onClick={() => startRename(event)}>
+                        <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                        Rename
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => startDelete(event)}
+                      >
+                        <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                        Delete
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Photo moderation detail view kept for selected room */}
+            {selectedEvent && (
+              <Card className="border-border/80">
+                <CardHeader>
+                  <CardTitle className="text-lg">Room photos</CardTitle>
+                  <CardDescription>{selectedEvent.name} • {photos.length} total photos</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {busy.detail ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading photos...
+                    </div>
+                  ) : photos.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-border bg-muted/20 p-6 text-sm text-muted-foreground">
+                      No photos uploaded to this room yet.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                      {photos.map((photo, index) => (
+                        <DashboardPhotoCard
+                          key={photo.id}
+                          busyId={busy.photoId}
+                          photo={photo}
+                          onApprove={() => moderatePhoto(photo.id, 'approve')}
+                          onDelete={() => deletePhoto(photo.id)}
+                          onOpenLightbox={() => {
+                            setLightboxIndex(index)
+                            setLightboxOpen(true)
+                          }}
+                          onReject={() => moderatePhoto(photo.id, 'reject')}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
       </section>
+
+      <EventQRModal isOpen={qrOpen} onClose={() => setQrOpen(false)} event={qrEvent} />
 
       <PhotoLightbox
         onOpenChange={setLightboxOpen}

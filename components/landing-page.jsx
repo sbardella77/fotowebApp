@@ -55,12 +55,9 @@ export function LandingPage({
             >
               How it works
             </button>
-            <a
-              href="/dashboard/login"
-              className="text-sm text-muted-foreground hover:text-foreground"
-            >
-              Sign in
-            </a>
+            <Button size="sm" variant="ghost" asChild>
+              <a href="/dashboard/login">Sign in</a>
+            </Button>
             <Button size="sm" onClick={() => scrollToSection('create')}>
               Create room
             </Button>
@@ -134,7 +131,7 @@ export function LandingPage({
               
               {/* Secondary owner CTA */}
               <p className="text-xs text-muted-foreground">
-                Already have rooms?{' '}
+                Already created a room?{' '}
                 <a href="/dashboard/login" className="underline underline-offset-2 hover:text-foreground">
                   Sign in
                 </a>
