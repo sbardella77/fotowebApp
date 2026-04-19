@@ -8,6 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { generateStrongPassword, validatePassword } from '@/lib/password-utils'
 
+export const dynamic = 'force-dynamic'
+
 export default function SetupPasswordPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
