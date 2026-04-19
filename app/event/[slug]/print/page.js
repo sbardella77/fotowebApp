@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { Camera } from 'lucide-react'
 import { useParams } from 'next/navigation'
+import { getQRCopy } from '@/lib/qr-copy'
 
 // Print layout sizes
 const SIZES = {
@@ -190,10 +191,12 @@ function getPageSize(size) {
 
 // Print card content component
 function PrintCardContent({ event, eventUrl, baseUrl }) {
+  const { headline, instruction, trustLine } = getQRCopy(event?.eventType)
+
   return (
     <div className="flex flex-col items-center justify-center h-full min-h-[60mm] text-center">
       {/* Header / Logo */}
-      <div className="mb-6 flex items-center gap-2">
+      <div className="mb-4 flex items-center gap-2">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
           <Camera className="h-5 w-5 text-primary" />
         </div>
@@ -201,16 +204,17 @@ function PrintCardContent({ event, eventUrl, baseUrl }) {
       </div>
 
       {/* Event Name */}
-      <h1 className="text-3xl font-bold tracking-tight text-gray-900 mb-2">
+      <h1 className="text-2xl font-bold tracking-tight text-gray-900 mb-1">
         {event.name}
       </h1>
       
-      <p className="text-base text-gray-500 mb-8">
-        Join the room
+      {/* Headline */}
+      <p className="text-lg font-semibold text-gray-900 mb-6">
+        {headline}
       </p>
 
       {/* QR Code - Large */}
-      <div className="mb-8">
+      <div className="mb-6">
         <div className="rounded-2xl border-2 border-gray-200 bg-white p-6">
           <QRCodeSVG
             value={eventUrl}
@@ -223,9 +227,9 @@ function PrintCardContent({ event, eventUrl, baseUrl }) {
         </div>
       </div>
 
-      {/* Instructions */}
-      <p className="text-lg font-medium text-gray-900 mb-2">
-        Scan to upload your photos
+      {/* Instruction */}
+      <p className="text-lg font-medium text-gray-900 mb-1">
+        {instruction}
       </p>
       
       {/* URL */}
@@ -234,15 +238,15 @@ function PrintCardContent({ event, eventUrl, baseUrl }) {
       </p>
 
       {/* Event Code */}
-      <div className="mb-8">
+      <div className="mb-6">
         <p className="text-xs uppercase tracking-wide text-gray-400 mb-1">Room code</p>
         <p className="text-2xl font-mono font-bold text-gray-900">{event.slug}</p>
       </div>
 
       {/* Footer */}
-      <div className="mt-auto pt-6 border-t border-gray-200 w-full max-w-xs">
-        <p className="text-xs text-gray-400">
-          Add your photos • No app required
+      <div className="mt-auto pt-4 border-t border-gray-200 w-full max-w-xs">
+        <p className="text-xs font-medium text-gray-500">
+          {trustLine}
         </p>
       </div>
     </div>

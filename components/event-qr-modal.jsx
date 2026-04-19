@@ -14,6 +14,7 @@ import {
   ExternalLink,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { getQRCopy } from '@/lib/qr-copy'
 
 // Simple toast hook for internal use
 const useToast = () => {
@@ -71,6 +72,8 @@ export function EventQRModal({
     if (!event?.name) return 'snaprooms-event-qr.png'
     return generateFilename(event.name)
   }, [event?.name])
+
+  const { headline, instruction, trustLine } = getQRCopy(event?.eventType)
 
   // Download QR code as PNG
   const handleDownload = useCallback(async () => {
@@ -246,6 +249,11 @@ export function EventQRModal({
 
             {/* QR Code Card */}
             <div className="relative mb-4 rounded-xl border-2 border-primary/20 bg-white p-6">
+              {/* Headline */}
+              <div className="mb-4 text-center">
+                <p className="text-lg font-bold text-gray-900">{headline}</p>
+              </div>
+
               {/* QR Code */}
               <div className="mb-4 flex justify-center" ref={qrContainerRef}>
                 <div className="relative inline-block">
@@ -265,11 +273,10 @@ export function EventQRModal({
                 </div>
               </div>
 
-              {/* Helper text */}
+              {/* Instruction */}
               <div className="text-center">
-                <p className="text-sm font-medium text-foreground">
-                  Scan to join and add your photos
-                </p>
+                <p className="text-sm font-semibold text-gray-900">{instruction}</p>
+                <p className="mt-2 text-xs text-gray-500">{trustLine}</p>
               </div>
             </div>
 
@@ -358,14 +365,18 @@ export function EventQRModal({
       <div className="hidden print:block">
         {/* Print Card - Table Sign / Small Display Size */}
         <div className="print-card mx-auto max-w-md p-8">
-          {/* Header */}
-          <div className="mb-6 text-center">
+          {/* Event Name */}
+          <div className="mb-2 text-center">
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">{event.name}</h1>
-            <p className="mt-1 text-sm text-gray-500">Join the room</p>
+          </div>
+
+          {/* Headline */}
+          <div className="mb-4 text-center">
+            <p className="text-lg font-semibold text-gray-900">{headline}</p>
           </div>
 
           {/* QR Code */}
-          <div className="mb-6 flex justify-center">
+          <div className="mb-4 flex justify-center">
             <div className="rounded-xl border-2 border-gray-200 bg-white p-4">
               <QRCodeSVG
                 value={eventUrl}
@@ -379,25 +390,22 @@ export function EventQRModal({
           </div>
 
           {/* Instructions */}
-          <div className="mb-6 text-center">
-            <p className="text-base font-medium text-gray-900">
-              Scan to upload your photos
-            </p>
+          <div className="mb-4 text-center">
+            <p className="text-base font-medium text-gray-900">{instruction}</p>
             <p className="mt-1 text-sm text-gray-500">
               Or visit: {baseUrl}/event/{event.slug}
             </p>
           </div>
 
           {/* Event Code */}
-          <div className="mb-6 text-center">
+          <div className="mb-4 text-center">
             <p className="text-xs uppercase tracking-wide text-gray-400">Room code</p>
             <p className="text-xl font-mono font-semibold text-gray-900">{event.slug}</p>
           </div>
 
           {/* Footer */}
           <div className="flex items-center justify-center gap-2 border-t border-gray-200 pt-4">
-            <Camera className="h-4 w-4 text-gray-400" />
-            <span className="text-sm text-gray-500">Powered by SnapRooms</span>
+            <p className="text-sm font-medium text-gray-500">{trustLine}</p>
           </div>
         </div>
       </div>
