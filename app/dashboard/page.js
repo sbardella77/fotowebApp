@@ -396,26 +396,6 @@ export default function DashboardPage() {
     setDeleteDialogOpen(true)
   }
 
-  const sendForgotLink = async () => {
-    setForgotBusy(true)
-    try {
-      const response = await fetch('/api/owner/forgot-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: forgotEmail.trim() }),
-      })
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}))
-        throw new Error(payload.error || 'Unable to send reset link')
-      }
-      setForgotSent(true)
-    } catch (error) {
-      setMessage(error.message || 'Unable to send reset link')
-    } finally {
-      setForgotBusy(false)
-    }
-  }
-
   const sendRecoveryLink = async () => {
     setRecoveryBusy(true)
     try {
