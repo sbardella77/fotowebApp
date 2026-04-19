@@ -762,6 +762,21 @@ export default function DashboardPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <footer className="border-t py-6">
+        <div className="container px-4">
+          <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
+            <p className="text-xs text-muted-foreground">
+              SnapRooms — Every guest photo. One room.
+            </p>
+            <div className="flex items-center gap-4">
+              <a href="/privacy" className="text-xs text-muted-foreground hover:text-foreground">
+                Privacy Policy
+              </a>
+            </div>
+          </div>
+        </div>
+      </footer>
     </main>
   )
 }

@@ -527,6 +527,9 @@ export function LandingPage({
               The easiest way to collect guest photos.
             </p>
             <div className="flex items-center gap-4">
+              <a href="/privacy" className="text-xs text-muted-foreground hover:text-foreground">
+                Privacy Policy
+              </a>
               <a href="/dashboard/login" className="text-xs text-muted-foreground hover:text-foreground">
                 Organizer sign in
               </a>
