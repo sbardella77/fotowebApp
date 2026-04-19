@@ -180,8 +180,11 @@ export default function RoomPageClient({ slug, isNew }) {
   const [uploadSuccess, setUploadSuccess] = useState(false)
   const [showViralSection, setShowViralSection] = useState(false)
   const [newRoomBannerDismissed, setNewRoomBannerDismissed] = useState(false)
+  const [showStickyCta, setShowStickyCta] = useState(false)
+  const [lastUploadCount, setLastUploadCount] = useState(0)
   const heroFileInputRef = useRef(null)
   const cameraFileInputRef = useRef(null)
+  const heroRef = useRef(null)
   const { showToast, ToastComponent } = useToast()
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
@@ -382,6 +385,7 @@ export default function RoomPageClient({ slug, isNew }) {
     setIsUploading(true)
     setUploadSuccess(false)
     setShowViralSection(false)
+    setLastUploadCount(fileList.length)
 
     for (const file of fileList) {
       await uploadSingleFile(file)
@@ -390,7 +394,7 @@ export default function RoomPageClient({ slug, isNew }) {
     setIsUploading(false)
     setUploadSuccess(true)
     setShowViralSection(true)
-    showToast('Your photos are now in the room')
+    showToast(fileList.length === 1 ? 'Your photo is now in the room' : 'Your photos are now in the room')
   }
 
   const openLightbox = (index) => {
@@ -423,6 +427,18 @@ export default function RoomPageClient({ slug, isNew }) {
       }
     }
   }, [isNew])
+
+  useEffect(() => {
+    if (!heroRef.current || typeof window === 'undefined') return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setShowStickyCta(!entry.isIntersecting)
+      },
+      { threshold: 0, rootMargin: '0px' }
+    )
+    observer.observe(heroRef.current)
+    return () => observer.disconnect()
+  }, [activeEvent?.slug])
 
   if (notFound) {
     return (
@@ -586,7 +602,7 @@ export default function RoomPageClient({ slug, isNew }) {
             </div>
 
             {/* Upload hero */}
-            <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card overflow-hidden">
+            <div ref={heroRef} className="rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card overflow-hidden">
               <div className="p-6 text-center sm:p-8">
                 <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
                   Add your photos
@@ -597,8 +613,8 @@ export default function RoomPageClient({ slug, isNew }) {
 
                 <p className="mt-2 font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
                   {galleryPhotos.length > 0
-                    ? `${galleryPhotos.length} photos already shared`
-                    : 'Be one of the first to share'}
+                    ? `${galleryPhotos.length} photos shared`
+                    : 'Be the first to add a photo'}
                 </p>
 
                 <div className="mt-5 mx-auto max-w-sm">
@@ -621,7 +637,9 @@ export default function RoomPageClient({ slug, isNew }) {
                 ) : uploadSuccess ? (
                   <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-5 py-3 text-sm font-medium text-emerald-400">
                     <CheckCircle2 className="h-4 w-4" />
-                    Your photos are now in the room
+                    {lastUploadCount === 1
+                      ? 'Your photo is now in the room'
+                      : 'Your photos are now in the room'}
                   </div>
                 ) : (
                   <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-center">
@@ -824,6 +842,22 @@ export default function RoomPageClient({ slug, isNew }) {
           </div>
         </section>
       )}
+
+      {/* Sticky mobile CTA */}
+      <div
+        className={`fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] left-1/2 z-40 -translate-x-1/2 transition-opacity duration-200 sm:hidden ${
+          showStickyCta ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+      >
+        <Button
+          size="sm"
+          className="h-11 gap-2 rounded-full px-6 text-sm font-body font-medium glow-blue"
+          onClick={() => cameraFileInputRef.current?.click()}
+        >
+          <Camera className="h-4 w-4" />
+          Snap photo
+        </Button>
+      </div>
 
       <EventQRModal
         isOpen={qrModalOpen}
