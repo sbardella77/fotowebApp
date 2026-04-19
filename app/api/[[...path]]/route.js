@@ -819,6 +819,18 @@ const resendOwnerAccess = async (request) => {
     return json({ error: 'A valid email is required' }, 400)
   }
 
+  const clientIp = getClientIp(request)
+  const ipLimit = rateLimit(`resend:ip:${clientIp}`, AUTH_LIMITS.resend.ip.max, AUTH_LIMITS.resend.ip.window)
+  const emailLimit = rateLimit(`resend:email:${email}`, AUTH_LIMITS.resend.email.max, AUTH_LIMITS.resend.email.window)
+  if (ipLimit.limited || emailLimit.limited) {
+    const retryAfter = Math.max(ipLimit.retryAfter || 0, emailLimit.retryAfter || 0)
+    const response = json({ error: 'Too many attempts. Please try again later.' }, 429)
+    if (retryAfter > 0) {
+      response.headers.set('Retry-After', String(retryAfter))
+    }
+    return response
+  }
+
   const from = process.env.RESEND_FROM_EMAIL
   if (!from) {
     return json({ error: 'Email sender is not configured' }, 503)
