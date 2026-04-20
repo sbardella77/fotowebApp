@@ -395,6 +395,9 @@ export default function RoomPageClient({ slug, isNew }) {
     setUploadSuccess(true)
     setShowViralSection(true)
     showToast(fileList.length === 1 ? 'Your photo is now in the room' : 'Your photos are now in the room')
+
+    if (heroFileInputRef.current) heroFileInputRef.current.value = ''
+    if (cameraFileInputRef.current) cameraFileInputRef.current.value = ''
   }
 
   const openLightbox = (index) => {
@@ -629,24 +632,29 @@ export default function RoomPageClient({ slug, isNew }) {
                   </div>
                 </div>
 
-                {isUploading ? (
-                  <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/[0.07] bg-[#0D1220] px-5 py-3 text-sm font-medium text-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                    Uploading {uploads.filter((u) => u.progress < 100).length} photos...
-                  </div>
-                ) : uploadSuccess ? (
+                {uploadSuccess && (
                   <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-5 py-3 text-sm font-medium text-emerald-400">
                     <CheckCircle2 className="h-4 w-4" />
                     {lastUploadCount === 1
                       ? 'Your photo is now in the room'
                       : 'Your photos are now in the room'}
                   </div>
+                )}
+
+                {isUploading ? (
+                  <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/[0.07] bg-[#0D1220] px-5 py-3 text-sm font-medium text-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    Uploading {uploads.filter((u) => u.progress < 100).length} photos...
+                  </div>
                 ) : (
                   <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-center">
                     <Button
                       size="lg"
                       className="h-12 gap-2 rounded-lg px-6 text-base font-body font-medium glow-blue"
-                      onClick={() => cameraFileInputRef.current?.click()}
+                      onClick={() => {
+                        setUploadSuccess(false)
+                        cameraFileInputRef.current?.click()
+                      }}
                     >
                       <Camera className="h-5 w-5" />
                       Snap your photo
@@ -655,7 +663,10 @@ export default function RoomPageClient({ slug, isNew }) {
                       size="lg"
                       variant="outline"
                       className="h-12 gap-2 rounded-lg px-6 text-base font-body font-medium border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground"
-                      onClick={() => heroFileInputRef.current?.click()}
+                      onClick={() => {
+                        setUploadSuccess(false)
+                        heroFileInputRef.current?.click()
+                      }}
                     >
                       <Upload className="h-5 w-5" />
                       Upload your photo
@@ -852,7 +863,10 @@ export default function RoomPageClient({ slug, isNew }) {
         <Button
           size="sm"
           className="h-11 gap-2 rounded-full px-6 text-sm font-body font-medium glow-blue"
-          onClick={() => cameraFileInputRef.current?.click()}
+          onClick={() => {
+            setUploadSuccess(false)
+            cameraFileInputRef.current?.click()
+          }}
         >
           <Camera className="h-4 w-4" />
           Snap photo
