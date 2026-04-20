@@ -43,7 +43,7 @@ import {
 import { getGalleryRepository, getGalleryRepositoryMode } from '@/lib/server/gallery-repository'
 import { createPasswordHash, verifyPassword, validatePassword } from '@/lib/server/owner-password'
 import { rateLimit, getClientIp, AUTH_LIMITS } from '@/lib/server/rate-limiter'
-import { getAdminAuthDriver, getDataAccessDriver } from '@/lib/server/prisma-client'
+import { getAdminAuthDriver, getDataAccessDriver, getPrismaClient } from '@/lib/server/prisma-client'
 import {
   buildBlobPathname,
   deleteStoredFile,
@@ -152,13 +152,29 @@ const createEvent = async (request) => {
   // Now safe to use Zod for full validation
   let payload
   try {
-    payload = createEventSchema.parse({ name })
+    payload = createEventSchema.parse(body)
   } catch (zodError) {
     return json({ error: formatZodError(zodError) }, 400)
   }
 
   const repository = await getGalleryRepository()
-  const event = await repository.createEvent(payload)
+  const event = await repository.createEvent({ name: payload.name })
+
+  // If owner email provided, immediately associate and send welcome email
+  if (payload.ownerEmail) {
+    const owner = await repository.getOrCreateOwnerByEmail(payload.ownerEmail)
+    const managementToken = generateManagementToken()
+    const managementTokenHash = hashManagementToken(managementToken)
+
+    await repository.setEventOwnerEmail(event.slug, {
+      ownerEmail: payload.ownerEmail,
+      ownerId: owner?.id || null,
+      managementTokenHash,
+    })
+
+    await sendOwnerNotificationEmail({ email: payload.ownerEmail, event, owner, request })
+  }
+
   return json({ event }, 201)
 }
 
@@ -281,6 +297,88 @@ const getManagementTokenFromRequest = (request) => {
   return match ? match[1] : null
 }
 
+const sendOwnerNotificationEmail = async ({ email, event, owner, request }) => {
+  if (!resend) return
+  const from = process.env.RESEND_FROM_EMAIL
+  if (!from) return
+
+  const appUrl = getAppUrl(request)
+  try {
+    const isFirstTime = !owner?.passwordHash
+    if (isFirstTime) {
+      const setupToken = await createSetupToken(email)
+      const setupUrl = `${appUrl}/dashboard/setup-password?token=${encodeURIComponent(setupToken)}`
+      await resend.emails.send({
+        from,
+        to: email,
+        reply_to: 'hello@snaprooms.app',
+        subject: `Set your SnapRooms password`,
+        text: `Hi,
+
+Your room "${event.name}" is ready.
+
+To manage your rooms securely, set your password here:
+${setupUrl}
+
+This link expires in 24 hours.
+
+SnapRooms — Every guest photo. One room.`,
+        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
+  <div style="text-align:center;margin-bottom:24px;">
+    <span style="font-size:20px;font-weight:700;color:#FF6B4A;letter-spacing:-0.5px;">SnapRooms</span>
+  </div>
+  <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Set your password</h1>
+  <p style="margin:0 0 24px;text-align:center;color:#4b5563;">
+    Your room <strong style="color:#111111;">${event.name}</strong> is ready. Create a password to manage all your rooms in one place.
+  </p>
+  <p style="margin:0 0 24px;text-align:center;">
+    <a href="${setupUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B4A;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Set password</a>
+  </p>
+  <p style="margin:0 0 32px;text-align:center;color:#6b7280;font-size:14px;">
+    This link expires in 24 hours. If you didn't create this room, you can safely ignore this email.
+  </p>
+  <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">
+    SnapRooms — Every guest photo. One room.
+  </p>
+</div>`,
+      })
+    } else {
+      const dashboardUrl = `${appUrl}/dashboard`
+      await resend.emails.send({
+        from,
+        to: email,
+        reply_to: 'hello@snaprooms.app',
+        subject: `Your SnapRooms room "${event.name}"`,
+        text: `Hi,
+
+Your room "${event.name}" has been added to your dashboard.
+
+Open your dashboard:
+${dashboardUrl}
+
+SnapRooms — Every guest photo. One room.`,
+        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
+  <div style="text-align:center;margin-bottom:24px;">
+    <span style="font-size:20px;font-weight:700;color:#FF6B4A;letter-spacing:-0.5px;">SnapRooms</span>
+  </div>
+  <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Room added to your dashboard</h1>
+  <p style="margin:0 0 24px;text-align:center;color:#4b5563;">
+    Your room <strong style="color:#111111;">${event.name}</strong> is now in your dashboard.
+  </p>
+  <p style="margin:0 0 24px;text-align:center;">
+    <a href="${dashboardUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B4A;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Open dashboard</a>
+  </p>
+  <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">
+    SnapRooms — Every guest photo. One room.
+  </p>
+</div>`,
+      })
+    }
+  } catch (emailError) {
+    console.error('[sendOwnerNotificationEmail] Failed to send owner email:', emailError)
+  }
+}
+
 const saveEventOwner = async (request, slug) => {
   let body
   try {
@@ -313,86 +411,7 @@ const saveEventOwner = async (request, slug) => {
     managementTokenHash,
   })
 
-  if (resend) {
-    const from = process.env.RESEND_FROM_EMAIL
-    if (from) {
-      const appUrl = getAppUrl(request)
-      try {
-        const isFirstTime = !owner?.passwordHash
-        if (isFirstTime) {
-          const setupToken = await createSetupToken(payload.email)
-          const setupUrl = `${appUrl}/dashboard/setup-password?token=${encodeURIComponent(setupToken)}`
-          await resend.emails.send({
-            from,
-            to: payload.email,
-            reply_to: 'hello@snaprooms.app',
-            subject: `Set your SnapRooms password`,
-            text: `Hi,
-
-Your room "${event.name}" is ready.
-
-To manage your rooms securely, set your password here:
-${setupUrl}
-
-This link expires in 24 hours.
-
-SnapRooms — Every guest photo. One room.`,
-            html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
-  <div style="text-align:center;margin-bottom:24px;">
-    <span style="font-size:20px;font-weight:700;color:#FF6B4A;letter-spacing:-0.5px;">SnapRooms</span>
-  </div>
-  <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Set your password</h1>
-  <p style="margin:0 0 24px;text-align:center;color:#4b5563;">
-    Your room <strong style="color:#111111;">${event.name}</strong> is ready. Create a password to manage all your rooms in one place.
-  </p>
-  <p style="margin:0 0 24px;text-align:center;">
-    <a href="${setupUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B4A;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Set password</a>
-  </p>
-  <p style="margin:0 0 32px;text-align:center;color:#6b7280;font-size:14px;">
-    This link expires in 24 hours. If you didn't create this room, you can safely ignore this email.
-  </p>
-  <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">
-    SnapRooms — Every guest photo. One room.
-  </p>
-</div>`,
-          })
-        } else {
-          const dashboardUrl = `${appUrl}/dashboard`
-          await resend.emails.send({
-            from,
-            to: payload.email,
-            reply_to: 'hello@snaprooms.app',
-            subject: `Your SnapRooms room "${event.name}"`,
-            text: `Hi,
-
-Your room "${event.name}" has been added to your dashboard.
-
-Open your dashboard:
-${dashboardUrl}
-
-SnapRooms — Every guest photo. One room.`,
-            html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
-  <div style="text-align:center;margin-bottom:24px;">
-    <span style="font-size:20px;font-weight:700;color:#FF6B4A;letter-spacing:-0.5px;">SnapRooms</span>
-  </div>
-  <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Room added to your dashboard</h1>
-  <p style="margin:0 0 24px;text-align:center;color:#4b5563;">
-    Your room <strong style="color:#111111;">${event.name}</strong> is now in your dashboard.
-  </p>
-  <p style="margin:0 0 24px;text-align:center;">
-    <a href="${dashboardUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B4A;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Open dashboard</a>
-  </p>
-  <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">
-    SnapRooms — Every guest photo. One room.
-  </p>
-</div>`,
-          })
-        }
-      } catch (emailError) {
-        console.error('[saveEventOwner] Failed to send owner email:', emailError)
-      }
-    }
-  }
+  await sendOwnerNotificationEmail({ email: payload.email, event, owner, request })
 
   return json({ event: updatedEvent, managementToken })
 }
@@ -721,13 +740,50 @@ const deletePhoto = async (request, photoId) => {
   }
 
   const repository = await getGalleryRepository()
-  const photo = await repository.deletePhoto(photoId)
+  const photo = await repository.getPhotoById(photoId)
 
   if (!photo) {
     return json({ error: 'Photo not found' }, 404)
   }
 
-  await deleteStoredFile(photo.url)
+  // Resolve event slug for audit log
+  let eventSlug = ''
+  try {
+    const prisma = await getPrismaClient()
+    if (prisma) {
+      const event = await prisma.event.findUnique({ where: { id: photo.eventId }, select: { slug: true } })
+      eventSlug = event?.slug || ''
+    }
+  } catch {
+    eventSlug = ''
+  }
+
+  await repository.deletePhoto(photoId)
+
+  // Graceful storage cleanup — do not fail if blob deletion errors
+  try {
+    await deleteStoredFile(photo.url)
+  } catch (storageError) {
+    console.error('[deletePhoto] Storage cleanup failed for photo:', photoId, storageError)
+  }
+
+  // Audit log after successful deletion
+  try {
+    const prisma = await getPrismaClient()
+    if (prisma) {
+      await prisma.deletionLog.create({
+        data: {
+          photoId: photo.id,
+          eventSlug,
+          deletedBy: 'admin',
+          reason: null,
+        },
+      })
+    }
+  } catch (logError) {
+    console.error('[deletePhoto] Failed to write deletion log:', logError)
+  }
+
   return json({ deleted: true, photo })
 }
 

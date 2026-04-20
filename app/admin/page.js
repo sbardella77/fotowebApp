@@ -33,7 +33,7 @@ const AdminPhotoCard = ({ photo, onApprove, onReject, onDelete, onOpenLightbox, 
           <Button disabled={isBusy || photo.status === 'HIDDEN'} size="sm" variant="secondary" onClick={onReject} className="bg-[#1E293B] text-foreground hover:bg-[#28354A]">
             <EyeOff className="h-4 w-4" />
           </Button>
-          <Button disabled={isBusy} size="sm" variant="destructive" onClick={onDelete}>
+          <Button disabled={isBusy} size="sm" variant="destructive" onClick={() => { if (typeof window !== 'undefined' && window.confirm('Permanently delete this photo?')) onDelete() }}>
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>

@@ -50,6 +50,8 @@ export function LandingPage({
   onCreateEvent,
   eventName,
   setEventName,
+  ownerEmail,
+  setOwnerEmail,
   isCreating
 }) {
   const featuresRef = useRef(null)
@@ -132,18 +134,27 @@ export function LandingPage({
 
             {/* CTA */}
             <div id="create" className="animate-fade-up delay-400 mt-10 flex flex-col items-center gap-4">
-              <div className="flex w-full max-w-md flex-col gap-4 sm:flex-row">
-                <Input
-                  value={eventName}
-                  onChange={(e) => setEventName(e.target.value)}
-                  placeholder="Room name (e.g. Sarah's Wedding)"
-                  className="h-12 flex-1 rounded-lg border-white/[0.07] bg-[#141C2E] text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-                />
+              <div className="flex w-full max-w-md flex-col gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <Input
+                    value={eventName}
+                    onChange={(e) => setEventName(e.target.value)}
+                    placeholder="Room name (e.g. Sarah's Wedding)"
+                    className="h-12 flex-1 rounded-lg border-white/[0.07] bg-[#141C2E] text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                  />
+                  <Input
+                    type="email"
+                    value={ownerEmail}
+                    onChange={(e) => setOwnerEmail(e.target.value)}
+                    placeholder="Your email"
+                    className="h-12 flex-1 rounded-lg border-white/[0.07] bg-[#141C2E] text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                  />
+                </div>
                 <Button
                   size="lg"
                   className="h-12 gap-2 rounded-lg px-8 text-base font-body font-medium whitespace-nowrap glow-blue"
                   onClick={onCreateEvent}
-                  disabled={isCreating || !eventName?.trim() || eventName.trim().length < 3}
+                  disabled={isCreating || !eventName?.trim() || eventName.trim().length < 3 || !ownerEmail?.trim() || !ownerEmail.includes('@')}
                 >
                   {isCreating ? (
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
@@ -164,6 +175,9 @@ export function LandingPage({
               {/* Trust line */}
               <p className="text-xs font-light text-muted-foreground">
                 No apps. No logins. Works instantly on any phone.
+              </p>
+              <p className="text-xs font-light text-muted-foreground/70">
+                We'll use your email to help you manage and recover your room.
               </p>
 
               {/* Secondary owner CTA */}
@@ -515,18 +529,27 @@ export function LandingPage({
               Your guests are already taking pictures. Give them a simple way to share.
             </p>
 
-            <div className="mt-8 flex w-full max-w-md mx-auto flex-col gap-3 sm:flex-row">
-              <Input
-                value={eventName}
-                onChange={(e) => setEventName(e.target.value)}
-                placeholder="Room name (e.g. Sarah's Wedding)"
-                className="h-12 flex-1 rounded-lg border-white/[0.07] bg-[#141C2E] text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-              />
+            <div className="mt-8 flex w-full max-w-md mx-auto flex-col gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <Input
+                  value={eventName}
+                  onChange={(e) => setEventName(e.target.value)}
+                  placeholder="Room name (e.g. Sarah's Wedding)"
+                  className="h-12 flex-1 rounded-lg border-white/[0.07] bg-[#141C2E] text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                />
+                <Input
+                  type="email"
+                  value={ownerEmail}
+                  onChange={(e) => setOwnerEmail(e.target.value)}
+                  placeholder="Your email"
+                  className="h-12 flex-1 rounded-lg border-white/[0.07] bg-[#141C2E] text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                />
+              </div>
               <Button
                 size="lg"
                 className="h-12 gap-2 rounded-lg px-8 text-base font-body font-medium whitespace-nowrap glow-blue"
                 onClick={onCreateEvent}
-                disabled={isCreating || !eventName?.trim() || eventName.trim().length < 3}
+                disabled={isCreating || !eventName?.trim() || eventName.trim().length < 3 || !ownerEmail?.trim() || !ownerEmail.includes('@')}
               >
                 {isCreating ? (
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />

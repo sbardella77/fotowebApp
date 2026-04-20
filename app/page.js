@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 export default function HomePage() {
   const router = useRouter()
   const [eventName, setEventName] = useState('')
+  const [ownerEmail, setOwnerEmail] = useState('')
   const [isCreating, setIsCreating] = useState(false)
   const [isRedirecting, setIsRedirecting] = useState(() => {
     if (typeof window === 'undefined') return false
@@ -27,14 +28,16 @@ export default function HomePage() {
 
   const createEvent = async () => {
     const trimmedName = eventName?.trim()
+    const trimmedEmail = ownerEmail?.trim()
     if (!trimmedName || trimmedName.length < 3) return
+    if (!trimmedEmail || !trimmedEmail.includes('@')) return
 
     setIsCreating(true)
     try {
       const response = await fetch('/api/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: trimmedName }),
+        body: JSON.stringify({ name: trimmedName, ownerEmail: trimmedEmail }),
       })
       const payload = await response.json()
       if (response.ok && payload.event?.slug) {
@@ -97,6 +100,8 @@ export default function HomePage() {
         onCreateEvent={createEvent}
         eventName={eventName}
         setEventName={setEventName}
+        ownerEmail={ownerEmail}
+        setOwnerEmail={setOwnerEmail}
         isCreating={isCreating}
       />
     </main>
