@@ -8,6 +8,7 @@ import {
   Clock3,
   Copy,
   ImagePlus,
+  LayoutDashboard,
   Loader2,
   QrCode,
   RefreshCcw,
@@ -182,10 +183,18 @@ export default function RoomPageClient({ slug, isNew }) {
   const [newRoomBannerDismissed, setNewRoomBannerDismissed] = useState(false)
   const [showStickyCta, setShowStickyCta] = useState(false)
   const [lastUploadCount, setLastUploadCount] = useState(0)
+  const [ownerSession, setOwnerSession] = useState({ authenticated: false, email: null })
   const heroFileInputRef = useRef(null)
   const cameraFileInputRef = useRef(null)
   const heroRef = useRef(null)
   const { showToast, ToastComponent } = useToast()
+
+  useEffect(() => {
+    fetch('/api/owner/session', { cache: 'no-store' })
+      .then((response) => response.json())
+      .then((data) => setOwnerSession(data))
+      .catch(() => setOwnerSession({ authenticated: false, email: null }))
+  }, [])
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
 
@@ -454,6 +463,15 @@ export default function RoomPageClient({ slug, isNew }) {
               </div>
               <span className="font-display text-sm font-bold tracking-tight">SnapRooms</span>
             </a>
+            {ownerSession?.authenticated && (
+              <a
+                href="/dashboard"
+                className="flex items-center gap-1.5 text-sm font-light text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <LayoutDashboard className="h-3.5 w-3.5" />
+                Dashboard
+              </a>
+            )}
           </div>
         </header>
         <RoomNotFound />
@@ -467,13 +485,22 @@ export default function RoomPageClient({ slug, isNew }) {
       <div className="absolute inset-0 bg-grid opacity-[0.03] pointer-events-none" aria-hidden="true" />
 
       <header className="relative z-10 border-b border-white/[0.07] bg-background/80 backdrop-blur-md">
-        <div className="container flex h-14 items-center px-4">
+        <div className="container flex h-14 items-center justify-between px-4">
           <a href="/" className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Camera className="h-4 w-4" />
             </div>
             <span className="font-display text-sm font-bold tracking-tight">SnapRooms</span>
           </a>
+          {ownerSession?.authenticated && (
+            <a
+              href="/dashboard"
+              className="flex items-center gap-1.5 text-sm font-light text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <LayoutDashboard className="h-3.5 w-3.5" />
+              Dashboard
+            </a>
+          )}
         </div>
       </header>
 
