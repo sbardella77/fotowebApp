@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Camera, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -15,6 +15,7 @@ export default function LoginPageClient({ redirect }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [forgotSent, setForgotSent] = useState(false)
+  const passwordRef = useRef(null)
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -117,9 +118,16 @@ export default function LoginPageClient({ redirect }) {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        passwordRef.current?.focus()
+                      }
+                    }}
                     placeholder="you@example.com"
                     disabled={busy}
                     required
+                    autoFocus
                     className="h-11 border-white/[0.07] bg-[#0D1220] text-foreground placeholder:text-muted-foreground/60"
                   />
                 </div>
@@ -128,6 +136,7 @@ export default function LoginPageClient({ redirect }) {
                   <label className="text-sm font-medium text-foreground">Password</label>
                   <div className="relative">
                     <Input
+                      ref={passwordRef}
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
@@ -166,6 +175,10 @@ export default function LoginPageClient({ redirect }) {
                 >
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sign in'}
                 </Button>
+
+                <p className="text-center text-xs font-light text-muted-foreground/70">
+                  Your rooms and photos are private and secure.
+                </p>
               </form>
 
               <div className="mt-4 text-center">
