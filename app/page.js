@@ -59,7 +59,7 @@ export default function HomePage() {
                 alt="SnapRooms"
                 className="h-8 w-8 rounded-md object-cover"
               />
-              <span className="font-semibold tracking-tight">SnapRooms</span>
+              <span className="font-semibold tracking-tight text-primary">SnapRooms</span>
             </div>
             <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
               <a href="/dashboard/login">Sign in</a>
@@ -89,7 +89,7 @@ export default function HomePage() {
               alt="SnapRooms"
               className="h-8 w-8 rounded-md object-cover"
             />
-            <span className="font-semibold tracking-tight">SnapRooms</span>
+            <span className="font-semibold tracking-tight text-primary">SnapRooms</span>
           </div>
           <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
             <a href="/dashboard/login">Sign in</a>

@@ -112,7 +112,7 @@ export default function SetupPasswordPageClient({ token }) {
         <div className="container flex h-14 items-center justify-between px-4">
           <a href="/" className="flex items-center gap-2">
             <img src="/snaprooms-logo.svg" alt="SnapRooms" className="h-8 w-8 rounded-md object-cover" />
-            <span className="font-semibold tracking-tight">SnapRooms</span>
+            <span className="font-semibold tracking-tight text-primary">SnapRooms</span>
           </a>
         </div>
       </header>

@@ -461,7 +461,7 @@ export default function RoomPageClient({ slug, isNew }) {
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                 <Camera className="h-4 w-4" />
               </div>
-              <span className="font-display text-sm font-bold tracking-tight">SnapRooms</span>
+              <span className="font-display text-sm font-bold tracking-tight text-primary">SnapRooms</span>
             </a>
             {ownerSession?.authenticated && (
               <a
@@ -490,7 +490,7 @@ export default function RoomPageClient({ slug, isNew }) {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Camera className="h-4 w-4" />
             </div>
-            <span className="font-display text-sm font-bold tracking-tight">SnapRooms</span>
+            <span className="font-display text-sm font-bold tracking-tight text-primary">SnapRooms</span>
           </a>
           {ownerSession?.authenticated && (
             <a

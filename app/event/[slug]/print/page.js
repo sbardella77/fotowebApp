@@ -100,7 +100,7 @@ export default function PrintEventPage() {
         <div className="mx-auto max-w-4xl flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Camera className="h-5 w-5 text-primary" />
-            <span className="font-semibold">SnapRooms</span>
+            <span className="font-semibold text-primary">SnapRooms</span>
             <span className="text-muted-foreground">— Print Room QR Card</span>
           </div>
           
@@ -200,7 +200,7 @@ function PrintCardContent({ event, eventUrl, baseUrl }) {
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
           <Camera className="h-5 w-5 text-primary" />
         </div>
-        <span className="text-xl font-bold tracking-tight">SnapRooms</span>
+        <span className="text-xl font-bold tracking-tight text-primary">SnapRooms</span>
       </div>
 
       {/* Event Name */}

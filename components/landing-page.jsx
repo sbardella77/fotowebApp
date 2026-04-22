@@ -69,7 +69,7 @@ export function LandingPage({
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Camera className="h-4 w-4" />
             </div>
-            <span className="font-display text-sm font-bold tracking-tight">SnapRooms</span>
+            <span className="font-display text-sm font-bold tracking-tight text-primary">SnapRooms</span>
           </div>
           <div className="flex items-center gap-4">
             <button
@@ -577,7 +577,7 @@ export function LandingPage({
               <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
                 <Camera className="h-3 w-3" />
               </div>
-              <span className="font-display text-sm font-bold tracking-tight">SnapRooms</span>
+              <span className="font-display text-sm font-bold tracking-tight text-primary">SnapRooms</span>
             </div>
             <p className="text-xs font-light text-muted-foreground">
               The easiest way to collect guest photos.
