@@ -256,7 +256,7 @@ If you didn't request this email, you can ignore it.
 Every guest photo. One room.`,
       html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
   <div style="text-align:center;margin-bottom:24px;">
-    <span style="font-size:20px;font-weight:700;color:#FF6B4A;letter-spacing:-0.5px;">SnapRooms</span>
+    <span style="font-size:20px;font-weight:700;color:#d4a853;letter-spacing:-0.5px;">SnapRooms</span>
   </div>
   <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Your room is ready</h1>
   <p style="margin:0 0 24px;text-align:center;color:#4b5563;">
@@ -264,7 +264,7 @@ Every guest photo. One room.`,
     Share the link below with your guests so they can upload their photos.
   </p>
   <p style="margin:0 0 24px;text-align:center;">
-    <a href="${eventUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B4A;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Open your room</a>
+    <a href="${eventUrl}" style="display:inline-block;padding:12px 24px;background:#d4a853;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Open your room</a>
   </p>
   <div style="margin:0 0 24px;padding:16px;background:#F7F7F8;border:1px solid #E5E7EB;border-radius:8px;text-align:center;">
     <p style="margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;color:#9ca3af;">Room link</p>
@@ -325,14 +325,14 @@ This link expires in 24 hours.
 SnapRooms — Every guest photo. One room.`,
         html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
   <div style="text-align:center;margin-bottom:24px;">
-    <span style="font-size:20px;font-weight:700;color:#FF6B4A;letter-spacing:-0.5px;">SnapRooms</span>
+    <span style="font-size:20px;font-weight:700;color:#d4a853;letter-spacing:-0.5px;">SnapRooms</span>
   </div>
   <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Set your password</h1>
   <p style="margin:0 0 24px;text-align:center;color:#4b5563;">
     Your room <strong style="color:#111111;">${event.name}</strong> is ready. Create a password to manage all your rooms in one place.
   </p>
   <p style="margin:0 0 24px;text-align:center;">
-    <a href="${setupUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B4A;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Set password</a>
+    <a href="${setupUrl}" style="display:inline-block;padding:12px 24px;background:#d4a853;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Set password</a>
   </p>
   <p style="margin:0 0 32px;text-align:center;color:#6b7280;font-size:14px;">
     This link expires in 24 hours. If you didn't create this room, you can safely ignore this email.
@@ -359,14 +359,14 @@ ${dashboardUrl}
 SnapRooms — Every guest photo. One room.`,
         html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
   <div style="text-align:center;margin-bottom:24px;">
-    <span style="font-size:20px;font-weight:700;color:#FF6B4A;letter-spacing:-0.5px;">SnapRooms</span>
+    <span style="font-size:20px;font-weight:700;color:#d4a853;letter-spacing:-0.5px;">SnapRooms</span>
   </div>
   <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Room added to your dashboard</h1>
   <p style="margin:0 0 24px;text-align:center;color:#4b5563;">
     Your room <strong style="color:#111111;">${event.name}</strong> is now in your dashboard.
   </p>
   <p style="margin:0 0 24px;text-align:center;">
-    <a href="${dashboardUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B4A;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Open dashboard</a>
+    <a href="${dashboardUrl}" style="display:inline-block;padding:12px 24px;background:#d4a853;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Open dashboard</a>
   </p>
   <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">
     SnapRooms — Every guest photo. One room.
@@ -933,7 +933,7 @@ Every guest photo. One room.`,
         <table role="presentation" width="100%" max-width="480" cellspacing="0" cellpadding="0" border="0" style="max-width:480px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;">
           <tr>
             <td style="padding:32px 32px 16px;text-align:center;">
-              <span style="font-size:22px;font-weight:700;color:#FF6B4A;letter-spacing:-0.5px;">SnapRooms</span>
+              <span style="font-size:22px;font-weight:700;color:#d4a853;letter-spacing:-0.5px;">SnapRooms</span>
             </td>
           </tr>
           <tr>
@@ -950,14 +950,14 @@ Every guest photo. One room.`,
           </tr>
           <tr>
             <td style="padding:0 32px 24px;text-align:center;">
-              <a href="${resetUrl}" style="display:inline-block;padding:14px 28px;background:#FF6B4A;color:#ffffff;text-decoration:none;border-radius:10px;font-weight:600;font-size:15px;">Reset password</a>
+              <a href="${resetUrl}" style="display:inline-block;padding:14px 28px;background:#d4a853;color:#ffffff;text-decoration:none;border-radius:10px;font-weight:600;font-size:15px;">Reset password</a>
             </td>
           </tr>
           <tr>
             <td style="padding:0 32px 24px;text-align:center;">
               <p style="margin:0;font-size:13px;color:#9ca3af;line-height:1.5;word-break:break-all;">
                 Or copy this link:<br>
-                <a href="${resetUrl}" style="color:#FF6B4A;text-decoration:underline;">${resetUrl}</a>
+                <a href="${resetUrl}" style="color:#d4a853;text-decoration:underline;">${resetUrl}</a>
               </p>
             </td>
           </tr>
@@ -1009,14 +1009,14 @@ This link expires in 24 hours.
 Every guest photo. One room.`,
           html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
   <div style="text-align:center;margin-bottom:24px;">
-    <span style="font-size:20px;font-weight:700;color:#FF6B4A;letter-spacing:-0.5px;">SnapRooms</span>
+    <span style="font-size:20px;font-weight:700;color:#d4a853;letter-spacing:-0.5px;">SnapRooms</span>
   </div>
   <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Set your password</h1>
   <p style="margin:0 0 24px;text-align:center;color:#4b5563;">
     You requested access to your SnapRooms dashboard. Create a password to manage all your rooms in one place.
   </p>
   <p style="margin:0 0 24px;text-align:center;">
-    <a href="${setupUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B4A;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Set password</a>
+    <a href="${setupUrl}" style="display:inline-block;padding:12px 24px;background:#d4a853;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Set password</a>
   </p>
   <p style="margin:0 0 32px;text-align:center;color:#6b7280;font-size:14px;">
     This link expires in 24 hours. If you didn't request this, you can safely ignore this email.
@@ -1146,10 +1146,10 @@ This link expires in 30 minutes.
 
 – SnapRooms`,
           html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
-  <div style="text-align:center;margin-bottom:24px;"><span style="font-size:20px;font-weight:700;color:#FF6B4A;letter-spacing:-0.5px;">SnapRooms</span></div>
+  <div style="text-align:center;margin-bottom:24px;"><span style="font-size:20px;font-weight:700;color:#d4a853;letter-spacing:-0.5px;">SnapRooms</span></div>
   <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Reset your password</h1>
   <p style="margin:0 0 24px;text-align:center;color:#4b5563;">Tap the button below to reset your password. This link is valid for 30 minutes.</p>
-  <p style="margin:0 0 24px;text-align:center;"><a href="${resetUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B4A;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Reset password</a></p>
+  <p style="margin:0 0 24px;text-align:center;"><a href="${resetUrl}" style="display:inline-block;padding:12px 24px;background:#d4a853;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Reset password</a></p>
   <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">SnapRooms — Every guest photo. One room.</p>
 </div>`,
         })
@@ -1178,10 +1178,10 @@ This link expires in 24 hours.
 
 – SnapRooms`,
           html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
-  <div style="text-align:center;margin-bottom:24px;"><span style="font-size:20px;font-weight:700;color:#FF6B4A;letter-spacing:-0.5px;">SnapRooms</span></div>
+  <div style="text-align:center;margin-bottom:24px;"><span style="font-size:20px;font-weight:700;color:#d4a853;letter-spacing:-0.5px;">SnapRooms</span></div>
   <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Set your password</h1>
   <p style="margin:0 0 24px;text-align:center;color:#4b5563;">You requested access to your SnapRooms dashboard. Create a password to manage all your rooms in one place.</p>
-  <p style="margin:0 0 24px;text-align:center;"><a href="${setupUrl}" style="display:inline-block;padding:12px 24px;background:#FF6B4A;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Set password</a></p>
+  <p style="margin:0 0 24px;text-align:center;"><a href="${setupUrl}" style="display:inline-block;padding:12px 24px;background:#d4a853;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Set password</a></p>
   <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">SnapRooms — Every guest photo. One room.</p>
 </div>`,
         })
