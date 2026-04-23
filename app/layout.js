@@ -25,8 +25,18 @@ const ibmPlexMono = IBM_Plex_Mono({
 export const metadata = {
   title: 'SnapRooms — Every Guest Photo. One Room.',
   description: 'Create a room, share a QR code, and collect every guest photo instantly. No app download, no signup needed.',
+  applicationName: 'SnapRooms',
   icons: {
-    icon: '/favicon.svg',
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: '/apple-icon.png',
+  },
+  appleWebApp: {
+    capable: true,
+    title: 'SnapRooms',
   },
 }
 
