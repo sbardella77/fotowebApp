@@ -680,7 +680,12 @@ export default function DashboardPage() {
               {events.map((event) => (
                 <div
                   key={event.id}
-                  className="group relative overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141C2E] transition-all duration-200 hover:-translate-y-px hover:border-white/[0.12]"
+                  onClick={() => setSelectedSlug(event.slug)}
+                  className={`group relative overflow-hidden rounded-2xl border bg-[#141C2E] transition-all duration-200 hover:-translate-y-px cursor-pointer ${
+                    selectedSlug === event.slug
+                      ? 'border-primary/40 shadow-[0_0_0_1px_rgba(212,168,83,0.15)]'
+                      : 'border-white/[0.07] hover:border-white/[0.12]'
+                  }`}
                 >
                   <div className="p-5">
                     {editingSlug === event.slug ? (
@@ -724,14 +729,14 @@ export default function DashboardPage() {
 
                         {/* Primary actions */}
                         <div className="mt-4 flex flex-wrap gap-2">
-                          <Button size="sm" asChild className="glow-blue">
+                          <Button size="sm" asChild className="glow-blue" onClick={(e) => e.stopPropagation()}>
                             <a href={`/event/${event.slug}`}>Open room</a>
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => shareEvent(event)} className="border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground">
+                          <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); shareEvent(event) }} className="border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground">
                             <Share2 className="mr-1.5 h-3.5 w-3.5" />
                             Share
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => openQR(event)} className="border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground">
+                          <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); openQR(event) }} className="border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground">
                             <QrCode className="mr-1.5 h-3.5 w-3.5" />
                             QR
                           </Button>
@@ -742,7 +747,7 @@ export default function DashboardPage() {
                           <button
                             type="button"
                             className="inline-flex items-center gap-1.5 text-xs font-light text-muted-foreground hover:text-foreground transition-colors"
-                            onClick={() => startRename(event)}
+                            onClick={(e) => { e.stopPropagation(); startRename(event) }}
                           >
                             <Pencil className="h-3.5 w-3.5" />
                             Rename
@@ -750,7 +755,7 @@ export default function DashboardPage() {
                           <button
                             type="button"
                             className="inline-flex items-center gap-1.5 text-xs font-light text-destructive hover:text-destructive/80 transition-colors"
-                            onClick={() => startDelete(event)}
+                            onClick={(e) => { e.stopPropagation(); startDelete(event) }}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                             Delete
