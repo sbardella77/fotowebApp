@@ -1,6 +1,9 @@
 export const metadata = {
   title: 'Privacy Policy — SnapRooms',
   description: 'How SnapRooms collects, uses, and protects your data.',
+  alternates: {
+    canonical: '/privacy',
+  },
 }
 
 function Section({ title, children }) {
