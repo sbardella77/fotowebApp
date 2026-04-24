@@ -1,9 +1,9 @@
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://fotoweb-app.vercel.app'
+const baseUrl = process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, '') || 'https://snaprooms.app'
 
 export default function sitemap() {
   return [
     {
-      url: baseUrl,
+      url: `${baseUrl}/`,
       lastModified: new Date(),
       changeFrequency: 'weekly',
       priority: 1,
