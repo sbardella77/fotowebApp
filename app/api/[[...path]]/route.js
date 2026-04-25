@@ -42,7 +42,7 @@ import {
 } from '@/lib/server/owner-auth'
 import { getGalleryRepository, getGalleryRepositoryMode } from '@/lib/server/gallery-repository'
 import { createPasswordHash, verifyPassword, validatePassword } from '@/lib/server/owner-password'
-import { rateLimit, getClientIp, AUTH_LIMITS } from '@/lib/server/rate-limiter'
+import { rateLimit, getClientIp, AUTH_LIMITS, RATE_LIMITS } from '@/lib/server/rate-limiter'
 import { getAdminAuthDriver, getDataAccessDriver, getPrismaClient } from '@/lib/server/prisma-client'
 import {
   buildBlobPathname,
@@ -157,6 +157,12 @@ const createEvent = async (request) => {
     return json({ error: formatZodError(zodError) }, 400)
   }
 
+  const clientIp = getClientIp(request)
+  const createLimit = rateLimit(`create:ip:${clientIp}`, RATE_LIMITS.createEvent.ip.max, RATE_LIMITS.createEvent.ip.window)
+  if (createLimit.limited) {
+    return json({ error: 'Too many rooms created. Please try again later.' }, 429)
+  }
+
   const repository = await getGalleryRepository()
   const event = await repository.createEvent({ name: payload.name })
 
@@ -219,6 +225,12 @@ const saveEventByEmail = async (request, slug) => {
   const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return json({ error: 'A valid email is required' }, 400)
+  }
+
+  const clientIp = getClientIp(request)
+  const emailLimit = rateLimit(`send-event-email:ip:${clientIp}`, RATE_LIMITS.sendEventEmail.ip.max, RATE_LIMITS.sendEventEmail.ip.window)
+  if (emailLimit.limited) {
+    return json({ error: 'Too many emails sent. Please try again later.' }, 429)
   }
 
   const repository = await getGalleryRepository()
@@ -394,11 +406,19 @@ const saveEventOwner = async (request, slug) => {
     return json({ error: formatZodError(zodError) }, 400)
   }
 
+  const token = getManagementTokenFromRequest(request)
+
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlug(slug)
 
   if (!event) {
     return json({ error: 'Event not found' }, 404)
+  }
+
+  // If the event already has a management token, require it to change ownership.
+  // This prevents unauthorized takeover of existing rooms.
+  if (event.managementTokenHash && !verifyManagementToken(token, event.managementTokenHash)) {
+    return json({ error: 'Management token required to change room ownership' }, 403)
   }
 
   const owner = await repository.getOrCreateOwnerByEmail(payload.email)
@@ -445,6 +465,7 @@ const updateEvent = async (request, slug) => {
   }
 
   const updatedEvent = await repository.updateEvent(slug, payload)
+  console.log(`[audit] Owner ${ownerEmail} renamed event ${slug} to "${payload.name}"`)
   return json({ event: updatedEvent })
 }
 
@@ -463,14 +484,25 @@ const deleteEvent = async (request, slug) => {
   }
 
   for (const photo of event.photos || []) {
-    await deleteStoredFile(photo.url)
+    try {
+      await deleteStoredFile(photo.url)
+    } catch (storageError) {
+      console.error('[deleteEvent] Storage cleanup failed for photo:', photo.id, storageError)
+    }
   }
 
   await repository.deleteEvent(slug)
+  console.log(`[audit] Management-token deletion of event ${slug} with ${event.photos?.length || 0} photos`)
   return json({ deleted: true })
 }
 
 const initUpload = async (request) => {
+  const clientIp = getClientIp(request)
+  const limit = rateLimit(`upload-init:ip:${clientIp}`, RATE_LIMITS.uploadInit.ip.max, RATE_LIMITS.uploadInit.ip.window)
+  if (limit.limited) {
+    return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
+  }
+
   const payload = uploadInitSchema.parse(await request.json())
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlug(payload.eventSlug)
@@ -485,6 +517,12 @@ const initUpload = async (request) => {
 }
 
 const issueBlobUploadToken = async (request) => {
+  const clientIp = getClientIp(request)
+  const limit = rateLimit(`upload-blob:ip:${clientIp}`, RATE_LIMITS.uploadBlob.ip.max, RATE_LIMITS.uploadBlob.ip.window)
+  if (limit.limited) {
+    return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
+  }
+
   // Explicit check for BLOB_READ_WRITE_TOKEN with clear error message
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
     console.error('[issueBlobUploadToken] BLOB_READ_WRITE_TOKEN is not defined')
@@ -548,6 +586,12 @@ const issueBlobUploadToken = async (request) => {
 }
 
 const uploadChunk = async (request) => {
+  const clientIp = getClientIp(request)
+  const limit = rateLimit(`upload-chunk:ip:${clientIp}`, RATE_LIMITS.uploadChunk.ip.max, RATE_LIMITS.uploadChunk.ip.window)
+  if (limit.limited) {
+    return json({ error: 'Too many upload chunks. Please try again later.' }, 429)
+  }
+
   const formData = await request.formData()
   const chunk = formData.get('chunk')
   const parsed = uploadChunkSchema.parse({
@@ -576,6 +620,12 @@ const uploadChunk = async (request) => {
 }
 
 const completeUpload = async (request) => {
+  const clientIp = getClientIp(request)
+  const limit = rateLimit(`upload-complete:ip:${clientIp}`, RATE_LIMITS.uploadComplete.ip.max, RATE_LIMITS.uploadComplete.ip.window)
+  if (limit.limited) {
+    return json({ error: 'Too many upload completions. Please try again later.' }, 429)
+  }
+
   const body = await request.json()
   const repository = await getGalleryRepository()
 
@@ -729,6 +779,7 @@ const moderatePhoto = async (request, photoId) => {
     return json({ error: 'Photo not found' }, 404)
   }
 
+  console.log(`[audit] Admin ${payload.action}d photo ${photoId} in event ${photo.eventId}`)
   return json({ photo })
 }
 
@@ -1412,6 +1463,7 @@ const moderateOwnerPhoto = async (request, photoId) => {
     return json({ error: 'Photo not found' }, 404)
   }
 
+  console.log(`[audit] Owner ${ownerEmail} ${payload.action}d photo ${photoId} in event ${photo.eventId}`)
   return json({ photo })
 }
 
@@ -1428,7 +1480,13 @@ const deleteOwnerPhoto = async (request, photoId) => {
     return json({ error: 'Photo not found' }, 404)
   }
 
-  await deleteStoredFile(photo.url)
+  try {
+    await deleteStoredFile(photo.url)
+  } catch (storageError) {
+    console.error('[deleteOwnerPhoto] Storage cleanup failed for photo:', photoId, storageError)
+  }
+
+  console.log(`[audit] Owner ${ownerEmail} deleted photo ${photoId} from event ${photo.eventId}`)
   return json({ deleted: true, photo })
 }
 
