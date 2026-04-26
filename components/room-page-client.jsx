@@ -199,9 +199,33 @@ export default function RoomPageClient({ slug, isNew }) {
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
 
   const galleryPhotos = useMemo(() => {
-    return [...(activeEvent?.photos || [])].sort(
-      (left, right) => new Date(right.createdAt) - new Date(left.createdAt),
-    )
+    const rawPhotos = activeEvent?.photos || []
+    // Defensive: filter out any malformed or null photo entries before sorting/rendering
+    const safePhotos = rawPhotos.filter((photo) => {
+      if (!photo || typeof photo !== 'object') {
+        console.warn('[room] filtering out non-object photo entry', { slug: activeEvent?.slug, photo })
+        return false
+      }
+      if (!photo.id || !photo.url) {
+        console.warn('[room] filtering out photo missing required fields', {
+          slug: activeEvent?.slug,
+          photoId: photo.id,
+          hasUrl: Boolean(photo.url),
+          mimeType: photo.mimeType,
+        })
+        return false
+      }
+      return true
+    })
+
+    try {
+      return [...safePhotos].sort(
+        (left, right) => new Date(right.createdAt || 0) - new Date(left.createdAt || 0),
+      )
+    } catch (sortError) {
+      console.error('[room] photo sort failed, returning unsorted', { slug: activeEvent?.slug, error: sortError })
+      return safePhotos
+    }
   }, [activeEvent])
 
   const loadEvent = async (targetSlug, { silent = false } = {}) => {
@@ -710,7 +734,7 @@ export default function RoomPageClient({ slug, isNew }) {
             <input
               ref={heroFileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp,image/gif"
               multiple
               className="hidden"
               onChange={onFilesSelected}
@@ -718,7 +742,7 @@ export default function RoomPageClient({ slug, isNew }) {
             <input
               ref={cameraFileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp,image/gif"
               capture="environment"
               className="hidden"
               onChange={onFilesSelected}

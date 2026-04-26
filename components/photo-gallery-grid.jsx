@@ -72,7 +72,24 @@ const PhotoGalleryGrid = ({
   emptyTitle = 'No photos yet',
   emptyDescription = 'Be the first to add a photo.',
 }) => {
-  if (loading && photos.length === 0) {
+  // Defensive: filter out any malformed photo objects so one bad entry cannot crash the grid
+  const safePhotos = photos.filter((photo, index) => {
+    if (!photo || typeof photo !== 'object') {
+      console.warn('[gallery] skipping non-object photo at index', index, photo)
+      return false
+    }
+    if (!photo.id) {
+      console.warn('[gallery] skipping photo without id at index', index, { url: photo.url, mimeType: photo.mimeType })
+      return false
+    }
+    if (!photo.url) {
+      console.warn('[gallery] skipping photo without url', { id: photo.id, mimeType: photo.mimeType })
+      return false
+    }
+    return true
+  })
+
+  if (loading && safePhotos.length === 0) {
     return (
       <div className="grid grid-cols-3 gap-1 sm:gap-2 md:grid-cols-4">
         {skeletonItems.map((item) => (
@@ -103,7 +120,7 @@ const PhotoGalleryGrid = ({
     )
   }
 
-  if (photos.length === 0) {
+  if (safePhotos.length === 0) {
     return (
       <div className="flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/30 p-6 text-center">
         <div className="rounded-full bg-primary/10 p-3">
@@ -119,13 +136,13 @@ const PhotoGalleryGrid = ({
 
   return (
     <div className="grid grid-cols-3 gap-1 sm:gap-2 md:grid-cols-4">
-      {photos.map((photo, index) => (
+      {safePhotos.map((photo, index) => (
         <button
           key={photo.id}
           className="group relative aspect-square overflow-hidden bg-muted transition-transform duration-200 will-change-transform active:scale-95"
           onClick={() => onSelectPhoto?.(index)}
           type="button"
-          aria-label={`View photo ${index + 1} of ${photos.length}${photo.originalName ? `, ${photo.originalName}` : ''}`}
+          aria-label={`View photo ${index + 1} of ${safePhotos.length}${photo.originalName ? `, ${photo.originalName}` : ''}`}
         >
           <ImageWithLazyLoad
             src={photo.url}

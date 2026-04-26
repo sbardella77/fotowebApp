@@ -38,7 +38,24 @@ const ImageWithLoading = ({ src, alt }) => {
 }
 
 const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onSelectIndex }) => {
-  const photo = photos[selectedIndex] || null
+  // Defensive: ensure photos array only contains valid objects
+  const safePhotos = photos.filter((photo, index) => {
+    if (!photo || typeof photo !== 'object') {
+      console.warn('[lightbox] filtering out non-object photo at index', index)
+      return false
+    }
+    if (!photo.id || !photo.url) {
+      console.warn('[lightbox] filtering out photo missing id or url', {
+        index,
+        photoId: photo?.id,
+        hasUrl: Boolean(photo?.url),
+      })
+      return false
+    }
+    return true
+  })
+
+  const photo = safePhotos[selectedIndex] || null
   const [isClosing, setIsClosing] = useState(false)
   const [isNavigating, setIsNavigating] = useState(false)
   const [downloaded, setDownloaded] = useState(false)
@@ -65,11 +82,11 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
   }, [selectedIndex, isNavigating, onSelectIndex])
 
   const selectNext = useCallback(() => {
-    if (selectedIndex >= photos.length - 1 || isNavigating) return
+    if (selectedIndex >= safePhotos.length - 1 || isNavigating) return
     setIsNavigating(true)
     onSelectIndex?.(selectedIndex + 1)
     setTimeout(() => setIsNavigating(false), 300)
-  }, [selectedIndex, photos.length, isNavigating, onSelectIndex])
+  }, [selectedIndex, safePhotos.length, isNavigating, onSelectIndex])
 
   const handleDownload = useCallback(() => {
     if (!photo?.url) return
@@ -201,7 +218,7 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
         <div className="flex items-center gap-2 rounded-full bg-black/30 px-3 py-1.5 text-sm text-white/90 backdrop-blur-sm">
           <span className="font-medium">{selectedIndex + 1}</span>
           <span className="text-white/40">/</span>
-          <span className="text-white/60">{photos.length}</span>
+          <span className="text-white/60">{safePhotos.length}</span>
         </div>
         <div className="flex items-center gap-1">
           <Button
@@ -250,7 +267,7 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
       </div>
 
       {/* Navigation arrows (desktop) */}
-      {photos.length > 1 && (
+      {safePhotos.length > 1 && (
         <>
           <button
             disabled={selectedIndex <= 0}
@@ -263,7 +280,7 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
             <ChevronLeft className="h-6 w-6" />
           </button>
           <button
-            disabled={selectedIndex >= photos.length - 1}
+            disabled={selectedIndex >= safePhotos.length - 1}
             className="absolute right-2 top-1/2 hidden -translate-y-1/2 rounded-full bg-black/30 p-2 text-white/70 backdrop-blur-sm transition-all hover:bg-black/50 hover:text-white disabled:opacity-0 sm:right-4 sm:block"
             onClick={(e) => {
               e.stopPropagation()
