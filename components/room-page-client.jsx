@@ -28,6 +28,24 @@ import { Input } from '@/components/ui/input'
 
 const CHUNK_SIZE = 1024 * 1024
 
+const SUPPORTED_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+]
+
+const SUPPORTED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif']
+
+function isSupportedImageFile(file) {
+  if (file.type && SUPPORTED_MIME_TYPES.includes(file.type.toLowerCase())) {
+    return true
+  }
+  // Fallback for browsers that report an empty type (e.g. some iOS HEIC uploads)
+  const name = file.name?.toLowerCase() || ''
+  return SUPPORTED_EXTENSIONS.some((ext) => name.endsWith(ext))
+}
+
 const useToast = () => {
   const [toast, setToast] = useState(null)
 
@@ -179,6 +197,7 @@ export default function RoomPageClient({ slug, isNew }) {
   const [notFound, setNotFound] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadSuccess, setUploadSuccess] = useState(false)
+  const [uploadFormatError, setUploadFormatError] = useState('')
   const [showViralSection, setShowViralSection] = useState(false)
   const [newRoomBannerDismissed, setNewRoomBannerDismissed] = useState(false)
   const [showStickyCta, setShowStickyCta] = useState(false)
@@ -415,19 +434,44 @@ export default function RoomPageClient({ slug, isNew }) {
     if (fileList.length === 0) return
 
     input.value = ''
-    setIsUploading(true)
     setUploadSuccess(false)
+    setUploadFormatError('')
     setShowViralSection(false)
-    setLastUploadCount(fileList.length)
+
+    const supportedFiles = []
+    const unsupportedFiles = []
 
     for (const file of fileList) {
+      if (isSupportedImageFile(file)) {
+        supportedFiles.push(file)
+      } else {
+        unsupportedFiles.push(file)
+      }
+    }
+
+    if (unsupportedFiles.length > 0) {
+      setUploadFormatError(
+        unsupportedFiles.length === 1
+          ? 'This image format isn\'t supported yet. Please upload JPG, PNG, WebP, or GIF.'
+          : 'Some image formats aren\'t supported yet. Please upload JPG, PNG, WebP, or GIF.'
+      )
+    }
+
+    if (supportedFiles.length === 0) {
+      return
+    }
+
+    setIsUploading(true)
+    setLastUploadCount(supportedFiles.length)
+
+    for (const file of supportedFiles) {
       await uploadSingleFile(file)
     }
 
     setIsUploading(false)
     setUploadSuccess(true)
     setShowViralSection(true)
-    showToast(fileList.length === 1 ? 'Your photo is now in the room' : 'Your photos are now in the room')
+    showToast(supportedFiles.length === 1 ? 'Your photo is now in the room' : 'Your photos are now in the room')
 
     if (heroFileInputRef.current) heroFileInputRef.current.value = ''
     if (cameraFileInputRef.current) cameraFileInputRef.current.value = ''
@@ -692,6 +736,17 @@ export default function RoomPageClient({ slug, isNew }) {
                   </div>
                 )}
 
+                {uploadFormatError && (
+                  <div className="mt-5 inline-flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/[0.06] px-5 py-3 text-sm font-medium text-red-400">
+                    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                    {uploadFormatError}
+                  </div>
+                )}
+
                 {isUploading ? (
                   <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/[0.07] bg-[#0D1220] px-5 py-3 text-sm font-medium text-foreground">
                     <Loader2 className="h-4 w-4 animate-spin text-primary" />
@@ -704,6 +759,7 @@ export default function RoomPageClient({ slug, isNew }) {
                       className="h-12 gap-2 rounded-lg px-6 text-base font-body font-medium glow-blue"
                       onClick={() => {
                         setUploadSuccess(false)
+                        setUploadFormatError('')
                         cameraFileInputRef.current?.click()
                       }}
                     >
@@ -716,6 +772,7 @@ export default function RoomPageClient({ slug, isNew }) {
                       className="h-12 gap-2 rounded-lg px-6 text-base font-body font-medium border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground"
                       onClick={() => {
                         setUploadSuccess(false)
+                        setUploadFormatError('')
                         heroFileInputRef.current?.click()
                       }}
                     >
@@ -916,6 +973,7 @@ export default function RoomPageClient({ slug, isNew }) {
           className="h-11 gap-2 rounded-full px-6 text-sm font-body font-medium glow-blue"
           onClick={() => {
             setUploadSuccess(false)
+            setUploadFormatError('')
             cameraFileInputRef.current?.click()
           }}
         >
