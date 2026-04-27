@@ -5,8 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Camera, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { trackEvent, identifyUser } from '@/lib/analytics/track-client'
-import { EVENT_OWNER_LOGGED_IN } from '@/lib/analytics/events'
+import { identifyUser } from '@/lib/analytics/track-client'
 
 export default function LoginPageClient({ redirect }) {
   const router = useRouter()
@@ -37,7 +36,6 @@ export default function LoginPageClient({ redirect }) {
       }
 
       identifyUser(email.trim())
-      trackEvent(EVENT_OWNER_LOGGED_IN, { method: 'password', source: 'login_page' })
 
       if (redirect && redirect.startsWith('/')) {
         router.push(redirect)

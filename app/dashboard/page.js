@@ -12,7 +12,6 @@ import { EventQRModal } from '@/components/event-qr-modal'
 import { trackEvent, identifyUser } from '@/lib/analytics/track-client'
 import {
   EVENT_DASHBOARD_VIEWED,
-  EVENT_OWNER_LOGGED_IN,
   EVENT_ROOM_SELECTED_IN_DASHBOARD,
   EVENT_ROOM_SHARED_FROM_DASHBOARD,
   EVENT_ROOM_QR_OPENED_FROM_DASHBOARD,
@@ -334,7 +333,6 @@ export default function DashboardPage() {
       setAuthState({ loading: false, authenticated: true, email: payload.email })
       setMessage('')
       identifyUser(payload.email)
-      trackEvent(EVENT_OWNER_LOGGED_IN, { method: 'password' })
       await loadEvents()
     } catch (error) {
       setMessage(error.message || 'Sign in failed')
