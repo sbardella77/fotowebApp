@@ -85,12 +85,15 @@
         "@types/d3-shape": "^3.1.8",
         "@types/d3-time": "^3.0.4",
         "@types/d3-timer": "^3.0.2",
+        "@types/node": "^25.6.0",
+        "@types/react": "^19.2.14",
         "@types/webidl-conversions": "^7.0.3",
         "@types/whatwg-url": "^13.0.0",
         "autoprefixer": "^10.4.19",
         "globals": "^16.2.0",
         "postcss": "^8",
-        "tailwindcss": "^3.4.1"
+        "tailwindcss": "^3.4.1",
+        "typescript": "^6.0.3"
     },
     "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }
