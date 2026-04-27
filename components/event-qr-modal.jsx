@@ -115,23 +115,33 @@ export function EventQRModal({
         ctx.drawImage(img, 0, 0, size, size)
         
         // Convert to PNG and download
+        if (typeof canvas.toBlob !== 'function') {
+          showToast('Download not supported on this browser', 'error')
+          URL.revokeObjectURL(url)
+          return
+        }
         canvas.toBlob((blob) => {
           if (!blob) {
             showToast('Failed to generate image', 'error')
             return
           }
           
-          const downloadUrl = URL.createObjectURL(blob)
-          const link = document.createElement('a')
-          link.href = downloadUrl
-          link.download = filename
-          document.body.appendChild(link)
-          link.click()
-          document.body.removeChild(link)
-          
-          URL.revokeObjectURL(downloadUrl)
-          URL.revokeObjectURL(url)
-          showToast('QR code downloaded!')
+          try {
+            const downloadUrl = URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            link.href = downloadUrl
+            link.download = filename
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            
+            URL.revokeObjectURL(downloadUrl)
+            URL.revokeObjectURL(url)
+            showToast('QR code downloaded!')
+          } catch (e) {
+            console.warn('[qr-modal] download failed', e)
+            showToast('Download failed', 'error')
+          }
         }, 'image/png')
       }
       
@@ -149,6 +159,10 @@ export function EventQRModal({
 
   // Copy event link
   const handleCopyLink = useCallback(async () => {
+    if (typeof navigator === 'undefined' || !navigator.clipboard || !navigator.clipboard.writeText) {
+      showToast('Copy not supported on this device', 'error')
+      return
+    }
     try {
       await navigator.clipboard.writeText(eventUrl)
       setCopiedLink(true)
@@ -161,6 +175,10 @@ export function EventQRModal({
 
   // Copy event code
   const handleCopyCode = useCallback(async () => {
+    if (typeof navigator === 'undefined' || !navigator.clipboard || !navigator.clipboard.writeText) {
+      showToast('Copy not supported on this device', 'error')
+      return
+    }
     try {
       await navigator.clipboard.writeText(event?.slug || '')
       setCopiedCode(true)
@@ -179,7 +197,7 @@ export function EventQRModal({
       url: eventUrl,
     }
     
-    if (navigator.share) {
+    if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         await navigator.share(shareData)
         showToast('Shared!')

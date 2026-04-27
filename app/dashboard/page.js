@@ -345,13 +345,13 @@ export default function DashboardPage() {
 
   const shareEvent = async (event) => {
     const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/event/${event.slug}`
-    if (navigator.share) {
+    if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         await navigator.share({ title: event.name, url })
       } catch {
         // user cancelled
       }
-    } else {
+    } else if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
       try {
         await navigator.clipboard.writeText(url)
         setMessage('Link copied!')
@@ -359,6 +359,8 @@ export default function DashboardPage() {
       } catch {
         setMessage('Unable to copy link')
       }
+    } else {
+      setMessage('Sharing not supported on this device')
     }
   }
 

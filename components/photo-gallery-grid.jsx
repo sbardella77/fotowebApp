@@ -3,6 +3,7 @@
 import { AlertCircle, ImageIcon, ImageOff, Loader2, RefreshCcw } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
+import { getRenderablePhotos } from '@/lib/photo-utils'
 
 const skeletonItems = Array.from({ length: 12 }, (_, index) => index)
 
@@ -12,21 +13,37 @@ const ImageWithLazyLoad = ({ src, alt, className, onLoad }) => {
   const imgRef = useRef(null)
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true)
-          observer.disconnect()
-        }
-      },
-      { rootMargin: '50px' }
-    )
+    let observer
+    try {
+      observer = new IntersectionObserver(
+        ([entry]) => {
+          if (entry.isIntersecting) {
+            setIsVisible(true)
+            try {
+              observer && observer.disconnect()
+            } catch {
+              // ignore
+            }
+          }
+        },
+        { rootMargin: '50px' }
+      )
 
-    if (imgRef.current) {
-      observer.observe(imgRef.current)
+      if (imgRef.current) {
+        observer.observe(imgRef.current)
+      }
+    } catch (e) {
+      console.warn('[gallery] IntersectionObserver not available', e)
+      setIsVisible(true)
     }
 
-    return () => observer.disconnect()
+    return () => {
+      try {
+        observer && observer.disconnect()
+      } catch {
+        // ignore
+      }
+    }
   }, [])
 
   const handleLoad = () => {
@@ -72,22 +89,8 @@ const PhotoGalleryGrid = ({
   emptyTitle = 'No photos yet',
   emptyDescription = 'Be the first to add a photo.',
 }) => {
-  // Defensive: filter out any malformed photo objects so one bad entry cannot crash the grid
-  const safePhotos = photos.filter((photo, index) => {
-    if (!photo || typeof photo !== 'object') {
-      console.warn('[gallery] skipping non-object photo at index', index, photo)
-      return false
-    }
-    if (!photo.id) {
-      console.warn('[gallery] skipping photo without id at index', index, { url: photo.url, mimeType: photo.mimeType })
-      return false
-    }
-    if (!photo.url) {
-      console.warn('[gallery] skipping photo without url', { id: photo.id, mimeType: photo.mimeType })
-      return false
-    }
-    return true
-  })
+  // Defensive: normalize and filter photos through the crash-proof layer
+  const safePhotos = getRenderablePhotos(photos)
 
   if (loading && safePhotos.length === 0) {
     return (

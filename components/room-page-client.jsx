@@ -20,6 +20,7 @@ import {
 import PhotoGalleryGrid from '@/components/photo-gallery-grid'
 import PhotoLightbox from '@/components/photo-lightbox'
 import { EventQRModal } from '@/components/event-qr-modal'
+import { getSortedRenderablePhotos } from '@/lib/photo-utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -79,19 +80,31 @@ function NewRoomShareBanner({ event, baseUrl, onDismiss, showToast, onShowQR }) 
   const shareText = `📸 Photos from ${event.name}\n\nAdd yours here 👇\n${eventUrl}`
 
   const openWhatsApp = () => {
-    const url = `https://wa.me/?text=${encodeURIComponent(shareText)}`
-    window.open(url, '_blank')
+    try {
+      const url = `https://wa.me/?text=${encodeURIComponent(shareText)}`
+      window.open(url, '_blank')
+    } catch (e) {
+      console.warn('[room] failed to open WhatsApp', e)
+    }
   }
 
   const openTelegram = () => {
-    const url = `https://t.me/share/url?url=${encodeURIComponent(eventUrl)}&text=${encodeURIComponent(`📸 Photos from ${event.name}`)}`
-    window.open(url, '_blank')
+    try {
+      const url = `https://t.me/share/url?url=${encodeURIComponent(eventUrl)}&text=${encodeURIComponent(`📸 Photos from ${event.name}`)}`
+      window.open(url, '_blank')
+    } catch (e) {
+      console.warn('[room] failed to open Telegram', e)
+    }
   }
 
   const copyLink = async () => {
     try {
-      await navigator.clipboard.writeText(eventUrl)
-      showToast('Link copied!')
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(eventUrl)
+        showToast('Link copied!')
+      } else {
+        showToast('Copy not supported on this device', 'error')
+      }
     } catch {
       showToast('Failed to copy', 'error')
     }
@@ -218,32 +231,11 @@ export default function RoomPageClient({ slug, isNew }) {
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
 
   const galleryPhotos = useMemo(() => {
-    const rawPhotos = activeEvent?.photos || []
-    // Defensive: filter out any malformed or null photo entries before sorting/rendering
-    const safePhotos = rawPhotos.filter((photo) => {
-      if (!photo || typeof photo !== 'object') {
-        console.warn('[room] filtering out non-object photo entry', { slug: activeEvent?.slug, photo })
-        return false
-      }
-      if (!photo.id || !photo.url) {
-        console.warn('[room] filtering out photo missing required fields', {
-          slug: activeEvent?.slug,
-          photoId: photo.id,
-          hasUrl: Boolean(photo.url),
-          mimeType: photo.mimeType,
-        })
-        return false
-      }
-      return true
-    })
-
     try {
-      return [...safePhotos].sort(
-        (left, right) => new Date(right.createdAt || 0) - new Date(left.createdAt || 0),
-      )
-    } catch (sortError) {
-      console.error('[room] photo sort failed, returning unsorted', { slug: activeEvent?.slug, error: sortError })
-      return safePhotos
+      return getSortedRenderablePhotos(activeEvent?.photos)
+    } catch (pipelineError) {
+      console.error('[room] photo pipeline crashed, returning empty', { slug: activeEvent?.slug, error: pipelineError })
+      return []
     }
   }, [activeEvent])
 
@@ -500,24 +492,39 @@ export default function RoomPageClient({ slug, isNew }) {
 
   useEffect(() => {
     if (isNew && typeof window !== 'undefined') {
-      const url = new URL(window.location.href)
-      if (url.searchParams.has('new')) {
-        url.searchParams.delete('new')
-        window.history.replaceState({}, '', url.toString())
+      try {
+        const url = new URL(window.location.href)
+        if (url.searchParams.has('new')) {
+          url.searchParams.delete('new')
+          window.history.replaceState({}, '', url.toString())
+        }
+      } catch (e) {
+        console.warn('[room] failed to clean URL', e)
       }
     }
   }, [isNew])
 
   useEffect(() => {
     if (!heroRef.current || typeof window === 'undefined') return
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setShowStickyCta(!entry.isIntersecting)
-      },
-      { threshold: 0, rootMargin: '0px' }
-    )
-    observer.observe(heroRef.current)
-    return () => observer.disconnect()
+    let observer
+    try {
+      observer = new IntersectionObserver(
+        ([entry]) => {
+          setShowStickyCta(!entry.isIntersecting)
+        },
+        { threshold: 0, rootMargin: '0px' }
+      )
+      observer.observe(heroRef.current)
+    } catch (e) {
+      console.warn('[room] IntersectionObserver not available', e)
+    }
+    return () => {
+      try {
+        observer && observer.disconnect()
+      } catch {
+        // ignore
+      }
+    }
   }, [activeEvent?.slug])
 
   if (notFound) {
@@ -635,10 +642,14 @@ export default function RoomPageClient({ slug, isNew }) {
                       className="gap-1.5 border-white/[0.07] bg-[#111827] hover:bg-[#0D1220] hover:text-foreground"
                       onClick={async () => {
                         try {
-                          await navigator.clipboard.writeText(activeEvent.slug)
-                          setCopied(true)
-                          showToast('Code copied!')
-                          setTimeout(() => setCopied(false), 2000)
+                          if (navigator.clipboard && navigator.clipboard.writeText) {
+                            await navigator.clipboard.writeText(activeEvent.slug)
+                            setCopied(true)
+                            showToast('Code copied!')
+                            setTimeout(() => setCopied(false), 2000)
+                          } else {
+                            showToast('Copy not supported on this device', 'error')
+                          }
                         } catch {
                           showToast('Failed to copy', 'error')
                         }
@@ -662,7 +673,7 @@ export default function RoomPageClient({ slug, isNew }) {
                           text: `Upload your photos to ${activeEvent.name}! Use code: ${activeEvent.slug}`,
                         }
 
-                        if (navigator.share) {
+                        if (typeof navigator !== 'undefined' && navigator.share) {
                           try {
                             await navigator.share(shareData)
                             showToast('Shared!')
@@ -671,10 +682,14 @@ export default function RoomPageClient({ slug, isNew }) {
                           }
                         } else {
                           try {
-                            await navigator.clipboard.writeText(
-                              `Upload your photos to ${activeEvent.name}! Use code: ${activeEvent.slug}`,
-                            )
-                            showToast('Invite copied!')
+                            if (navigator.clipboard && navigator.clipboard.writeText) {
+                              await navigator.clipboard.writeText(
+                                `Upload your photos to ${activeEvent.name}! Use code: ${activeEvent.slug}`,
+                              )
+                              showToast('Invite copied!')
+                            } else {
+                              showToast('Share not supported on this device', 'error')
+                            }
                           } catch {
                             showToast('Failed to copy', 'error')
                           }
@@ -830,10 +845,14 @@ export default function RoomPageClient({ slug, isNew }) {
                       size="sm"
                       className="gap-1.5 bg-[#25D366] text-white hover:bg-[#128C7E] border-transparent"
                       onClick={() => {
-                        const eventUrl = `${baseUrl}/event/${activeEvent.slug}`
-                        const message = `📸 Photos from ${activeEvent.name}\n\nAdd yours here 👇\n${eventUrl}`
-                        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`
-                        window.open(whatsappUrl, '_blank')
+                        try {
+                          const eventUrl = `${baseUrl}/event/${activeEvent.slug}`
+                          const message = `📸 Photos from ${activeEvent.name}\n\nAdd yours here 👇\n${eventUrl}`
+                          const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`
+                          window.open(whatsappUrl, '_blank')
+                        } catch (e) {
+                          console.warn('[room] failed to open WhatsApp', e)
+                        }
                       }}
                     >
                       <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
@@ -847,8 +866,12 @@ export default function RoomPageClient({ slug, isNew }) {
                       className="gap-1.5 border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground"
                       onClick={async () => {
                         try {
-                          await navigator.clipboard.writeText(`${baseUrl}/event/${activeEvent.slug}`)
-                          showToast('Link copied!')
+                          if (navigator.clipboard && navigator.clipboard.writeText) {
+                            await navigator.clipboard.writeText(`${baseUrl}/event/${activeEvent.slug}`)
+                            showToast('Link copied!')
+                          } else {
+                            showToast('Copy not supported on this device', 'error')
+                          }
                         } catch {
                           showToast('Failed to copy', 'error')
                         }
@@ -867,7 +890,7 @@ export default function RoomPageClient({ slug, isNew }) {
                           text: `Upload your photos to ${activeEvent.name}!`,
                           url: `${baseUrl}/event/${activeEvent.slug}`,
                         }
-                        if (navigator.share) {
+                        if (typeof navigator !== 'undefined' && navigator.share) {
                           try {
                             await navigator.share(shareData)
                             showToast('Shared!')
@@ -876,8 +899,12 @@ export default function RoomPageClient({ slug, isNew }) {
                           }
                         } else {
                           try {
-                            await navigator.clipboard.writeText(`${baseUrl}/event/${activeEvent.slug}`)
-                            showToast('Link copied!')
+                            if (navigator.clipboard && navigator.clipboard.writeText) {
+                              await navigator.clipboard.writeText(`${baseUrl}/event/${activeEvent.slug}`)
+                              showToast('Link copied!')
+                            } else {
+                              showToast('Share not supported on this device', 'error')
+                            }
                           } catch {
                             showToast('Failed to copy', 'error')
                           }

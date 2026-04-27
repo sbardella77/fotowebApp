@@ -90,16 +90,20 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
 
   const handleDownload = useCallback(() => {
     if (!photo?.url) return
-    const link = document.createElement('a')
-    link.href = photo.url
-    link.download = photo.originalName || `photo-${photo.id || selectedIndex + 1}.jpg`
-    link.target = '_blank'
-    link.rel = 'noopener noreferrer'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    setDownloaded(true)
-    setTimeout(() => setDownloaded(false), 2000)
+    try {
+      const link = document.createElement('a')
+      link.href = photo.url
+      link.download = photo.originalName || `photo-${photo.id || selectedIndex + 1}.jpg`
+      link.target = '_blank'
+      link.rel = 'noopener noreferrer'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      setDownloaded(true)
+      setTimeout(() => setDownloaded(false), 2000)
+    } catch (e) {
+      console.warn('[lightbox] download failed', e)
+    }
   }, [photo, selectedIndex])
 
   // Touch event handlers for swipe
@@ -165,7 +169,7 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
 
   // Keyboard navigation
   useEffect(() => {
-    if (!open) return
+    if (!open || typeof window === 'undefined') return
     
     const handleKeyDown = (e) => {
       if (e.key === 'ArrowLeft') selectPrevious()
@@ -174,30 +178,52 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
     }
     
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    return () => {
+      try {
+        window.removeEventListener('keydown', handleKeyDown)
+      } catch {
+        // ignore
+      }
+    }
   }, [open, selectPrevious, selectNext, handleClose])
 
   // Prevent body scroll when open
   useEffect(() => {
-    if (open) {
-      document.body.style.overflow = 'hidden'
-      document.body.style.touchAction = 'none'
-    } else {
-      document.body.style.overflow = ''
-      document.body.style.touchAction = ''
+    if (typeof document === 'undefined') return
+    try {
+      if (open) {
+        document.body.style.overflow = 'hidden'
+        document.body.style.touchAction = 'none'
+      } else {
+        document.body.style.overflow = ''
+        document.body.style.touchAction = ''
+      }
+    } catch (e) {
+      console.warn('[lightbox] failed to toggle body scroll', e)
     }
     return () => {
-      document.body.style.overflow = ''
-      document.body.style.touchAction = ''
+      try {
+        if (typeof document !== 'undefined') {
+          document.body.style.overflow = ''
+          document.body.style.touchAction = ''
+        }
+      } catch {
+        // ignore
+      }
     }
   }, [open])
 
   if (!open || !photo) return null
 
   // Check for reduced motion preference
-  const prefersReducedMotion = typeof window !== 'undefined' 
-    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches 
-    : false
+  const prefersReducedMotion = (() => {
+    if (typeof window === 'undefined') return false
+    try {
+      return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    } catch (e) {
+      return false
+    }
+  })()
 
   return (
     <div 
