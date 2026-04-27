@@ -20,9 +20,11 @@ export default function HomePage() {
   })
 
   useEffect(() => {
+    if (isRedirecting) return
     trackPageView('landing', { variant: 'generic' })
     trackEvent(EVENT_LANDING_VIEW, { variant: 'generic' })
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRedirecting])
 
   useEffect(() => {
     if (typeof window === 'undefined') return

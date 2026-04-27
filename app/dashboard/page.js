@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Camera, Eye, EyeOff, ImagePlus, Loader2, Lock, LogOut, Pencil, QrCode, Share2, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -113,6 +113,7 @@ export default function DashboardPage() {
   const [forgotEmail, setForgotEmail] = useState('')
   const [forgotBusy, setForgotBusy] = useState(false)
   const [forgotSent, setForgotSent] = useState(false)
+  const dashboardViewTracked = useRef(false)
 
   const photos = useMemo(() => selectedEvent?.photos || [], [selectedEvent])
 
@@ -127,7 +128,8 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
-    if (!authState.loading) {
+    if (!authState.loading && !dashboardViewTracked.current) {
+      dashboardViewTracked.current = true
       trackEvent(EVENT_DASHBOARD_VIEWED, {
         authenticated: authState.authenticated,
         room_count: events.length,

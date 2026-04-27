@@ -303,7 +303,7 @@ export default function RoomPageClient({ slug, isNew }) {
   }
 
   const uploadSingleFile = async (file) => {
-    if (!activeEvent?.slug) return
+    if (!activeEvent?.slug) return false
 
     const localId = `${file.name}-${file.lastModified}`
 
@@ -390,7 +390,7 @@ export default function RoomPageClient({ slug, isNew }) {
         updateUpload({ progress: 100, status: 'Done' })
         setActiveEvent(completePayload.event)
         setGalleryError('')
-        return
+        return true
       }
 
       updateUpload({ progress: 8, status: 'Uploading...' })
@@ -441,9 +441,11 @@ export default function RoomPageClient({ slug, isNew }) {
       updateUpload({ progress: 100, status: 'Done' })
       setActiveEvent(completePayload.event)
       setGalleryError('')
+      return true
     } catch (error) {
       console.error('Upload failed', error)
       updateUpload({ status: 'Failed' })
+      return false
     }
   }
 
@@ -493,26 +495,32 @@ export default function RoomPageClient({ slug, isNew }) {
       is_second_upload: uploadCompletedTracked.current,
     })
 
+    const results = []
     for (const file of supportedFiles) {
-      await uploadSingleFile(file)
+      const success = await uploadSingleFile(file)
+      results.push(success)
     }
 
-    setIsUploading(false)
-    setUploadSuccess(true)
-    setShowViralSection(true)
-    showToast(supportedFiles.length === 1 ? 'Your photo is now in the room' : 'Your photos are now in the room')
+    const allSucceeded = results.every(Boolean)
 
-    if (uploadCompletedTracked.current) {
-      trackEvent(EVENT_SECOND_UPLOAD_COMPLETED, {
-        room_slug: activeEvent?.slug,
-        batch_size: supportedFiles.length,
-      })
-    } else {
-      uploadCompletedTracked.current = true
-      trackEvent(EVENT_UPLOAD_COMPLETED, {
-        room_slug: activeEvent?.slug,
-        batch_size: supportedFiles.length,
-      })
+    setIsUploading(false)
+    setUploadSuccess(allSucceeded)
+    if (allSucceeded) {
+      setShowViralSection(true)
+      showToast(supportedFiles.length === 1 ? 'Your photo is now in the room' : 'Your photos are now in the room')
+
+      if (uploadCompletedTracked.current) {
+        trackEvent(EVENT_SECOND_UPLOAD_COMPLETED, {
+          room_slug: activeEvent?.slug,
+          batch_size: supportedFiles.length,
+        })
+      } else {
+        uploadCompletedTracked.current = true
+        trackEvent(EVENT_UPLOAD_COMPLETED, {
+          room_slug: activeEvent?.slug,
+          batch_size: supportedFiles.length,
+        })
+      }
     }
 
     if (heroFileInputRef.current) heroFileInputRef.current.value = ''
