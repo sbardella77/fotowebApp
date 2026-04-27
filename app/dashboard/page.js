@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Camera, Eye, EyeOff, ImagePlus, Loader2, Lock, LogOut, Pencil, QrCode, Share2, Trash2 } from 'lucide-react'
+import { Camera, Eye, EyeOff, ImagePlus, Loader2, Lock, LogOut, Pencil, QrCode, Share2, Sparkles, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,6 +15,7 @@ import {
   EVENT_ROOM_SELECTED_IN_DASHBOARD,
   EVENT_ROOM_SHARED_FROM_DASHBOARD,
   EVENT_ROOM_QR_OPENED_FROM_DASHBOARD,
+  EVENT_UPGRADE_CLICKED,
 } from '@/lib/analytics/events'
 import {
   AlertDialog,
@@ -687,6 +688,58 @@ export default function DashboardPage() {
               <Button size="sm" asChild className="mt-3 sm:mt-0 glow-blue">
                 <a href="/">Create new room</a>
               </Button>
+            </div>
+
+            {/* Pro upgrade entry point */}
+            <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card overflow-hidden">
+              <div className="p-5 sm:p-6">
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
+                        Pro
+                      </span>
+                      <Sparkles className="h-3 w-3 text-primary" />
+                    </div>
+                    <h2 className="mt-1 font-display text-lg font-bold tracking-tight text-white">
+                      Upgrade to Pro
+                    </h2>
+                    <p className="mt-1 max-w-md text-sm font-light text-muted-foreground">
+                      Create unlimited rooms, collect more guest photos, and unlock premium event tools.
+                    </p>
+                    <p className="mt-2 text-xs font-light text-muted-foreground/70">
+                      Built for owners who want more control and more growth.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col items-start gap-3 sm:items-end">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center rounded-full border border-white/[0.07] bg-[#0D1220] px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                        Free
+                      </span>
+                      <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                        Pro
+                      </span>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="glow-blue"
+                      onClick={() => {
+                        trackEvent(EVENT_UPGRADE_CLICKED, {
+                          entryPoint: 'dashboard_banner',
+                          pageType: 'dashboard',
+                          userRole: 'owner',
+                          plan: 'free',
+                          roomCount: events.length,
+                        })
+                        // TODO: wire to Stripe checkout when ready
+                      }}
+                    >
+                      Upgrade to Pro
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {message ? (
