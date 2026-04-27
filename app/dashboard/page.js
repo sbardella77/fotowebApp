@@ -16,6 +16,7 @@ import {
   EVENT_ROOM_SHARED_FROM_DASHBOARD,
   EVENT_ROOM_QR_OPENED_FROM_DASHBOARD,
   EVENT_UPGRADE_CLICKED,
+  EVENT_CHECKOUT_CANCELLED,
 } from '@/lib/analytics/events'
 import {
   AlertDialog,
@@ -113,6 +114,8 @@ export default function DashboardPage() {
   const [forgotEmail, setForgotEmail] = useState('')
   const [forgotBusy, setForgotBusy] = useState(false)
   const [forgotSent, setForgotSent] = useState(false)
+  const [plan, setPlan] = useState('free')
+  const [checkoutBusy, setCheckoutBusy] = useState(false)
   const dashboardViewTracked = useRef(false)
 
   const photos = useMemo(() => selectedEvent?.photos || [], [selectedEvent])
@@ -202,6 +205,40 @@ export default function DashboardPage() {
     setEvents([])
     setAuthState({ loading: false, authenticated: false, email: '' })
     setMessage('Signed out.')
+  }
+
+  const loadPlan = async () => {
+    try {
+      const response = await fetch('/api/owner/plan', { cache: 'no-store' })
+      if (!response.ok) return
+      const payload = await response.json()
+      setPlan(payload.plan || 'free')
+    } catch {
+      // ignore plan load errors
+    }
+  }
+
+  const startCheckout = async () => {
+    if (checkoutBusy) return
+    setCheckoutBusy(true)
+    try {
+      trackEvent(EVENT_UPGRADE_CLICKED, {
+        entryPoint: 'dashboard_banner',
+        pageType: 'dashboard',
+        userRole: 'owner',
+        plan: plan || 'free',
+        roomCount: events.length,
+      })
+      const response = await fetch('/api/stripe/checkout-session', { method: 'POST' })
+      const payload = await response.json()
+      if (!response.ok || !payload.url) {
+        throw new Error(payload.error || 'Unable to start checkout')
+      }
+      window.location.href = payload.url
+    } catch (error) {
+      setMessage(error.message || 'Checkout failed. Please try again.')
+      setCheckoutBusy(false)
+    }
   }
 
   const loadEvents = async () => {
@@ -488,6 +525,33 @@ export default function DashboardPage() {
     }
   }, [selectedEvent])
 
+  useEffect(() => {
+    if (!authState.authenticated) return
+    loadPlan()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authState.authenticated])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const upgrade = params.get('upgrade')
+    if (upgrade === 'success') {
+      setMessage('Welcome to Pro! Your upgrade is being confirmed.')
+      loadPlan()
+      // Clean URL without full reload
+      router.replace('/dashboard', { scroll: false })
+    } else if (upgrade === 'cancelled') {
+      setMessage('Upgrade cancelled. You can upgrade anytime.')
+      trackEvent(EVENT_CHECKOUT_CANCELLED, {
+        pageType: 'dashboard',
+        userRole: 'owner',
+        plan: plan || 'free',
+      })
+      router.replace('/dashboard', { scroll: false })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   return (
     <main className="dark relative min-h-screen bg-background font-body text-foreground">
       {/* Subtle grid background for dashboard */}
@@ -503,6 +567,11 @@ export default function DashboardPage() {
           </a>
           {authState.authenticated ? (
             <div className="flex items-center gap-3">
+              {plan === 'pro' && (
+                <span className="hidden rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[0.65rem] font-medium uppercase tracking-wider text-primary sm:inline">
+                  Pro
+                </span>
+              )}
               <span className="hidden font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground sm:inline">
                 {authState.email}
               </span>
@@ -691,56 +760,54 @@ export default function DashboardPage() {
             </div>
 
             {/* Pro upgrade entry point */}
-            <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card overflow-hidden">
-              <div className="p-5 sm:p-6">
-                <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-                        Pro
-                      </span>
-                      <Sparkles className="h-3 w-3 text-primary" />
+            {plan !== 'pro' && (
+              <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card overflow-hidden">
+                <div className="p-5 sm:p-6">
+                  <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
+                          Pro
+                        </span>
+                        <Sparkles className="h-3 w-3 text-primary" />
+                      </div>
+                      <h2 className="mt-1 font-display text-lg font-bold tracking-tight text-white">
+                        Upgrade to Pro
+                      </h2>
+                      <p className="mt-1 max-w-md text-sm font-light text-muted-foreground">
+                        Create unlimited rooms, collect more guest photos, and unlock premium event tools.
+                      </p>
+                      <p className="mt-2 text-xs font-light text-muted-foreground/70">
+                        Built for owners who want more control and more growth.
+                      </p>
                     </div>
-                    <h2 className="mt-1 font-display text-lg font-bold tracking-tight text-white">
-                      Upgrade to Pro
-                    </h2>
-                    <p className="mt-1 max-w-md text-sm font-light text-muted-foreground">
-                      Create unlimited rooms, collect more guest photos, and unlock premium event tools.
-                    </p>
-                    <p className="mt-2 text-xs font-light text-muted-foreground/70">
-                      Built for owners who want more control and more growth.
-                    </p>
-                  </div>
 
-                  <div className="flex flex-col items-start gap-3 sm:items-end">
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center rounded-full border border-white/[0.07] bg-[#0D1220] px-2.5 py-1 text-xs font-medium text-muted-foreground">
-                        Free
-                      </span>
-                      <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
-                        Pro
-                      </span>
+                    <div className="flex flex-col items-start gap-3 sm:items-end">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center rounded-full border border-white/[0.07] bg-[#0D1220] px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                          Free
+                        </span>
+                        <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                          Pro
+                        </span>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="glow-blue"
+                        disabled={checkoutBusy}
+                        onClick={startCheckout}
+                      >
+                        {checkoutBusy ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          'Upgrade to Pro'
+                        )}
+                      </Button>
                     </div>
-                    <Button
-                      size="sm"
-                      className="glow-blue"
-                      onClick={() => {
-                        trackEvent(EVENT_UPGRADE_CLICKED, {
-                          entryPoint: 'dashboard_banner',
-                          pageType: 'dashboard',
-                          userRole: 'owner',
-                          plan: 'free',
-                          roomCount: events.length,
-                        })
-                        // TODO: wire to Stripe checkout when ready
-                      }}
-                    >
-                      Upgrade to Pro
-                    </Button>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {message ? (
               <div className="rounded-xl border border-white/[0.07] bg-[#141C2E] p-3 text-sm text-muted-foreground">{message}</div>
