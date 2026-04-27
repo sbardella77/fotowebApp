@@ -1,5 +1,6 @@
 import './globals.css'
 import { Syne, IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google'
+import { AnalyticsProvider } from '@/components/analytics-provider'
 
 const syne = Syne({
   subsets: ['latin'],
@@ -52,7 +53,9 @@ function App({ children }) {
       <body
         className={`${syne.variable} ${ibmPlexSans.variable} ${ibmPlexMono.variable} min-h-screen bg-background font-sans text-foreground antialiased`}
       >
-        {children}
+        <AnalyticsProvider>
+          {children}
+        </AnalyticsProvider>
       </body>
     </html>
   )

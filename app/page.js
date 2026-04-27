@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { LandingPage } from '@/components/landing-page'
 import { Button } from '@/components/ui/button'
+import { trackEvent, trackPageView } from '@/lib/analytics/track-client'
+import { EVENT_LANDING_VIEW, EVENT_CREATE_ROOM_CLICKED } from '@/lib/analytics/events'
 
 export default function HomePage() {
   const router = useRouter()
@@ -16,6 +18,11 @@ export default function HomePage() {
     const params = new URLSearchParams(window.location.search)
     return Boolean(params.get('event'))
   })
+
+  useEffect(() => {
+    trackPageView('landing', { variant: 'generic' })
+    trackEvent(EVENT_LANDING_VIEW, { variant: 'generic' })
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -31,6 +38,11 @@ export default function HomePage() {
     const trimmedEmail = ownerEmail?.trim()
     if (!trimmedName || trimmedName.length < 3) return
     if (!trimmedEmail || !trimmedEmail.includes('@')) return
+
+    trackEvent(EVENT_CREATE_ROOM_CLICKED, {
+      page_type: 'landing',
+      variant: 'generic',
+    })
 
     setIsCreating(true)
     try {

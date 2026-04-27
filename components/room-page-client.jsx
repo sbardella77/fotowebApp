@@ -25,6 +25,20 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { trackEvent } from '@/lib/analytics/track-client'
+import {
+  EVENT_ROOM_VIEWED,
+  EVENT_SNAP_CTA_CLICKED,
+  EVENT_UPLOAD_CTA_CLICKED,
+  EVENT_UPLOAD_STARTED,
+  EVENT_UPLOAD_COMPLETED,
+  EVENT_SECOND_UPLOAD_COMPLETED,
+  EVENT_UPLOAD_FILE_REJECTED,
+  EVENT_WHATSAPP_SHARE_CLICKED,
+  EVENT_NATIVE_SHARE_CLICKED,
+  EVENT_COPY_LINK_CLICKED,
+  EVENT_QR_OPENED,
+} from '@/lib/analytics/events'
 
 
 const CHUNK_SIZE = 1024 * 1024
@@ -80,6 +94,7 @@ function NewRoomShareBanner({ event, baseUrl, onDismiss, showToast, onShowQR }) 
   const shareText = `📸 Photos from ${event.name}\n\nAdd yours here 👇\n${eventUrl}`
 
   const openWhatsApp = () => {
+    trackEvent(EVENT_WHATSAPP_SHARE_CLICKED, { room_slug: event?.slug, source: 'new_room_banner' })
     try {
       const url = `https://wa.me/?text=${encodeURIComponent(shareText)}`
       window.open(url, '_blank')
@@ -98,6 +113,7 @@ function NewRoomShareBanner({ event, baseUrl, onDismiss, showToast, onShowQR }) 
   }
 
   const copyLink = async () => {
+    trackEvent(EVENT_COPY_LINK_CLICKED, { room_slug: event?.slug, source: 'new_room_banner' })
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(eventUrl)
@@ -219,6 +235,8 @@ export default function RoomPageClient({ slug, isNew }) {
   const heroFileInputRef = useRef(null)
   const cameraFileInputRef = useRef(null)
   const heroRef = useRef(null)
+  const roomViewTracked = useRef(false)
+  const uploadCompletedTracked = useRef(false)
   const { showToast, ToastComponent } = useToast()
 
   useEffect(() => {
@@ -263,6 +281,15 @@ export default function RoomPageClient({ slug, isNew }) {
       }
 
       setActiveEvent(payload.event)
+      if (!roomViewTracked.current) {
+        roomViewTracked.current = true
+        trackEvent(EVENT_ROOM_VIEWED, {
+          room_slug: payload.event?.slug,
+          room_name: payload.event?.name,
+          is_new_room: isNew,
+          photo_count: payload.event?.photos?.length || 0,
+        })
+      }
     } catch (error) {
       setGalleryError(error.message || 'Unable to load gallery')
     } finally {
@@ -447,6 +474,10 @@ export default function RoomPageClient({ slug, isNew }) {
           ? 'This image format isn\'t supported yet. Please upload JPG, PNG, WebP, or GIF.'
           : 'Some image formats aren\'t supported yet. Please upload JPG, PNG, WebP, or GIF.'
       )
+      trackEvent(EVENT_UPLOAD_FILE_REJECTED, {
+        room_slug: activeEvent?.slug,
+        rejected_count: unsupportedFiles.length,
+      })
     }
 
     if (supportedFiles.length === 0) {
@@ -456,6 +487,12 @@ export default function RoomPageClient({ slug, isNew }) {
     setIsUploading(true)
     setLastUploadCount(supportedFiles.length)
 
+    trackEvent(EVENT_UPLOAD_STARTED, {
+      room_slug: activeEvent?.slug,
+      batch_size: supportedFiles.length,
+      is_second_upload: uploadCompletedTracked.current,
+    })
+
     for (const file of supportedFiles) {
       await uploadSingleFile(file)
     }
@@ -464,6 +501,19 @@ export default function RoomPageClient({ slug, isNew }) {
     setUploadSuccess(true)
     setShowViralSection(true)
     showToast(supportedFiles.length === 1 ? 'Your photo is now in the room' : 'Your photos are now in the room')
+
+    if (uploadCompletedTracked.current) {
+      trackEvent(EVENT_SECOND_UPLOAD_COMPLETED, {
+        room_slug: activeEvent?.slug,
+        batch_size: supportedFiles.length,
+      })
+    } else {
+      uploadCompletedTracked.current = true
+      trackEvent(EVENT_UPLOAD_COMPLETED, {
+        room_slug: activeEvent?.slug,
+        batch_size: supportedFiles.length,
+      })
+    }
 
     if (heroFileInputRef.current) heroFileInputRef.current.value = ''
     if (cameraFileInputRef.current) cameraFileInputRef.current.value = ''
@@ -641,6 +691,7 @@ export default function RoomPageClient({ slug, isNew }) {
                       variant="outline"
                       className="gap-1.5 border-white/[0.07] bg-[#111827] hover:bg-[#0D1220] hover:text-foreground"
                       onClick={async () => {
+                        trackEvent(EVENT_COPY_LINK_CLICKED, { room_slug: activeEvent?.slug, source: 'room_info_card' })
                         try {
                           if (navigator.clipboard && navigator.clipboard.writeText) {
                             await navigator.clipboard.writeText(activeEvent.slug)
@@ -668,6 +719,7 @@ export default function RoomPageClient({ slug, isNew }) {
                       variant="outline"
                       className="gap-1.5 border-white/[0.07] bg-[#111827] hover:bg-[#0D1220] hover:text-foreground"
                       onClick={async () => {
+                        trackEvent(EVENT_NATIVE_SHARE_CLICKED, { room_slug: activeEvent?.slug, source: 'room_info_card' })
                         const shareData = {
                           title: `Join ${activeEvent.name} on SnapRooms`,
                           text: `Upload your photos to ${activeEvent.name}! Use code: ${activeEvent.slug}`,
@@ -704,7 +756,10 @@ export default function RoomPageClient({ slug, isNew }) {
                       size="sm"
                       variant="outline"
                       className="gap-1.5 border-white/[0.07] bg-[#111827] hover:bg-[#0D1220] hover:text-foreground"
-                      onClick={() => setQrModalOpen(true)}
+                      onClick={() => {
+                        trackEvent(EVENT_QR_OPENED, { room_slug: activeEvent?.slug, source: 'room_info_card' })
+                        setQrModalOpen(true)
+                      }}
                     >
                       <QrCode className="h-3.5 w-3.5" />
                       Show QR
@@ -775,6 +830,7 @@ export default function RoomPageClient({ slug, isNew }) {
                       onClick={() => {
                         setUploadSuccess(false)
                         setUploadFormatError('')
+                        trackEvent(EVENT_SNAP_CTA_CLICKED, { room_slug: activeEvent?.slug })
                         cameraFileInputRef.current?.click()
                       }}
                     >
@@ -788,6 +844,7 @@ export default function RoomPageClient({ slug, isNew }) {
                       onClick={() => {
                         setUploadSuccess(false)
                         setUploadFormatError('')
+                        trackEvent(EVENT_UPLOAD_CTA_CLICKED, { room_slug: activeEvent?.slug })
                         heroFileInputRef.current?.click()
                       }}
                     >
@@ -845,6 +902,7 @@ export default function RoomPageClient({ slug, isNew }) {
                       size="sm"
                       className="gap-1.5 bg-[#25D366] text-white hover:bg-[#128C7E] border-transparent"
                       onClick={() => {
+                        trackEvent(EVENT_WHATSAPP_SHARE_CLICKED, { room_slug: activeEvent?.slug, source: 'viral_section' })
                         try {
                           const eventUrl = `${baseUrl}/event/${activeEvent.slug}`
                           const message = `📸 Photos from ${activeEvent.name}\n\nAdd yours here 👇\n${eventUrl}`
@@ -865,6 +923,7 @@ export default function RoomPageClient({ slug, isNew }) {
                       variant="outline"
                       className="gap-1.5 border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground"
                       onClick={async () => {
+                        trackEvent(EVENT_COPY_LINK_CLICKED, { room_slug: activeEvent?.slug, source: 'viral_section' })
                         try {
                           if (navigator.clipboard && navigator.clipboard.writeText) {
                             await navigator.clipboard.writeText(`${baseUrl}/event/${activeEvent.slug}`)
@@ -885,6 +944,7 @@ export default function RoomPageClient({ slug, isNew }) {
                       variant="outline"
                       className="gap-1.5 border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground"
                       onClick={async () => {
+                        trackEvent(EVENT_NATIVE_SHARE_CLICKED, { room_slug: activeEvent?.slug, source: 'viral_section' })
                         const shareData = {
                           title: `Join ${activeEvent.name} on SnapRooms`,
                           text: `Upload your photos to ${activeEvent.name}!`,
@@ -918,7 +978,10 @@ export default function RoomPageClient({ slug, isNew }) {
                       size="sm"
                       variant="outline"
                       className="gap-1.5 border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground"
-                      onClick={() => setQrModalOpen(true)}
+                      onClick={() => {
+                        trackEvent(EVENT_QR_OPENED, { room_slug: activeEvent?.slug, source: 'viral_section' })
+                        setQrModalOpen(true)
+                      }}
                     >
                       <QrCode className="h-3.5 w-3.5" />
                       QR code
@@ -934,7 +997,10 @@ export default function RoomPageClient({ slug, isNew }) {
                 baseUrl={baseUrl}
                 onDismiss={() => setNewRoomBannerDismissed(true)}
                 showToast={showToast}
-                onShowQR={() => setQrModalOpen(true)}
+                onShowQR={() => {
+                  trackEvent(EVENT_QR_OPENED, { room_slug: activeEvent?.slug, source: 'new_room_banner' })
+                  setQrModalOpen(true)
+                }}
               />
             )}
 
@@ -1001,6 +1067,7 @@ export default function RoomPageClient({ slug, isNew }) {
           onClick={() => {
             setUploadSuccess(false)
             setUploadFormatError('')
+            trackEvent(EVENT_SNAP_CTA_CLICKED, { room_slug: activeEvent?.slug, position: 'sticky_mobile' })
             cameraFileInputRef.current?.click()
           }}
         >

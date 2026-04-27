@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { trackEvent, trackPageView } from '@/lib/analytics/track-client'
+import { EVENT_LANDING_VIEW, EVENT_HERO_CTA_CLICKED, EVENT_CREATE_ROOM_CLICKED } from '@/lib/analytics/events'
 import {
   Camera,
   Heart,
@@ -66,11 +68,19 @@ export function WeddingLandingPage() {
 
   useScrollReveal()
 
+  useEffect(() => {
+    trackPageView('landing', { variant: 'wedding' })
+    trackEvent(EVENT_LANDING_VIEW, { variant: 'wedding' })
+  }, [])
+
   const createEvent = async () => {
     const trimmedName = eventName?.trim()
     const trimmedEmail = ownerEmail?.trim()
     if (!trimmedName || trimmedName.length < 3) return
     if (!trimmedEmail || !trimmedEmail.includes('@')) return
+
+    trackEvent(EVENT_HERO_CTA_CLICKED, { page_type: 'landing', variant: 'wedding', position: 'hero' })
+    trackEvent(EVENT_CREATE_ROOM_CLICKED, { page_type: 'landing', variant: 'wedding' })
 
     setIsCreating(true)
     try {

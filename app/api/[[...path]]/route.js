@@ -43,6 +43,13 @@ import {
 import { getGalleryRepository, getGalleryRepositoryMode } from '@/lib/server/gallery-repository'
 import { createPasswordHash, verifyPassword, validatePassword } from '@/lib/server/owner-password'
 import { rateLimit, getClientIp, AUTH_LIMITS, RATE_LIMITS } from '@/lib/server/rate-limiter'
+import { trackServerEvent } from '@/lib/analytics/track-server'
+import {
+  EVENT_ROOM_CREATED,
+  EVENT_OWNER_CLAIM_COMPLETED,
+  EVENT_OWNER_LOGGED_IN,
+  EVENT_RATE_LIMIT_HIT,
+} from '@/lib/analytics/events'
 import { getAdminAuthDriver, getDataAccessDriver, getPrismaClient } from '@/lib/server/prisma-client'
 import {
   buildBlobPathname,
@@ -160,11 +167,17 @@ const createEvent = async (request) => {
   const clientIp = getClientIp(request)
   const createLimit = rateLimit(`create:ip:${clientIp}`, RATE_LIMITS.createEvent.ip.max, RATE_LIMITS.createEvent.ip.window)
   if (createLimit.limited) {
+    trackServerEvent(EVENT_RATE_LIMIT_HIT, { reason: 'create_event', client_ip: clientIp })
     return json({ error: 'Too many rooms created. Please try again later.' }, 429)
   }
 
   const repository = await getGalleryRepository()
   const event = await repository.createEvent({ name: payload.name })
+
+  trackServerEvent(EVENT_ROOM_CREATED, {
+    room_slug: event.slug,
+    has_owner_email: Boolean(payload.ownerEmail),
+  })
 
   // If owner email provided, immediately associate and send welcome email
   if (payload.ownerEmail) {
@@ -1124,6 +1137,7 @@ const loginOwnerWithPassword = async (request) => {
   const ipLimit = rateLimit(`login:ip:${clientIp}`, AUTH_LIMITS.login.ip.max, AUTH_LIMITS.login.ip.window)
   const emailLimit = rateLimit(`login:email:${email}`, AUTH_LIMITS.login.email.max, AUTH_LIMITS.login.email.window)
   if (ipLimit.limited || emailLimit.limited) {
+    trackServerEvent(EVENT_RATE_LIMIT_HIT, { reason: 'owner_login', client_ip: clientIp })
     return json({ error: 'Too many attempts. Please try again later.' }, 429)
   }
 
@@ -1137,6 +1151,8 @@ const loginOwnerWithPassword = async (request) => {
   if (!verifyPassword(password, owner.passwordSalt, owner.passwordHash)) {
     return json({ error: 'Invalid email or password' }, 401)
   }
+
+  trackServerEvent(EVENT_OWNER_LOGGED_IN, { distinctId: email, method: 'password_api' })
 
   const response = json({ authenticated: true, email })
   return await setOwnerSessionCookie(response, email)
@@ -1339,6 +1355,7 @@ const setupOwnerPassword = async (request) => {
   const clientIp = getClientIp(request)
   const ipLimit = rateLimit(`setup:ip:${clientIp}`, AUTH_LIMITS.setup.ip.max, AUTH_LIMITS.setup.ip.window)
   if (ipLimit.limited) {
+    trackServerEvent(EVENT_RATE_LIMIT_HIT, { reason: 'setup_password', client_ip: clientIp })
     return json({ error: 'Too many attempts. Please try again later.' }, 429)
   }
 
@@ -1364,6 +1381,8 @@ const setupOwnerPassword = async (request) => {
 
   const { salt, hash } = createPasswordHash(password)
   await repository.setOwnerPassword(owner.id, { passwordHash: hash, passwordSalt: salt })
+
+  trackServerEvent(EVENT_OWNER_CLAIM_COMPLETED, { distinctId: email })
 
   const response = json({ authenticated: true, email })
   return await setOwnerSessionCookie(response, email)

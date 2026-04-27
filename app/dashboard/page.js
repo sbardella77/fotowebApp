@@ -9,6 +9,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import PhotoLightbox from '@/components/photo-lightbox'
 import { EventQRModal } from '@/components/event-qr-modal'
+import { trackEvent, identifyUser } from '@/lib/analytics/track-client'
+import {
+  EVENT_DASHBOARD_VIEWED,
+  EVENT_OWNER_LOGGED_IN,
+  EVENT_ROOM_SELECTED_IN_DASHBOARD,
+  EVENT_ROOM_SHARED_FROM_DASHBOARD,
+  EVENT_ROOM_QR_OPENED_FROM_DASHBOARD,
+} from '@/lib/analytics/events'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -117,6 +125,16 @@ export default function DashboardPage() {
       }
     }
   }, [])
+
+  useEffect(() => {
+    if (!authState.loading) {
+      trackEvent(EVENT_DASHBOARD_VIEWED, {
+        authenticated: authState.authenticated,
+        room_count: events.length,
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authState.loading])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -313,6 +331,8 @@ export default function DashboardPage() {
       }
       setAuthState({ loading: false, authenticated: true, email: payload.email })
       setMessage('')
+      identifyUser(payload.email)
+      trackEvent(EVENT_OWNER_LOGGED_IN, { method: 'password' })
       await loadEvents()
     } catch (error) {
       setMessage(error.message || 'Sign in failed')
@@ -344,6 +364,7 @@ export default function DashboardPage() {
   }
 
   const shareEvent = async (event) => {
+    trackEvent(EVENT_ROOM_SHARED_FROM_DASHBOARD, { room_slug: event.slug })
     const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/event/${event.slug}`
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
@@ -365,6 +386,7 @@ export default function DashboardPage() {
   }
 
   const openQR = (event) => {
+    trackEvent(EVENT_ROOM_QR_OPENED_FROM_DASHBOARD, { room_slug: event.slug })
     setQrEvent(event)
     setQrOpen(true)
   }
@@ -682,7 +704,14 @@ export default function DashboardPage() {
               {events.map((event) => (
                 <div
                   key={event.id}
-                  onClick={() => setSelectedSlug(event.slug)}
+                  onClick={() => {
+                    trackEvent(EVENT_ROOM_SELECTED_IN_DASHBOARD, {
+                      room_slug: event.slug,
+                      room_name: event.name,
+                      photo_count: event.photoCount || event.photos?.length || 0,
+                    })
+                    setSelectedSlug(event.slug)
+                  }}
                   className={`group relative overflow-hidden rounded-2xl border bg-[#141C2E] transition-all duration-200 hover:-translate-y-px cursor-pointer ${
                     selectedSlug === event.slug
                       ? 'border-primary/40 shadow-[0_0_0_1px_rgba(212,168,83,0.15)]'

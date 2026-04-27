@@ -19,6 +19,8 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { trackEvent } from '@/lib/analytics/track-client'
+import { EVENT_HERO_CTA_CLICKED } from '@/lib/analytics/events'
 
 function scrollToSection(sectionId) {
   const element = document.getElementById(sectionId)
@@ -153,7 +155,10 @@ export function LandingPage({
                 <Button
                   size="lg"
                   className="h-12 gap-2 rounded-lg px-8 text-base font-body font-medium whitespace-nowrap glow-blue"
-                  onClick={onCreateEvent}
+                  onClick={() => {
+                    trackEvent(EVENT_HERO_CTA_CLICKED, { page_type: 'landing', variant: 'generic', position: 'hero' })
+                    onCreateEvent()
+                  }}
                   disabled={isCreating || !eventName?.trim() || eventName.trim().length < 3 || !ownerEmail?.trim() || !ownerEmail.includes('@')}
                 >
                   {isCreating ? (
