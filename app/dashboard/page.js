@@ -218,18 +218,24 @@ export default function DashboardPage() {
     }
   }
 
-  const startCheckout = async () => {
+  const startCheckout = async (intent, eventId = null, entryPoint = 'dashboard') => {
     if (checkoutBusy) return
     setCheckoutBusy(true)
     try {
       trackEvent(EVENT_UPGRADE_CLICKED, {
-        entryPoint: 'dashboard_banner',
+        entryPoint,
         pageType: 'dashboard',
         userRole: 'owner',
         plan: plan || 'free',
         roomCount: events.length,
+        billing_intent: intent,
+        event_id: eventId,
       })
-      const response = await fetch('/api/stripe/checkout-session', { method: 'POST' })
+      const response = await fetch('/api/stripe/checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ intent, eventId, entryPoint }),
+      })
       const payload = await response.json()
       if (!response.ok || !payload.url) {
         throw new Error(payload.error || 'Unable to start checkout')
@@ -536,16 +542,20 @@ export default function DashboardPage() {
     const params = new URLSearchParams(window.location.search)
     const upgrade = params.get('upgrade')
     if (upgrade === 'success') {
-      setMessage('Welcome to Pro! Your upgrade is being confirmed.')
+      const intent = params.get('intent')
+      setMessage(intent === 'professional' ? 'Welcome to Professional! Your subscription is being confirmed.' : 'Upgrade confirmed! Your event is being updated.')
       loadPlan()
+      loadEvents()
       // Clean URL without full reload
       router.replace('/dashboard', { scroll: false })
     } else if (upgrade === 'cancelled') {
+      const intent = params.get('intent')
       setMessage('Upgrade cancelled. You can upgrade anytime.')
       trackEvent(EVENT_CHECKOUT_CANCELLED, {
         pageType: 'dashboard',
         userRole: 'owner',
         plan: plan || 'free',
+        billing_intent: intent,
       })
       router.replace('/dashboard', { scroll: false })
     }
@@ -759,48 +769,45 @@ export default function DashboardPage() {
               </Button>
             </div>
 
-            {/* Pro upgrade entry point */}
-            {plan !== 'pro' && (
+            {/* Upgrade entry point */}
+            {plan !== 'professional' && plan !== 'business' && (
               <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card overflow-hidden">
                 <div className="p-5 sm:p-6">
                   <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-                          Pro
+                          Premium
                         </span>
                         <Sparkles className="h-3 w-3 text-primary" />
                       </div>
                       <h2 className="mt-1 font-display text-lg font-bold tracking-tight text-white">
-                        Upgrade to Pro
+                        Unlock premium features
                       </h2>
                       <p className="mt-1 max-w-md text-sm font-light text-muted-foreground">
-                        Create unlimited rooms, collect more guest photos, and unlock premium event tools.
+                        Upgrade individual events or go Professional for unlimited client work.
                       </p>
                       <p className="mt-2 text-xs font-light text-muted-foreground/70">
-                        Built for owners who want more control and more growth.
+                        Guests always upload for free. You only pay for the features you need.
                       </p>
                     </div>
 
                     <div className="flex flex-col items-start gap-3 sm:items-end">
                       <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center rounded-full border border-white/[0.07] bg-[#0D1220] px-2.5 py-1 text-xs font-medium text-muted-foreground">
-                          Free
-                        </span>
-                        <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
-                          Pro
-                        </span>
+                        <Button size="sm" variant="outline" asChild className="border-white/[0.07] bg-[#0D1220]">
+                          <a href="/pricing">View pricing</a>
+                        </Button>
                       </div>
                       <Button
                         size="sm"
                         className="glow-blue"
                         disabled={checkoutBusy}
-                        onClick={startCheckout}
+                        onClick={() => startCheckout('professional', null, 'dashboard_banner')}
                       >
                         {checkoutBusy ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
-                          'Upgrade to Pro'
+                          'Start Professional'
                         )}
                       </Button>
                     </div>
@@ -952,6 +959,37 @@ export default function DashboardPage() {
                         QR
                       </Button>
                     </div>
+                    {/* Event-level upgrade for free-tier rooms */}
+                    {plan !== 'professional' && plan !== 'business' && !selectedEvent.billingTier && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-primary/20 bg-primary/5 text-primary hover:bg-primary/10"
+                          disabled={checkoutBusy}
+                          onClick={() => startCheckout('pro_event', selectedEvent.id, 'dashboard_room_detail')}
+                        >
+                          {checkoutBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Pro Event €29'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-primary/20 bg-primary/5 text-primary hover:bg-primary/10"
+                          disabled={checkoutBusy}
+                          onClick={() => startCheckout('wedding_pro', selectedEvent.id, 'dashboard_room_detail')}
+                        >
+                          {checkoutBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Wedding Pro €49'}
+                        </Button>
+                      </div>
+                    )}
+                    {selectedEvent.billingTier && (
+                      <div className="mt-2">
+                        <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                          <Sparkles className="mr-1 h-3 w-3" />
+                          {selectedEvent.billingTier === 'wedding_pro' ? 'Wedding Pro' : 'Pro Event'}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-6">

@@ -34,44 +34,87 @@ export async function POST(request) {
   }
 
   // ── checkout.session.completed ──
-  // Initial Pro upgrade after successful Checkout
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object
+    const intent = session.metadata?.intent
     const ownerId = session.metadata?.ownerId
+    const eventId = session.metadata?.eventId
 
     if (!ownerId) {
       console.warn('[stripe/webhook] Missing ownerId in session metadata')
       return NextResponse.json({ received: true })
     }
 
-    try {
-      const owner = await prisma.owner.update({
-        where: { id: ownerId },
-        data: {
-          plan: 'pro',
-          stripeSubscriptionId: session.subscription || null,
-          stripeCheckoutSessionId: session.id,
-          planUpdatedAt: new Date(),
-        },
-      })
+    // ── Event-based one-time purchase ──
+    if (intent === 'pro_event' || intent === 'wedding_pro') {
+      if (!eventId) {
+        console.warn('[stripe/webhook] Missing eventId for event-based purchase:', intent)
+        return NextResponse.json({ received: true })
+      }
 
-      trackServerEvent(EVENT_CHECKOUT_COMPLETED, {
-        distinctId: owner.email,
-        owner_id: owner.id,
-        stripe_session_id: session.id,
-        stripe_subscription_id: session.subscription,
-        stripe_customer_id: session.customer,
-      })
+      try {
+        const updatedEvent = await prisma.event.update({
+          where: { id: eventId },
+          data: {
+            billingTier: intent,
+            stripeCheckoutSessionId: session.id,
+            billingPurchasedAt: new Date(),
+          },
+        })
 
-      console.log('[stripe/webhook] Owner upgraded to Pro:', owner.email)
-    } catch (dbError) {
-      console.error('[stripe/webhook] Failed to update owner plan:', dbError)
-      return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
+        trackServerEvent(EVENT_CHECKOUT_COMPLETED, {
+          distinctId: session.metadata?.ownerEmail || ownerId,
+          owner_id: ownerId,
+          billing_intent: intent,
+          event_id: eventId,
+          room_slug: session.metadata?.roomSlug || null,
+          stripe_session_id: session.id,
+          stripe_customer_id: session.customer,
+        })
+
+        console.log(`[stripe/webhook] Event ${updatedEvent.slug} upgraded to ${intent}`)
+      } catch (dbError) {
+        console.error('[stripe/webhook] Failed to update event billing:', dbError)
+        return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
+      }
+    }
+
+    // ── Account-level recurring subscription ──
+    else if (intent === 'professional') {
+      try {
+        const owner = await prisma.owner.update({
+          where: { id: ownerId },
+          data: {
+            plan: 'professional',
+            stripeSubscriptionId: session.subscription || null,
+            stripeCheckoutSessionId: session.id,
+            planUpdatedAt: new Date(),
+          },
+        })
+
+        trackServerEvent(EVENT_CHECKOUT_COMPLETED, {
+          distinctId: owner.email,
+          owner_id: owner.id,
+          billing_intent: intent,
+          stripe_session_id: session.id,
+          stripe_subscription_id: session.subscription,
+          stripe_customer_id: session.customer,
+        })
+
+        console.log('[stripe/webhook] Owner upgraded to Professional:', owner.email)
+      } catch (dbError) {
+        console.error('[stripe/webhook] Failed to update owner plan:', dbError)
+        return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
+      }
+    }
+
+    else {
+      console.warn('[stripe/webhook] Unknown checkout intent:', intent)
     }
   }
 
   // ── customer.subscription.updated ──
-  // Handle status changes: payment failures, reactivations, cancellations
+  // Handle status changes for Professional subscriptions
   if (event.type === 'customer.subscription.updated') {
     const subscription = event.data.object
     const subscriptionId = subscription.id
@@ -87,7 +130,7 @@ export async function POST(request) {
         return NextResponse.json({ received: true })
       }
 
-      const newPlan = isActiveSubscription(status) ? 'pro' : 'free'
+      const newPlan = isActiveSubscription(status) ? 'professional' : 'free'
 
       if (owner.plan !== newPlan) {
         await prisma.owner.update({
@@ -106,7 +149,7 @@ export async function POST(request) {
   }
 
   // ── customer.subscription.deleted ──
-  // Subscription fully ended — downgrade to free
+  // Professional subscription fully ended
   if (event.type === 'customer.subscription.deleted') {
     const subscription = event.data.object
     const subscriptionId = subscription.id
