@@ -1,4 +1,4 @@
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://fotoweb-app.vercel.app'
+const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://snaprooms.app'
 
 export default function robots() {
   return {

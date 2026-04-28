@@ -588,8 +588,14 @@ export function LandingPage({
               The easiest way to collect guest photos.
             </p>
             <div className="flex items-center gap-4">
+              <a href="/pricing" className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
+                Pricing
+              </a>
               <a href="/privacy" className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
                 Privacy Policy
+              </a>
+              <a href="/terms" className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
+                Terms
               </a>
               <a href="/dashboard/login" className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
                 Organizer sign in

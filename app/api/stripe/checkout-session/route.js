@@ -27,7 +27,7 @@ export async function POST(request) {
     }
 
     const stripe = getStripe()
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://fotoweb-app.vercel.app'
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://snaprooms.app'
     const priceId = process.env.STRIPE_PRICE_ID
 
     if (!priceId) {

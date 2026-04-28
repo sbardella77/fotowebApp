@@ -6,6 +6,10 @@ import { EVENT_CHECKOUT_COMPLETED } from '@/lib/analytics/events'
 
 export const dynamic = 'force-dynamic'
 
+function isActiveSubscription(status) {
+  return status === 'active' || status === 'trialing'
+}
+
 export async function POST(request) {
   const stripe = getStripe()
   const payload = await request.text()
@@ -23,7 +27,14 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
-  // Only process checkout completion
+  const prisma = await getPrismaClient()
+  if (!prisma) {
+    console.error('[stripe/webhook] Database unavailable')
+    return NextResponse.json({ error: 'Database unavailable' }, { status: 503 })
+  }
+
+  // ── checkout.session.completed ──
+  // Initial Pro upgrade after successful Checkout
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object
     const ownerId = session.metadata?.ownerId
@@ -33,14 +44,7 @@ export async function POST(request) {
       return NextResponse.json({ received: true })
     }
 
-    const prisma = await getPrismaClient()
-    if (!prisma) {
-      console.error('[stripe/webhook] Database unavailable')
-      return NextResponse.json({ error: 'Database unavailable' }, { status: 503 })
-    }
-
     try {
-      // Upsert plan to pro and persist Stripe IDs
       const owner = await prisma.owner.update({
         where: { id: ownerId },
         data: {
@@ -62,6 +66,73 @@ export async function POST(request) {
       console.log('[stripe/webhook] Owner upgraded to Pro:', owner.email)
     } catch (dbError) {
       console.error('[stripe/webhook] Failed to update owner plan:', dbError)
+      return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
+    }
+  }
+
+  // ── customer.subscription.updated ──
+  // Handle status changes: payment failures, reactivations, cancellations
+  if (event.type === 'customer.subscription.updated') {
+    const subscription = event.data.object
+    const subscriptionId = subscription.id
+    const status = subscription.status
+
+    try {
+      const owner = await prisma.owner.findFirst({
+        where: { stripeSubscriptionId: subscriptionId },
+      })
+
+      if (!owner) {
+        console.warn('[stripe/webhook] Owner not found for subscription:', subscriptionId)
+        return NextResponse.json({ received: true })
+      }
+
+      const newPlan = isActiveSubscription(status) ? 'pro' : 'free'
+
+      if (owner.plan !== newPlan) {
+        await prisma.owner.update({
+          where: { id: owner.id },
+          data: {
+            plan: newPlan,
+            planUpdatedAt: new Date(),
+          },
+        })
+        console.log(`[stripe/webhook] Owner ${owner.email} plan changed to ${newPlan} (status: ${status})`)
+      }
+    } catch (dbError) {
+      console.error('[stripe/webhook] Failed to handle subscription update:', dbError)
+      return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
+    }
+  }
+
+  // ── customer.subscription.deleted ──
+  // Subscription fully ended — downgrade to free
+  if (event.type === 'customer.subscription.deleted') {
+    const subscription = event.data.object
+    const subscriptionId = subscription.id
+
+    try {
+      const owner = await prisma.owner.findFirst({
+        where: { stripeSubscriptionId: subscriptionId },
+      })
+
+      if (!owner) {
+        console.warn('[stripe/webhook] Owner not found for deleted subscription:', subscriptionId)
+        return NextResponse.json({ received: true })
+      }
+
+      await prisma.owner.update({
+        where: { id: owner.id },
+        data: {
+          plan: 'free',
+          stripeSubscriptionId: null,
+          planUpdatedAt: new Date(),
+        },
+      })
+
+      console.log('[stripe/webhook] Owner downgraded to free after subscription deletion:', owner.email)
+    } catch (dbError) {
+      console.error('[stripe/webhook] Failed to handle subscription deletion:', dbError)
       return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
     }
   }
