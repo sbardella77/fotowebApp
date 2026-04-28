@@ -47,7 +47,20 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Owner not found' }, { status: 404 })
     }
 
-    // For event-based purchases, validate ownership
+    // For event-based purchases, eventId is required
+    if ((intent === 'pro_event' || intent === 'wedding_pro') && !eventId) {
+      return NextResponse.json({ error: 'eventId is required for event-based purchases' }, { status: 400 })
+    }
+
+    // Prevent duplicate Professional subscription
+    if (intent === 'professional' && owner.plan === 'professional' && owner.stripeSubscriptionId) {
+      return NextResponse.json(
+        { error: 'You already have an active Professional subscription' },
+        { status: 409 }
+      )
+    }
+
+    // For event-based purchases, validate ownership and current state
     let event = null
     if (eventId && (intent === 'pro_event' || intent === 'wedding_pro')) {
       event = await prisma.event.findFirst({
@@ -60,7 +73,10 @@ export async function POST(request) {
         return NextResponse.json({ error: 'Event not found or not owned by you' }, { status: 403 })
       }
       if (event.billingTier) {
-        return NextResponse.json({ error: 'This event has already been upgraded' }, { status: 409 })
+        return NextResponse.json(
+          { error: 'This event has already been upgraded', currentTier: event.billingTier },
+          { status: 409 }
+        )
       }
     }
 

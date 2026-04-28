@@ -876,6 +876,14 @@ export default function DashboardPage() {
                         <p className="mt-1 font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
                           Code: {event.slug}
                         </p>
+                        {event.billingTier && (
+                          <div className="mt-1.5">
+                            <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[0.65rem] font-medium text-primary">
+                              <Sparkles className="mr-1 h-2.5 w-2.5" />
+                              {event.billingTier === 'wedding_pro' ? 'Wedding Pro' : 'Pro Event'}
+                            </span>
+                          </div>
+                        )}
                       </>
                     )}
 

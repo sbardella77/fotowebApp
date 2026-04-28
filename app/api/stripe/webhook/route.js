@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { getStripe } from '@/lib/server/stripe'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { trackServerEvent } from '@/lib/analytics/track-server'
@@ -53,6 +54,15 @@ export async function POST(request) {
       }
 
       try {
+        // Idempotency: skip if this exact session already fulfilled
+        const existing = await prisma.event.findFirst({
+          where: { id: eventId, stripeCheckoutSessionId: session.id },
+        })
+        if (existing) {
+          console.log(`[stripe/webhook] Event ${existing.slug} already fulfilled for session ${session.id}`)
+          return NextResponse.json({ received: true })
+        }
+
         const updatedEvent = await prisma.event.update({
           where: { id: eventId },
           data: {
@@ -74,6 +84,11 @@ export async function POST(request) {
 
         console.log(`[stripe/webhook] Event ${updatedEvent.slug} upgraded to ${intent}`)
       } catch (dbError) {
+        // If event was deleted, don't retry forever
+        if (dbError instanceof Prisma.PrismaClientKnownRequestError && dbError.code === 'P2025') {
+          console.warn('[stripe/webhook] Event not found for fulfillment, skipping:', eventId)
+          return NextResponse.json({ received: true })
+        }
         console.error('[stripe/webhook] Failed to update event billing:', dbError)
         return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
       }
@@ -82,6 +97,15 @@ export async function POST(request) {
     // ── Account-level recurring subscription ──
     else if (intent === 'professional') {
       try {
+        // Idempotency: skip if this exact session already fulfilled
+        const existing = await prisma.owner.findFirst({
+          where: { id: ownerId, stripeCheckoutSessionId: session.id },
+        })
+        if (existing) {
+          console.log(`[stripe/webhook] Owner ${existing.email} already fulfilled for session ${session.id}`)
+          return NextResponse.json({ received: true })
+        }
+
         const owner = await prisma.owner.update({
           where: { id: ownerId },
           data: {
@@ -103,6 +127,10 @@ export async function POST(request) {
 
         console.log('[stripe/webhook] Owner upgraded to Professional:', owner.email)
       } catch (dbError) {
+        if (dbError instanceof Prisma.PrismaClientKnownRequestError && dbError.code === 'P2025') {
+          console.warn('[stripe/webhook] Owner not found for fulfillment, skipping:', ownerId)
+          return NextResponse.json({ received: true })
+        }
         console.error('[stripe/webhook] Failed to update owner plan:', dbError)
         return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
       }
