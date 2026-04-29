@@ -49,6 +49,8 @@ import {
   EVENT_OWNER_CLAIM_COMPLETED,
   EVENT_OWNER_LOGGED_IN,
   EVENT_RATE_LIMIT_HIT,
+  EVENT_FREE_ROOM_LIMIT_HIT,
+  EVENT_FREE_PHOTO_LIMIT_HIT,
 } from '@/lib/analytics/events'
 import { getAdminAuthDriver, getDataAccessDriver, getPrismaClient } from '@/lib/server/prisma-client'
 import {
@@ -60,6 +62,10 @@ import {
   isVercelBlobStorageConfigured,
   localStorageDriver,
 } from '@/lib/server/storage'
+import {
+  checkOwnerRoomCreationEntitlement,
+  checkRoomUploadEntitlement,
+} from '@/lib/server/entitlements'
 
 export const runtime = 'nodejs'
 
@@ -172,6 +178,31 @@ const createEvent = async (request) => {
   }
 
   const repository = await getGalleryRepository()
+
+  // If owner email provided, enforce Free plan room limit before creating
+  if (payload.ownerEmail) {
+    const prisma = await getPrismaClient()
+    const owner = await repository.getOrCreateOwnerByEmail(payload.ownerEmail)
+    if (prisma && owner) {
+      const entitlement = await checkOwnerRoomCreationEntitlement(prisma, owner)
+      if (!entitlement.allowed) {
+        trackServerEvent(EVENT_FREE_ROOM_LIMIT_HIT, {
+          distinctId: payload.ownerEmail,
+          owner_id: owner.id,
+          current_rooms: entitlement.current,
+          limit: entitlement.max,
+        })
+        return json({
+          error: `Free plan limit reached: you can only have ${entitlement.max} active room.`,
+          limit: 'room_count',
+          current: entitlement.current,
+          max: entitlement.max,
+          upgradePath: entitlement.upgradePath,
+        }, 403)
+      }
+    }
+  }
+
   const event = await repository.createEvent({ name: payload.name })
 
   trackServerEvent(EVENT_ROOM_CREATED, {
@@ -539,6 +570,27 @@ const initUpload = async (request) => {
     return json({ error: 'Event not found' }, 404)
   }
 
+  // Enforce photo limit for Free rooms
+  const prisma = await getPrismaClient()
+  if (prisma) {
+    const entitlement = await checkRoomUploadEntitlement(prisma, event)
+    if (!entitlement.allowed) {
+      trackServerEvent(EVENT_FREE_PHOTO_LIMIT_HIT, {
+        room_slug: event.slug,
+        event_id: event.id,
+        current_photos: entitlement.current,
+        limit: entitlement.max,
+      })
+      return json({
+        error: `This room has reached its ${entitlement.max}-photo limit.`,
+        limit: 'photo_count',
+        current: entitlement.current,
+        max: entitlement.max,
+        upgradePath: entitlement.upgradePath,
+      }, 403)
+    }
+  }
+
   const storageDriver = getStorageDriver()
   const session = await storageDriver.initUploadSession(payload)
   return json({ session }, 201)
@@ -586,6 +638,21 @@ const issueBlobUploadToken = async (request) => {
 
         if (!event) {
           throw new Error('Event not found')
+        }
+
+        // Enforce photo limit for Free rooms
+        const prisma = await getPrismaClient()
+        if (prisma) {
+          const entitlement = await checkRoomUploadEntitlement(prisma, event)
+          if (!entitlement.allowed) {
+            trackServerEvent(EVENT_FREE_PHOTO_LIMIT_HIT, {
+              room_slug: event.slug,
+              event_id: event.id,
+              current_photos: entitlement.current,
+              limit: entitlement.max,
+            })
+            throw new Error(`This room has reached its ${entitlement.max}-photo limit.`)
+          }
         }
 
         return {
@@ -656,6 +723,7 @@ const completeUpload = async (request) => {
 
   const body = await request.json()
   const repository = await getGalleryRepository()
+  const prisma = await getPrismaClient()
 
   if (body?.blobUrl) {
     const payload = blobUploadCompleteSchema.parse(body)
@@ -663,6 +731,26 @@ const completeUpload = async (request) => {
 
     if (!event) {
       return json({ error: 'Event not found while finalizing upload' }, 404)
+    }
+
+    // Final guard: enforce photo limit for Free rooms
+    if (prisma) {
+      const entitlement = await checkRoomUploadEntitlement(prisma, event)
+      if (!entitlement.allowed) {
+        trackServerEvent(EVENT_FREE_PHOTO_LIMIT_HIT, {
+          room_slug: event.slug,
+          event_id: event.id,
+          current_photos: entitlement.current,
+          limit: entitlement.max,
+        })
+        return json({
+          error: `This room has reached its ${entitlement.max}-photo limit.`,
+          limit: 'photo_count',
+          current: entitlement.current,
+          max: entitlement.max,
+          upgradePath: entitlement.upgradePath,
+        }, 403)
+      }
     }
 
     const photo = await repository.createPhoto({
@@ -694,6 +782,26 @@ const completeUpload = async (request) => {
 
   if (!event) {
     return json({ error: 'Event not found while finalizing upload' }, 404)
+  }
+
+  // Final guard: enforce photo limit for Free rooms
+  if (prisma) {
+    const entitlement = await checkRoomUploadEntitlement(prisma, event)
+    if (!entitlement.allowed) {
+      trackServerEvent(EVENT_FREE_PHOTO_LIMIT_HIT, {
+        room_slug: event.slug,
+        event_id: event.id,
+        current_photos: entitlement.current,
+        limit: entitlement.max,
+      })
+      return json({
+        error: `This room has reached its ${entitlement.max}-photo limit.`,
+        limit: 'photo_count',
+        current: entitlement.current,
+        max: entitlement.max,
+        upgradePath: entitlement.upgradePath,
+      }, 403)
+    }
   }
 
   const photo = await repository.createPhoto({

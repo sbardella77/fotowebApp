@@ -233,6 +233,7 @@ export default function RoomPageClient({ slug, isNew }) {
   const [lastUploadCount, setLastUploadCount] = useState(0)
   const [ownerSession, setOwnerSession] = useState({ authenticated: false, email: null })
   const [unlockMessage, setUnlockMessage] = useState('')
+  const [photoLimitError, setPhotoLimitError] = useState(null)
   const heroFileInputRef = useRef(null)
   const cameraFileInputRef = useRef(null)
   const heroRef = useRef(null)
@@ -374,6 +375,11 @@ export default function RoomPageClient({ slug, isNew }) {
       const initPayload = await initResponse.json()
 
       if (!initResponse.ok) {
+        if (initPayload.limit === 'photo_count') {
+          setPhotoLimitError(initPayload)
+          updateUpload({ status: 'Room photo limit reached' })
+          return false
+        }
         throw new Error(initPayload.error || 'Unable to initialize upload')
       }
 
@@ -415,6 +421,11 @@ export default function RoomPageClient({ slug, isNew }) {
         const completePayload = await completeResponse.json()
 
         if (!completeResponse.ok) {
+          if (completePayload.limit === 'photo_count') {
+            setPhotoLimitError(completePayload)
+            updateUpload({ status: 'Room photo limit reached' })
+            return false
+          }
           throw new Error(completePayload.error || 'Unable to finalize upload')
         }
 
@@ -466,6 +477,11 @@ export default function RoomPageClient({ slug, isNew }) {
       const completePayload = await completeResponse.json()
 
       if (!completeResponse.ok) {
+        if (completePayload.limit === 'photo_count') {
+          setPhotoLimitError(completePayload)
+          updateUpload({ status: 'Room photo limit reached' })
+          return false
+        }
         throw new Error(completePayload.error || 'Unable to finalize upload')
       }
 
@@ -489,6 +505,7 @@ export default function RoomPageClient({ slug, isNew }) {
     setUploadSuccess(false)
     setUploadFormatError('')
     setShowViralSection(false)
+    setPhotoLimitError(null)
 
     const supportedFiles = []
     const unsupportedFiles = []
@@ -856,6 +873,47 @@ export default function RoomPageClient({ slug, isNew }) {
                   </div>
                 )}
 
+                {photoLimitError && (
+                  <div className="mt-5 rounded-xl border border-amber-500/20 bg-amber-500/10 px-5 py-4 text-left">
+                    {ownerSession?.authenticated && ownerSession?.email?.toLowerCase() === activeEvent?.ownerEmail?.toLowerCase() ? (
+                      <>
+                        <p className="text-sm font-medium text-amber-400">
+                          This Free room has reached its 50-photo limit.
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Upgrade this room to Pro Event or Wedding Pro to continue collecting photos.
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button size="sm" className="glow-blue" asChild>
+                            <a href="/pricing">View pricing</a>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-white/[0.07] bg-[#0D1220]"
+                            onClick={() => {
+                              if (typeof window !== 'undefined') {
+                                window.location.href = '/dashboard'
+                              }
+                            }}
+                          >
+                            Upgrade this room
+                          </Button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm font-medium text-amber-400">
+                          This room has reached its photo limit.
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Ask the room owner to upgrade this room to continue collecting photos.
+                        </p>
+                      </>
+                    )}
+                  </div>
+                )}
+
                 {isUploading ? (
                   <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/[0.07] bg-[#0D1220] px-5 py-3 text-sm font-medium text-foreground">
                     <Loader2 className="h-4 w-4 animate-spin text-primary" />
@@ -866,6 +924,7 @@ export default function RoomPageClient({ slug, isNew }) {
                     <Button
                       size="lg"
                       className="h-12 gap-2 rounded-lg px-6 text-base font-body font-medium glow-blue"
+                      disabled={Boolean(photoLimitError)}
                       onClick={() => {
                         setUploadSuccess(false)
                         setUploadFormatError('')
@@ -880,6 +939,7 @@ export default function RoomPageClient({ slug, isNew }) {
                       size="lg"
                       variant="outline"
                       className="h-12 gap-2 rounded-lg px-6 text-base font-body font-medium border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground"
+                      disabled={Boolean(photoLimitError)}
                       onClick={() => {
                         setUploadSuccess(false)
                         setUploadFormatError('')

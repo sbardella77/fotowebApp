@@ -54,7 +54,9 @@ export function LandingPage({
   setEventName,
   ownerEmail,
   setOwnerEmail,
-  isCreating
+  isCreating,
+  createError = null,
+  onClearCreateError,
 }) {
   const featuresRef = useRef(null)
   useScrollReveal()
@@ -171,6 +173,33 @@ export function LandingPage({
                   )}
                 </Button>
               </div>
+
+              {createError?.limit === 'room_count' && (
+                <div className="mx-auto max-w-md rounded-xl border border-white/[0.07] bg-[#141C2E] p-4 text-left">
+                  <p className="text-sm font-medium text-white">
+                    You&apos;ve reached the Free plan limit of 1 active room.
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Upgrade to Professional to create and manage multiple rooms for all your events.
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <Button size="sm" className="glow-blue" asChild>
+                      <a href="/pricing">View pricing</a>
+                    </Button>
+                    <Button size="sm" variant="outline" className="border-white/[0.07] bg-[#0D1220]" asChild>
+                      <a href="/dashboard/login">Start Professional</a>
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {createError && createError.limit !== 'room_count' && (
+                <div className="mx-auto max-w-md rounded-xl border border-red-500/20 bg-red-500/[0.06] p-4 text-left">
+                  <p className="text-sm font-medium text-red-400">
+                    {createError.error || 'Unable to create room. Please try again.'}
+                  </p>
+                </div>
+              )}
 
               {/* Microcopy */}
               <p className="text-sm font-light text-muted-foreground">

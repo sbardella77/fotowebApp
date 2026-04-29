@@ -13,6 +13,7 @@ export default function HomePage() {
   const [eventName, setEventName] = useState('')
   const [ownerEmail, setOwnerEmail] = useState('')
   const [isCreating, setIsCreating] = useState(false)
+  const [createError, setCreateError] = useState(null)
   const [isRedirecting, setIsRedirecting] = useState(() => {
     if (typeof window === 'undefined') return false
     const params = new URLSearchParams(window.location.search)
@@ -47,6 +48,7 @@ export default function HomePage() {
     })
 
     setIsCreating(true)
+    setCreateError(null)
     try {
       const response = await fetch('/api/events', {
         method: 'POST',
@@ -56,7 +58,11 @@ export default function HomePage() {
       const payload = await response.json()
       if (response.ok && payload.event?.slug) {
         router.push(`/event/${payload.event.slug}?new=1`)
+      } else if (!response.ok) {
+        setCreateError(payload)
       }
+    } catch (e) {
+      setCreateError({ error: 'Unable to create room. Please try again.' })
     } finally {
       setIsCreating(false)
     }
@@ -117,6 +123,8 @@ export default function HomePage() {
         ownerEmail={ownerEmail}
         setOwnerEmail={setOwnerEmail}
         isCreating={isCreating}
+        createError={createError}
+        onClearCreateError={() => setCreateError(null)}
       />
     </main>
   )
