@@ -20,6 +20,7 @@ const MODE_MAP = {
 }
 
 export async function POST(request) {
+  const logPrefix = '[stripe/checkout-session]'
   try {
     // Authenticate owner
     const token = request.cookies.get('snaprooms_owner_session')?.value
@@ -39,11 +40,13 @@ export async function POST(request) {
 
     const prisma = await getPrismaClient()
     if (!prisma) {
+      console.error(`${logPrefix} Database unavailable`)
       return NextResponse.json({ error: 'Database unavailable' }, { status: 503 })
     }
 
     const owner = await prisma.owner.findUnique({ where: { email: ownerEmail } })
     if (!owner) {
+      console.error(`${logPrefix} Owner not found for email:`, ownerEmail)
       return NextResponse.json({ error: 'Owner not found' }, { status: 404 })
     }
 
@@ -70,6 +73,7 @@ export async function POST(request) {
         },
       })
       if (!event) {
+        console.warn(`${logPrefix} Event not found or not owned. eventId=${eventId}, ownerId=${owner.id}`)
         return NextResponse.json({ error: 'Event not found or not owned by you' }, { status: 403 })
       }
       if (event.billingTier) {
@@ -83,8 +87,18 @@ export async function POST(request) {
     const priceIdEnv = PRICE_ENV_MAP[intent]
     const priceId = process.env[priceIdEnv]
     if (!priceId) {
+      console.error(`${logPrefix} Missing env var: ${priceIdEnv} for intent=${intent}`)
       return NextResponse.json(
         { error: `Stripe price not configured for intent: ${intent}` },
+        { status: 500 }
+      )
+    }
+
+    // Defensive: ensure priceId looks like a Stripe price ID
+    if (!priceId.startsWith('price_')) {
+      console.error(`${logPrefix} Invalid price ID format for ${priceIdEnv}: "${priceId}"`)
+      return NextResponse.json(
+        { error: `Stripe price ID is misconfigured for intent: ${intent}` },
         { status: 500 }
       )
     }
@@ -96,15 +110,23 @@ export async function POST(request) {
     // Get or create Stripe customer
     let customerId = owner.stripeCustomerId
     if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: owner.email,
-        metadata: { ownerId: owner.id },
-      })
-      customerId = customer.id
-      await prisma.owner.update({
-        where: { id: owner.id },
-        data: { stripeCustomerId: customerId },
-      })
+      try {
+        const customer = await stripe.customers.create({
+          email: owner.email,
+          metadata: { ownerId: owner.id },
+        })
+        customerId = customer.id
+        await prisma.owner.update({
+          where: { id: owner.id },
+          data: { stripeCustomerId: customerId },
+        })
+      } catch (customerError) {
+        console.error(`${logPrefix} Stripe customer creation failed:`, customerError)
+        return NextResponse.json(
+          { error: 'Unable to create Stripe customer. Please try again.' },
+          { status: 502 }
+        )
+      }
     }
 
     const sessionConfig = {
@@ -133,7 +155,34 @@ export async function POST(request) {
       }
     }
 
-    const session = await stripe.checkout.sessions.create(sessionConfig)
+    let session
+    try {
+      session = await stripe.checkout.sessions.create(sessionConfig)
+    } catch (stripeError) {
+      const rawMessage = stripeError?.message || 'Unknown Stripe error'
+      console.error(`${logPrefix} Stripe checkout session creation failed:`, {
+        intent,
+        eventId: event?.id || null,
+        ownerId: owner.id,
+        priceId,
+        mode,
+        stripeErrorType: stripeError?.type,
+        stripeCode: stripeError?.code,
+        message: rawMessage,
+      })
+
+      if (rawMessage.includes('No such price')) {
+        return NextResponse.json(
+          { error: 'Stripe price not found. The price ID may belong to a different environment (test vs live).' },
+          { status: 502 }
+        )
+      }
+
+      return NextResponse.json(
+        { error: rawMessage },
+        { status: 502 }
+      )
+    }
 
     trackServerEvent(EVENT_CHECKOUT_STARTED, {
       distinctId: owner.email,
@@ -148,9 +197,9 @@ export async function POST(request) {
 
     return NextResponse.json({ url: session.url })
   } catch (error) {
-    console.error('[stripe/checkout-session]', error)
+    console.error(`${logPrefix} Unexpected error:`, error)
     return NextResponse.json(
-      { error: error?.message || 'Unable to start checkout' },
+      { error: 'Unable to start checkout. Please try again later.' },
       { status: 500 }
     )
   }
