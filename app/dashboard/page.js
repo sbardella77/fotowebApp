@@ -543,7 +543,13 @@ export default function DashboardPage() {
     const upgrade = params.get('upgrade')
     if (upgrade === 'success') {
       const intent = params.get('intent')
-      setMessage(intent === 'professional' ? 'Welcome to Professional! Your subscription is being confirmed.' : 'Upgrade confirmed! Your event is being updated.')
+      if (intent === 'professional') {
+        setMessage('Welcome to Professional! Your subscription is being confirmed.')
+      } else if (intent === 'high_quality_download') {
+        setMessage('Original quality downloads unlocked! Your room is being updated.')
+      } else {
+        setMessage('Upgrade confirmed! Your event is being updated.')
+      }
       loadPlan()
       loadEvents()
       // Clean URL without full reload
@@ -1053,6 +1059,7 @@ export default function DashboardPage() {
         photos={photos}
         selectedIndex={lightboxIndex}
         event={selectedEvent ? { ...selectedEvent, ownerPlan: plan } : null}
+        isOwner={true}
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

@@ -465,6 +465,7 @@ function App() {
         open={lightboxOpen}
         photos={photos}
         selectedIndex={lightboxIndex}
+        isOwner={true}
       />
     </main>
   )

@@ -1134,6 +1134,7 @@ export default function RoomPageClient({ slug, isNew }) {
         photos={galleryPhotos}
         selectedIndex={lightboxIndex}
         event={activeEvent}
+        isOwner={ownerSession?.authenticated && ownerSession?.email?.toLowerCase() === activeEvent?.ownerEmail?.toLowerCase()}
       />
 
       <ToastComponent />

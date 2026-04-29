@@ -72,6 +72,7 @@ const PhotoLightbox = ({
   selectedIndex = 0,
   onSelectIndex,
   event = null,
+  isOwner = false,
 }) => {
   // Defensive: ensure photos array only contains valid objects
   const safePhotos = photos.filter((photo, index) => {
@@ -391,7 +392,7 @@ const PhotoLightbox = ({
                   </div>
                   <Check className="ml-auto h-4 w-4 text-emerald-400 shrink-0" />
                 </DropdownMenuItem>
-              ) : (
+              ) : isOwner ? (
                 <DropdownMenuItem
                   className="cursor-pointer focus:bg-white/5 focus:text-white"
                   onClick={(e) => {
@@ -403,7 +404,7 @@ const PhotoLightbox = ({
                   <div className="flex flex-col py-1">
                     <span className="text-sm font-medium">Original quality</span>
                     <span className="text-xs text-muted-foreground">
-                      Unlock for this room — €1.99
+                      Unlock for everyone in this room — €1.99
                     </span>
                   </div>
                   {unlockBusy ? (
@@ -411,6 +412,19 @@ const PhotoLightbox = ({
                   ) : (
                     <Lock className="ml-auto h-4 w-4 text-primary shrink-0" />
                   )}
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem
+                  className="cursor-default focus:bg-transparent"
+                  disabled
+                >
+                  <div className="flex flex-col py-1">
+                    <span className="text-sm font-medium text-muted-foreground">Original quality</span>
+                    <span className="text-xs text-muted-foreground">
+                      Ask the room owner to unlock original downloads
+                    </span>
+                  </div>
+                  <Lock className="ml-auto h-4 w-4 text-muted-foreground shrink-0" />
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>

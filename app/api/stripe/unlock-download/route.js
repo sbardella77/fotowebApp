@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getStripe } from '@/lib/server/stripe'
 import { getPrismaClient } from '@/lib/server/prisma-client'
+import { verifyOwnerSessionToken } from '@/lib/server/owner-auth'
 import { trackServerEvent } from '@/lib/analytics/track-server'
 import { EVENT_CHECKOUT_STARTED } from '@/lib/analytics/events'
 
@@ -9,6 +10,13 @@ export const dynamic = 'force-dynamic'
 export async function POST(request) {
   const logPrefix = '[stripe/unlock-download]'
   try {
+    // Authenticate owner
+    const token = request.cookies.get('snaprooms_owner_session')?.value
+    const ownerEmail = await verifyOwnerSessionToken(token)
+    if (!ownerEmail) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
     const body = await request.json().catch(() => ({}))
     const { eventSlug } = body
 
@@ -22,9 +30,25 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Database unavailable' }, { status: 503 })
     }
 
+    const owner = await prisma.owner.findUnique({ where: { email: ownerEmail } })
+    if (!owner) {
+      return NextResponse.json({ error: 'Owner not found' }, { status: 404 })
+    }
+
     const event = await prisma.event.findUnique({ where: { slug: eventSlug } })
     if (!event) {
       return NextResponse.json({ error: 'Room not found' }, { status: 404 })
+    }
+
+    // Verify ownership
+    const isOwner =
+      event.ownerId === owner.id ||
+      event.ownerEmail?.toLowerCase() === ownerEmail.toLowerCase()
+    if (!isOwner) {
+      return NextResponse.json(
+        { error: 'You do not own this room' },
+        { status: 403 }
+      )
     }
 
     if (event.originalDownloadUnlocked) {
@@ -57,12 +81,14 @@ export async function POST(request) {
     const sessionConfig = {
       line_items: [{ price: priceId, quantity: 1 }],
       mode: 'payment',
-      success_url: `${baseUrl}/event/${eventSlug}?unlock=success`,
-      cancel_url: `${baseUrl}/event/${eventSlug}?unlock=cancelled`,
+      success_url: `${baseUrl}/dashboard?upgrade=success&intent=high_quality_download`,
+      cancel_url: `${baseUrl}/dashboard?upgrade=cancelled&intent=high_quality_download`,
       metadata: {
         intent: 'high_quality_download',
         eventId: event.id,
         roomSlug: event.slug,
+        ownerId: owner.id,
+        ownerEmail: owner.email,
       },
     }
 
