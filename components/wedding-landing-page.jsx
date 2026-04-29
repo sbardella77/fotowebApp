@@ -667,7 +667,7 @@ export function WeddingLandingPage() {
                 },
                 {
                   q: 'Are the photos kept at full resolution?',
-                  a: 'Yes. We keep every photo at its original resolution so you can print, frame, and preserve your memories in the highest quality possible.',
+                  a: 'Yes. We keep every photo at its original resolution so you can print, frame, and preserve your memories in the highest quality possible. Original-resolution downloads are included with premium plans or a one-time €1.99 room unlock on Free.',
                 },
                 {
                   q: 'Can I download all photos after the wedding?',

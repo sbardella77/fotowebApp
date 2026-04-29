@@ -41,6 +41,53 @@ export async function POST(request) {
     const ownerId = session.metadata?.ownerId
     const eventId = session.metadata?.eventId
 
+    // ── High-quality download unlock (guest or owner, no auth required) ──
+    if (intent === 'high_quality_download') {
+      if (!eventId) {
+        console.warn('[stripe/webhook] Missing eventId for high_quality_download')
+        return NextResponse.json({ received: true })
+      }
+
+      try {
+        const existing = await prisma.event.findFirst({
+          where: { id: eventId, originalDownloadCheckoutSessionId: session.id },
+        })
+        if (existing) {
+          console.log(`[stripe/webhook] Event ${existing.slug} already fulfilled for download unlock session ${session.id}`)
+          return NextResponse.json({ received: true })
+        }
+
+        const updatedEvent = await prisma.event.update({
+          where: { id: eventId },
+          data: {
+            originalDownloadUnlocked: true,
+            originalDownloadCheckoutSessionId: session.id,
+            updatedAt: new Date(),
+          },
+        })
+
+        trackServerEvent(EVENT_CHECKOUT_COMPLETED, {
+          distinctId: session.customer_email || session.customer || eventId,
+          billing_intent: intent,
+          event_id: eventId,
+          room_slug: session.metadata?.roomSlug || null,
+          stripe_session_id: session.id,
+          stripe_customer_id: session.customer,
+        })
+
+        console.log(`[stripe/webhook] Event ${updatedEvent.slug} unlocked for original quality downloads`)
+      } catch (dbError) {
+        if (dbError instanceof Prisma.PrismaClientKnownRequestError && dbError.code === 'P2025') {
+          console.warn('[stripe/webhook] Event not found for fulfillment, skipping:', eventId)
+          return NextResponse.json({ received: true })
+        }
+        console.error('[stripe/webhook] Failed to unlock original downloads:', dbError)
+        return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
+      }
+
+      return NextResponse.json({ received: true })
+    }
+
     if (!ownerId) {
       console.warn('[stripe/webhook] Missing ownerId in session metadata')
       return NextResponse.json({ received: true })

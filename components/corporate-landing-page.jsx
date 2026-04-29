@@ -481,7 +481,7 @@ export function CorporateLandingPage() {
                   },
                   {
                     q: 'Can we download all photos for marketing or internal use?',
-                    a: 'Yes. Room owners can download the entire gallery in original resolution with a single click. Perfect for post-event marketing, year-end recaps, and internal communications.',
+                    a: 'Yes. Room owners can download the entire gallery in original resolution with a single click on premium plans and unlocked rooms. Free rooms include standard-quality downloads; original quality unlocks for a one-time €1.99 fee.',
                   },
                   {
                     q: 'How long are galleries available?',

@@ -432,7 +432,7 @@ export function BirthdayLandingPage() {
                   },
                   {
                     q: 'Can I download all the photos after the party?',
-                    a: 'Yes. You can download the entire gallery in original resolution with a single click. Perfect for creating a photo book or sharing with family.',
+                    a: 'Yes. On premium plans and unlocked rooms, you can download the entire gallery in original resolution with a single click. Free rooms include standard-quality downloads; original quality unlocks for a one-time €1.99 fee.',
                   },
                   {
                     q: 'How long does the gallery stay active?',

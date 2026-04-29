@@ -31,20 +31,22 @@ model Owner {
 }
 
 model Event {
-  id                     String   @id @default(uuid())
-  slug                   String   @unique
-  name                   String
-  ownerEmail             String?
-  ownerId                String?
-  owner                  Owner?   @relation(fields: [ownerId], references: [id])
-  managementTokenHash    String?
-  coverPhotoId           String?
-  billingTier            String?
-  stripeCheckoutSessionId String?
-  billingPurchasedAt     DateTime?
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-  photos                 Photo[]
+  id                              String   @id @default(uuid())
+  slug                            String   @unique
+  name                            String
+  ownerEmail                      String?
+  ownerId                         String?
+  owner                           Owner?   @relation(fields: [ownerId], references: [id])
+  managementTokenHash             String?
+  coverPhotoId                    String?
+  billingTier                     String?
+  stripeCheckoutSessionId         String?
+  billingPurchasedAt              DateTime?
+  originalDownloadUnlocked        Boolean  @default(false)
+  originalDownloadCheckoutSessionId String?
+  createdAt                       DateTime @default(now())
+  updatedAt                       DateTime @updatedAt
+  photos                          Photo[]
 
   @@index([createdAt])
   @@index([ownerId])

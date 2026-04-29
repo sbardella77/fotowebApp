@@ -232,6 +232,7 @@ export default function RoomPageClient({ slug, isNew }) {
   const [showStickyCta, setShowStickyCta] = useState(false)
   const [lastUploadCount, setLastUploadCount] = useState(0)
   const [ownerSession, setOwnerSession] = useState({ authenticated: false, email: null })
+  const [unlockMessage, setUnlockMessage] = useState('')
   const heroFileInputRef = useRef(null)
   const cameraFileInputRef = useRef(null)
   const heroRef = useRef(null)
@@ -247,6 +248,36 @@ export default function RoomPageClient({ slug, isNew }) {
   }, [])
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const unlock = params.get('unlock')
+    if (unlock === 'success') {
+      setUnlockMessage('Original quality unlocked for this room!')
+      showToast('Original quality unlocked for this room!')
+      if (activeEvent?.slug) {
+        loadEvent(activeEvent.slug, { silent: true })
+      }
+      try {
+        const url = new URL(window.location.href)
+        url.searchParams.delete('unlock')
+        window.history.replaceState({}, '', url.toString())
+      } catch (e) {
+        console.warn('[room] failed to clean URL', e)
+      }
+    } else if (unlock === 'cancelled') {
+      setUnlockMessage('Unlock cancelled. You can unlock anytime.')
+      try {
+        const url = new URL(window.location.href)
+        url.searchParams.delete('unlock')
+        window.history.replaceState({}, '', url.toString())
+      } catch (e) {
+        console.warn('[room] failed to clean URL', e)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeEvent?.slug])
 
   const galleryPhotos = useMemo(() => {
     try {
@@ -1044,8 +1075,13 @@ export default function RoomPageClient({ slug, isNew }) {
                     {galleryPhotos.length}
                   </Badge>
                 </div>
+                {unlockMessage && (
+                  <p className="mt-2 text-sm font-medium text-emerald-400">
+                    {unlockMessage}
+                  </p>
+                )}
                 <p className="mt-1 text-sm font-light text-muted-foreground">
-                  Tap any photo to view and download in full quality.
+                  Tap any photo to view and download. Original quality may require a one-time unlock on Free rooms.
                 </p>
 
                 <div className="mt-5">
@@ -1097,6 +1133,7 @@ export default function RoomPageClient({ slug, isNew }) {
         open={lightboxOpen}
         photos={galleryPhotos}
         selectedIndex={lightboxIndex}
+        event={activeEvent}
       />
 
       <ToastComponent />

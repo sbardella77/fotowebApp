@@ -1,8 +1,28 @@
 'use client'
 
-import { ChevronLeft, ChevronRight, Download, ImageOff, Loader2, X } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  ImageOff,
+  Loader2,
+  X,
+  Lock,
+  Check,
+} from 'lucide-react'
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { trackEvent } from '@/lib/analytics/track-client'
+import {
+  EVENT_DOWNLOAD_QUALITY_SELECTED,
+  EVENT_ORIGINAL_DOWNLOAD_UNLOCK_CLICKED,
+} from '@/lib/analytics/events'
 
 const SWIPE_THRESHOLD = 50
 const SWIPE_VELOCITY = 0.5
@@ -37,7 +57,22 @@ const ImageWithLoading = ({ src, alt }) => {
   )
 }
 
-const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onSelectIndex }) => {
+function useCanDownloadOriginal(event) {
+  if (!event) return true
+  if (event.billingTier === 'pro_event' || event.billingTier === 'wedding_pro') return true
+  if (event.originalDownloadUnlocked) return true
+  if (event.ownerPlan === 'professional' || event.ownerPlan === 'business') return true
+  return false
+}
+
+const PhotoLightbox = ({
+  open,
+  onOpenChange,
+  photos = [],
+  selectedIndex = 0,
+  onSelectIndex,
+  event = null,
+}) => {
   // Defensive: ensure photos array only contains valid objects
   const safePhotos = photos.filter((photo, index) => {
     if (!photo || typeof photo !== 'object') {
@@ -59,12 +94,18 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
   const [isClosing, setIsClosing] = useState(false)
   const [isNavigating, setIsNavigating] = useState(false)
   const [downloaded, setDownloaded] = useState(false)
-  
+  const [unlockBusy, setUnlockBusy] = useState(false)
+
   // Touch handling refs
   const touchStart = useRef({ x: 0, y: 0, time: 0 })
   const touchEnd = useRef({ x: 0, y: 0, time: 0 })
   const isSwiping = useRef(false)
   const containerRef = useRef(null)
+
+  const canDownloadOriginal = useCanDownloadOriginal(event)
+  const isFreeRoom =
+    event && !event.billingTier && !event.originalDownloadUnlocked &&
+    event.ownerPlan !== 'professional' && event.ownerPlan !== 'business'
 
   const handleClose = useCallback(() => {
     setIsClosing(true)
@@ -88,23 +129,75 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
     setTimeout(() => setIsNavigating(false), 300)
   }, [selectedIndex, safePhotos.length, isNavigating, onSelectIndex])
 
-  const handleDownload = useCallback(() => {
-    if (!photo?.url) return
-    try {
-      const link = document.createElement('a')
-      link.href = photo.url
-      link.download = photo.originalName || `photo-${photo.id || selectedIndex + 1}.jpg`
-      link.target = '_blank'
-      link.rel = 'noopener noreferrer'
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      setDownloaded(true)
-      setTimeout(() => setDownloaded(false), 2000)
-    } catch (e) {
-      console.warn('[lightbox] download failed', e)
+  const performDownload = useCallback(
+    (quality) => {
+      if (!photo?.url) return
+      try {
+        const link = document.createElement('a')
+        link.href = photo.url
+        const suffix = quality === 'original' ? '-original' : ''
+        const baseName = photo.originalName || `photo-${photo.id || selectedIndex + 1}.jpg`
+        const nameParts = baseName.split('.')
+        const ext = nameParts.length > 1 ? nameParts.pop() : 'jpg'
+        const name = nameParts.join('.')
+        link.download = `${name}${suffix}.${ext}`
+        link.target = '_blank'
+        link.rel = 'noopener noreferrer'
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        setDownloaded(true)
+        setTimeout(() => setDownloaded(false), 2000)
+      } catch (e) {
+        console.warn('[lightbox] download failed', e)
+      }
+    },
+    [photo, selectedIndex]
+  )
+
+  const handleDownloadStandard = useCallback(() => {
+    trackEvent(EVENT_DOWNLOAD_QUALITY_SELECTED, {
+      room_slug: event?.slug,
+      quality: 'standard',
+      source: 'lightbox',
+    })
+    performDownload('standard')
+  }, [event?.slug, performDownload])
+
+  const handleDownloadOriginal = useCallback(() => {
+    trackEvent(EVENT_DOWNLOAD_QUALITY_SELECTED, {
+      room_slug: event?.slug,
+      quality: 'original',
+      source: 'lightbox',
+    })
+    if (canDownloadOriginal) {
+      performDownload('original')
     }
-  }, [photo, selectedIndex])
+  }, [canDownloadOriginal, event?.slug, performDownload])
+
+  const handleUnlock = useCallback(async () => {
+    if (!event?.slug) return
+    setUnlockBusy(true)
+    try {
+      trackEvent(EVENT_ORIGINAL_DOWNLOAD_UNLOCK_CLICKED, {
+        room_slug: event.slug,
+        source: 'lightbox',
+      })
+      const response = await fetch('/api/stripe/unlock-download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventSlug: event.slug }),
+      })
+      const payload = await response.json()
+      if (!response.ok || !payload.url) {
+        throw new Error(payload.error || 'Unable to start checkout')
+      }
+      window.location.href = payload.url
+    } catch (e) {
+      console.warn('[lightbox] unlock failed', e)
+      setUnlockBusy(false)
+    }
+  }, [event?.slug])
 
   // Touch event handlers for swipe
   const onTouchStart = (e) => {
@@ -122,14 +215,14 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
       y: e.touches[0].clientY,
       time: Date.now(),
     }
-    
+
     // Mark as swiping if moved beyond threshold
     const deltaX = Math.abs(touchStart.current.x - touchEnd.current.x)
     const deltaY = Math.abs(touchStart.current.y - touchEnd.current.y)
     if (deltaX > 10 || deltaY > 10) {
       isSwiping.current = true
     }
-    
+
     // Prevent browser scrolling during horizontal swipe
     if (deltaX > deltaY) {
       e.preventDefault()
@@ -143,7 +236,11 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
     const velocity = Math.abs(deltaX) / deltaTime
 
     // Horizontal swipe (navigation)
-    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > SWIPE_THRESHOLD && velocity > SWIPE_VELOCITY) {
+    if (
+      Math.abs(deltaX) > Math.abs(deltaY) &&
+      Math.abs(deltaX) > SWIPE_THRESHOLD &&
+      velocity > SWIPE_VELOCITY
+    ) {
       if (deltaX > 0) {
         selectNext()
       } else {
@@ -157,7 +254,7 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
       handleClose()
     }
   }
-  
+
   // Handle click - only close if not swiping
   const onContainerClick = (e) => {
     if (isSwiping.current) {
@@ -170,13 +267,13 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
   // Keyboard navigation
   useEffect(() => {
     if (!open || typeof window === 'undefined') return
-    
+
     const handleKeyDown = (e) => {
       if (e.key === 'ArrowLeft') selectPrevious()
       if (e.key === 'ArrowRight') selectNext()
       if (e.key === 'Escape') handleClose()
     }
-    
+
     window.addEventListener('keydown', handleKeyDown)
     return () => {
       try {
@@ -226,7 +323,7 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
   })()
 
   return (
-    <div 
+    <div
       ref={containerRef}
       role="dialog"
       aria-modal="true"
@@ -247,22 +344,78 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
           <span className="text-white/60">{safePhotos.length}</span>
         </div>
         <div className="flex items-center gap-1">
-          <Button
-            size="icon"
-            variant="ghost"
-            className={`h-9 w-9 transition-colors ${
-              downloaded 
-                ? 'text-green-400 hover:text-green-300' 
-                : 'text-white/80 hover:bg-white/10 hover:text-white'
-            }`}
-            onClick={(e) => {
-              e.stopPropagation()
-              handleDownload()
-            }}
-            title={downloaded ? 'Downloaded!' : 'Download photo'}
-          >
-            <Download className="h-5 w-5" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                className={`h-9 w-9 transition-colors ${
+                  downloaded
+                    ? 'text-green-400 hover:text-green-300'
+                    : 'text-white/80 hover:bg-white/10 hover:text-white'
+                }`}
+                onClick={(e) => e.stopPropagation()}
+                title={downloaded ? 'Downloaded!' : 'Download photo'}
+              >
+                <Download className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="border-white/[0.07] bg-[#141C2E] text-white min-w-[14rem]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <DropdownMenuItem
+                className="cursor-pointer focus:bg-white/5 focus:text-white"
+                onClick={handleDownloadStandard}
+              >
+                <div className="flex flex-col py-1">
+                  <span className="text-sm font-medium">Standard quality</span>
+                  <span className="text-xs text-muted-foreground">
+                    Great for sharing and social media
+                  </span>
+                </div>
+                <Check className="ml-auto h-4 w-4 text-emerald-400 shrink-0" />
+              </DropdownMenuItem>
+
+              {canDownloadOriginal ? (
+                <DropdownMenuItem
+                  className="cursor-pointer focus:bg-white/5 focus:text-white"
+                  onClick={handleDownloadOriginal}
+                >
+                  <div className="flex flex-col py-1">
+                    <span className="text-sm font-medium">Original quality</span>
+                    <span className="text-xs text-muted-foreground">
+                      Full resolution as uploaded
+                    </span>
+                  </div>
+                  <Check className="ml-auto h-4 w-4 text-emerald-400 shrink-0" />
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem
+                  className="cursor-pointer focus:bg-white/5 focus:text-white"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    handleUnlock()
+                  }}
+                  disabled={unlockBusy}
+                >
+                  <div className="flex flex-col py-1">
+                    <span className="text-sm font-medium">Original quality</span>
+                    <span className="text-xs text-muted-foreground">
+                      Unlock for this room — €1.99
+                    </span>
+                  </div>
+                  {unlockBusy ? (
+                    <Loader2 className="ml-auto h-4 w-4 animate-spin text-primary shrink-0" />
+                  ) : (
+                    <Lock className="ml-auto h-4 w-4 text-primary shrink-0" />
+                  )}
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Button
             size="icon"
             variant="ghost"
@@ -278,18 +431,15 @@ const PhotoLightbox = ({ open, onOpenChange, photos = [], selectedIndex = 0, onS
       </div>
 
       {/* Main image area */}
-      <div 
+      <div
         className={`flex h-full items-center justify-center px-12 py-20 ${
-          prefersReducedMotion 
-            ? '' 
+          prefersReducedMotion
+            ? ''
             : `transition-all duration-300 ${isNavigating ? 'scale-95 opacity-80' : 'scale-100 opacity-100'}`
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        <ImageWithLoading
-          src={photo.url}
-          alt={photo.originalName || 'Photo'}
-        />
+        <ImageWithLoading src={photo.url} alt={photo.originalName || 'Photo'} />
       </div>
 
       {/* Navigation arrows (desktop) */}

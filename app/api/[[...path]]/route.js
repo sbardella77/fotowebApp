@@ -211,7 +211,22 @@ const getEvent = async (slug, options = {}) => {
     return json({ error: 'Event not found' }, 404)
   }
 
-  return json({ event })
+  // Include owner plan so guests can see premium entitlement for Professional/Business accounts
+  let ownerPlan = null
+  try {
+    const prisma = await getPrismaClient()
+    if (prisma && event.ownerId) {
+      const owner = await prisma.owner.findUnique({
+        where: { id: event.ownerId },
+        select: { plan: true },
+      })
+      if (owner) ownerPlan = owner.plan
+    }
+  } catch {
+    // ignore, ownerPlan stays null
+  }
+
+  return json({ event: { ...event, ownerPlan } })
 }
 
 const getAppUrl = (request) => {

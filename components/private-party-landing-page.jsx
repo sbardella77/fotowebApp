@@ -309,7 +309,7 @@ export function PrivatePartyLandingPage() {
               {
                 icon: Download,
                 title: 'Download the night',
-                desc: 'Save every photo in full resolution. Relive the best moments whenever you want.',
+                desc: 'Save every photo in original resolution on premium plans or unlocked rooms. Standard-quality downloads are always free.',
               },
             ].map((f, i) => (
               <div

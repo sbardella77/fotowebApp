@@ -1052,6 +1052,7 @@ export default function DashboardPage() {
         open={lightboxOpen}
         photos={photos}
         selectedIndex={lightboxIndex}
+        event={selectedEvent ? { ...selectedEvent, ownerPlan: plan } : null}
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
