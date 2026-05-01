@@ -30,7 +30,8 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Database unavailable' }, { status: 503 })
     }
 
-    const owner = await prisma.owner.findUnique({ where: { email: ownerEmail } })
+    const { resolveCanonicalOwner } = await import('@/lib/server/owner-resolution')
+    const owner = await resolveCanonicalOwner(ownerEmail)
     if (!owner) {
       return NextResponse.json({ error: 'Owner not found' }, { status: 404 })
     }

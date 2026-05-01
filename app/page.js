@@ -55,14 +55,20 @@ export default function HomePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: trimmedName, ownerEmail: trimmedEmail }),
       })
-      const payload = await response.json()
+      let payload
+      try {
+        payload = await response.json()
+      } catch {
+        payload = { error: `Server error (${response.status}). Please try again.` }
+      }
       if (response.ok && payload.event?.slug) {
         router.push(`/event/${payload.event.slug}?new=1`)
       } else if (!response.ok) {
         setCreateError(payload)
       }
     } catch (e) {
-      setCreateError({ error: 'Unable to create room. Please try again.' })
+      console.error('[createEvent] Error:', e)
+      setCreateError({ error: e.message || 'Unable to create room. Please try again.' })
     } finally {
       setIsCreating(false)
     }

@@ -93,10 +93,17 @@ export function CorporateLandingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: trimmedName, ownerEmail: trimmedEmail }),
       })
-      const payload = await response.json()
+      let payload
+      try {
+        payload = await response.json()
+      } catch {
+        payload = { error: `Server error (${response.status}). Please try again.` }
+      }
       if (response.ok && payload.event?.slug) {
         router.push(`/event/${payload.event.slug}?new=1`)
       }
+    } catch (e) {
+      console.error('[createEvent] Error:', e)
     } finally {
       setIsCreating(false)
     }

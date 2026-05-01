@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { verifyOwnerSessionToken } from '@/lib/server/owner-auth'
+import { resolveCanonicalOwner } from '@/lib/server/owner-resolution'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,16 +18,7 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Database unavailable' }, { status: 503 })
     }
 
-    const owner = await prisma.owner.findUnique({
-      where: { email: ownerEmail },
-      select: {
-        plan: true,
-        stripeCustomerId: true,
-        stripeSubscriptionId: true,
-        planUpdatedAt: true,
-      },
-    })
-
+    const owner = await resolveCanonicalOwner(ownerEmail)
     if (!owner) {
       return NextResponse.json({ error: 'Owner not found' }, { status: 404 })
     }

@@ -87,6 +87,7 @@ import {
   checkRoomUploadEntitlement,
   checkPrivateDeliveryEntitlement,
 } from '@/lib/server/entitlements'
+import { resolveCanonicalOwner } from '@/lib/server/owner-resolution'
 
 export const runtime = 'nodejs'
 
@@ -1160,7 +1161,7 @@ const deletePrivateDeliveryAsset = async (request, assetId) => {
   }
 
   const normalizedEmail = ownerEmail.toLowerCase().trim()
-  const owner = await prisma?.owner.findUnique({ where: { email: normalizedEmail } })
+  const owner = await resolveCanonicalOwner(ownerEmail)
   const isOwner =
     event?.ownerEmail?.toLowerCase() === normalizedEmail ||
     (owner && event?.ownerId === owner.id)
@@ -1632,15 +1633,13 @@ const loginOwner = async (request) => {
     return json({ error: 'Too many attempts. Please try again later.' }, 429)
   }
 
-  const repository = await getGalleryRepository()
-
   // Password-based login takes priority
   if (password) {
-    const owner = await repository.getOwnerByEmail(email)
-    if (!owner || !owner.passwordHash || !owner.passwordSalt) {
-      return json({ error: 'Invalid email or password' }, 401)
-    }
-    if (!verifyPassword(password, owner.passwordSalt, owner.passwordHash)) {
+    const { findOwnerByEmailWithPassword } = await import('@/lib/server/owner-resolution')
+    const owner = await findOwnerByEmailWithPassword(email, (candidate) =>
+      verifyPassword(password, candidate.passwordSalt, candidate.passwordHash)
+    )
+    if (!owner) {
       return json({ error: 'Invalid email or password' }, 401)
     }
     const response = json({ authenticated: true, email })
@@ -1894,14 +1893,12 @@ const loginOwnerWithPassword = async (request) => {
     return json({ error: 'Too many attempts. Please try again later.' }, 429)
   }
 
-  const repository = await getGalleryRepository()
-  const owner = await repository.getOwnerByEmail(email)
+  const { findOwnerByEmailWithPassword } = await import('@/lib/server/owner-resolution')
+  const owner = await findOwnerByEmailWithPassword(email, (candidate) =>
+    verifyPassword(password, candidate.passwordSalt, candidate.passwordHash)
+  )
 
-  if (!owner || !owner.passwordHash || !owner.passwordSalt) {
-    return json({ error: 'Invalid email or password' }, 401)
-  }
-
-  if (!verifyPassword(password, owner.passwordSalt, owner.passwordHash)) {
+  if (!owner) {
     return json({ error: 'Invalid email or password' }, 401)
   }
 
