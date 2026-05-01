@@ -44,6 +44,8 @@ model Event {
   billingPurchasedAt              DateTime?
   originalDownloadUnlocked        Boolean  @default(false)
   originalDownloadCheckoutSessionId String?
+  photographerUploadTokenHash     String?
+  photographerUploadTokenExpiresAt DateTime?
   createdAt                       DateTime @default(now())
   updatedAt                       DateTime @updatedAt
   photos                          Photo[]
@@ -52,6 +54,7 @@ model Event {
   @@index([createdAt])
   @@index([ownerId])
   @@index([billingTier])
+  @@index([photographerUploadTokenHash])
 }
 
 model Photo {
@@ -84,6 +87,7 @@ model PrivateAsset {
   mimeType     String
   size         Int
   url          String
+  uploadedByRole String?  @default("owner")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   event        Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)

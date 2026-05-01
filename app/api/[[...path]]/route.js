@@ -5,6 +5,11 @@ import {
   hashManagementToken,
   verifyManagementToken,
 } from '@/lib/server/management-token'
+import {
+  generatePhotographerUploadToken,
+  hashPhotographerUploadToken,
+  verifyPhotographerUploadToken,
+} from '@/lib/server/photographer-token'
 import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import {
@@ -59,6 +64,12 @@ import {
   EVENT_PRIVATE_DELIVERY_UPLOAD_STARTED,
   EVENT_PRIVATE_DELIVERY_UPLOAD_COMPLETED,
   EVENT_PRIVATE_DELIVERY_DELETED,
+  EVENT_PHOTOGRAPHER_UPLOAD_LINK_CREATED,
+  EVENT_PHOTOGRAPHER_UPLOAD_LINK_REGENERATED,
+  EVENT_PHOTOGRAPHER_UPLOAD_LINK_REVOKED,
+  EVENT_PHOTOGRAPHER_UPLOAD_STARTED,
+  EVENT_PHOTOGRAPHER_UPLOAD_COMPLETED,
+  EVENT_PHOTOGRAPHER_UPLOAD_FAILED,
 } from '@/lib/analytics/events'
 import { getAdminAuthDriver, getDataAccessDriver, getPrismaClient } from '@/lib/server/prisma-client'
 import {
@@ -139,6 +150,21 @@ const clearOwnerSessionCookie = (response) => {
     maxAge: 0,
   })
   return response
+}
+
+const getPhotographerEventFromToken = async (token) => {
+  if (!token) return null
+  const prisma = await getPrismaClient()
+  if (!prisma) return null
+  const tokenHash = hashPhotographerUploadToken(token)
+  const event = await prisma.event.findFirst({
+    where: { photographerUploadTokenHash: tokenHash },
+  })
+  if (!event) return null
+  if (event.photographerUploadTokenExpiresAt && new Date(event.photographerUploadTokenExpiresAt) < new Date()) {
+    return null
+  }
+  return event
 }
 
 const routeRoot = async () => {
@@ -1160,6 +1186,273 @@ const deletePrivateDeliveryAsset = async (request, assetId) => {
   return json({ deleted: true })
 }
 
+const createPhotographerUploadLink = async (request, slug) => {
+  const ownerEmail = await requireOwner(request)
+  if (ownerEmail?.error) return ownerEmail
+
+  const repository = await getGalleryRepository()
+  const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
+  if (!event) {
+    return json({ error: 'Room not found' }, 404)
+  }
+
+  const prisma = await getPrismaClient()
+  if (prisma) {
+    const entitlement = await checkPrivateDeliveryEntitlement(prisma, event)
+    if (!entitlement.allowed) {
+      return json({ error: 'Private delivery is not available for this room', upgradePath: entitlement.upgradePath }, 403)
+    }
+  }
+
+  const token = generatePhotographerUploadToken()
+  const tokenHash = hashPhotographerUploadToken(token)
+  const isRegeneration = Boolean(event.photographerUploadTokenHash)
+
+  await repository.setPhotographerUploadToken(slug, { tokenHash })
+
+  trackServerEvent(
+    isRegeneration ? EVENT_PHOTOGRAPHER_UPLOAD_LINK_REGENERATED : EVENT_PHOTOGRAPHER_UPLOAD_LINK_CREATED,
+    { room_slug: slug },
+    { distinctId: ownerEmail }
+  )
+
+  return json({ token, url: `${getAppUrl(request)}/photographer-upload/${token}` })
+}
+
+const deletePhotographerUploadLink = async (request, slug) => {
+  const ownerEmail = await requireOwner(request)
+  if (ownerEmail?.error) return ownerEmail
+
+  const repository = await getGalleryRepository()
+  const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
+  if (!event) {
+    return json({ error: 'Room not found' }, 404)
+  }
+
+  await repository.setPhotographerUploadToken(slug, { tokenHash: null, expiresAt: null })
+
+  trackServerEvent(
+    EVENT_PHOTOGRAPHER_UPLOAD_LINK_REVOKED,
+    { room_slug: slug },
+    { distinctId: ownerEmail }
+  )
+
+  return json({ revoked: true })
+}
+
+const getPhotographerUploadEvent = async (request, token) => {
+  const event = await getPhotographerEventFromToken(token)
+  if (!event) {
+    return json({ error: 'Invalid or expired link' }, 403)
+  }
+
+  const prisma = await getPrismaClient()
+  if (prisma) {
+    const entitlement = await checkPrivateDeliveryEntitlement(prisma, event)
+    if (!entitlement.allowed) {
+      return json({ error: 'Private delivery is not available for this room' }, 403)
+    }
+  }
+
+  return json({ event: { id: event.id, name: event.name, slug: event.slug } })
+}
+
+const initPhotographerUpload = async (request, token) => {
+  const event = await getPhotographerEventFromToken(token)
+  if (!event) {
+    return json({ error: 'Invalid or expired link' }, 403)
+  }
+
+  const payload = privateDeliveryUploadInitSchema.parse(await request.json())
+  if (payload.eventSlug !== event.slug) {
+    return json({ error: 'Room slug mismatch' }, 400)
+  }
+
+  const prisma = await getPrismaClient()
+  if (prisma) {
+    const entitlement = await checkPrivateDeliveryEntitlement(prisma, event)
+    if (!entitlement.allowed) {
+      return json({ error: 'Private delivery is not available for this room' }, 403)
+    }
+  }
+
+  const clientIp = getClientIp(request)
+  const limit = rateLimit(`upload-init:ip:${clientIp}`, RATE_LIMITS.uploadInit.ip.max, RATE_LIMITS.uploadInit.ip.window)
+  if (limit.limited) {
+    return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
+  }
+
+  const storageDriver = getStorageDriver()
+  const session = await storageDriver.initUploadSession({ ...payload, directory: 'private-delivery' })
+
+  trackServerEvent(
+    EVENT_PHOTOGRAPHER_UPLOAD_STARTED,
+    { room_slug: event.slug, file_name: payload.fileName, file_size: payload.fileSize },
+    { distinctId: `photographer_${event.slug}` }
+  )
+
+  return json({ session }, 201)
+}
+
+const issuePhotographerBlobToken = async (request, token) => {
+  const event = await getPhotographerEventFromToken(token)
+  if (!event) {
+    return json({ error: 'Invalid or expired link' }, 403)
+  }
+
+  const prisma = await getPrismaClient()
+  if (prisma) {
+    const entitlement = await checkPrivateDeliveryEntitlement(prisma, event)
+    if (!entitlement.allowed) {
+      return json({ error: 'Private delivery is not available for this room' }, 403)
+    }
+  }
+
+  const clientIp = getClientIp(request)
+  const limit = rateLimit(`upload-blob:ip:${clientIp}`, RATE_LIMITS.uploadBlob.ip.max, RATE_LIMITS.uploadBlob.ip.window)
+  if (limit.limited) {
+    return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
+  }
+
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    return json({ error: 'Server misconfiguration: BLOB_READ_WRITE_TOKEN is missing' }, 500)
+  }
+
+  if (!isVercelBlobStorageConfigured()) {
+    return json({ error: 'Vercel Blob is not configured' }, 500)
+  }
+
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return json({ error: 'Invalid request body' }, 400)
+  }
+
+  try {
+    const result = await handleUpload({
+      body,
+      request,
+      onBeforeGenerateToken: async (pathname, clientPayload) => {
+        const payload = privateDeliveryBlobUploadClientPayloadSchema.parse(JSON.parse(clientPayload || '{}'))
+        if (payload.eventSlug !== event.slug) {
+          throw new Error('Room slug mismatch')
+        }
+
+        if (prisma) {
+          const targetEntitlement = await checkPrivateDeliveryEntitlement(prisma, event)
+          if (!targetEntitlement.allowed) {
+            throw new Error('Private delivery is not available for this room')
+          }
+        }
+
+        return {
+          pathname: buildPrivateDeliveryBlobPathname({ eventSlug: event.slug, fileName: payload.fileName }),
+          allowedContentTypes: ['image/jpeg', 'image/png'],
+          maximumSizeInBytes: MAX_PRIVATE_DELIVERY_FILE_SIZE_BYTES,
+          addRandomSuffix: true,
+        }
+      },
+    })
+
+    if (!result) {
+      return json({ error: 'Failed to generate upload token' }, 500)
+    }
+
+    return Response.json(result)
+  } catch (error) {
+    return json({ error: error?.message || 'Unable to initialize Vercel Blob upload' }, 400)
+  }
+}
+
+const completePhotographerUpload = async (request, token) => {
+  const event = await getPhotographerEventFromToken(token)
+  if (!event) {
+    return json({ error: 'Invalid or expired link' }, 403)
+  }
+
+  const body = await request.json()
+  const repository = await getGalleryRepository()
+  const prisma = await getPrismaClient()
+
+  if (prisma) {
+    const entitlement = await checkPrivateDeliveryEntitlement(prisma, event)
+    if (!entitlement.allowed) {
+      return json({ error: 'Private delivery is not available for this room' }, 403)
+    }
+  }
+
+  const clientIp = getClientIp(request)
+  const limit = rateLimit(`upload-complete:ip:${clientIp}`, RATE_LIMITS.uploadComplete.ip.max, RATE_LIMITS.uploadComplete.ip.window)
+  if (limit.limited) {
+    return json({ error: 'Too many upload completions. Please try again later.' }, 429)
+  }
+
+  if (body?.blobUrl) {
+    const payload = privateDeliveryBlobUploadCompleteSchema.parse(body)
+    if (payload.eventSlug !== event.slug) {
+      return json({ error: 'Room slug mismatch' }, 400)
+    }
+
+    const asset = await repository.createPrivateAsset({
+      eventId: event.id,
+      originalName: payload.originalName,
+      storedName: getStoredNameFromBlobPathname(payload.blobPathname),
+      mimeType: payload.mimeType,
+      size: payload.size,
+      url: payload.blobUrl,
+      uploadedByRole: 'photographer',
+    })
+
+    trackServerEvent(
+      EVENT_PHOTOGRAPHER_UPLOAD_COMPLETED,
+      { room_slug: event.slug, asset_id: asset.id, file_size: payload.size },
+      { distinctId: `photographer_${event.slug}` }
+    )
+
+    return json({ asset }, 201)
+  }
+
+  const payload = privateDeliveryLocalUploadCompleteSchema.parse(body)
+  const fileResult = await localStorageDriver.completeUploadSession({
+    sessionId: payload.sessionId,
+    photoId: randomUUID(),
+  })
+
+  if (fileResult.eventSlug !== event.slug) {
+    return json({ error: 'Room slug mismatch' }, 400)
+  }
+
+  const asset = await repository.createPrivateAsset({
+    eventId: event.id,
+    originalName: fileResult.originalName,
+    storedName: fileResult.storedName,
+    mimeType: fileResult.mimeType,
+    size: fileResult.size,
+    url: fileResult.url,
+    uploadedByRole: 'photographer',
+  })
+
+  trackServerEvent(
+    EVENT_PHOTOGRAPHER_UPLOAD_COMPLETED,
+    { room_slug: event.slug, asset_id: asset.id, file_size: fileResult.size },
+    { distinctId: `photographer_${event.slug}` }
+  )
+
+  return json({ asset }, 201)
+}
+
+const listPhotographerAssets = async (request, token) => {
+  const event = await getPhotographerEventFromToken(token)
+  if (!event) {
+    return json({ error: 'Invalid or expired link' }, 403)
+  }
+
+  const repository = await getGalleryRepository()
+  const assets = await repository.listPrivateAssetsByEventIdAndRole(event.id, 'photographer')
+  return json({ assets })
+}
+
 const getAdminConfig = async () => {
   const adminStatus = await getAdminAuthStatus()
   return json(adminStatus)
@@ -1872,8 +2165,8 @@ const getOwnerEvent = async (request, slug) => {
     return json({ error: 'Event not found' }, 404)
   }
 
-  const { managementTokenHash, ...safeEvent } = event
-  return json({ event: safeEvent })
+  const { managementTokenHash, photographerUploadTokenHash, ...safeEvent } = event
+  return json({ event: { ...safeEvent, hasPhotographerUploadLink: Boolean(photographerUploadTokenHash) } })
 }
 
 const updateOwnerEvent = async (request, slug) => {
@@ -2120,6 +2413,36 @@ async function handleRoute(request, { params }) {
 
       if (segments.length === 3 && segments[1] === 'private-delivery' && method === 'DELETE') {
         return deletePrivateDeliveryAsset(request, segments[2])
+      }
+
+      if (segments.length === 4 && segments[1] === 'events' && segments[3] === 'photographer-link' && method === 'POST') {
+        return createPhotographerUploadLink(request, segments[2])
+      }
+
+      if (segments.length === 4 && segments[1] === 'events' && segments[3] === 'photographer-link' && method === 'DELETE') {
+        return deletePhotographerUploadLink(request, segments[2])
+      }
+    }
+
+    if (segments[0] === 'photographer-upload') {
+      if (segments.length === 2 && method === 'GET') {
+        return getPhotographerUploadEvent(request, segments[1])
+      }
+
+      if (segments.length === 3 && segments[2] === 'init' && method === 'POST') {
+        return initPhotographerUpload(request, segments[1])
+      }
+
+      if (segments.length === 3 && segments[2] === 'blob' && method === 'POST') {
+        return issuePhotographerBlobToken(request, segments[1])
+      }
+
+      if (segments.length === 3 && segments[2] === 'complete' && method === 'POST') {
+        return completePhotographerUpload(request, segments[1])
+      }
+
+      if (segments.length === 3 && segments[2] === 'assets' && method === 'GET') {
+        return listPhotographerAssets(request, segments[1])
       }
     }
 

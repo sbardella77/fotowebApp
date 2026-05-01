@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { upload } from '@vercel/blob/client'
-import { Camera, Download, Eye, EyeOff, FolderHeart, ImagePlus, Loader2, Lock, LogOut, Pencil, Plus, QrCode, Share2, Sparkles, Trash2, Upload } from 'lucide-react'
+import { Camera, CheckCircle2, Copy, Download, Eye, EyeOff, FolderHeart, ImagePlus, LinkIcon, Loader2, Lock, LogOut, Pencil, Plus, QrCode, RefreshCw, Share2, Sparkles, Trash2, Upload } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -25,6 +25,10 @@ import {
   EVENT_PRIVATE_DELIVERY_UPLOAD_COMPLETED,
   EVENT_PRIVATE_DELIVERY_DOWNLOADED,
   EVENT_PRIVATE_DELIVERY_DELETED,
+  EVENT_PHOTOGRAPHER_UPLOAD_LINK_CREATED,
+  EVENT_PHOTOGRAPHER_UPLOAD_LINK_COPIED,
+  EVENT_PHOTOGRAPHER_UPLOAD_LINK_REGENERATED,
+  EVENT_PHOTOGRAPHER_UPLOAD_LINK_REVOKED,
 } from '@/lib/analytics/events'
 import {
   AlertDialog,
@@ -141,6 +145,9 @@ export default function DashboardPage() {
   const [privateDeliveryUploading, setPrivateDeliveryUploading] = useState(false)
   const privateDeliveryFileInputRef = useRef(null)
   const dashboardViewTracked = useRef(false)
+  const [photographerLink, setPhotographerLink] = useState('')
+  const [photographerLinkBusy, setPhotographerLinkBusy] = useState(false)
+  const [photographerLinkCopied, setPhotographerLinkCopied] = useState(false)
 
   const photos = useMemo(() => selectedEvent?.photos || [], [selectedEvent])
 
@@ -741,6 +748,53 @@ export default function DashboardPage() {
     uploadPrivateDeliveryFile(file)
   }
 
+  const generatePhotographerLink = async () => {
+    if (!selectedEvent) return
+    setPhotographerLinkBusy(true)
+    try {
+      const response = await fetch(`/api/owner/events/${selectedEvent.slug}/photographer-link`, { method: 'POST' })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Unable to generate link')
+      trackEvent(EVENT_PHOTOGRAPHER_UPLOAD_LINK_CREATED, { room_slug: selectedEvent.slug })
+      setPhotographerLink(payload.url)
+      setMessage('Photographer link generated. Copy it to share.')
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setPhotographerLinkBusy(false)
+    }
+  }
+
+  const copyPhotographerLink = async () => {
+    if (!photographerLink) return
+    try {
+      await navigator.clipboard.writeText(photographerLink)
+      trackEvent(EVENT_PHOTOGRAPHER_UPLOAD_LINK_COPIED, { room_slug: selectedEvent?.slug })
+      setPhotographerLinkCopied(true)
+      setMessage('Link copied to clipboard.')
+      setTimeout(() => setPhotographerLinkCopied(false), 2000)
+    } catch {
+      setMessage('Unable to copy link.')
+    }
+  }
+
+  const revokePhotographerLink = async () => {
+    if (!selectedEvent) return
+    setPhotographerLinkBusy(true)
+    try {
+      const response = await fetch(`/api/owner/events/${selectedEvent.slug}/photographer-link`, { method: 'DELETE' })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Unable to revoke link')
+      trackEvent(EVENT_PHOTOGRAPHER_UPLOAD_LINK_REVOKED, { room_slug: selectedEvent.slug })
+      setPhotographerLink('')
+      setMessage('Photographer link revoked.')
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setPhotographerLinkBusy(false)
+    }
+  }
+
   useEffect(() => {
     loadSession()
   }, [])
@@ -763,6 +817,8 @@ export default function DashboardPage() {
     if (selectedEvent) {
       setNewEventName(selectedEvent.name)
       setIsEditingName(false)
+      setPhotographerLink('')
+      setPhotographerLinkCopied(false)
       if (hasPrivateDeliveryAccess(selectedEvent)) {
         loadPrivateAssets(selectedEvent.slug)
       } else {
@@ -1398,6 +1454,116 @@ export default function DashboardPage() {
                         ))}
                       </div>
                     )}
+                  </div>
+
+                  {/* Photographer upload link */}
+                  <div className="mt-8 rounded-xl border border-white/[0.07] bg-[#0D1220] p-5">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
+                          Photographer link
+                        </span>
+                        <p className="mt-1 text-sm font-light text-muted-foreground">
+                          Send this secure link to your photographer so they can upload original-quality files privately.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4">
+                      {!photographerLink && !selectedEvent?.hasPhotographerUploadLink && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-white/[0.07] bg-[#141C2E] hover:bg-[#111827] hover:text-foreground"
+                          disabled={photographerLinkBusy}
+                          onClick={generatePhotographerLink}
+                        >
+                          {photographerLinkBusy ? (
+                            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <LinkIcon className="mr-1.5 h-3.5 w-3.5" />
+                          )}
+                          Generate link
+                        </Button>
+                      )}
+
+                      {!photographerLink && selectedEvent?.hasPhotographerUploadLink && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm text-muted-foreground">A photographer link already exists.</p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-white/[0.07] bg-[#141C2E] hover:bg-[#111827] hover:text-foreground"
+                            disabled={photographerLinkBusy}
+                            onClick={generatePhotographerLink}
+                          >
+                            {photographerLinkBusy ? (
+                              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                            )}
+                            Regenerate
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-8"
+                            disabled={photographerLinkBusy}
+                            onClick={revokePhotographerLink}
+                          >
+                            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                            Revoke
+                          </Button>
+                        </div>
+                      )}
+
+                      {photographerLink && (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2 rounded-lg border border-white/[0.07] bg-[#141C2E] px-3 py-2">
+                            <span className="truncate text-sm text-foreground">{photographerLink}</span>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-white/[0.07] bg-[#141C2E] hover:bg-[#111827] hover:text-foreground"
+                              onClick={copyPhotographerLink}
+                            >
+                              {photographerLinkCopied ? (
+                                <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                              ) : (
+                                <Copy className="mr-1.5 h-3.5 w-3.5" />
+                              )}
+                              {photographerLinkCopied ? 'Copied' : 'Copy link'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-white/[0.07] bg-[#141C2E] hover:bg-[#111827] hover:text-foreground"
+                              disabled={photographerLinkBusy}
+                              onClick={generatePhotographerLink}
+                            >
+                              {photographerLinkBusy ? (
+                                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                              )}
+                              Regenerate
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="h-8"
+                              disabled={photographerLinkBusy}
+                              onClick={revokePhotographerLink}
+                            >
+                              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                              Revoke
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
