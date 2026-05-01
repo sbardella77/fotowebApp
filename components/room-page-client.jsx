@@ -38,6 +38,7 @@ import {
   EVENT_NATIVE_SHARE_CLICKED,
   EVENT_COPY_LINK_CLICKED,
   EVENT_QR_OPENED,
+  EVENT_ORIGINAL_DOWNLOAD_CHECKOUT_CANCELLED,
 } from '@/lib/analytics/events'
 
 
@@ -269,6 +270,10 @@ export default function RoomPageClient({ slug, isNew }) {
       }
     } else if (unlock === 'cancelled') {
       setUnlockMessage('Unlock cancelled. You can unlock anytime.')
+      trackEvent(EVENT_ORIGINAL_DOWNLOAD_CHECKOUT_CANCELLED, {
+        room_slug: activeEvent?.slug,
+        source: 'room_page',
+      })
       try {
         const url = new URL(window.location.href)
         url.searchParams.delete('unlock')

@@ -17,6 +17,7 @@ import {
   EVENT_ROOM_QR_OPENED_FROM_DASHBOARD,
   EVENT_UPGRADE_CLICKED,
   EVENT_CHECKOUT_CANCELLED,
+  EVENT_ORIGINAL_DOWNLOAD_CHECKOUT_CANCELLED,
 } from '@/lib/analytics/events'
 import {
   AlertDialog,
@@ -557,12 +558,21 @@ export default function DashboardPage() {
     } else if (upgrade === 'cancelled') {
       const intent = params.get('intent')
       setMessage('Upgrade cancelled. You can upgrade anytime.')
-      trackEvent(EVENT_CHECKOUT_CANCELLED, {
-        pageType: 'dashboard',
-        userRole: 'owner',
-        plan: plan || 'free',
-        billing_intent: intent,
-      })
+      if (intent === 'high_quality_download') {
+        trackEvent(EVENT_ORIGINAL_DOWNLOAD_CHECKOUT_CANCELLED, {
+          pageType: 'dashboard',
+          userRole: 'owner',
+          plan: plan || 'free',
+          billing_intent: intent,
+        })
+      } else {
+        trackEvent(EVENT_CHECKOUT_CANCELLED, {
+          pageType: 'dashboard',
+          userRole: 'owner',
+          plan: plan || 'free',
+          billing_intent: intent,
+        })
+      }
       router.replace('/dashboard', { scroll: false })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -583,7 +593,7 @@ export default function DashboardPage() {
           </a>
           {authState.authenticated ? (
             <div className="flex items-center gap-3">
-              {plan === 'pro' && (
+              {(plan === 'professional' || plan === 'business') && (
                 <span className="hidden rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[0.65rem] font-medium uppercase tracking-wider text-primary sm:inline">
                   Pro
                 </span>

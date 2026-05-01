@@ -82,6 +82,13 @@ export async function POST(request) {
           { status: 409 }
         )
       }
+      // Hardening: Professional/Business owners already have unlimited photos; block accidental event upgrades
+      if (owner.plan === 'professional' || owner.plan === 'business' || owner.plan === 'pro') {
+        return NextResponse.json(
+          { error: 'Your account plan already includes unlimited photos for all events' },
+          { status: 409 }
+        )
+      }
     }
 
     const priceIdEnv = PRICE_ENV_MAP[intent]
@@ -184,16 +191,19 @@ export async function POST(request) {
       )
     }
 
-    trackServerEvent(EVENT_CHECKOUT_STARTED, {
-      distinctId: owner.email,
-      owner_id: owner.id,
-      billing_intent: intent,
-      entry_point: body.entryPoint || 'dashboard',
-      room_slug: event?.slug || null,
-      event_id: event?.id || null,
-      stripe_session_id: session.id,
-      stripe_mode: mode,
-    })
+    trackServerEvent(
+      EVENT_CHECKOUT_STARTED,
+      {
+        owner_id: owner.id,
+        billing_intent: intent,
+        entry_point: body.entryPoint || 'dashboard',
+        room_slug: event?.slug || null,
+        event_id: event?.id || null,
+        stripe_session_id: session.id,
+        stripe_mode: mode,
+      },
+      { distinctId: owner.email }
+    )
 
     return NextResponse.json({ url: session.url })
   } catch (error) {

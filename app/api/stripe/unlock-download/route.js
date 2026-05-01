@@ -3,7 +3,7 @@ import { getStripe } from '@/lib/server/stripe'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { verifyOwnerSessionToken } from '@/lib/server/owner-auth'
 import { trackServerEvent } from '@/lib/analytics/track-server'
-import { EVENT_CHECKOUT_STARTED } from '@/lib/analytics/events'
+import { EVENT_ORIGINAL_DOWNLOAD_CHECKOUT_STARTED } from '@/lib/analytics/events'
 
 export const dynamic = 'force-dynamic'
 
@@ -116,13 +116,17 @@ export async function POST(request) {
       return NextResponse.json({ error: rawMessage }, { status: 502 })
     }
 
-    trackServerEvent(EVENT_CHECKOUT_STARTED, {
-      billing_intent: 'high_quality_download',
-      event_id: event.id,
-      room_slug: event.slug,
-      stripe_session_id: session.id,
-      stripe_mode: 'payment',
-    })
+    trackServerEvent(
+      EVENT_ORIGINAL_DOWNLOAD_CHECKOUT_STARTED,
+      {
+        billing_intent: 'high_quality_download',
+        event_id: event.id,
+        room_slug: event.slug,
+        stripe_session_id: session.id,
+        stripe_mode: 'payment',
+      },
+      { distinctId: owner.email }
+    )
 
     return NextResponse.json({ url: session.url })
   } catch (error) {

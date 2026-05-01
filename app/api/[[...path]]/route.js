@@ -173,7 +173,7 @@ const createEvent = async (request) => {
   const clientIp = getClientIp(request)
   const createLimit = rateLimit(`create:ip:${clientIp}`, RATE_LIMITS.createEvent.ip.max, RATE_LIMITS.createEvent.ip.window)
   if (createLimit.limited) {
-    trackServerEvent(EVENT_RATE_LIMIT_HIT, { reason: 'create_event', client_ip: clientIp })
+    trackServerEvent(EVENT_RATE_LIMIT_HIT, { reason: 'create_event', client_ip: clientIp }, { distinctId: clientIp })
     return json({ error: 'Too many rooms created. Please try again later.' }, 429)
   }
 
@@ -186,12 +186,15 @@ const createEvent = async (request) => {
     if (prisma && owner) {
       const entitlement = await checkOwnerRoomCreationEntitlement(prisma, owner)
       if (!entitlement.allowed) {
-        trackServerEvent(EVENT_FREE_ROOM_LIMIT_HIT, {
-          distinctId: payload.ownerEmail,
-          owner_id: owner.id,
-          current_rooms: entitlement.current,
-          limit: entitlement.max,
-        })
+        trackServerEvent(
+          EVENT_FREE_ROOM_LIMIT_HIT,
+          {
+            owner_id: owner.id,
+            current_rooms: entitlement.current,
+            limit: entitlement.max,
+          },
+          { distinctId: payload.ownerEmail }
+        )
         return json({
           error: `Free plan limit reached: you can only have ${entitlement.max} active room.`,
           limit: 'room_count',
@@ -205,10 +208,14 @@ const createEvent = async (request) => {
 
   const event = await repository.createEvent({ name: payload.name })
 
-  trackServerEvent(EVENT_ROOM_CREATED, {
-    room_slug: event.slug,
-    has_owner_email: Boolean(payload.ownerEmail),
-  })
+  trackServerEvent(
+    EVENT_ROOM_CREATED,
+    {
+      room_slug: event.slug,
+      has_owner_email: Boolean(payload.ownerEmail),
+    },
+    { distinctId: payload.ownerEmail || 'anonymous' }
+  )
 
   // If owner email provided, immediately associate and send welcome email
   if (payload.ownerEmail) {
@@ -481,6 +488,36 @@ const saveEventOwner = async (request, slug) => {
   }
 
   const owner = await repository.getOrCreateOwnerByEmail(payload.email)
+
+  // Enforce Free plan room limit when claiming a new room
+  const prisma = await getPrismaClient()
+  if (prisma && owner) {
+    const isAlreadyOwner =
+      event.ownerId === owner.id ||
+      event.ownerEmail?.toLowerCase() === payload.email.toLowerCase()
+    if (!isAlreadyOwner) {
+      const entitlement = await checkOwnerRoomCreationEntitlement(prisma, owner)
+      if (!entitlement.allowed) {
+        trackServerEvent(
+          EVENT_FREE_ROOM_LIMIT_HIT,
+          {
+            owner_id: owner.id,
+            current_rooms: entitlement.current,
+            limit: entitlement.max,
+          },
+          { distinctId: payload.email }
+        )
+        return json({
+          error: `Free plan limit reached: you can only have ${entitlement.max} active room.`,
+          limit: 'room_count',
+          current: entitlement.current,
+          max: entitlement.max,
+          upgradePath: entitlement.upgradePath,
+        }, 403)
+      }
+    }
+  }
+
   const managementToken = generateManagementToken()
   const managementTokenHash = hashManagementToken(managementToken)
 
@@ -575,12 +612,16 @@ const initUpload = async (request) => {
   if (prisma) {
     const entitlement = await checkRoomUploadEntitlement(prisma, event)
     if (!entitlement.allowed) {
-      trackServerEvent(EVENT_FREE_PHOTO_LIMIT_HIT, {
-        room_slug: event.slug,
-        event_id: event.id,
-        current_photos: entitlement.current,
-        limit: entitlement.max,
-      })
+      trackServerEvent(
+        EVENT_FREE_PHOTO_LIMIT_HIT,
+        {
+          room_slug: event.slug,
+          event_id: event.id,
+          current_photos: entitlement.current,
+          limit: entitlement.max,
+        },
+        { distinctId: event.slug }
+      )
       return json({
         error: `This room has reached its ${entitlement.max}-photo limit.`,
         limit: 'photo_count',
@@ -645,12 +686,16 @@ const issueBlobUploadToken = async (request) => {
         if (prisma) {
           const entitlement = await checkRoomUploadEntitlement(prisma, event)
           if (!entitlement.allowed) {
-            trackServerEvent(EVENT_FREE_PHOTO_LIMIT_HIT, {
-              room_slug: event.slug,
-              event_id: event.id,
-              current_photos: entitlement.current,
-              limit: entitlement.max,
-            })
+            trackServerEvent(
+              EVENT_FREE_PHOTO_LIMIT_HIT,
+              {
+                room_slug: event.slug,
+                event_id: event.id,
+                current_photos: entitlement.current,
+                limit: entitlement.max,
+              },
+              { distinctId: event.slug }
+            )
             throw new Error(`This room has reached its ${entitlement.max}-photo limit.`)
           }
         }
@@ -737,12 +782,16 @@ const completeUpload = async (request) => {
     if (prisma) {
       const entitlement = await checkRoomUploadEntitlement(prisma, event)
       if (!entitlement.allowed) {
-        trackServerEvent(EVENT_FREE_PHOTO_LIMIT_HIT, {
-          room_slug: event.slug,
-          event_id: event.id,
-          current_photos: entitlement.current,
-          limit: entitlement.max,
-        })
+        trackServerEvent(
+          EVENT_FREE_PHOTO_LIMIT_HIT,
+          {
+            room_slug: event.slug,
+            event_id: event.id,
+            current_photos: entitlement.current,
+            limit: entitlement.max,
+          },
+          { distinctId: event.slug }
+        )
         return json({
           error: `This room has reached its ${entitlement.max}-photo limit.`,
           limit: 'photo_count',
@@ -788,12 +837,16 @@ const completeUpload = async (request) => {
   if (prisma) {
     const entitlement = await checkRoomUploadEntitlement(prisma, event)
     if (!entitlement.allowed) {
-      trackServerEvent(EVENT_FREE_PHOTO_LIMIT_HIT, {
-        room_slug: event.slug,
-        event_id: event.id,
-        current_photos: entitlement.current,
-        limit: entitlement.max,
-      })
+      trackServerEvent(
+        EVENT_FREE_PHOTO_LIMIT_HIT,
+        {
+          room_slug: event.slug,
+          event_id: event.id,
+          current_photos: entitlement.current,
+          limit: entitlement.max,
+        },
+        { distinctId: event.slug }
+      )
       return json({
         error: `This room has reached its ${entitlement.max}-photo limit.`,
         limit: 'photo_count',
@@ -1260,7 +1313,7 @@ const loginOwnerWithPassword = async (request) => {
   const ipLimit = rateLimit(`login:ip:${clientIp}`, AUTH_LIMITS.login.ip.max, AUTH_LIMITS.login.ip.window)
   const emailLimit = rateLimit(`login:email:${email}`, AUTH_LIMITS.login.email.max, AUTH_LIMITS.login.email.window)
   if (ipLimit.limited || emailLimit.limited) {
-    trackServerEvent(EVENT_RATE_LIMIT_HIT, { reason: 'owner_login', client_ip: clientIp })
+    trackServerEvent(EVENT_RATE_LIMIT_HIT, { reason: 'owner_login', client_ip: clientIp }, { distinctId: clientIp })
     return json({ error: 'Too many attempts. Please try again later.' }, 429)
   }
 
@@ -1275,7 +1328,7 @@ const loginOwnerWithPassword = async (request) => {
     return json({ error: 'Invalid email or password' }, 401)
   }
 
-  trackServerEvent(EVENT_OWNER_LOGGED_IN, { distinctId: email, method: 'password_api' })
+  trackServerEvent(EVENT_OWNER_LOGGED_IN, { method: 'password_api' }, { distinctId: email })
 
   const response = json({ authenticated: true, email })
   return await setOwnerSessionCookie(response, email)
@@ -1478,7 +1531,7 @@ const setupOwnerPassword = async (request) => {
   const clientIp = getClientIp(request)
   const ipLimit = rateLimit(`setup:ip:${clientIp}`, AUTH_LIMITS.setup.ip.max, AUTH_LIMITS.setup.ip.window)
   if (ipLimit.limited) {
-    trackServerEvent(EVENT_RATE_LIMIT_HIT, { reason: 'setup_password', client_ip: clientIp })
+    trackServerEvent(EVENT_RATE_LIMIT_HIT, { reason: 'setup_password', client_ip: clientIp }, { distinctId: clientIp })
     return json({ error: 'Too many attempts. Please try again later.' }, 429)
   }
 
@@ -1505,7 +1558,7 @@ const setupOwnerPassword = async (request) => {
   const { salt, hash } = createPasswordHash(password)
   await repository.setOwnerPassword(owner.id, { passwordHash: hash, passwordSalt: salt })
 
-  trackServerEvent(EVENT_OWNER_CLAIM_COMPLETED, { distinctId: email })
+  trackServerEvent(EVENT_OWNER_CLAIM_COMPLETED, {}, { distinctId: email })
 
   const response = json({ authenticated: true, email })
   return await setOwnerSessionCookie(response, email)

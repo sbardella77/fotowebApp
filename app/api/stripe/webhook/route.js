@@ -3,7 +3,10 @@ import { Prisma } from '@prisma/client'
 import { getStripe } from '@/lib/server/stripe'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { trackServerEvent } from '@/lib/analytics/track-server'
-import { EVENT_CHECKOUT_COMPLETED } from '@/lib/analytics/events'
+import {
+  EVENT_CHECKOUT_COMPLETED,
+  EVENT_ORIGINAL_DOWNLOAD_CHECKOUT_COMPLETED,
+} from '@/lib/analytics/events'
 
 export const dynamic = 'force-dynamic'
 
@@ -66,14 +69,17 @@ export async function POST(request) {
           },
         })
 
-        trackServerEvent(EVENT_CHECKOUT_COMPLETED, {
-          distinctId: session.customer_email || session.customer || eventId,
-          billing_intent: intent,
-          event_id: eventId,
-          room_slug: session.metadata?.roomSlug || null,
-          stripe_session_id: session.id,
-          stripe_customer_id: session.customer,
-        })
+        trackServerEvent(
+          EVENT_ORIGINAL_DOWNLOAD_CHECKOUT_COMPLETED,
+          {
+            billing_intent: intent,
+            event_id: eventId,
+            room_slug: session.metadata?.roomSlug || null,
+            stripe_session_id: session.id,
+            stripe_customer_id: session.customer,
+          },
+          { distinctId: session.customer_email || session.customer || eventId }
+        )
 
         console.log(`[stripe/webhook] Event ${updatedEvent.slug} unlocked for original quality downloads`)
       } catch (dbError) {
@@ -119,15 +125,18 @@ export async function POST(request) {
           },
         })
 
-        trackServerEvent(EVENT_CHECKOUT_COMPLETED, {
-          distinctId: session.metadata?.ownerEmail || ownerId,
-          owner_id: ownerId,
-          billing_intent: intent,
-          event_id: eventId,
-          room_slug: session.metadata?.roomSlug || null,
-          stripe_session_id: session.id,
-          stripe_customer_id: session.customer,
-        })
+        trackServerEvent(
+          EVENT_CHECKOUT_COMPLETED,
+          {
+            owner_id: ownerId,
+            billing_intent: intent,
+            event_id: eventId,
+            room_slug: session.metadata?.roomSlug || null,
+            stripe_session_id: session.id,
+            stripe_customer_id: session.customer,
+          },
+          { distinctId: session.metadata?.ownerEmail || ownerId }
+        )
 
         console.log(`[stripe/webhook] Event ${updatedEvent.slug} upgraded to ${intent}`)
       } catch (dbError) {
@@ -163,14 +172,17 @@ export async function POST(request) {
           },
         })
 
-        trackServerEvent(EVENT_CHECKOUT_COMPLETED, {
-          distinctId: owner.email,
-          owner_id: owner.id,
-          billing_intent: intent,
-          stripe_session_id: session.id,
-          stripe_subscription_id: session.subscription,
-          stripe_customer_id: session.customer,
-        })
+        trackServerEvent(
+          EVENT_CHECKOUT_COMPLETED,
+          {
+            owner_id: owner.id,
+            billing_intent: intent,
+            stripe_session_id: session.id,
+            stripe_subscription_id: session.subscription,
+            stripe_customer_id: session.customer,
+          },
+          { distinctId: owner.email }
+        )
 
         console.log('[stripe/webhook] Owner upgraded to Professional:', owner.email)
       } catch (dbError) {

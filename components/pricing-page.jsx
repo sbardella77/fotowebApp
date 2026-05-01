@@ -167,7 +167,7 @@ const faqs = [
   },
   {
     q: 'Do guests need to sign up or install an app?',
-    a: 'No. Guests simply scan your QR code or open your room link and upload photos instantly from any phone. Zero friction, zero downloads, zero cost. Original-quality photo downloads on Free rooms require a one-time €1.99 room unlock, which anyone can purchase.',
+    a: 'No. Guests simply scan your QR code or open your room link and upload photos instantly from any phone. Zero friction, zero downloads, zero cost. Original-quality photo downloads on Free rooms require a one-time €1.99 room unlock, which the room owner can purchase.',
   },
   {
     q: 'Why is Professional priced monthly instead of per event?',
