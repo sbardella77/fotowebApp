@@ -597,7 +597,7 @@ const updateEvent = async (request, slug) => {
   }
 
   const updatedEvent = await repository.updateEvent(slug, payload)
-  console.log(`[audit] Owner ${ownerEmail} renamed event ${slug} to "${payload.name}"`)
+  console.log(`[audit] Management-token update of event ${slug} to "${payload.name}"`)
   return json({ event: updatedEvent })
 }
 

@@ -281,7 +281,12 @@ export default function DashboardPage() {
   const loadEvents = async () => {
     try {
       const response = await fetch('/api/owner/events', { cache: 'no-store' })
-      const payload = await response.json()
+      let payload
+      try {
+        payload = await response.json()
+      } catch {
+        throw new Error(response.status >= 500 ? 'Server error. Please try again.' : 'Unable to load rooms')
+      }
       if (!response.ok) throw new Error(payload.error || 'Unable to load rooms')
       setEvents(payload.events || [])
       if (!selectedSlug && payload.events?.[0]?.slug) {
@@ -300,7 +305,12 @@ export default function DashboardPage() {
     setBusy((c) => ({ ...c, detail: true }))
     try {
       const response = await fetch(`/api/owner/events/${slug}`, { cache: 'no-store' })
-      const payload = await response.json()
+      let payload
+      try {
+        payload = await response.json()
+      } catch {
+        throw new Error(response.status >= 500 ? 'Server error. Please try again.' : 'Unable to load room detail')
+      }
       if (!response.ok) throw new Error(payload.error || 'Unable to load room detail')
       setSelectedEvent(payload.event)
       setSelectedSlug(payload.event.slug)
@@ -550,6 +560,11 @@ export default function DashboardPage() {
       return
     }
 
+    if (!authState.email) {
+      setCreateError({ error: 'You must be signed in to create a room.' })
+      return
+    }
+
     trackEvent(EVENT_CREATE_ROOM_CLICKED, { page_type: 'dashboard', variant: 'modal' })
 
     setCreateBusy(true)
@@ -560,7 +575,12 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: trimmed, ownerEmail: authState.email }),
       })
-      const payload = await response.json()
+      let payload
+      try {
+        payload = await response.json()
+      } catch {
+        payload = { error: `Server error (${response.status}). Please try again.` }
+      }
       if (!response.ok) {
         setCreateError(payload)
       } else if (payload.event?.slug) {
@@ -570,9 +590,12 @@ export default function DashboardPage() {
         await loadEvents()
         setSelectedSlug(payload.event.slug)
         setMessage(`Room "${payload.event.name}" created.`)
+      } else {
+        setCreateError({ error: 'Room created but response was unexpected. Please refresh.' })
       }
     } catch (e) {
-      setCreateError({ error: 'Unable to create room. Please try again.' })
+      console.error('[createRoom] Error:', e)
+      setCreateError({ error: e.message || 'Unable to create room. Please try again.' })
     } finally {
       setCreateBusy(false)
     }
