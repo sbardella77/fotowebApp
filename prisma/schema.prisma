@@ -47,6 +47,7 @@ model Event {
   createdAt                       DateTime @default(now())
   updatedAt                       DateTime @updatedAt
   photos                          Photo[]
+  privateAssets                   PrivateAsset[]
 
   @@index([createdAt])
   @@index([ownerId])
@@ -73,6 +74,21 @@ model Photo {
 
   @@index([eventId, createdAt(sort: Desc)])
   @@index([status, createdAt(sort: Desc)])
+}
+
+model PrivateAsset {
+  id           String   @id @default(uuid())
+  eventId      String
+  originalName String
+  storedName   String
+  mimeType     String
+  size         Int
+  url          String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  event        Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, createdAt(sort: Desc)])
 }
 
 model AdminCredential {

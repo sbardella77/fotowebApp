@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Camera, Eye, EyeOff, ImagePlus, Loader2, Lock, LogOut, Pencil, Plus, QrCode, Share2, Sparkles, Trash2 } from 'lucide-react'
+import { upload } from '@vercel/blob/client'
+import { Camera, Download, Eye, EyeOff, FolderHeart, ImagePlus, Loader2, Lock, LogOut, Pencil, Plus, QrCode, Share2, Sparkles, Trash2, Upload } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,6 +20,11 @@ import {
   EVENT_UPGRADE_CLICKED,
   EVENT_CHECKOUT_CANCELLED,
   EVENT_ORIGINAL_DOWNLOAD_CHECKOUT_CANCELLED,
+  EVENT_PRIVATE_DELIVERY_VIEWED,
+  EVENT_PRIVATE_DELIVERY_UPLOAD_STARTED,
+  EVENT_PRIVATE_DELIVERY_UPLOAD_COMPLETED,
+  EVENT_PRIVATE_DELIVERY_DOWNLOADED,
+  EVENT_PRIVATE_DELIVERY_DELETED,
 } from '@/lib/analytics/events'
 import {
   AlertDialog,
@@ -130,6 +136,10 @@ export default function DashboardPage() {
   const [createName, setCreateName] = useState('')
   const [createBusy, setCreateBusy] = useState(false)
   const [createError, setCreateError] = useState(null)
+  const [privateAssets, setPrivateAssets] = useState([])
+  const [privateDeliveryLoading, setPrivateDeliveryLoading] = useState(false)
+  const [privateDeliveryUploading, setPrivateDeliveryUploading] = useState(false)
+  const privateDeliveryFileInputRef = useRef(null)
   const dashboardViewTracked = useRef(false)
 
   const photos = useMemo(() => selectedEvent?.photos || [], [selectedEvent])
@@ -561,6 +571,176 @@ export default function DashboardPage() {
     }
   }
 
+  const hasPrivateDeliveryAccess = (event) => {
+    if (!event) return false
+    if (event.billingTier === 'wedding_pro') return true
+    if (plan === 'professional' || plan === 'business') return true
+    return false
+  }
+
+  const loadPrivateAssets = async (slug) => {
+    if (!slug) return
+    setPrivateDeliveryLoading(true)
+    try {
+      trackEvent(EVENT_PRIVATE_DELIVERY_VIEWED, { room_slug: slug })
+      const response = await fetch(`/api/owner/events/${slug}/private-delivery`, { cache: 'no-store' })
+      const payload = await response.json()
+      if (!response.ok) {
+        if (response.status !== 403) {
+          console.error('Failed to load private delivery assets:', payload.error)
+        }
+        setPrivateAssets([])
+        return
+      }
+      setPrivateAssets(payload.assets || [])
+    } catch (error) {
+      console.error('Error loading private delivery assets:', error)
+      setPrivateAssets([])
+    } finally {
+      setPrivateDeliveryLoading(false)
+    }
+  }
+
+  const uploadPrivateDeliveryFile = async (file) => {
+    if (!selectedEvent?.slug || !file) return
+
+    setPrivateDeliveryUploading(true)
+    setMessage('')
+
+    try {
+      trackEvent(EVENT_PRIVATE_DELIVERY_UPLOAD_STARTED, { room_slug: selectedEvent.slug, file_name: file.name, file_size: file.size })
+
+      const CHUNK_SIZE = 1024 * 1024
+      const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
+
+      const initResponse = await fetch(`/api/owner/events/${selectedEvent.slug}/private-delivery/init`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventSlug: selectedEvent.slug,
+          fileName: file.name,
+          fileSize: file.size,
+          mimeType: file.type || 'image/jpeg',
+          totalChunks,
+        }),
+      })
+      const initPayload = await initResponse.json()
+
+      if (!initResponse.ok) {
+        throw new Error(initPayload.error || 'Unable to initialize upload')
+      }
+
+      if (initPayload.session?.uploadStrategy === 'vercel-blob-client') {
+        const blob = await upload(initPayload.session.pathname || file.name, file, {
+          access: 'public',
+          handleUploadUrl: initPayload.session.handleUploadUrl || `/api/owner/events/${selectedEvent.slug}/private-delivery/blob`,
+          clientPayload: JSON.stringify({
+            eventSlug: selectedEvent.slug,
+            fileName: file.name,
+            fileSize: file.size,
+            mimeType: file.type || 'image/jpeg',
+          }),
+          multipart: file.size > 5 * 1024 * 1024,
+        })
+
+        const completeResponse = await fetch(`/api/owner/events/${selectedEvent.slug}/private-delivery/complete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            eventSlug: selectedEvent.slug,
+            blobUrl: blob.url,
+            blobPathname: blob.pathname,
+            originalName: file.name,
+            mimeType: file.type || 'image/jpeg',
+            size: file.size,
+          }),
+        })
+        const completePayload = await completeResponse.json()
+
+        if (!completeResponse.ok) {
+          throw new Error(completePayload.error || 'Unable to finalize upload')
+        }
+
+        trackEvent(EVENT_PRIVATE_DELIVERY_UPLOAD_COMPLETED, { room_slug: selectedEvent.slug, asset_id: completePayload.asset?.id, file_size: file.size })
+        setMessage(`File "${file.name}" uploaded to private delivery.`)
+        await loadPrivateAssets(selectedEvent.slug)
+      } else {
+        for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex += 1) {
+          const start = chunkIndex * CHUNK_SIZE
+          const end = Math.min(start + CHUNK_SIZE, file.size)
+          const chunkBlob = file.slice(start, end)
+
+          const formData = new FormData()
+          formData.append('sessionId', initPayload.session.sessionId)
+          formData.append('chunkIndex', String(chunkIndex))
+          formData.append('totalChunks', String(totalChunks))
+          formData.append('chunk', chunkBlob, `${file.name}.part-${chunkIndex}`)
+
+          const chunkResponse = await fetch('/api/uploads/chunk', {
+            method: 'POST',
+            body: formData,
+          })
+
+          if (!chunkResponse.ok) {
+            throw new Error('Chunk upload failed')
+          }
+        }
+
+        const completeResponse = await fetch(`/api/owner/events/${selectedEvent.slug}/private-delivery/complete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId: initPayload.session.sessionId }),
+        })
+        const completePayload = await completeResponse.json()
+
+        if (!completeResponse.ok) {
+          throw new Error(completePayload.error || 'Unable to finalize upload')
+        }
+
+        trackEvent(EVENT_PRIVATE_DELIVERY_UPLOAD_COMPLETED, { room_slug: selectedEvent.slug, asset_id: completePayload.asset?.id, file_size: file.size })
+        setMessage(`File "${file.name}" uploaded to private delivery.`)
+        await loadPrivateAssets(selectedEvent.slug)
+      }
+    } catch (error) {
+      setMessage(error.message || 'Upload failed. Please try again.')
+    } finally {
+      setPrivateDeliveryUploading(false)
+      if (privateDeliveryFileInputRef.current) {
+        privateDeliveryFileInputRef.current.value = ''
+      }
+    }
+  }
+
+  const downloadPrivateAsset = (asset) => {
+    trackEvent(EVENT_PRIVATE_DELIVERY_DOWNLOADED, { room_slug: selectedEvent?.slug, asset_id: asset.id, file_size: asset.size })
+    const link = document.createElement('a')
+    link.href = asset.url
+    link.download = asset.originalName
+    link.click()
+  }
+
+  const deletePrivateAsset = async (assetId) => {
+    setBusy((c) => ({ ...c, detail: true }))
+    try {
+      const response = await fetch(`/api/owner/private-delivery/${assetId}`, { method: 'DELETE' })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Unable to delete file')
+      trackEvent(EVENT_PRIVATE_DELIVERY_DELETED, { room_slug: selectedEvent?.slug, asset_id: assetId })
+      setMessage('File deleted from private delivery.')
+      await loadPrivateAssets(selectedEvent.slug)
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setBusy((c) => ({ ...c, detail: false }))
+    }
+  }
+
+  const onPrivateDeliveryFileSelect = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    uploadPrivateDeliveryFile(file)
+  }
+
   useEffect(() => {
     loadSession()
   }, [])
@@ -583,8 +763,13 @@ export default function DashboardPage() {
     if (selectedEvent) {
       setNewEventName(selectedEvent.name)
       setIsEditingName(false)
+      if (hasPrivateDeliveryAccess(selectedEvent)) {
+        loadPrivateAssets(selectedEvent.slug)
+      } else {
+        setPrivateAssets([])
+      }
     }
-  }, [selectedEvent])
+  }, [selectedEvent, plan])
 
   useEffect(() => {
     if (!authState.authenticated) return
@@ -1105,6 +1290,111 @@ export default function DashboardPage() {
                             }}
                             onReject={() => moderatePhoto(photo.id, 'reject')}
                           />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Private professional delivery section */}
+            {selectedEvent && hasPrivateDeliveryAccess(selectedEvent) && (
+              <div className="rounded-2xl border border-primary/20 bg-[#141C2E] shadow-card">
+                <div className="p-5 sm:p-6">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <FolderHeart className="h-4 w-4 text-primary" />
+                        <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
+                          Private delivery
+                        </span>
+                      </div>
+                      <h3 className="mt-1 font-display text-lg font-bold tracking-tight text-white">
+                        Professional files
+                      </h3>
+                      <p className="mt-1 text-sm font-light text-muted-foreground">
+                        Original-quality files for the couple. Not visible to guests.
+                      </p>
+                    </div>
+                    <div>
+                      <input
+                        ref={privateDeliveryFileInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png"
+                        className="hidden"
+                        onChange={onPrivateDeliveryFileSelect}
+                      />
+                      <Button
+                        size="sm"
+                        className="glow-blue"
+                        disabled={privateDeliveryUploading}
+                        onClick={() => privateDeliveryFileInputRef.current?.click()}
+                      >
+                        {privateDeliveryUploading ? (
+                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Upload className="mr-1.5 h-3.5 w-3.5" />
+                        )}
+                        {privateDeliveryUploading ? 'Uploading...' : 'Upload file'}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="mt-6">
+                    {privateDeliveryLoading ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading private files...
+                      </div>
+                    ) : privateAssets.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-primary/10 bg-[#0D1220] p-8 text-center">
+                        <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                          <FolderHeart className="h-5 w-5" />
+                        </div>
+                        <p className="text-sm font-light text-muted-foreground">
+                          No private delivery files yet.
+                        </p>
+                        <p className="mt-1 text-xs font-light text-muted-foreground/70">
+                          Upload original-quality wedding files here. They stay private and are never shown in the public gallery.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {privateAssets.map((asset) => (
+                          <div
+                            key={asset.id}
+                            className="flex items-center justify-between gap-4 rounded-xl border border-white/[0.07] bg-[#0D1220] p-4"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium text-foreground">
+                                {asset.originalName}
+                              </p>
+                              <p className="mt-0.5 text-xs font-light text-muted-foreground">
+                                {(asset.size / (1024 * 1024)).toFixed(1)} MB · {asset.mimeType?.replace('image/', '').toUpperCase()}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 border-white/[0.07] bg-[#141C2E] hover:bg-[#111827] hover:text-foreground"
+                                onClick={() => downloadPrivateAsset(asset)}
+                              >
+                                <Download className="mr-1.5 h-3.5 w-3.5" />
+                                Download
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                className="h-8"
+                                disabled={busy.detail}
+                                onClick={() => deletePrivateAsset(asset.id)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </div>
                         ))}
                       </div>
                     )}

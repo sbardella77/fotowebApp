@@ -16,6 +16,11 @@ import {
   localUploadCompleteSchema,
   MAX_CHUNK_SIZE_BYTES,
   MAX_FILE_SIZE_BYTES,
+  MAX_PRIVATE_DELIVERY_FILE_SIZE_BYTES,
+  privateDeliveryBlobUploadClientPayloadSchema,
+  privateDeliveryBlobUploadCompleteSchema,
+  privateDeliveryLocalUploadCompleteSchema,
+  privateDeliveryUploadInitSchema,
   saveOwnerEmailSchema,
   updateEventSchema,
   uploadChunkSchema,
@@ -51,10 +56,14 @@ import {
   EVENT_RATE_LIMIT_HIT,
   EVENT_FREE_ROOM_LIMIT_HIT,
   EVENT_FREE_PHOTO_LIMIT_HIT,
+  EVENT_PRIVATE_DELIVERY_UPLOAD_STARTED,
+  EVENT_PRIVATE_DELIVERY_UPLOAD_COMPLETED,
+  EVENT_PRIVATE_DELIVERY_DELETED,
 } from '@/lib/analytics/events'
 import { getAdminAuthDriver, getDataAccessDriver, getPrismaClient } from '@/lib/server/prisma-client'
 import {
   buildBlobPathname,
+  buildPrivateDeliveryBlobPathname,
   deleteStoredFile,
   getStoredNameFromBlobPathname,
   getStorageDriver,
@@ -65,6 +74,7 @@ import {
 import {
   checkOwnerRoomCreationEntitlement,
   checkRoomUploadEntitlement,
+  checkPrivateDeliveryEntitlement,
 } from '@/lib/server/entitlements'
 
 export const runtime = 'nodejs'
@@ -587,8 +597,17 @@ const deleteEvent = async (request, slug) => {
     }
   }
 
+  const privateAssets = await repository.listPrivateAssetsByEventId(event.id)
+  for (const asset of privateAssets) {
+    try {
+      await deleteStoredFile(asset.url)
+    } catch (storageError) {
+      console.error('[deleteEvent] Storage cleanup failed for private asset:', asset.id, storageError)
+    }
+  }
+
   await repository.deleteEvent(slug)
-  console.log(`[audit] Management-token deletion of event ${slug} with ${event.photos?.length || 0} photos`)
+  console.log(`[audit] Management-token deletion of event ${slug} with ${event.photos?.length || 0} photos and ${privateAssets.length} private assets`)
   return json({ deleted: true })
 }
 
@@ -874,6 +893,271 @@ const completeUpload = async (request) => {
     photo,
     event: freshEvent,
   }, 201)
+}
+
+const listPrivateDeliveryAssets = async (request, slug) => {
+  const ownerEmail = await requireOwner(request)
+  if (ownerEmail?.error) return ownerEmail
+
+  const repository = await getGalleryRepository()
+  const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
+  if (!event) {
+    return json({ error: 'Room not found' }, 404)
+  }
+
+  const prisma = await getPrismaClient()
+  if (prisma) {
+    const entitlement = await checkPrivateDeliveryEntitlement(prisma, event)
+    if (!entitlement.allowed) {
+      return json({ error: 'Private delivery is not available for this room', upgradePath: entitlement.upgradePath }, 403)
+    }
+  }
+
+  const assets = await repository.listPrivateAssetsByEventId(event.id)
+  return json({ assets })
+}
+
+const initPrivateDeliveryUpload = async (request, slug) => {
+  const ownerEmail = await requireOwner(request)
+  if (ownerEmail?.error) return ownerEmail
+
+  const payload = privateDeliveryUploadInitSchema.parse(await request.json())
+  if (payload.eventSlug !== slug) {
+    return json({ error: 'Room slug mismatch' }, 400)
+  }
+
+  const repository = await getGalleryRepository()
+  const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
+  if (!event) {
+    return json({ error: 'Room not found' }, 404)
+  }
+
+  const prisma = await getPrismaClient()
+  if (prisma) {
+    const entitlement = await checkPrivateDeliveryEntitlement(prisma, event)
+    if (!entitlement.allowed) {
+      return json({ error: 'Private delivery is not available for this room', upgradePath: entitlement.upgradePath }, 403)
+    }
+  }
+
+  const clientIp = getClientIp(request)
+  const limit = rateLimit(`upload-init:ip:${clientIp}`, RATE_LIMITS.uploadInit.ip.max, RATE_LIMITS.uploadInit.ip.window)
+  if (limit.limited) {
+    return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
+  }
+
+  const storageDriver = getStorageDriver()
+  const session = await storageDriver.initUploadSession({ ...payload, directory: 'private-delivery' })
+
+  trackServerEvent(
+    EVENT_PRIVATE_DELIVERY_UPLOAD_STARTED,
+    { room_slug: slug, file_name: payload.fileName, file_size: payload.fileSize },
+    { distinctId: ownerEmail }
+  )
+
+  return json({ session }, 201)
+}
+
+const issuePrivateDeliveryBlobToken = async (request, slug) => {
+  const ownerEmail = await requireOwner(request)
+  if (ownerEmail?.error) return ownerEmail
+
+  const repository = await getGalleryRepository()
+  const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
+  if (!event) {
+    return json({ error: 'Room not found' }, 404)
+  }
+
+  const prisma = await getPrismaClient()
+  if (prisma) {
+    const entitlement = await checkPrivateDeliveryEntitlement(prisma, event)
+    if (!entitlement.allowed) {
+      return json({ error: 'Private delivery is not available for this room', upgradePath: entitlement.upgradePath }, 403)
+    }
+  }
+
+  const clientIp = getClientIp(request)
+  const limit = rateLimit(`upload-blob:ip:${clientIp}`, RATE_LIMITS.uploadBlob.ip.max, RATE_LIMITS.uploadBlob.ip.window)
+  if (limit.limited) {
+    return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
+  }
+
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    return json({ error: 'Server misconfiguration: BLOB_READ_WRITE_TOKEN is missing' }, 500)
+  }
+
+  if (!isVercelBlobStorageConfigured()) {
+    return json({ error: 'Vercel Blob is not configured' }, 500)
+  }
+
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return json({ error: 'Invalid request body' }, 400)
+  }
+
+  try {
+    const result = await handleUpload({
+      body,
+      request,
+      onBeforeGenerateToken: async (pathname, clientPayload) => {
+        const payload = privateDeliveryBlobUploadClientPayloadSchema.parse(JSON.parse(clientPayload || '{}'))
+        if (payload.eventSlug !== slug) {
+          throw new Error('Room slug mismatch')
+        }
+
+        const targetEvent = await repository.getEventBySlugAndOwner(payload.eventSlug, ownerEmail)
+        if (!targetEvent) {
+          throw new Error('Room not found')
+        }
+
+        if (prisma) {
+          const targetEntitlement = await checkPrivateDeliveryEntitlement(prisma, targetEvent)
+          if (!targetEntitlement.allowed) {
+            throw new Error('Private delivery is not available for this room')
+          }
+        }
+
+        return {
+          pathname: buildPrivateDeliveryBlobPathname({ eventSlug: targetEvent.slug, fileName: payload.fileName }),
+          allowedContentTypes: ['image/jpeg', 'image/png'],
+          maximumSizeInBytes: MAX_PRIVATE_DELIVERY_FILE_SIZE_BYTES,
+          addRandomSuffix: true,
+        }
+      },
+    })
+
+    if (!result) {
+      return json({ error: 'Failed to generate upload token' }, 500)
+    }
+
+    return Response.json(result)
+  } catch (error) {
+    return json({ error: error?.message || 'Unable to initialize Vercel Blob upload' }, 400)
+  }
+}
+
+const completePrivateDeliveryUpload = async (request, slug) => {
+  const ownerEmail = await requireOwner(request)
+  if (ownerEmail?.error) return ownerEmail
+
+  const body = await request.json()
+  const repository = await getGalleryRepository()
+  const prisma = await getPrismaClient()
+
+  const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
+  if (!event) {
+    return json({ error: 'Room not found' }, 404)
+  }
+
+  if (prisma) {
+    const entitlement = await checkPrivateDeliveryEntitlement(prisma, event)
+    if (!entitlement.allowed) {
+      return json({ error: 'Private delivery is not available for this room', upgradePath: entitlement.upgradePath }, 403)
+    }
+  }
+
+  const clientIp = getClientIp(request)
+  const limit = rateLimit(`upload-complete:ip:${clientIp}`, RATE_LIMITS.uploadComplete.ip.max, RATE_LIMITS.uploadComplete.ip.window)
+  if (limit.limited) {
+    return json({ error: 'Too many upload completions. Please try again later.' }, 429)
+  }
+
+  if (body?.blobUrl) {
+    const payload = privateDeliveryBlobUploadCompleteSchema.parse(body)
+    if (payload.eventSlug !== slug) {
+      return json({ error: 'Room slug mismatch' }, 400)
+    }
+
+    const asset = await repository.createPrivateAsset({
+      eventId: event.id,
+      originalName: payload.originalName,
+      storedName: getStoredNameFromBlobPathname(payload.blobPathname),
+      mimeType: payload.mimeType,
+      size: payload.size,
+      url: payload.blobUrl,
+    })
+
+    trackServerEvent(
+      EVENT_PRIVATE_DELIVERY_UPLOAD_COMPLETED,
+      { room_slug: slug, asset_id: asset.id, file_size: payload.size },
+      { distinctId: ownerEmail }
+    )
+
+    return json({ asset }, 201)
+  }
+
+  const payload = privateDeliveryLocalUploadCompleteSchema.parse(body)
+  const fileResult = await localStorageDriver.completeUploadSession({
+    sessionId: payload.sessionId,
+    photoId: randomUUID(),
+  })
+
+  if (fileResult.eventSlug !== slug) {
+    return json({ error: 'Room slug mismatch' }, 400)
+  }
+
+  const asset = await repository.createPrivateAsset({
+    eventId: event.id,
+    originalName: fileResult.originalName,
+    storedName: fileResult.storedName,
+    mimeType: fileResult.mimeType,
+    size: fileResult.size,
+    url: fileResult.url,
+  })
+
+  trackServerEvent(
+    EVENT_PRIVATE_DELIVERY_UPLOAD_COMPLETED,
+    { room_slug: slug, asset_id: asset.id, file_size: fileResult.size },
+    { distinctId: ownerEmail }
+  )
+
+  return json({ asset }, 201)
+}
+
+const deletePrivateDeliveryAsset = async (request, assetId) => {
+  const ownerEmail = await requireOwner(request)
+  if (ownerEmail?.error) return ownerEmail
+
+  const repository = await getGalleryRepository()
+  const prisma = await getPrismaClient()
+
+  const asset = await repository.getPrivateAssetById(assetId)
+  if (!asset) {
+    return json({ error: 'Asset not found' }, 404)
+  }
+
+  const event = await prisma?.event.findUnique({ where: { id: asset.eventId } })
+  if (!event) {
+    return json({ error: 'Room not found' }, 404)
+  }
+
+  const normalizedEmail = ownerEmail.toLowerCase().trim()
+  const owner = await prisma?.owner.findUnique({ where: { email: normalizedEmail } })
+  const isOwner =
+    event?.ownerEmail?.toLowerCase() === normalizedEmail ||
+    (owner && event?.ownerId === owner.id)
+
+  if (!isOwner) {
+    return json({ error: 'Owner authentication required' }, 403)
+  }
+
+  try {
+    await deleteStoredFile(asset.url)
+  } catch (storageError) {
+    console.error('[deletePrivateDeliveryAsset] Storage cleanup failed:', assetId, storageError)
+  }
+
+  await repository.deletePrivateAssetById(assetId)
+
+  trackServerEvent(
+    EVENT_PRIVATE_DELIVERY_DELETED,
+    { room_slug: event.slug, asset_id: assetId },
+    { distinctId: ownerEmail }
+  )
+
+  return json({ deleted: true })
 }
 
 const getAdminConfig = async () => {
@@ -1640,6 +1924,15 @@ const deleteOwnerEvent = async (request, slug) => {
     await deleteStoredFile(photo.url)
   }
 
+  const privateAssets = await repository.listPrivateAssetsByEventId(event.id)
+  for (const asset of privateAssets) {
+    try {
+      await deleteStoredFile(asset.url)
+    } catch (storageError) {
+      console.error('[deleteOwnerEvent] Storage cleanup failed for private asset:', asset.id, storageError)
+    }
+  }
+
   await repository.deleteEvent(slug)
   return json({ deleted: true })
 }
@@ -1807,6 +2100,26 @@ async function handleRoute(request, { params }) {
 
       if (segments.length === 3 && segments[1] === 'photos' && method === 'DELETE') {
         return deleteOwnerPhoto(request, segments[2])
+      }
+
+      if (segments.length === 4 && segments[1] === 'events' && segments[3] === 'private-delivery' && method === 'GET') {
+        return listPrivateDeliveryAssets(request, segments[2])
+      }
+
+      if (segments.length === 5 && segments[1] === 'events' && segments[3] === 'private-delivery' && segments[4] === 'init' && method === 'POST') {
+        return initPrivateDeliveryUpload(request, segments[2])
+      }
+
+      if (segments.length === 5 && segments[1] === 'events' && segments[3] === 'private-delivery' && segments[4] === 'blob' && method === 'POST') {
+        return issuePrivateDeliveryBlobToken(request, segments[2])
+      }
+
+      if (segments.length === 5 && segments[1] === 'events' && segments[3] === 'private-delivery' && segments[4] === 'complete' && method === 'POST') {
+        return completePrivateDeliveryUpload(request, segments[2])
+      }
+
+      if (segments.length === 3 && segments[1] === 'private-delivery' && method === 'DELETE') {
+        return deletePrivateDeliveryAsset(request, segments[2])
       }
     }
 
