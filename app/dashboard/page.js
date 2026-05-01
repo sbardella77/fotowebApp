@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Camera, Eye, EyeOff, ImagePlus, Loader2, Lock, LogOut, Pencil, QrCode, Share2, Sparkles, Trash2 } from 'lucide-react'
+import { Camera, Eye, EyeOff, ImagePlus, Loader2, Lock, LogOut, Pencil, Plus, QrCode, Share2, Sparkles, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,6 +12,7 @@ import { EventQRModal } from '@/components/event-qr-modal'
 import { trackEvent, identifyUser } from '@/lib/analytics/track-client'
 import {
   EVENT_DASHBOARD_VIEWED,
+  EVENT_CREATE_ROOM_CLICKED,
   EVENT_ROOM_SELECTED_IN_DASHBOARD,
   EVENT_ROOM_SHARED_FROM_DASHBOARD,
   EVENT_ROOM_QR_OPENED_FROM_DASHBOARD,
@@ -29,6 +30,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 const DashboardPhotoCard = ({ photo, onApprove, onReject, onDelete, onOpenLightbox, busyId }) => {
   const isBusy = busyId === photo.id
@@ -117,6 +126,10 @@ export default function DashboardPage() {
   const [forgotSent, setForgotSent] = useState(false)
   const [plan, setPlan] = useState('free')
   const [checkoutBusy, setCheckoutBusy] = useState(false)
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [createName, setCreateName] = useState('')
+  const [createBusy, setCreateBusy] = useState(false)
+  const [createError, setCreateError] = useState(null)
   const dashboardViewTracked = useRef(false)
 
   const photos = useMemo(() => selectedEvent?.photos || [], [selectedEvent])
@@ -507,6 +520,47 @@ export default function DashboardPage() {
     }
   }
 
+  const openCreateDialog = () => {
+    setCreateName('')
+    setCreateError(null)
+    setCreateDialogOpen(true)
+  }
+
+  const createRoom = async () => {
+    const trimmed = createName.trim()
+    if (!trimmed || trimmed.length < 3) {
+      setCreateError({ error: 'Room name must be at least 3 characters' })
+      return
+    }
+
+    trackEvent(EVENT_CREATE_ROOM_CLICKED, { page_type: 'dashboard', variant: 'modal' })
+
+    setCreateBusy(true)
+    setCreateError(null)
+    try {
+      const response = await fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmed, ownerEmail: authState.email }),
+      })
+      const payload = await response.json()
+      if (!response.ok) {
+        setCreateError(payload)
+      } else if (payload.event?.slug) {
+        setCreateDialogOpen(false)
+        setCreateName('')
+        setCreateError(null)
+        await loadEvents()
+        setSelectedSlug(payload.event.slug)
+        setMessage(`Room "${payload.event.name}" created.`)
+      }
+    } catch (e) {
+      setCreateError({ error: 'Unable to create room. Please try again.' })
+    } finally {
+      setCreateBusy(false)
+    }
+  }
+
   useEffect(() => {
     loadSession()
   }, [])
@@ -764,8 +818,9 @@ export default function DashboardPage() {
             <p className="mt-3 max-w-sm text-sm font-light text-muted-foreground">
               Create your first room and start collecting photos in seconds.
             </p>
-            <Button className="mt-8 glow-blue" asChild>
-              <a href="/">Create your room</a>
+            <Button className="mt-8 glow-blue" onClick={openCreateDialog}>
+              <Plus className="mr-2 h-4 w-4" />
+              Create your room
             </Button>
           </div>
         ) : (
@@ -780,8 +835,9 @@ export default function DashboardPage() {
                   Open, share, rename, or manage the rooms you&apos;ve created.
                 </p>
               </div>
-              <Button size="sm" asChild className="mt-3 sm:mt-0 glow-blue">
-                <a href="/">Create new room</a>
+              <Button size="sm" className="mt-3 sm:mt-0 glow-blue" onClick={openCreateDialog}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create new room
               </Button>
             </div>
 
@@ -1071,6 +1127,62 @@ export default function DashboardPage() {
         event={selectedEvent ? { ...selectedEvent, ownerPlan: plan } : null}
         isOwner={true}
       />
+
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent className="border-white/[0.07] bg-[#141C2E]">
+          <DialogHeader>
+            <DialogTitle className="font-display text-lg font-bold text-white">Create new room</DialogTitle>
+            <DialogDescription className="text-sm font-light text-muted-foreground">
+              Enter a name for your new room. Guests will see this name when they visit.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Room name</label>
+              <Input
+                value={createName}
+                onChange={(e) => setCreateName(e.target.value)}
+                placeholder="e.g. Sarah & Mike Wedding"
+                className="h-11 rounded-lg border-white/[0.07] bg-[#0D1220] text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && createName.trim().length >= 3 && !createBusy) createRoom()
+                }}
+                autoFocus
+              />
+            </div>
+            {createError?.limit === 'room_count' ? (
+              <div className="space-y-3">
+                <p className="text-sm text-destructive">{createError.error}</p>
+                <Button
+                  className="w-full glow-blue"
+                  disabled={checkoutBusy}
+                  onClick={() => startCheckout('professional', null, 'dashboard_create_room_limit')}
+                >
+                  {checkoutBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Upgrade to Professional'}
+                </Button>
+              </div>
+            ) : createError?.error ? (
+              <p className="text-sm text-destructive">{createError.error}</p>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setCreateDialogOpen(false)}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              Cancel
+            </Button>
+            <Button
+              className="glow-blue"
+              disabled={createBusy || !createName.trim() || createName.trim().length < 3}
+              onClick={createRoom}
+            >
+              {createBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create room'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent className="border-white/[0.07] bg-[#141C2E]">
