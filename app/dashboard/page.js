@@ -1129,7 +1129,7 @@ export default function DashboardPage() {
       />
 
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="border-white/[0.07] bg-[#141C2E]">
+        <DialogContent className="dark border-white/[0.07] bg-[#141C2E]">
           <DialogHeader>
             <DialogTitle className="font-display text-lg font-bold text-white">Create new room</DialogTitle>
             <DialogDescription className="text-sm font-light text-muted-foreground">
