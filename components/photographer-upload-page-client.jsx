@@ -180,7 +180,7 @@ export default function PhotographerUploadPageClient({ token }) {
   if (loading) {
     return (
       <main className="dark relative min-h-screen bg-background font-body text-foreground">
-        <div className="absolute inset-0 bg-grid opacity-[0.03]" />
+        <div className="absolute inset-0 bg-grid opacity-[0.03] pointer-events-none" aria-hidden="true" />
         <div className="flex min-h-screen items-center justify-center">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -194,7 +194,7 @@ export default function PhotographerUploadPageClient({ token }) {
   if (error && !event) {
     return (
       <main className="dark relative min-h-screen bg-background font-body text-foreground">
-        <div className="absolute inset-0 bg-grid opacity-[0.03]" />
+        <div className="absolute inset-0 bg-grid opacity-[0.03] pointer-events-none" aria-hidden="true" />
         <div className="flex min-h-screen items-center justify-center px-4">
           <div className="w-full max-w-md rounded-2xl border border-white/[0.07] bg-[#141C2E] p-8 text-center shadow-card">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-red-500/10 text-red-400">
@@ -210,7 +210,7 @@ export default function PhotographerUploadPageClient({ token }) {
 
   return (
     <main className="dark relative min-h-screen bg-background font-body text-foreground">
-      <div className="absolute inset-0 bg-grid opacity-[0.03]" />
+      <div className="absolute inset-0 bg-grid opacity-[0.03] pointer-events-none" aria-hidden="true" />
 
       <header className="sticky top-0 z-30 h-14 border-b border-white/[0.07] bg-[#13131f]/80 backdrop-blur-md">
         <div className="container flex h-full items-center justify-between px-4">
