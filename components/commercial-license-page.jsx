@@ -21,6 +21,7 @@ import { MarketingNav } from '@/components/marketing-nav'
 import { MarketingFooter } from '@/components/marketing-footer'
 import { trackEvent, trackPageView } from '@/lib/analytics/track-client'
 import { EVENT_LANDING_VIEW } from '@/lib/analytics/events'
+import { useTranslations } from '@/components/i18n-provider'
 
 function useScrollReveal() {
   useEffect(() => {
@@ -62,6 +63,7 @@ function Section({ number, title, icon: Icon, children }) {
 
 export function CommercialLicensePage() {
   useScrollReveal()
+  const t = useTranslations('legal')
 
   useEffect(() => {
     trackPageView('landing', { variant: 'commercial_license' })
@@ -82,10 +84,10 @@ export function CommercialLicensePage() {
               <Briefcase className="h-6 w-6" />
             </div>
             <h1 className="mt-5 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Commercial License & Professional Terms
+              {t.commercialTitle}
             </h1>
             <p className="mt-3 text-sm text-muted-foreground">
-              Last updated: April 2026
+              {t.lastUpdated}
             </p>
           </div>
         </div>
@@ -98,239 +100,187 @@ export function CommercialLicensePage() {
             {/* Disclaimer */}
             <div className="reveal rounded-xl border border-primary/20 bg-primary/5 p-5">
               <p className="text-sm leading-relaxed text-primary/90">
-                <strong>Product-ready draft.</strong> This Commercial License is a
-                product-ready draft intended for professional users of the SnapRooms
-                platform. It is provided as-is and does not constitute legal advice.
-                We recommend consulting a qualified attorney to review these terms
-                before relying on them for enforcement or compliance purposes.
+                <strong>{t.productReadyDraft}</strong> {t.commercialDisclaimer}
               </p>
             </div>
 
-            <Section number="1" title="Permitted Commercial Use" icon={CheckCircle2}>
+            <Section number="1" title={t.permittedCommercialUse} icon={CheckCircle2}>
               <p>
-                As a SnapRooms subscriber, you are permitted to use the platform as part
-                of your professional services, including but not limited to:
+                {t.permittedDesc}
               </p>
               <ul className="list-disc pl-5 space-y-1">
-                <li>Wedding photography packages and client deliverables</li>
-                <li>Event planning and coordination services</li>
-                <li>Venue amenity offerings and guest experience programs</li>
-                <li>Agency client work and campaign execution</li>
-                <li>Corporate internal events and team activities</li>
-                <li>Professional organizer services and private functions</li>
+                <li>{t.permitted1}</li>
+                <li>{t.permitted2}</li>
+                <li>{t.permitted3}</li>
+                <li>{t.permitted4}</li>
+                <li>{t.permitted5}</li>
+                <li>{t.permitted6}</li>
               </ul>
               <p>
-                Commercial use is permitted under both Free and Pro subscriptions,
-                subject to the limitations outlined in these terms. Pro subscribers
-                receive expanded capabilities including unlimited rooms, permanent
-                galleries, and bulk downloads.
+                {t.permittedDesc2}
               </p>
             </Section>
 
-            <Section number="2" title="Private vs Commercial Distinction" icon={Lock}>
+            <Section number="2" title={t.privateVsCommercial} icon={Lock}>
               <p>
-                <strong>Private use</strong> refers to personal, non-commercial events
-                where you are the host and primary beneficiary (e.g., your own wedding,
-                family birthday, personal party).
+                {t.privateVsCommercialDesc1}
               </p>
               <p>
-                <strong>Commercial use</strong> refers to any use where SnapRooms is
-                incorporated into a service offering for which you or your organization
-                receives compensation, or where you act on behalf of a paying client.
+                {t.privateVsCommercialDesc2}
               </p>
               <p>
-                Both private and commercial users must comply with these terms and the
-                general Terms of Service. Commercial users are additionally responsible
-                for ensuring their clients understand how their data and photos will be
-                handled.
+                {t.privateVsCommercialDesc3}
               </p>
             </Section>
 
-            <Section number="3" title="Branding & White-Label Limitations" icon={EyeOff}>
+            <Section number="3" title={t.brandingWhiteLabel} icon={EyeOff}>
               <p>
-                SnapRooms branding may appear within the guest upload experience,
-                gallery views, and QR code interfaces. Pro subscribers may request
-                reduced branding visibility, but complete white-labeling is not
-                available under standard plans.
+                {t.brandingDesc1}
               </p>
               <p>
-                <strong>What is not permitted without a written agreement:</strong>
+                <strong>{t.brandingDesc2}</strong>
               </p>
               <ul className="list-disc pl-5 space-y-1">
-                <li>Removing or replacing SnapRooms branding in a way that suggests the platform is your own product</li>
-                <li>Reselling SnapRooms access as a standalone service under your own brand</li>
-                <li>Creating a competing photo-collection product using SnapRooms infrastructure</li>
-                <li>Embedding SnapRooms in a way that obscures its origin to end users</li>
+                <li>{t.brandingNot1}</li>
+                <li>{t.brandingNot2}</li>
+                <li>{t.brandingNot3}</li>
+                <li>{t.brandingNot4}</li>
               </ul>
               <p>
-                Custom white-label and API access may be available under a separate
-                enterprise agreement. Contact hello@snaprooms.app to inquire.
+                {t.brandingDesc3}
               </p>
             </Section>
 
-            <Section number="4" title="Prohibited Uses" icon={Ban}>
+            <Section number="4" title={t.prohibitedUses} icon={Ban}>
               <p>
-                Regardless of subscription tier, the following uses are strictly prohibited:
+                {t.prohibitedDesc}
               </p>
               <ul className="list-disc pl-5 space-y-1">
-                <li>Uploading illegal, harmful, obscene, or infringing content</li>
-                <li>Using SnapRooms to harvest data or scrape user information</li>
-                <li>Attempting to reverse-engineer, hack, or compromise the platform</li>
-                <li>Creating rooms for fraudulent, deceptive, or malicious purposes</li>
-                <li>Distributing malware, spam, or unsolicited communications through the platform</li>
-                <li>Using automated scripts or bots to create rooms or upload photos at scale</li>
-                <li>Reselling room access or photo collections in violation of applicable law</li>
+                <li>{t.prohibited1}</li>
+                <li>{t.prohibited2}</li>
+                <li>{t.prohibited3}</li>
+                <li>{t.prohibited4}</li>
+                <li>{t.prohibited5}</li>
+                <li>{t.prohibited6}</li>
+                <li>{t.prohibited7}</li>
               </ul>
               <p>
-                Violation of these prohibitions may result in immediate account
-                suspension, termination, and potential legal action.
+                {t.prohibitedConsequences}
               </p>
             </Section>
 
-            <Section number="5" title="Organizer Responsibilities" icon={UserCheck}>
+            <Section number="5" title={t.organizerResponsibilities} icon={UserCheck}>
               <p>
-                As the room creator and commercial user, you are responsible for:
+                {t.organizerDesc}
               </p>
               <ul className="list-disc pl-5 space-y-1">
-                <li>Obtaining consent from guests and clients for photo collection</li>
-                <li>Complying with applicable privacy laws (GDPR, CCPA, etc.) in your jurisdiction</li>
-                <li>Ensuring you have the right to share any content uploaded to your rooms</li>
-                <li>Maintaining the confidentiality of your room links and QR codes</li>
-                <li>Removing content promptly upon valid takedown requests</li>
-                <li>Informing clients that SnapRooms is a third-party service provider</li>
+                <li>{t.organizer1}</li>
+                <li>{t.organizer2}</li>
+                <li>{t.organizer3}</li>
+                <li>{t.organizer4}</li>
+                <li>{t.organizer5}</li>
+                <li>{t.organizer6}</li>
               </ul>
               <p>
-                You agree to indemnify and hold harmless SnapRooms from any claims
-                arising from your failure to meet these responsibilities.
+                {t.organizerIndemnity}
               </p>
             </Section>
 
-            <Section number="6" title="Content Ownership Boundaries" icon={FileText}>
+            <Section number="6" title={t.contentOwnership} icon={FileText}>
               <p>
-                You and your clients retain ownership of all photos and content uploaded
-                to your rooms. SnapRooms does not claim ownership of your content.
+                {t.contentOwnershipDesc1}
               </p>
               <p>
-                By using the Service, you grant SnapRooms a limited, non-exclusive,
-                royalty-free license to store, transmit, and display your content solely
-                for the purpose of operating the platform. This license terminates when
-                you delete your content or close your account.
+                {t.contentOwnershipDesc2}
               </p>
               <p>
-                We do not sell your photos, use them for advertising, or train machine
-                learning models on them without your explicit consent.
+                {t.contentOwnershipDesc3}
               </p>
             </Section>
 
-            <Section number="7" title="Subscription & Billing" icon={CreditCard}>
+            <Section number="7" title={t.subscriptionBilling} icon={CreditCard}>
               <p>
-                Commercial users may subscribe to Free or Pro plans. Pro plans are billed
-                in advance on a recurring basis through Stripe. You are responsible for
-                maintaining accurate billing information and ensuring timely payment.
+                {t.billingDesc1}
               </p>
               <p>
-                Cancellation can be initiated at any time through your dashboard.
-                Cancellations take effect at the end of the current billing cycle.
-                No prorated refunds are guaranteed, though we may issue them at our
-                discretion.
+                {t.billingDesc2}
               </p>
               <p>
-                We reserve the right to change pricing with reasonable notice. Existing
-                subscribers will be notified in advance of any pricing changes.
+                {t.billingDesc3}
               </p>
             </Section>
 
-            <Section number="8" title="Termination & Suspension" icon={AlertTriangle}>
+            <Section number="8" title={t.terminationSuspension} icon={AlertTriangle}>
               <p>
-                We reserve the right to suspend or terminate your account without notice
-                if you violate these terms, engage in fraudulent activity, or create risk
-                or legal exposure for SnapRooms or other users.
+                {t.termSuspensionDesc1}
               </p>
               <p>
-                Upon termination, your rooms and associated content may be retained for
-                a limited period to allow for data recovery or legal compliance, after
-                which they may be permanently deleted. We are not obligated to retain
-                your content beyond what is necessary for legal or operational purposes.
+                {t.termSuspensionDesc2}
               </p>
               <p>
-                You may export your data at any time prior to termination using the
-                bulk download feature available in your dashboard.
+                {t.termSuspensionDesc3}
               </p>
             </Section>
 
-            <Section number="9" title="Liability Disclaimer" icon={Shield}>
+            <Section number="9" title={t.liabilityDisclaimer} icon={Shield}>
               <p>
-                SnapRooms is provided &ldquo;as is&rdquo; without warranties of any kind,
-                express or implied. We do not guarantee uninterrupted service, data
-                integrity, or fitness for a particular commercial purpose.
+                {t.liabilityDisclaimerDesc1}
               </p>
               <p>
-                To the maximum extent permitted by law, SnapRooms shall not be liable
-                for any indirect, incidental, special, consequential, or punitive damages
-                arising from your commercial use of the platform, including lost profits,
-                lost data, or reputational harm.
+                {t.liabilityDisclaimerDesc2}
               </p>
               <p>
-                Our total liability for any claim shall not exceed the total amount you
-                have paid to SnapRooms in the twelve (12) months preceding the claim, or
-                one hundred US dollars ($100) if no payments have been made.
+                {t.liabilityDisclaimerDesc3}
               </p>
             </Section>
 
-            <Section number="10" title="Governing Law" icon={Globe}>
+            <Section number="10" title={t.governingLaw} icon={Globe}>
               <p>
-                These terms shall be governed by and construed in accordance with the laws
-                of the jurisdiction in which SnapRooms operates, without regard to conflict
-                of law principles. Any dispute shall first be addressed through good-faith
-                negotiation. If unresolved, disputes shall be submitted to binding
-                arbitration or the competent courts of that jurisdiction.
+                {t.governingLawDesc}
               </p>
               <p>
-                [Placeholder: Insert specific jurisdiction and arbitration details upon
-                legal review.]
+                {/* TODO: not in dictionary */}
+                [Placeholder: Insert specific jurisdiction and arbitration details upon legal review.]
               </p>
             </Section>
 
-            <Section number="11" title="Contact" icon={Mail}>
+            <Section number="11" title={t.commercialContact} icon={Mail}>
               <p>
-                For questions about commercial licensing, custom terms, enterprise
-                agreements, or white-label partnerships, please contact us:
+                {t.commercialContactDesc}
               </p>
               <p className="text-foreground">
-                <strong>Email:</strong>{' '}
+                <strong>{t.emailLabel}</strong>{' '}
                 <a href="mailto:hello@snaprooms.app" className="text-primary hover:underline">
-                  hello@snaprooms.app
+                  {t.emailAddress}
                 </a>
               </p>
               <p>
-                We typically respond to commercial inquiries within one business day.
+                {t.commercialResponse}
               </p>
             </Section>
 
             <div className="reveal rounded-xl border border-white/[0.07] bg-[#141C2E] p-6 text-center">
               <p className="text-sm text-muted-foreground">
-                By using SnapRooms for commercial purposes, you acknowledge that you have
-                read, understood, and agree to be bound by these Commercial License terms
-                in addition to our general{' '}
+                {t.commercialAcceptance}{' '}
                 <a href="/terms" className="text-primary hover:underline">
-                  Terms of Service
+                  {t.termsTitle}
                 </a>.
               </p>
             </div>
 
             <div className="reveal flex flex-col items-center gap-4 rounded-xl border border-white/[0.07] bg-[#141C2E] p-8 text-center">
               <h3 className="font-display text-lg font-semibold text-white">
-                Ready to use SnapRooms professionally?
+                {t.readyToUse}
               </h3>
               <p className="text-sm text-muted-foreground">
-                Start with a free room or upgrade to Pro for unlimited client projects.
+                {t.readyToUseDesc}
               </p>
               <div className="flex flex-col gap-3 sm:flex-row">
                 <Button className="glow-blue" asChild>
-                  <a href="/">Create free room</a>
+                  <a href="/">{t.createFreeEvent}</a>
                 </Button>
                 <Button variant="outline" className="border-white/[0.07] bg-transparent hover:bg-white/[0.03]" asChild>
-                  <a href="/pricing">View Pro plans</a>
+                  <a href="/pricing">{t.viewProPlans}</a>
                 </Button>
               </div>
             </div>

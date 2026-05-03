@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { trackEvent, trackPageView } from '@/lib/analytics/track-client'
 import { EVENT_LANDING_VIEW, EVENT_HERO_CTA_CLICKED, EVENT_CREATE_ROOM_CLICKED } from '@/lib/analytics/events'
+import { useTranslations } from '@/components/i18n-provider'
 import {
   Camera,
   Heart,
@@ -68,6 +69,10 @@ export function WeddingLandingPage({ locale = 'en' }) {
   const [ownerEmail, setOwnerEmail] = useState('')
   const [isCreating, setIsCreating] = useState(false)
 
+  const t = useTranslations('wedding')
+  const nav = useTranslations('nav')
+  const footer = useTranslations('footer')
+
   useScrollReveal()
 
   useEffect(() => {
@@ -126,20 +131,20 @@ export function WeddingLandingPage({ locale = 'en' }) {
               onClick={() => scrollToSection('how-it-works')}
               className="hidden text-sm text-muted-foreground hover:text-foreground sm:block"
             >
-              How it works
+              {nav.howItWorks}
             </button>
             <button
               onClick={() => scrollToSection('faq')}
               className="hidden text-sm text-muted-foreground hover:text-foreground sm:block"
             >
-              FAQ
+              {nav.faq}
             </button>
             <LanguageSwitcher />
             <Button size="sm" variant="ghost" asChild className="font-body">
-              <a href="/dashboard/login">Sign in</a>
+              <a href="/dashboard/login">{nav.signIn}</a>
             </Button>
             <Button size="sm" onClick={() => scrollToSection('create')} className="font-body">
-              Create room
+              {nav.createRoom}
             </Button>
           </div>
         </div>
@@ -163,19 +168,19 @@ export function WeddingLandingPage({ locale = 'en' }) {
             <div className="animate-fade-up inline-flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-[#141C2E] px-3 py-1">
               <Heart className="h-3 w-3 text-rose-400" />
               <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-                Wedding Photo Sharing
+                {t.heroEyebrow}
               </span>
             </div>
 
             {/* H1 */}
             <h1 className="animate-fade-up delay-100 mt-6 font-display text-4xl font-extrabold tracking-[-0.03em] text-white sm:text-5xl lg:text-6xl">
-              Wedding photo sharing{' '}
-              <span className="text-gradient">made simple</span>
+              {t.heroHeadline1}{' '}
+              <span className="text-gradient">{t.heroHeadline2}</span>
             </h1>
 
             {/* Subheadline */}
             <p className="animate-fade-up delay-200 mt-6 text-lg font-light leading-relaxed text-muted-foreground sm:text-xl">
-              Collect every guest photo in one beautiful gallery. Share a QR code, let guests upload instantly, and keep every moment together — no app, no signup.
+              {t.heroSubheadline}
             </p>
 
             {/* Create room form */}
@@ -184,14 +189,14 @@ export function WeddingLandingPage({ locale = 'en' }) {
                 <Input
                   value={eventName}
                   onChange={(e) => setEventName(e.target.value)}
-                  placeholder="Wedding room name (e.g. Sarah & Mike)"
+                  placeholder={t.eventPlaceholder}
                   className="h-12 flex-1 rounded-lg border-white/[0.07] bg-[#141C2E] text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                 />
                 <Input
                   type="email"
                   value={ownerEmail}
                   onChange={(e) => setOwnerEmail(e.target.value)}
-                  placeholder="Your email"
+                  placeholder={t.finalEmailPlaceholder}
                   className="h-12 flex-1 rounded-lg border-white/[0.07] bg-[#141C2E] text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                 />
               </div>
@@ -205,7 +210,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                 ) : (
                   <>
-                    Create your wedding room — it's free
+                    {t.ctaButton}
                     <ArrowRight className="h-4 w-4" />
                   </>
                 )}
@@ -216,15 +221,15 @@ export function WeddingLandingPage({ locale = 'en' }) {
             <div className="animate-fade-up delay-500 mt-6 flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground">
               <div className="flex items-center gap-1.5">
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                <span>Free forever</span>
+                <span>{t.trustFreeForever}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                <span>Unlimited guests</span>
+                <span>{t.trustUnlimitedGuests}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                <span>Instant gallery</span>
+                <span>{t.trustInstantGallery}</span>
               </div>
             </div>
           </div>
@@ -239,19 +244,19 @@ export function WeddingLandingPage({ locale = 'en' }) {
               {/* Left: The Problem */}
               <div className="reveal">
                 <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
-                  The problem
+                  {t.problemLabel}
                 </span>
                 <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
-                  Your wedding photos are scattered across dozens of phones
+                  {t.problemTitle}
                 </h2>
                 <p className="mt-3 font-light text-muted-foreground">
-                  Your guests capture incredible candid moments during your special day. But those photos end up trapped in group chats, social feeds, and camera rolls — and most of them you'll never see.
+                  {t.problemDesc}
                 </p>
                 <div className="mt-6 space-y-3">
                   {[
-                    { emoji: '💬', text: 'Photos scattered across WhatsApp, iMessage, and Instagram DMs' },
-                    { emoji: '😰', text: 'You spend weeks chasing guests to send their pictures' },
-                    { emoji: '⏰', text: 'By the time you ask, many memories are already lost or deleted' },
+                    { emoji: '💬', text: t.problem1 },
+                    { emoji: '😰', text: t.problem2 },
+                    { emoji: '⏰', text: t.problem3 },
                   ].map((item) => (
                     <div key={item.text} className="flex items-center gap-3 text-muted-foreground">
                       <span className="text-base">{item.emoji}</span>
@@ -268,18 +273,18 @@ export function WeddingLandingPage({ locale = 'en' }) {
                   {[
                     {
                       icon: ImagePlus,
-                      title: 'One gallery, every moment',
-                      desc: 'Every photo your guests take flows into the same beautiful gallery. You don\'t chase anyone.',
+                      title: t.solution1Title,
+                      desc: t.solution1Desc,
                     },
                     {
                       icon: Smartphone,
-                      title: 'No app needed',
-                      desc: 'Guests open a link or scan a QR code and upload instantly. Works on any phone.',
+                      title: t.solution2Title,
+                      desc: t.solution2Desc,
                     },
                     {
                       icon: Lock,
-                      title: 'Private by default',
-                      desc: 'Your wedding gallery is only accessible to people with your link. No public feeds.',
+                      title: t.solution3Title,
+                      desc: t.solution3Desc,
                     },
                   ].map((item) => (
                     <div key={item.title} className="flex items-start gap-3">
@@ -308,13 +313,13 @@ export function WeddingLandingPage({ locale = 'en' }) {
         <div className="container px-4">
           <div className="reveal mx-auto max-w-3xl text-center">
             <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
-              How it works
+              {t.howItWorksLabel}
             </span>
             <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
-              Three simple steps for your big day
+              {t.howItWorksTitle}
             </h2>
             <p className="mt-3 font-light text-muted-foreground">
-              Set up in seconds, collect memories all night
+              {t.howItWorksDesc}
             </p>
           </div>
 
@@ -323,20 +328,20 @@ export function WeddingLandingPage({ locale = 'en' }) {
               {
                 step: '01',
                 icon: Sparkles,
-                title: 'Create your wedding room',
-                desc: 'Name your room and get a unique link and QR code instantly.',
+                title: t.step1Title,
+                desc: t.step1Desc,
               },
               {
                 step: '02',
                 icon: Share2,
-                title: 'Share with guests',
-                desc: 'Display the QR code on table cards or share the link in invites.',
+                title: t.step2Title,
+                desc: t.step2Desc,
               },
               {
                 step: '03',
                 icon: ImagePlus,
-                title: 'Collect every photo',
-                desc: 'Watch your gallery fill up with candid moments from every guest.',
+                title: t.step3Title,
+                desc: t.step3Desc,
               },
             ].map((item, i) => (
               <div
@@ -349,7 +354,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
                 </div>
                 <div className="mt-4">
                   <div className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-                    Step {item.step}
+                    {t.stepLabel} {item.step}
                   </div>
                   <h3 className="mt-1 font-display text-lg font-bold tracking-tight text-white">
                     {item.title}
@@ -369,13 +374,13 @@ export function WeddingLandingPage({ locale = 'en' }) {
         <div className="container px-4">
           <div className="reveal mx-auto max-w-3xl text-center">
             <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
-              Use cases
+              {t.useCasesLabel}
             </span>
             <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
-              Perfect for every wedding moment
+              {t.useCasesTitle}
             </h2>
             <p className="mt-3 font-light text-muted-foreground">
-              From the ceremony to the last dance
+              {t.useCasesDesc}
             </p>
           </div>
 
@@ -385,25 +390,25 @@ export function WeddingLandingPage({ locale = 'en' }) {
                 icon: Church,
                 color: 'text-rose-400',
                 bg: 'bg-rose-500/10',
-                title: 'The Ceremony',
-                desc: 'Capture every angle of your vows from the guests who see it best.',
-                bullets: ['Guest perspectives from every pew', 'Candid reactions you never see'],
+                title: t.useCase1Title,
+                desc: t.useCase1Desc,
+                bullets: [t.useCase1Bullet1, t.useCase1Bullet2],
               },
               {
                 icon: Wine,
                 color: 'text-amber-400',
                 bg: 'bg-amber-500/10',
-                title: 'The Reception',
-                desc: 'From speeches to the dance floor, collect every unforgettable moment.',
-                bullets: ['Table candids and group shots', 'Dance floor memories all night long'],
+                title: t.useCase2Title,
+                desc: t.useCase2Desc,
+                bullets: [t.useCase2Bullet1, t.useCase2Bullet2],
               },
               {
                 icon: Heart,
                 color: 'text-pink-400',
                 bg: 'bg-pink-500/10',
-                title: 'Engagement Party',
-                desc: 'Start collecting memories before the wedding day even arrives.',
-                bullets: ['Pre-wedding celebration photos', 'Share the excitement with family'],
+                title: t.useCase3Title,
+                desc: t.useCase3Desc,
+                bullets: [t.useCase3Bullet1, t.useCase3Bullet2],
               },
             ].map((item, i) => (
               <div
@@ -444,25 +449,25 @@ export function WeddingLandingPage({ locale = 'en' }) {
                 <div className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-[#141C2E] px-3 py-1">
                   <QrCode className="h-3 w-3 text-primary" />
                   <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-                    QR Code Sharing
+                    {t.qrBadge}
                   </span>
                 </div>
                 <h2 className="mt-4 font-display text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
-                  Share a QR code with your wedding guests
+                  {t.qrTitle}
                 </h2>
                 <p className="mt-2 text-base font-light text-muted-foreground">
-                  Print it. Place it. Guests scan and upload instantly.
+                  {t.qrDesc1}
                 </p>
                 <p className="mt-4 font-light text-muted-foreground">
-                  Place a beautiful QR card on each reception table. Guests scan with their phone camera, open the link, and upload photos in seconds. You'll have every candid moment by the end of the night.
+                  {t.qrDesc2}
                 </p>
 
                 <div className="mt-8 grid gap-4 sm:grid-cols-2">
                   {[
-                    { icon: Printer, title: 'Table cards', desc: 'Elegant cards for every guest table' },
-                    { icon: Download, title: 'Welcome signs', desc: 'A4 and A5 sizes for entrance displays' },
-                    { icon: Share2, title: 'Digital share', desc: 'Link works in invites, texts, and emails' },
-                    { icon: Sparkles, title: 'Clean design', desc: 'Matches your wedding aesthetic' },
+                    { icon: Printer, title: t.qrFeature1Title, desc: t.qrFeature1Desc },
+                    { icon: Download, title: t.qrFeature2Title, desc: t.qrFeature2Desc },
+                    { icon: Share2, title: t.qrFeature3Title, desc: t.qrFeature3Desc },
+                    { icon: Sparkles, title: t.qrFeature4Title, desc: t.qrFeature4Desc },
                   ].map((item) => (
                     <div key={item.title} className="flex items-start gap-3">
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -486,7 +491,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
                   <div className="relative rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card">
                     <div className="text-center">
                       <p className="font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
-                        Sarah & Mike's Wedding
+                        Sarah & Mike&apos;s Wedding
                       </p>
                       <div className="mx-auto my-4 flex h-40 w-40 items-center justify-center rounded-xl border-2 border-dashed border-white/[0.07] bg-[#111827]">
                         <QrCode className="h-20 w-20 text-muted-foreground" />
@@ -520,13 +525,13 @@ export function WeddingLandingPage({ locale = 'en' }) {
         <div className="container px-4">
           <div className="reveal mx-auto max-w-3xl text-center">
             <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
-              Benefits
+              {t.benefitsLabel}
             </span>
             <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
-              Why couples love SnapRooms
+              {t.benefitsTitle}
             </h2>
             <p className="mt-3 font-light text-muted-foreground">
-              Everything you need to collect wedding memories without the hassle
+              {t.benefitsDesc}
             </p>
           </div>
 
@@ -534,33 +539,33 @@ export function WeddingLandingPage({ locale = 'en' }) {
             {[
               {
                 icon: Users,
-                title: 'Unlimited guests',
-                desc: 'Invite your entire wedding party. No caps, no extra fees.',
+                title: t.benefit1Title,
+                desc: t.benefit1Desc,
               },
               {
                 icon: ImagePlus,
-                title: 'Instant gallery',
-                desc: 'Photos appear in real time as guests upload them.',
+                title: t.benefit2Title,
+                desc: t.benefit2Desc,
               },
               {
                 icon: Smartphone,
-                title: 'No app required',
-                desc: 'Guests use their phone browser. Nothing to install.',
+                title: t.benefit3Title,
+                desc: t.benefit3Desc,
               },
               {
                 icon: Archive,
-                title: 'Full resolution',
-                desc: 'Every photo is kept at original quality. No compression.',
+                title: t.benefit4Title,
+                desc: t.benefit4Desc,
               },
               {
                 icon: EyeOff,
-                title: 'Private by default',
-                desc: 'Only people with your link can see or upload photos.',
+                title: t.benefit5Title,
+                desc: t.benefit5Desc,
               },
               {
                 icon: Download,
-                title: 'Download everything',
-                desc: 'Export your entire wedding gallery with one click.',
+                title: t.benefit6Title,
+                desc: t.benefit6Desc,
               },
             ].map((item, i) => (
               <div
@@ -590,30 +595,30 @@ export function WeddingLandingPage({ locale = 'en' }) {
             <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
               <div className="reveal">
                 <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
-                  Privacy
+                  {t.privacyLabel}
                 </span>
                 <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
-                  Your wedding memories stay private
+                  {t.privacyTitle}
                 </h2>
                 <p className="mt-3 font-light text-muted-foreground">
-                  Your wedding photos belong to you. We don't sell your data, we don't show ads, and we never publicly index your gallery.
+                  {t.privacyDesc}
                 </p>
                 <div className="mt-6 space-y-4">
                   {[
                     {
                       icon: Shield,
-                      title: 'GDPR compliant',
-                      desc: 'Your data is protected under European privacy standards.',
+                      title: t.privacyFeature1Title,
+                      desc: t.privacyFeature1Desc,
                     },
                     {
                       icon: Lock,
-                      title: 'Encrypted storage',
-                      desc: 'Photos are stored securely and only accessible via your private link.',
+                      title: t.privacyFeature2Title,
+                      desc: t.privacyFeature2Desc,
                     },
                     {
                       icon: Infinity,
-                      title: 'You own your data',
-                      desc: 'Delete your room and all photos at any time from your dashboard.',
+                      title: t.privacyFeature3Title,
+                      desc: t.privacyFeature3Desc,
                     },
                   ].map((item) => (
                     <div key={item.title} className="flex items-start gap-3">
@@ -636,10 +641,10 @@ export function WeddingLandingPage({ locale = 'en' }) {
                     <Shield className="h-7 w-7" />
                   </div>
                   <p className="mt-4 text-lg font-light text-muted-foreground">
-                    "I loved that our wedding gallery was completely private. No social media, no public feeds — just our moments, shared with the people we love."
+                    &ldquo;{t.testimonialQuote}&rdquo;
                   </p>
                   <p className="mt-4 font-mono text-[0.7rem] uppercase tracking-[0.1em] text-muted-foreground">
-                    — Emily & James, married June 2025
+                    {t.testimonialAttribution}
                   </p>
                 </div>
               </div>
@@ -653,10 +658,10 @@ export function WeddingLandingPage({ locale = 'en' }) {
         <div className="container px-4">
           <div className="reveal mx-auto max-w-3xl text-center">
             <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
-              FAQ
+              {t.faqLabel}
             </span>
             <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
-              Common questions about wedding photo sharing
+              {t.faqTitle}
             </h2>
           </div>
 
@@ -664,28 +669,28 @@ export function WeddingLandingPage({ locale = 'en' }) {
             <Accordion type="single" collapsible className="w-full">
               {[
                 {
-                  q: 'Do wedding guests need to download an app?',
-                  a: 'No. Guests simply open the link or scan your QR code in their phone browser and upload photos instantly. It works on iPhone, Android, and any modern smartphone.',
+                  q: t.faq1Question,
+                  a: t.faq1Answer,
                 },
                 {
-                  q: 'Can I print QR codes for my wedding tables?',
-                  a: 'Yes. Every SnapRooms room comes with a printable QR card. You can download it as a PDF and print it at home or through a professional printer. Table cards, welcome signs, and entrance posters all work beautifully.',
+                  q: t.faq2Question,
+                  a: t.faq2Answer,
                 },
                 {
-                  q: 'Is there a limit on how many photos guests can upload?',
-                  a: 'No. There is no limit on the number of photos or guests. Your wedding gallery can grow as large as it needs to be.',
+                  q: t.faq3Question,
+                  a: t.faq3Answer,
                 },
                 {
-                  q: 'Are the photos kept at full resolution?',
-                  a: 'Yes. We keep every photo at its original resolution so you can print, frame, and preserve your memories in the highest quality possible. Original-resolution downloads are included with premium plans or a one-time €1.99 room unlock on Free.',
+                  q: t.faq4Question,
+                  a: t.faq4Answer,
                 },
                 {
-                  q: 'Can I download all photos after the wedding?',
-                  a: 'Yes. As the room owner, you can download your entire wedding gallery at any time from your dashboard.',
+                  q: t.faq5Question,
+                  a: t.faq5Answer,
                 },
                 {
-                  q: 'Is SnapRooms free for weddings?',
-                  a: 'Yes. SnapRooms is completely free for weddings and all other events. There are no hidden fees, no subscriptions, and no credit card required.',
+                  q: t.faq6Question,
+                  a: t.faq6Answer,
                 },
               ].map((item, i) => (
                 <AccordionItem key={i} value={`item-${i}`} className="border-white/[0.07]">
@@ -707,10 +712,10 @@ export function WeddingLandingPage({ locale = 'en' }) {
         <div className="container px-4">
           <div className="reveal mx-auto max-w-2xl text-center">
             <h2 className="font-display text-3xl font-extrabold tracking-[-0.03em] text-white sm:text-4xl">
-              Don't lose a single wedding memory
+              {t.finalTitle}
             </h2>
             <p className="mt-4 text-lg font-light text-muted-foreground">
-              Your guests are already taking pictures. Give them a beautiful way to share.
+              {t.finalDesc}
             </p>
 
             <div className="mt-8 flex w-full max-w-md mx-auto flex-col gap-3">
@@ -718,14 +723,14 @@ export function WeddingLandingPage({ locale = 'en' }) {
                 <Input
                   value={eventName}
                   onChange={(e) => setEventName(e.target.value)}
-                  placeholder="Wedding room name (e.g. Sarah & Mike)"
+                  placeholder={t.finalPlaceholder}
                   className="h-12 flex-1 rounded-lg border-white/[0.07] bg-[#141C2E] text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                 />
                 <Input
                   type="email"
                   value={ownerEmail}
                   onChange={(e) => setOwnerEmail(e.target.value)}
-                  placeholder="Your email"
+                  placeholder={t.finalEmailPlaceholder}
                   className="h-12 flex-1 rounded-lg border-white/[0.07] bg-[#141C2E] text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                 />
               </div>
@@ -739,7 +744,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                 ) : (
                   <>
-                    Create your free wedding room
+                    {t.finalCta}
                     <ArrowRight className="h-4 w-4" />
                   </>
                 )}
@@ -747,7 +752,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
             </div>
 
             <p className="mt-4 font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
-              Takes 10 seconds. No credit card required.
+              {t.finalMicrocopy}
             </p>
           </div>
         </div>
@@ -768,20 +773,20 @@ export function WeddingLandingPage({ locale = 'en' }) {
               <span className="font-display text-sm font-bold tracking-tight text-primary">SnapRooms</span>
             </a>
             <p className="text-xs font-light text-muted-foreground">
-              The easiest way to collect guest photos.
+              {footer.tagline}
             </p>
             <div className="flex items-center gap-4">
               <a href="/pricing" className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
-                Pricing
+                {footer.pricing}
               </a>
               <a href="/privacy" className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
-                Privacy Policy
+                {footer.privacy}
               </a>
               <a href="/terms" className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
-                Terms
+                {footer.terms}
               </a>
               <a href="/dashboard/login" className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
-                Organizer sign in
+                {footer.organizerSignIn}
               </a>
             </div>
           </div>

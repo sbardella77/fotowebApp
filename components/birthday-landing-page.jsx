@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from '@/components/i18n-provider'
 import {
   Camera,
   Heart,
@@ -60,6 +61,8 @@ export function BirthdayLandingPage() {
   const [eventName, setEventName] = useState('')
   const [ownerEmail, setOwnerEmail] = useState('')
   const [isCreating, setIsCreating] = useState(false)
+
+  const t = useTranslations('birthday')
 
   useScrollReveal()
 
@@ -121,30 +124,28 @@ export function BirthdayLandingPage() {
         <div className="container relative px-4">
           <div className="mx-auto max-w-3xl text-center">
             <span className="inline-block font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary animate-fade-up">
-              Birthday Photo Sharing
+              {t.heroEyebrow}
             </span>
             <h1 className="mt-4 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl animate-fade-up delay-100">
-              Every candle.{' '}
-              <span className="text-gradient">Every laugh. One room.</span>
+              {t.heroHeadline1}{' '}
+              <span className="text-gradient">{t.heroHeadline2}</span>
             </h1>
             <p className="mt-4 text-base text-muted-foreground sm:text-lg animate-fade-up delay-200">
-              Collect every birthday photo from your friends and family in one
-              beautiful gallery. Share a QR code, let everyone upload instantly —
-              no app, no signup, just pure fun.
+              {t.heroSubheadline}
             </p>
 
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3 text-sm text-muted-foreground animate-fade-up delay-300">
               <span className="inline-flex items-center gap-1.5">
                 <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                Free forever
+                {t.trustFreeForever}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                Unlimited guests
+                {t.trustUnlimitedGuests}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                No app needed
+                {t.trustNoAppNeeded}
               </span>
             </div>
           </div>
@@ -154,14 +155,16 @@ export function BirthdayLandingPage() {
             <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card">
               <div className="space-y-3">
                 <Input
-                  placeholder="Name's Birthday Bash"
+                  placeholder={t.eventPlaceholder}
                   value={eventName}
                   onChange={(e) => setEventName(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && createEvent()}
                   className="h-12 rounded-lg border-white/[0.07] bg-[#0D1220]"
                 />
                 <Input
-                  placeholder="Your email"
+                  placeholder={
+                    t.emailPlaceholder
+                  }
                   type="email"
                   value={ownerEmail}
                   onChange={(e) => setOwnerEmail(e.target.value)}
@@ -174,17 +177,17 @@ export function BirthdayLandingPage() {
                   disabled={isCreating}
                 >
                   {isCreating ? (
-                    'Creating...'
+                    t.creating
                   ) : (
                     <>
-                      Create your birthday room
+                      {t.ctaButton}
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </>
                   )}
                 </Button>
               </div>
               <p className="mt-3 text-center font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
-                Takes 10 seconds. No credit card required.
+                {t.finalMicrocopy}
               </p>
             </div>
           </div>
@@ -197,16 +200,13 @@ export function BirthdayLandingPage() {
           <div className="mx-auto grid max-w-5xl gap-10 sm:grid-cols-2 sm:items-center">
             <div className="reveal">
               <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                The best photos never make it to the birthday person
+                {t.problemTitle}
               </h2>
               <p className="mt-4 text-muted-foreground">
-                Your friends snap hundreds of photos — the candle blowout, the surprise
-                face, the dance floor chaos. But those photos stay trapped in group chats,
-                Instagram stories, and camera rolls you will never see.
+                {t.problemDesc1}
               </p>
               <p className="mt-3 text-muted-foreground">
-                By the time you think to ask, the moment has passed and the photos are
-                buried under new messages.
+                {t.problemDesc2}
               </p>
             </div>
             <div className="reveal rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card" style={{ transitionDelay: '100ms' }}>
@@ -214,12 +214,10 @@ export function BirthdayLandingPage() {
                 <Cake className="h-6 w-6" />
               </div>
               <h3 className="mt-4 font-display text-lg font-semibold text-white">
-                One gallery for every birthday moment
+                {t.solutionTitle}
               </h3>
               <p className="mt-2 text-sm text-muted-foreground">
-                Create a room before the party, share the QR code on invitations or
-                at the venue, and watch the gallery fill with candid shots from every
-                guest. The birthday person gets every photo — not just the ones posted online.
+                {t.solutionDesc}
               </p>
             </div>
           </div>
@@ -231,10 +229,10 @@ export function BirthdayLandingPage() {
         <div className="container px-4">
           <div className="mx-auto max-w-3xl text-center reveal">
             <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-              How it works
+              {t.howItWorksLabel}
             </span>
             <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              Three simple steps to a perfect birthday gallery
+              {t.howItWorksTitle}
             </h2>
           </div>
 
@@ -242,18 +240,18 @@ export function BirthdayLandingPage() {
             {[
               {
                 step: '01',
-                title: 'Create a room',
-                desc: 'Name it after the birthday star. Takes 10 seconds, no signup required.',
+                title: t.step1Title,
+                desc: t.step1Desc,
               },
               {
                 step: '02',
-                title: 'Share the QR code',
-                desc: 'Add it to invitations, display it at the venue, or share the link in your group chat.',
+                title: t.step2Title,
+                desc: t.step2Desc,
               },
               {
                 step: '03',
-                title: 'Collect every moment',
-                desc: 'Guests upload photos instantly. You get a complete gallery before the candles even cool.',
+                title: t.step3Title,
+                desc: t.step3Desc,
               },
             ].map((item, i) => (
               <div
@@ -279,10 +277,10 @@ export function BirthdayLandingPage() {
         <div className="container px-4">
           <div className="mx-auto max-w-3xl text-center reveal">
             <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-              Made for birthday celebrations
+              {t.featuresLabel}
             </span>
             <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              Why birthdays love SnapRooms
+              {t.featuresTitle}
             </h2>
           </div>
 
@@ -290,33 +288,33 @@ export function BirthdayLandingPage() {
             {[
               {
                 icon: Gift,
-                title: 'The perfect surprise gift',
-                desc: 'Give the birthday person every photo from their special day — even the ones they never knew were taken.',
+                title: t.feature1Title,
+                desc: t.feature1Desc,
               },
               {
                 icon: PartyPopper,
-                title: 'Fun, not formal',
-                desc: 'No stiff poses or staged shots. Just real, candid moments from the people who matter most.',
+                title: t.feature2Title,
+                desc: t.feature2Desc,
               },
               {
                 icon: Music,
-                title: 'Works during the party',
-                desc: 'Guests upload while the music is still playing. The gallery builds itself in real time.',
+                title: t.feature3Title,
+                desc: t.feature3Desc,
               },
               {
                 icon: Smartphone,
-                title: 'Zero friction for guests',
-                desc: 'Grandparents, kids, and everyone in between can upload without downloading anything.',
+                title: t.feature4Title,
+                desc: t.feature4Desc,
               },
               {
                 icon: Lock,
-                title: 'Private by default',
-                desc: 'Only invited guests see the photos. No public feeds, no unwanted eyes.',
+                title: t.feature5Title,
+                desc: t.feature5Desc,
               },
               {
                 icon: Download,
-                title: 'Download everything',
-                desc: 'Save the full gallery in original quality. Keep the memories forever.',
+                title: t.feature6Title,
+                desc: t.feature6Desc,
               },
             ].map((f, i) => (
               <div
@@ -344,19 +342,16 @@ export function BirthdayLandingPage() {
             <div className="reveal grid gap-10 sm:grid-cols-2 sm:items-center">
               <div>
                 <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-                  QR Code Sharing
+                  {t.qrBadge}
                 </span>
                 <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                  Share a QR code with your party guests
+                  {t.qrTitle}
                 </h2>
                 <p className="mt-4 text-muted-foreground">
-                  Print a QR card for the cake table, add it to your invitation design,
-                  or display it on a sign near the entrance. Guests scan, open, and upload
-                  in seconds.
+                  {t.qrDesc1}
                 </p>
                 <p className="mt-3 text-muted-foreground">
-                  Works on any phone — iPhone, Android, old or new. No app store visits.
-                  No account creation. Just point, scan, and share.
+                  {t.qrDesc2}
                 </p>
               </div>
               <div className="reveal flex justify-center" style={{ transitionDelay: '100ms' }}>
@@ -365,10 +360,10 @@ export function BirthdayLandingPage() {
                     <QrCode className="h-20 w-20 text-primary" />
                   </div>
                   <p className="mt-4 text-center text-sm font-medium text-white">
-                    Scan to add your photos
+                    {t.qrCardLabel}
                   </p>
                   <p className="mt-1 text-center text-xs text-muted-foreground">
-                    No app needed
+                    {t.qrCardSublabel}
                   </p>
                 </div>
               </div>
@@ -385,19 +380,18 @@ export function BirthdayLandingPage() {
               <Shield className="h-6 w-6" />
             </div>
             <h2 className="mt-5 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              Your birthday memories stay private
+              {t.privacyTitle}
             </h2>
             <p className="mt-3 text-muted-foreground">
-              No social media feeds. No public galleries. No data mining. Your birthday
-              photos belong to you and your guests — period.
+              {t.privacyDesc}
             </p>
           </div>
 
           <div className="mx-auto mt-10 grid max-w-4xl gap-5 sm:grid-cols-3">
             {[
-              { title: 'GDPR compliant', desc: 'We handle your data responsibly and transparently.' },
-              { title: 'Encrypted storage', desc: 'Photos are stored securely and never sold.' },
-              { title: 'You own your data', desc: 'Download everything or delete it anytime.' },
+              { title: t.privacyFeature1Title, desc: t.privacyFeature1Desc },
+              { title: t.privacyFeature2Title, desc: t.privacyFeature2Desc },
+              { title: t.privacyFeature3Title, desc: t.privacyFeature3Desc },
             ].map((item, i) => (
               <div
                 key={item.title}
@@ -418,7 +412,7 @@ export function BirthdayLandingPage() {
           <div className="mx-auto max-w-3xl">
             <div className="text-center reveal">
               <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                Frequently asked questions
+                {t.faqTitle}
               </h2>
             </div>
 
@@ -426,28 +420,28 @@ export function BirthdayLandingPage() {
               <Accordion type="single" collapsible className="space-y-3">
                 {[
                   {
-                    q: 'Do my guests need to download an app?',
-                    a: 'No. Guests simply scan the QR code or open the room link in their browser and upload photos directly from their camera roll. It works on any smartphone.',
+                    q: t.faq1Question,
+                    a: t.faq1Answer,
                   },
                   {
-                    q: 'Can I use this for a kid\'s birthday party?',
-                    a: 'Absolutely. Parents can share the QR code with other parents and family members. Even grandparents can upload photos without any technical know-how.',
+                    q: t.faq2Question,
+                    a: t.faq2Answer,
                   },
                   {
-                    q: 'Is there a limit on how many photos guests can upload?',
-                    a: 'No. Guests can upload as many photos as they like. There are no storage limits on free or Pro plans.',
+                    q: t.faq3Question,
+                    a: t.faq3Answer,
                   },
                   {
-                    q: 'Can I download all the photos after the party?',
-                    a: 'Yes. On premium plans and unlocked rooms, you can download the entire gallery in original resolution with a single click. Free rooms include standard-quality downloads; original quality unlocks for a one-time €1.99 fee.',
+                    q: t.faq4Question,
+                    a: t.faq4Answer,
                   },
                   {
-                    q: 'How long does the gallery stay active?',
-                    a: 'Free galleries are active for 7 days. Upgrade to Pro for permanent galleries that never expire.',
+                    q: t.faq5Question,
+                    a: t.faq5Answer,
                   },
                   {
-                    q: 'Is SnapRooms really free?',
-                    a: 'Yes. You can create one birthday room, invite unlimited guests, and collect unlimited photos completely free. Pro plans unlock unlimited rooms and permanent galleries.',
+                    q: t.faq6Question,
+                    a: t.faq6Answer,
                   },
                 ].map((faq, i) => (
                   <AccordionItem
@@ -474,22 +468,23 @@ export function BirthdayLandingPage() {
         <div className="container px-4">
           <div className="mx-auto max-w-2xl text-center reveal">
             <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              Do not miss a single birthday moment
+              {t.finalTitle}
             </h2>
             <p className="mt-3 text-muted-foreground">
-              Create your birthday room in seconds and give the birthday star
-              every photo from their special day.
+              {t.finalDesc}
             </p>
             <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Button size="lg" className="glow-blue" asChild>
-                <a href="/">Create free birthday room</a>
+                <a href="/">{t.finalCta}</a>
               </Button>
               <Button size="lg" variant="outline" className="border-white/[0.07] bg-transparent hover:bg-white/[0.03]" asChild>
-                <a href="/pricing">View pricing</a>
+                <a href="/pricing">
+                  {t.viewPricing}
+                </a>
               </Button>
             </div>
             <p className="mt-4 font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
-              Takes 10 seconds. No credit card required.
+              {t.finalMicrocopy}
             </p>
           </div>
         </div>

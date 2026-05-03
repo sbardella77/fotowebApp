@@ -6,6 +6,7 @@ import { MarketingNav } from '@/components/marketing-nav'
 import { MarketingFooter } from '@/components/marketing-footer'
 import { trackEvent, trackPageView } from '@/lib/analytics/track-client'
 import { EVENT_LANDING_VIEW } from '@/lib/analytics/events'
+import { useTranslations } from '@/components/i18n-provider'
 
 function useScrollReveal() {
   useEffect(() => {
@@ -47,6 +48,7 @@ function Bullet({ children }) {
 
 export function PrivacyPage({ locale = 'en' }) {
   useScrollReveal()
+  const t = useTranslations('legal')
 
   useEffect(() => {
     trackPageView('landing', { variant: 'privacy', locale })
@@ -66,10 +68,10 @@ export function PrivacyPage({ locale = 'en' }) {
               <Shield className="h-6 w-6" />
             </div>
             <h1 className="mt-5 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Privacy Policy
+              {t.privacyTitle}
             </h1>
             <p className="mt-3 text-sm text-muted-foreground">
-              Last updated: April 2026
+              {t.lastUpdated}
             </p>
           </div>
         </div>
@@ -80,100 +82,96 @@ export function PrivacyPage({ locale = 'en' }) {
           <div className="mx-auto max-w-3xl space-y-10">
             <div className="reveal rounded-xl border border-primary/20 bg-primary/5 p-5">
               <p className="text-sm leading-relaxed text-primary/90">
-                <strong>Product-ready draft.</strong> This Privacy Policy is a
-                product-ready draft intended to govern how SnapRooms handles your data.
-                It is provided as-is and does not constitute legal advice.
+                <strong>{t.productReadyDraft}</strong> {t.privacyDisclaimer}
               </p>
             </div>
 
-            <Section title="What data we collect">
-              <p>We collect only the data needed to run SnapRooms:</p>
+            <Section title={t.whatDataWeCollect}>
+              <p>{t.whatDataDesc}</p>
               <ul className="space-y-2">
-                <Bullet><strong>Email address</strong> — when you create a room or sign in as an owner.</Bullet>
-                <Bullet><strong>Optional guest name</strong> — when a guest uploads a photo and chooses to share it.</Bullet>
-                <Bullet><strong>Uploaded photos</strong> — images guests add to a room.</Bullet>
-                <Bullet><strong>Room metadata</strong> — room name, slug, creation date, and related settings.</Bullet>
-                <Bullet><strong>IP address</strong> — implicitly collected via server logs and used for security (rate limiting).</Bullet>
+                <Bullet>{t.dataEmail}</Bullet>
+                <Bullet>{t.dataGuestName}</Bullet>
+                <Bullet>{t.dataPhotos}</Bullet>
+                <Bullet>{t.dataEventMeta}</Bullet>
+                <Bullet>{t.dataIP}</Bullet>
               </ul>
             </Section>
 
-            <Section title="Why we process your data">
+            <Section title={t.whyProcessData}>
               <ul className="space-y-2">
-                <Bullet>To create and manage rooms for event organizers.</Bullet>
-                <Bullet>To let guests upload and share photos within a room.</Bullet>
-                <Bullet>To authenticate owners and protect account access.</Bullet>
-                <Bullet>To send password recovery and room-setup emails.</Bullet>
-                <Bullet>To prevent abuse and spam through rate limiting.</Bullet>
+                <Bullet>{t.whyProcessDesc1}</Bullet>
+                <Bullet>{t.whyProcessDesc2}</Bullet>
+                <Bullet>{t.whyProcessDesc3}</Bullet>
+                <Bullet>{t.whyProcessDesc4}</Bullet>
+                <Bullet>{t.whyProcessDesc5}</Bullet>
               </ul>
             </Section>
 
-            <Section title="How we store your data">
+            <Section title={t.howStoreData}>
               <ul className="space-y-2">
-                <Bullet><strong>Database:</strong> Room and owner data is stored in PostgreSQL (Neon).</Bullet>
-                <Bullet><strong>File storage:</strong> Photos are stored in secure blob storage.</Bullet>
-                <Bullet><strong>Passwords:</strong> Owner passwords are hashed with salt — we never store plain text passwords.</Bullet>
-                <Bullet><strong>Tokens:</strong> Session and recovery tokens are time-limited and cryptographically signed.</Bullet>
+                <Bullet>{t.howStoreDesc1}</Bullet>
+                <Bullet>{t.howStoreDesc2}</Bullet>
+                <Bullet>{t.howStoreDesc3}</Bullet>
+                <Bullet>{t.howStoreDesc4}</Bullet>
               </ul>
             </Section>
 
-            <Section title="Who can access your data">
+            <Section title={t.whoCanAccess}>
               <ul className="space-y-2">
-                <Bullet><strong>Room owners</strong> can view and manage the rooms and photos they own.</Bullet>
-                <Bullet><strong>Guests</strong> can only view and upload photos to the specific room they have a link or QR code for.</Bullet>
-                <Bullet><strong>We do not</strong> sell, share, or publicly index your data.</Bullet>
+                <Bullet>{t.whoCanAccessDesc1}</Bullet>
+                <Bullet>{t.whoCanAccessDesc2}</Bullet>
+                <Bullet>{t.whoCanAccessDesc3}</Bullet>
               </ul>
             </Section>
 
-            <Section title="Security measures">
+            <Section title={t.securityMeasures}>
               <ul className="space-y-2">
-                <Bullet>Passwords are hashed with industry-standard algorithms.</Bullet>
-                <Bullet>Session tokens are signed and expire automatically.</Bullet>
-                <Bullet>Rate limiting protects against brute-force and spam attacks.</Bullet>
-                <Bullet>HTTPS is enforced for all traffic.</Bullet>
+                <Bullet>{t.securityDesc1}</Bullet>
+                <Bullet>{t.securityDesc2}</Bullet>
+                <Bullet>{t.securityDesc3}</Bullet>
+                <Bullet>{t.securityDesc4}</Bullet>
               </ul>
             </Section>
 
-            <Section title="Data retention">
+            <Section title={t.dataRetention}>
               <ul className="space-y-2">
-                <Bullet><strong>Owner accounts:</strong> Retained until you delete your rooms or request account deletion.</Bullet>
-                <Bullet><strong>Rooms:</strong> Retained until deleted by the owner.</Bullet>
-                <Bullet><strong>Photos:</strong> Deleted automatically when the associated room is deleted.</Bullet>
-                <Bullet><strong>Recovery tokens:</strong> Expire automatically after 30 minutes.</Bullet>
-                <Bullet><strong>Setup tokens:</strong> Expire automatically after 24 hours.</Bullet>
-                <Bullet><strong>Server logs:</strong> Short-term retention for debugging and security only.</Bullet>
+                <Bullet>{t.retentionDesc1}</Bullet>
+                <Bullet>{t.retentionDesc2}</Bullet>
+                <Bullet>{t.retentionDesc3}</Bullet>
+                <Bullet>{t.retentionDesc4}</Bullet>
+                <Bullet>{t.retentionDesc5}</Bullet>
+                <Bullet>{t.retentionDesc6}</Bullet>
               </ul>
             </Section>
 
-            <Section title="Your rights (GDPR)">
-              <p>Under GDPR and similar privacy laws, you have the right to:</p>
+            <Section title={t.yourRights}>
+              <p>{t.yourRightsDesc}</p>
               <ul className="space-y-2">
-                <Bullet><strong>Access</strong> — request a copy of the data we hold about you.</Bullet>
-                <Bullet><strong>Correction</strong> — ask us to correct inaccurate or incomplete data.</Bullet>
-                <Bullet><strong>Deletion</strong> — request deletion of your personal data and rooms.</Bullet>
-                <Bullet><strong>Restriction</strong> — ask us to limit how we use your data.</Bullet>
-                <Bullet><strong>Portability</strong> — receive your data in a structured format.</Bullet>
+                <Bullet>{t.rightAccess}</Bullet>
+                <Bullet>{t.rightCorrection}</Bullet>
+                <Bullet>{t.rightDeletion}</Bullet>
+                <Bullet>{t.rightRestriction}</Bullet>
+                <Bullet>{t.rightPortability}</Bullet>
               </ul>
             </Section>
 
-            <Section title="How to request deletion">
+            <Section title={t.requestDeletion}>
               <p>
-                You can delete a room and its photos at any time from your dashboard.
-                If you want us to delete all data associated with your email address,
-                contact us at{' '}
+                {t.requestDeletionDesc}{' '}
                 <a href="mailto:hello@snaprooms.app" className="text-primary underline underline-offset-4 hover:text-primary/80">
-                  hello@snaprooms.app
+                  {t.emailAddress}
                 </a>.
               </p>
               <p className="mt-2">
-                We will process deletion requests within 30 days and confirm once completed.
+                {t.requestDeletionConfirm}
               </p>
             </Section>
 
-            <Section title="Contact">
+            <Section title={t.contact}>
               <p>
-                Questions about privacy? Reach us at{' '}
+                {t.contactDesc}{' '}
                 <a href="mailto:hello@snaprooms.app" className="text-primary underline underline-offset-4 hover:text-primary/80">
-                  hello@snaprooms.app
+                  {t.emailAddress}
                 </a>.
               </p>
             </Section>
@@ -183,7 +181,7 @@ export function PrivacyPage({ locale = 'en' }) {
                 href="/"
                 className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80"
               >
-                ← Back to SnapRooms
+                {t.backToSnapRooms}
               </a>
             </div>
           </div>

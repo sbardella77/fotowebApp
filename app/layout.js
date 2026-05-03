@@ -31,8 +31,8 @@ const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://snaprooms.app'
 
 export const metadata = {
   metadataBase: new URL(baseUrl),
-  title: 'SnapRooms — Collect Every Guest Photo in One Room',
-  description: 'Create a photo room for weddings, parties, and events. Guests upload instantly by link or QR code — no app, no signup.',
+  title: 'SnapRooms — Collect Every Guest Photo in One Event',
+  description: 'Create a photo event for weddings, parties, and gatherings. Guests upload instantly by link or QR code — no app, no signup.',
   applicationName: 'SnapRooms',
   icons: {
     icon: [

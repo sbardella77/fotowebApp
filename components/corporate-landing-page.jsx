@@ -38,6 +38,7 @@ import {
   EVENT_HERO_CTA_CLICKED,
   EVENT_CREATE_ROOM_CLICKED,
 } from '@/lib/analytics/events'
+import { useTranslations } from '@/components/i18n-provider'
 
 function useScrollReveal() {
   useEffect(() => {
@@ -62,6 +63,8 @@ export function CorporateLandingPage() {
   const [eventName, setEventName] = useState('')
   const [ownerEmail, setOwnerEmail] = useState('')
   const [isCreating, setIsCreating] = useState(false)
+
+  const t = useTranslations('corporate')
 
   useScrollReveal()
 
@@ -123,29 +126,28 @@ export function CorporateLandingPage() {
         <div className="container relative px-4">
           <div className="mx-auto max-w-3xl text-center">
             <span className="inline-block font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary animate-fade-up">
-              Corporate Event Photo Collection
+              {t.heroEyebrow}
             </span>
             <h1 className="mt-4 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl animate-fade-up delay-100">
-              Every attendee photo.{' '}
-              <span className="text-gradient">One professional gallery.</span>
+              {t.heroHeadline1}{' '}
+              <span className="text-gradient">{t.heroHeadline2}</span>
             </h1>
             <p className="mt-4 text-base text-muted-foreground sm:text-lg animate-fade-up delay-200">
-              Collect photos from conferences, offsites, and company events with a simple
-              QR code. No app installs, no IT setup, no training required.
+              {t.heroSubheadline}
             </p>
 
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3 text-sm text-muted-foreground animate-fade-up delay-300">
               <span className="inline-flex items-center gap-1.5">
                 <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                Zero IT overhead
+                {t.trustZeroIT}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                Unlimited attendees
+                {t.trustUnlimitedAttendees}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                Enterprise privacy
+                {t.trustEnterprisePrivacy}
               </span>
             </div>
           </div>
@@ -155,14 +157,14 @@ export function CorporateLandingPage() {
             <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card">
               <div className="space-y-3">
                 <Input
-                  placeholder="Event or company name"
+                  placeholder={t.eventPlaceholder}
                   value={eventName}
                   onChange={(e) => setEventName(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && createEvent()}
                   className="h-12 rounded-lg border-white/[0.07] bg-[#0D1220]"
                 />
                 <Input
-                  placeholder="Your work email"
+                  placeholder={t.emailPlaceholder}
                   type="email"
                   value={ownerEmail}
                   onChange={(e) => setOwnerEmail(e.target.value)}
@@ -175,17 +177,17 @@ export function CorporateLandingPage() {
                   disabled={isCreating}
                 >
                   {isCreating ? (
-                    'Creating...'
+                    t.creating
                   ) : (
                     <>
-                      Create your event room
+                      {t.ctaButton}
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </>
                   )}
                 </Button>
               </div>
               <p className="mt-3 text-center font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
-                Free to start. No IT approval required.
+                {t.formHelper}
               </p>
             </div>
           </div>
@@ -198,16 +200,13 @@ export function CorporateLandingPage() {
           <div className="mx-auto grid max-w-5xl gap-10 sm:grid-cols-2 sm:items-center">
             <div className="reveal">
               <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                Your event has one photographer. Your attendees have hundreds.
+                {t.problemTitle}
               </h2>
               <p className="mt-4 text-muted-foreground">
-                Professional event photography captures the stage. But the real energy —
-                the networking moments, the candid reactions, the team selfies — lives on
-                your attendees&apos; phones. Those photos are lost the moment the event ends.
+                {t.problemDesc1}
               </p>
               <p className="mt-3 text-muted-foreground">
-                Marketing teams scramble for authentic visuals. Internal comms begs for
-                photos. And the best shots? They disappear into personal camera rolls.
+                {t.problemDesc2}
               </p>
             </div>
             <div className="reveal rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card" style={{ transitionDelay: '100ms' }}>
@@ -215,11 +214,10 @@ export function CorporateLandingPage() {
                 <Presentation className="h-6 w-6" />
               </div>
               <h3 className="mt-4 font-display text-lg font-semibold text-white">
-                Crowdsource your event photography
+                {t.solutionTitle}
               </h3>
               <p className="mt-2 text-sm text-muted-foreground">
-                Give every attendee the ability to contribute to the official event gallery.
-                One QR code. Zero IT tickets. A complete visual record from every perspective.
+                {t.solutionDesc}
               </p>
             </div>
           </div>
@@ -231,10 +229,10 @@ export function CorporateLandingPage() {
         <div className="container px-4">
           <div className="mx-auto max-w-3xl text-center reveal">
             <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-              How it works
+              {t.howItWorksLabel}
             </span>
             <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              Three steps to complete event coverage
+              {t.howItWorksTitle}
             </h2>
           </div>
 
@@ -242,18 +240,18 @@ export function CorporateLandingPage() {
             {[
               {
                 step: '01',
-                title: 'Create an event room',
-                desc: 'Name it after your conference or offsite. No IT setup, no software installation.',
+                title: t.step1Title,
+                desc: t.step1Desc,
               },
               {
                 step: '02',
-                title: 'Display the QR code',
-                desc: 'Add it to slides, print it for signage, or share it in your event app. Attendees scan and go.',
+                title: t.step2Title,
+                desc: t.step2Desc,
               },
               {
                 step: '03',
-                title: 'Collect & download',
-                desc: 'Photos appear in real time. Download the full gallery for marketing, internal comms, or archives.',
+                title: t.step3Title,
+                desc: t.step3Desc,
               },
             ].map((item, i) => (
               <div
@@ -279,10 +277,10 @@ export function CorporateLandingPage() {
         <div className="container px-4">
           <div className="mx-auto max-w-3xl text-center reveal">
             <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-              Built for professional events
+              {t.featuresLabel}
             </span>
             <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              Why event professionals choose SnapRooms
+              {t.featuresTitle}
             </h2>
           </div>
 
@@ -290,33 +288,33 @@ export function CorporateLandingPage() {
             {[
               {
                 icon: Building2,
-                title: 'Zero IT overhead',
-                desc: 'No software to deploy, no firewall rules to configure, no help desk tickets. Works on any device instantly.',
+                title: t.feature1Title,
+                desc: t.feature1Desc,
               },
               {
                 icon: Globe,
-                title: 'Works for any event size',
-                desc: 'From 20-person team lunches to 2,000-person conferences. One room scales to any crowd.',
+                title: t.feature2Title,
+                desc: t.feature2Desc,
               },
               {
                 icon: Monitor,
-                title: 'Display-ready galleries',
-                desc: 'Project the live gallery on screens at the venue. Let attendees see the event build itself in real time.',
+                title: t.feature3Title,
+                desc: t.feature3Desc,
               },
               {
                 icon: Smartphone,
-                title: 'No attendee friction',
-                desc: 'Guests scan, open, upload. No app store visits, no corporate login portals, no training required.',
+                title: t.feature4Title,
+                desc: t.feature4Desc,
               },
               {
                 icon: Lock,
-                title: 'Private & secure',
-                desc: 'Invitation-only access. No public indexing. Photos belong to your organization, not a social platform.',
+                title: t.feature5Title,
+                desc: t.feature5Desc,
               },
               {
                 icon: Download,
-                title: 'Bulk download & archive',
-                desc: 'Download the complete gallery in original resolution. Perfect for marketing assets, year-end recaps, and archives.',
+                title: t.feature6Title,
+                desc: t.feature6Desc,
               },
             ].map((f, i) => (
               <div
@@ -342,10 +340,10 @@ export function CorporateLandingPage() {
         <div className="container px-4">
           <div className="mx-auto max-w-3xl text-center reveal">
             <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-              Use cases
+              {t.useCasesLabel}
             </span>
             <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              Events that benefit from every angle
+              {t.useCasesTitle}
             </h2>
           </div>
 
@@ -353,18 +351,18 @@ export function CorporateLandingPage() {
             {[
               {
                 icon: Briefcase,
-                title: 'Conferences & summits',
-                desc: 'Capture session reactions, networking moments, and booth interactions from every attendee perspective.',
+                title: t.useCase1Title,
+                desc: t.useCase1Desc,
               },
               {
                 icon: Users,
-                title: 'Team offsites',
-                desc: 'Build a shared visual record of team building, workshops, and celebrations. Strengthen culture through imagery.',
+                title: t.useCase2Title,
+                desc: t.useCase2Desc,
               },
               {
                 icon: PartyPopper,
-                title: 'Company celebrations',
-                desc: 'Holiday parties, milestone events, and launch celebrations — documented by the people who make them special.',
+                title: t.useCase3Title,
+                desc: t.useCase3Desc,
               },
             ].map((item, i) => (
               <div
@@ -392,20 +390,16 @@ export function CorporateLandingPage() {
             <div className="reveal grid gap-10 sm:grid-cols-2 sm:items-center">
               <div>
                 <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-                  QR Code Deployment
+                  {t.qrBadge}
                 </span>
                 <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                  One QR code. Every department. All the photos.
+                  {t.qrTitle}
                 </h2>
                 <p className="mt-4 text-muted-foreground">
-                  Integrate the QR code into your event slides, print it on welcome
-                  signage, or embed it in your event app. Attendees scan with any
-                  smartphone and upload photos instantly.
+                  {t.qrDesc1}
                 </p>
                 <p className="mt-3 text-muted-foreground">
-                  No corporate app store approvals. No device management. No IT
-                  intervention. It just works — on every phone, in every region,
-                  without exception.
+                  {t.qrDesc2}
                 </p>
               </div>
               <div className="reveal flex justify-center" style={{ transitionDelay: '100ms' }}>
@@ -414,10 +408,10 @@ export function CorporateLandingPage() {
                     <QrCode className="h-20 w-20 text-primary" />
                   </div>
                   <p className="mt-4 text-center text-sm font-medium text-white">
-                    Scan to upload event photos
+                    {t.qrCardLabel}
                   </p>
                   <p className="mt-1 text-center text-xs text-muted-foreground">
-                    No app installation required
+                    {t.qrCardSublabel}
                   </p>
                 </div>
               </div>
@@ -434,19 +428,18 @@ export function CorporateLandingPage() {
               <Shield className="h-6 w-6" />
             </div>
             <h2 className="mt-5 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              Enterprise-grade privacy, zero enterprise complexity
+              {t.privacyTitle}
             </h2>
             <p className="mt-3 text-muted-foreground">
-              Your event photos are business assets. We treat them that way.
-              No public feeds, no third-party data sharing, no surprises.
+              {t.privacyDesc}
             </p>
           </div>
 
           <div className="mx-auto mt-10 grid max-w-4xl gap-5 sm:grid-cols-3">
             {[
-              { title: 'GDPR compliant', desc: 'Built with data protection principles from the ground up.' },
-              { title: 'Encrypted storage', desc: 'Photos stored securely at rest and in transit.' },
-              { title: 'You own your content', desc: 'Full download rights. Delete anytime. No lock-in.' },
+              { title: t.privacyFeature1Title, desc: t.privacyFeature1Desc },
+              { title: t.privacyFeature2Title, desc: t.privacyFeature2Desc },
+              { title: t.privacyFeature3Title, desc: t.privacyFeature3Desc },
             ].map((item, i) => (
               <div
                 key={item.title}
@@ -467,7 +460,7 @@ export function CorporateLandingPage() {
           <div className="mx-auto max-w-3xl">
             <div className="text-center reveal">
               <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                Frequently asked questions
+                {t.faqTitle}
               </h2>
             </div>
 
@@ -475,28 +468,28 @@ export function CorporateLandingPage() {
               <Accordion type="single" collapsible className="space-y-3">
                 {[
                   {
-                    q: 'Do attendees need to install an app or create an account?',
-                    a: 'No. Attendees scan the QR code or open the link in their mobile browser and upload photos directly from their camera roll. No app store, no registration, no corporate SSO.',
+                    q: t.faq1Question,
+                    a: t.faq1Answer,
                   },
                   {
-                    q: 'Can we use this for large conferences with thousands of attendees?',
-                    a: 'Yes. SnapRooms handles events of any size. There are no attendee limits and no per-person fees.',
+                    q: t.faq2Question,
+                    a: t.faq2Answer,
                   },
                   {
-                    q: 'Is the gallery private? Can the public find it?',
-                    a: 'Completely private. Each room has a unique, unguessable URL. Galleries are not indexed by search engines and cannot be discovered without the direct link.',
+                    q: t.faq3Question,
+                    a: t.faq3Answer,
                   },
                   {
-                    q: 'Can we download all photos for marketing or internal use?',
-                    a: 'Yes. Room owners can download the entire gallery in original resolution with a single click on premium plans and unlocked rooms. Free rooms include standard-quality downloads; original quality unlocks for a one-time €1.99 fee.',
+                    q: t.faq4Question,
+                    a: t.faq4Answer,
                   },
                   {
-                    q: 'How long are galleries available?',
-                    a: 'Free galleries remain active for 7 days. Pro plans offer permanent galleries with no expiration.',
+                    q: t.faq5Question,
+                    a: t.faq5Answer,
                   },
                   {
-                    q: 'Do you offer invoicing or enterprise agreements?',
-                    a: 'Yes. We offer invoicing, volume pricing, and custom terms for organizations. Contact us at hello@snaprooms.app to discuss your requirements.',
+                    q: t.faq6Question,
+                    a: t.faq6Answer,
                   },
                 ].map((faq, i) => (
                   <AccordionItem
@@ -523,22 +516,21 @@ export function CorporateLandingPage() {
         <div className="container px-4">
           <div className="mx-auto max-w-2xl text-center reveal">
             <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              Capture every angle of your next event
+              {t.finalTitle}
             </h2>
             <p className="mt-3 text-muted-foreground">
-              Create your event room in seconds and give every attendee a voice —
-              and a camera.
+              {t.finalDesc}
             </p>
             <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Button size="lg" className="glow-blue" asChild>
-                <a href="/">Create free event room</a>
+                <a href="/">{t.finalCta}</a>
               </Button>
               <Button size="lg" variant="outline" className="border-white/[0.07] bg-transparent hover:bg-white/[0.03]" asChild>
-                <a href="/pricing">View pricing</a>
+                <a href="/pricing">{t.viewPricing}</a>
               </Button>
             </div>
             <p className="mt-4 font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
-              No IT setup required. Works on any device.
+              {t.finalHelper}
             </p>
           </div>
         </div>

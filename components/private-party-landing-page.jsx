@@ -37,6 +37,7 @@ import {
   EVENT_HERO_CTA_CLICKED,
   EVENT_CREATE_ROOM_CLICKED,
 } from '@/lib/analytics/events'
+import { useTranslations } from '@/components/i18n-provider'
 
 function useScrollReveal() {
   useEffect(() => {
@@ -61,6 +62,8 @@ export function PrivatePartyLandingPage() {
   const [eventName, setEventName] = useState('')
   const [ownerEmail, setOwnerEmail] = useState('')
   const [isCreating, setIsCreating] = useState(false)
+
+  const t = useTranslations('privateParty')
 
   useScrollReveal()
 
@@ -122,29 +125,28 @@ export function PrivatePartyLandingPage() {
         <div className="container relative px-4">
           <div className="mx-auto max-w-3xl text-center">
             <span className="inline-block font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary animate-fade-up">
-              Private Party Photo Sharing
+              {t.heroEyebrow}
             </span>
             <h1 className="mt-4 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl animate-fade-up delay-100">
-              The party starts here.{' '}
-              <span className="text-gradient">The photos stay together.</span>
+              {t.heroHeadline1}{' '}
+              <span className="text-gradient">{t.heroHeadline2}</span>
             </h1>
             <p className="mt-4 text-base text-muted-foreground sm:text-lg animate-fade-up delay-200">
-              Collect every photo from your private party in one place. Share a QR code,
-              let guests upload instantly — no app, no signup, completely private.
+              {t.heroSubheadline}
             </p>
 
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3 text-sm text-muted-foreground animate-fade-up delay-300">
               <span className="inline-flex items-center gap-1.5">
                 <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                Free forever
+                {t.trustFreeForever}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                Unlimited guests
+                {t.trustUnlimitedGuests}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                Completely private
+                {t.trustCompletelyPrivate}
               </span>
             </div>
           </div>
@@ -154,14 +156,14 @@ export function PrivatePartyLandingPage() {
             <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card">
               <div className="space-y-3">
                 <Input
-                  placeholder="Party name"
+                  placeholder={t.eventPlaceholder}
                   value={eventName}
                   onChange={(e) => setEventName(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && createEvent()}
                   className="h-12 rounded-lg border-white/[0.07] bg-[#0D1220]"
                 />
                 <Input
-                  placeholder="Your email"
+                  placeholder={t.emailPlaceholder}
                   type="email"
                   value={ownerEmail}
                   onChange={(e) => setOwnerEmail(e.target.value)}
@@ -174,17 +176,17 @@ export function PrivatePartyLandingPage() {
                   disabled={isCreating}
                 >
                   {isCreating ? (
-                    'Creating...'
+                    t.creating
                   ) : (
                     <>
-                      Create your party room
+                      {t.ctaButton}
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </>
                   )}
                 </Button>
               </div>
               <p className="mt-3 text-center font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
-                Takes 10 seconds. No credit card required.
+                {t.finalMicrocopy}
               </p>
             </div>
           </div>
@@ -197,16 +199,13 @@ export function PrivatePartyLandingPage() {
           <div className="mx-auto grid max-w-5xl gap-10 sm:grid-cols-2 sm:items-center">
             <div className="reveal">
               <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                The morning-after photo hunt
+                {t.problemTitle}
               </h2>
               <p className="mt-4 text-muted-foreground">
-                You throw an amazing party. The next day, you want to see the photos.
-                But they are everywhere — scattered across Instagram stories, Snapchat
-                memories, WhatsApp chats, and camera rolls you will never access.
+                {t.problemDesc1}
               </p>
               <p className="mt-3 text-muted-foreground">
-                Some of the best moments were never posted. Some were shared in groups
-                you are not in. The full story of the night? It is gone before brunch.
+                {t.problemDesc2}
               </p>
             </div>
             <div className="reveal rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card" style={{ transitionDelay: '100ms' }}>
@@ -214,12 +213,10 @@ export function PrivatePartyLandingPage() {
                 <Flame className="h-6 w-6" />
               </div>
               <h3 className="mt-4 font-display text-lg font-semibold text-white">
-                One room. Every shot from the night.
+                {t.solutionTitle}
               </h3>
               <p className="mt-2 text-sm text-muted-foreground">
-                Create a private photo room before the party starts. Share the QR code
-                at the door or in the group chat. Guests upload photos all night long.
-                You wake up to a complete gallery — no chasing, no begging, no FOMO.
+                {t.solutionDesc}
               </p>
             </div>
           </div>
@@ -231,10 +228,10 @@ export function PrivatePartyLandingPage() {
         <div className="container px-4">
           <div className="mx-auto max-w-3xl text-center reveal">
             <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-              How it works
+              {t.howItWorksLabel}
             </span>
             <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              Three steps to the perfect party gallery
+              {t.howItWorksTitle}
             </h2>
           </div>
 
@@ -242,18 +239,18 @@ export function PrivatePartyLandingPage() {
             {[
               {
                 step: '01',
-                title: 'Create your room',
-                desc: 'Name it after your party. Takes 10 seconds. No account needed to start.',
+                title: t.step1Title,
+                desc: t.step1Desc,
               },
               {
                 step: '02',
-                title: 'Share the link or QR',
-                desc: 'Drop it in the group chat, print a card for the bar, or display it on a screen.',
+                title: t.step2Title,
+                desc: t.step2Desc,
               },
               {
                 step: '03',
-                title: 'Watch it fill up',
-                desc: 'Guests upload photos in real time. You get the full story of the night, instantly.',
+                title: t.step3Title,
+                desc: t.step3Desc,
               },
             ].map((item, i) => (
               <div
@@ -279,10 +276,10 @@ export function PrivatePartyLandingPage() {
         <div className="container px-4">
           <div className="mx-auto max-w-3xl text-center reveal">
             <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-              Built for any gathering
+              {t.featuresLabel}
             </span>
             <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              Why parties love SnapRooms
+              {t.featuresTitle}
             </h2>
           </div>
 
@@ -290,33 +287,33 @@ export function PrivatePartyLandingPage() {
             {[
               {
                 icon: Wine,
-                title: 'Works at any venue',
-                desc: 'House party, rooftop bar, beach bonfire, or dinner club. The QR code works anywhere.',
+                title: t.feature1Title,
+                desc: t.feature1Desc,
               },
               {
                 icon: Music,
-                title: 'Real-time uploads',
-                desc: 'Guests add photos while the night is still happening. The energy builds the gallery.',
+                title: t.feature2Title,
+                desc: t.feature2Desc,
               },
               {
                 icon: EyeOff,
-                title: 'Invite-only access',
-                desc: 'Only people with the link see the photos. What happens at the party stays at the party.',
+                title: t.feature3Title,
+                desc: t.feature3Desc,
               },
               {
                 icon: Smartphone,
-                title: 'Zero friction',
-                desc: 'No apps to download, no accounts to create. Open, upload, done.',
+                title: t.feature4Title,
+                desc: t.feature4Desc,
               },
               {
                 icon: Lock,
-                title: 'No social media noise',
-                desc: 'Keep the photos private. No public hashtags, no unwanted tagging, no drama.',
+                title: t.feature5Title,
+                desc: t.feature5Desc,
               },
               {
                 icon: Download,
-                title: 'Download the night',
-                desc: 'Save every photo in original resolution on premium plans or unlocked rooms. Standard-quality downloads are always free.',
+                title: t.feature6Title,
+                desc: t.feature6Desc,
               },
             ].map((f, i) => (
               <div
@@ -344,18 +341,16 @@ export function PrivatePartyLandingPage() {
             <div className="reveal grid gap-10 sm:grid-cols-2 sm:items-center">
               <div>
                 <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-                  QR Code Sharing
+                  {t.qrBadge}
                 </span>
                 <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                  One QR code. Every guest. All the photos.
+                  {t.qrTitle}
                 </h2>
                 <p className="mt-4 text-muted-foreground">
-                  Print a card for the entry table, add it to your digital invite, or
-                  flash it on the TV screen. Guests scan and upload in under 10 seconds.
+                  {t.qrDesc1}
                 </p>
                 <p className="mt-3 text-muted-foreground">
-                  Works on every phone — even that one friend who still has an older model.
-                  No app store. No updates. Just scan and go.
+                  {t.qrDesc2}
                 </p>
               </div>
               <div className="reveal flex justify-center" style={{ transitionDelay: '100ms' }}>
@@ -364,10 +359,10 @@ export function PrivatePartyLandingPage() {
                     <QrCode className="h-20 w-20 text-primary" />
                   </div>
                   <p className="mt-4 text-center text-sm font-medium text-white">
-                    Scan to add your photos
+                    {t.qrCardLabel}
                   </p>
                   <p className="mt-1 text-center text-xs text-muted-foreground">
-                    No app needed
+                    {t.qrCardSublabel}
                   </p>
                 </div>
               </div>
@@ -384,19 +379,18 @@ export function PrivatePartyLandingPage() {
               <Shield className="h-6 w-6" />
             </div>
             <h2 className="mt-5 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              What happens at the party stays private
+              {t.privacyTitle}
             </h2>
             <p className="mt-3 text-muted-foreground">
-              No public feeds. No data mining. No surprise tag notifications.
-              Your party photos are yours and your guests&apos; — nothing more.
+              {t.privacyDesc}
             </p>
           </div>
 
           <div className="mx-auto mt-10 grid max-w-4xl gap-5 sm:grid-cols-3">
             {[
-              { title: 'Encrypted storage', desc: 'Your photos are stored securely and never sold to third parties.' },
-              { title: 'You control access', desc: 'Only people with your room link can view or upload photos.' },
-              { title: 'Download or delete', desc: 'Keep your gallery forever or wipe it completely. Your choice.' },
+              { title: t.privacyFeature1Title, desc: t.privacyFeature1Desc },
+              { title: t.privacyFeature2Title, desc: t.privacyFeature2Desc },
+              { title: t.privacyFeature3Title, desc: t.privacyFeature3Desc },
             ].map((item, i) => (
               <div
                 key={item.title}
@@ -417,7 +411,7 @@ export function PrivatePartyLandingPage() {
           <div className="mx-auto max-w-3xl">
             <div className="text-center reveal">
               <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                Frequently asked questions
+                {t.faqTitle}
               </h2>
             </div>
 
@@ -425,28 +419,28 @@ export function PrivatePartyLandingPage() {
               <Accordion type="single" collapsible className="space-y-3">
                 {[
                   {
-                    q: 'Do guests need to sign up or install anything?',
-                    a: 'No. Guests open the QR code or link in their browser and upload photos directly from their camera roll. No apps, no accounts, no hassle.',
+                    q: t.faq1Question,
+                    a: t.faq1Answer,
                   },
                   {
-                    q: 'Can I use this for a dinner party or small gathering?',
-                    a: 'Absolutely. SnapRooms works for any size gathering — from intimate dinners to full-blown ragers. One room, any crowd.',
+                    q: t.faq2Question,
+                    a: t.faq2Answer,
                   },
                   {
-                    q: 'Is there a photo limit?',
-                    a: 'No. Guests can upload unlimited photos. There are no storage caps on free or Pro plans.',
+                    q: t.faq3Question,
+                    a: t.faq3Answer,
                   },
                   {
-                    q: 'How private is the gallery?',
-                    a: 'Completely private. Only people with your unique room link can access it. The gallery is not indexed by search engines and never appears on public feeds.',
+                    q: t.faq4Question,
+                    a: t.faq4Answer,
                   },
                   {
-                    q: 'How long does the gallery stay open?',
-                    a: 'Free galleries stay active for 7 days. Upgrade to Pro for permanent galleries that never expire.',
+                    q: t.faq5Question,
+                    a: t.faq5Answer,
                   },
                   {
-                    q: 'Is it really free?',
-                    a: 'Yes. Create one room, invite unlimited guests, and collect unlimited photos at no cost. Pro plans add unlimited rooms and permanent storage.',
+                    q: t.faq6Question,
+                    a: t.faq6Answer,
                   },
                 ].map((faq, i) => (
                   <AccordionItem
@@ -473,22 +467,21 @@ export function PrivatePartyLandingPage() {
         <div className="container px-4">
           <div className="mx-auto max-w-2xl text-center reveal">
             <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              Never lose a party photo again
+              {t.finalTitle}
             </h2>
             <p className="mt-3 text-muted-foreground">
-              Create your party room in seconds and collect every moment from the night —
-              before the memories fade.
+              {t.finalDesc}
             </p>
             <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Button size="lg" className="glow-blue" asChild>
-                <a href="/">Create free party room</a>
+                <a href="/">{t.finalCta}</a>
               </Button>
               <Button size="lg" variant="outline" className="border-white/[0.07] bg-transparent hover:bg-white/[0.03]" asChild>
-                <a href="/pricing">View pricing</a>
+                <a href="/pricing">{t.viewPricing}</a>
               </Button>
             </div>
             <p className="mt-4 font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
-              Takes 10 seconds. No credit card required.
+              {t.finalMicrocopy}
             </p>
           </div>
         </div>

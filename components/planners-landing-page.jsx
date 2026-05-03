@@ -30,6 +30,7 @@ import {
   EVENT_HERO_CTA_CLICKED,
   EVENT_CREATE_ROOM_CLICKED,
 } from '@/lib/analytics/events'
+import { useTranslations } from '@/components/i18n-provider'
 
 function useScrollReveal() {
   useEffect(() => {
@@ -49,11 +50,12 @@ function useScrollReveal() {
   }, [])
 }
 
-export function PlannersLandingPage() {
+export function PlannersLandingPage({ locale }) {
   const router = useRouter()
   const [eventName, setEventName] = useState('')
   const [ownerEmail, setOwnerEmail] = useState('')
   const [isCreating, setIsCreating] = useState(false)
+  const t = useTranslations('planners')
 
   useScrollReveal()
 
@@ -115,29 +117,30 @@ export function PlannersLandingPage() {
         <div className="container relative px-4">
           <div className="mx-auto max-w-3xl text-center">
             <span className="inline-block font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary animate-fade-up">
-              For Event Planners
+              {t.heroEyebrow}
             </span>
             <h1 className="mt-4 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl animate-fade-up delay-100">
-              Every event.{' '}
-              <span className="text-gradient">One dashboard. All the photos.</span>
+              {t.heroHeadline1}{' '}
+              <span className="text-gradient">
+                {t.heroHeadline2}
+              </span>
             </h1>
             <p className="mt-4 text-base text-muted-foreground sm:text-lg animate-fade-up delay-200">
-              Stop chasing guests for photos after every event. Create a room, share a QR code,
-              and collect every moment in real time — across weddings, corporate events, and private parties.
+              {t.heroSubheadline}
             </p>
 
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3 text-sm text-muted-foreground animate-fade-up delay-300">
               <span className="inline-flex items-center gap-1.5">
                 <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                Multi-event dashboard
+                {t.trustMultiEvent}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                Guest photos in real time
+                {t.trustRealTime}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                Deliver galleries to clients
+                {t.trustDeliver}
               </span>
             </div>
           </div>
@@ -147,14 +150,14 @@ export function PlannersLandingPage() {
             <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card">
               <div className="space-y-3">
                 <Input
-                  placeholder="Event name"
+                  placeholder={t.eventPlaceholder}
                   value={eventName}
                   onChange={(e) => setEventName(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && createEvent()}
                   className="h-12 rounded-lg border-white/[0.07] bg-[#0D1220]"
                 />
                 <Input
-                  placeholder="Your email"
+                  placeholder={t.emailPlaceholder}
                   type="email"
                   value={ownerEmail}
                   onChange={(e) => setOwnerEmail(e.target.value)}
@@ -167,17 +170,19 @@ export function PlannersLandingPage() {
                   disabled={isCreating}
                 >
                   {isCreating ? (
-                    'Creating...'
+                    <>
+                      {t.creating}
+                    </>
                   ) : (
                     <>
-                      Create your first room
+                      {t.ctaButton}
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </>
                   )}
                 </Button>
               </div>
               <p className="mt-3 text-center font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
-                Free to start. Upgrade to Pro for unlimited events.
+                {t.formHelper}
               </p>
             </div>
           </div>
@@ -190,17 +195,13 @@ export function PlannersLandingPage() {
           <div className="mx-auto grid max-w-5xl gap-10 sm:grid-cols-2 sm:items-center">
             <div className="reveal">
               <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                The post-event photo scramble
+                {t.problemTitle}
               </h2>
               <p className="mt-4 text-muted-foreground">
-                After a flawless event, you spend days hunting down guest photos.
-                Text threads go cold. Email attachments bounce. Social hashtags miss
-                half the attendees. Your client asks for a photo album and you
-                have nothing but your own shots.
+                {t.problemDesc1}
               </p>
               <p className="mt-3 text-muted-foreground">
-                That gap between the event and the final deliverable? It is where
-                client satisfaction lives or dies.
+                {t.problemDesc2}
               </p>
             </div>
             <div className="reveal space-y-4" style={{ transitionDelay: '100ms' }}>
@@ -209,11 +210,10 @@ export function PlannersLandingPage() {
                   <QrCode className="h-6 w-6" />
                 </div>
                 <h3 className="mt-4 font-display text-lg font-semibold text-white">
-                  QR codes that just work
+                  {t.solution1Title}
                 </h3>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Print QR cards for table settings, welcome desks, or digital signage.
-                  Guests scan and upload in seconds — no app, no account, no friction.
+                  {t.solution1Desc}
                 </p>
               </div>
               <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card">
@@ -221,11 +221,10 @@ export function PlannersLandingPage() {
                   <CalendarDays className="h-6 w-6" />
                 </div>
                 <h3 className="mt-4 font-display text-lg font-semibold text-white">
-                  One dashboard, every event
+                  {t.solution2Title}
                 </h3>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Manage all your events from a single screen. Create rooms for
-                  multiple clients, switch between them instantly, and never lose track.
+                  {t.solution2Desc}
                 </p>
               </div>
             </div>
@@ -238,13 +237,13 @@ export function PlannersLandingPage() {
         <div className="container px-4">
           <div className="mx-auto max-w-3xl text-center reveal">
             <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-              Everything you need
+              {t.featuresLabel}
             </span>
             <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              Built for planners who deliver
+              {t.featuresTitle}
             </h2>
             <p className="mt-3 text-muted-foreground">
-              From corporate galas to intimate weddings — the tools to collect, manage, and share photos effortlessly.
+              {t.featuresDesc}
             </p>
           </div>
 
@@ -252,33 +251,33 @@ export function PlannersLandingPage() {
             {[
               {
                 icon: Infinity,
-                title: 'Unlimited events',
-                desc: 'Run as many events as you book. Each gets its own room, gallery, and QR code.',
+                title: t.feature1Title,
+                desc: t.feature1Desc,
               },
               {
                 icon: QrCode,
-                title: 'Instant QR sharing',
-                desc: 'Generate a QR code for every event. Print it, display it, or send it digitally.',
+                title: t.feature2Title,
+                desc: t.feature2Desc,
               },
               {
                 icon: Smartphone,
-                title: 'Zero guest friction',
-                desc: 'Guests open, upload, and done. No downloads, no accounts, no learning curve.',
+                title: t.feature3Title,
+                desc: t.feature3Desc,
               },
               {
                 icon: Download,
-                title: 'Client-ready downloads',
-                desc: 'Download every photo in full resolution and deliver a complete gallery to your client.',
+                title: t.feature4Title,
+                desc: t.feature4Desc,
               },
               {
                 icon: Lock,
-                title: 'Private & secure',
-                desc: 'Every room is private by default. Only invited guests see the photos.',
+                title: t.feature5Title,
+                desc: t.feature5Desc,
               },
               {
                 icon: Briefcase,
-                title: 'Commercial use included',
-                desc: 'Use SnapRooms as part of your planning services. No additional licensing fees.',
+                title: t.feature6Title,
+                desc: t.feature6Desc,
               },
             ].map((f, i) => (
               <div
@@ -304,10 +303,10 @@ export function PlannersLandingPage() {
         <div className="container px-4">
           <div className="mx-auto max-w-3xl text-center reveal">
             <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-              Use cases
+              {t.useCasesLabel}
             </span>
             <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              Every event you plan
+              {t.useCasesTitle}
             </h2>
           </div>
 
@@ -315,18 +314,18 @@ export function PlannersLandingPage() {
             {[
               {
                 icon: Heart,
-                title: 'Weddings',
-                desc: 'Collect guest photos from the ceremony to the last dance. Deliver the full story to the couple.',
+                title: t.useCase1Title,
+                desc: t.useCase1Desc,
               },
               {
                 icon: Briefcase,
-                title: 'Corporate events',
-                desc: 'Gather candid moments from conferences, galas, and team offsites. Share internally or with stakeholders.',
+                title: t.useCase2Title,
+                desc: t.useCase2Desc,
               },
               {
                 icon: Sparkles,
-                title: 'Private parties',
-                desc: 'Birthdays, anniversaries, reunions — give hosts a complete guest photo collection they will treasure.',
+                title: t.useCase3Title,
+                desc: t.useCase3Desc,
               },
             ].map((item, i) => (
               <div
@@ -354,12 +353,10 @@ export function PlannersLandingPage() {
             <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] p-8 sm:p-10 shadow-card text-center">
               <Sparkles className="mx-auto h-6 w-6 text-primary" />
               <blockquote className="mt-5 font-display text-lg font-medium text-white sm:text-xl">
-                &ldquo;I used to spend three days after every wedding begging guests for photos.
-                Now I add a SnapRooms QR code to my welcome packets and the gallery
-                fills itself. My clients are amazed.&rdquo;
+                &ldquo;{t.testimonialQuote}&rdquo;
               </blockquote>
               <p className="mt-4 text-sm text-muted-foreground">
-                — Maria, event planner, Austin
+                {t.testimonialAttribution}
               </p>
             </div>
           </div>
@@ -371,10 +368,10 @@ export function PlannersLandingPage() {
         <div className="container px-4">
           <div className="mx-auto max-w-3xl text-center reveal">
             <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              One plan. Every event you book.
+              {t.pricingTitle}
             </h2>
             <p className="mt-3 text-muted-foreground">
-              No per-event fees. No surprise charges. Scale from one event to fifty without changing your tool.
+              {t.pricingDesc}
             </p>
           </div>
 
@@ -382,31 +379,31 @@ export function PlannersLandingPage() {
             <div className="rounded-2xl border border-primary/20 bg-[#141C2E] p-8 shadow-card">
               <div className="flex items-center gap-2">
                 <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-                  Pro
+                  {t.planLabel}
                 </span>
                 <Sparkles className="h-3 w-3 text-primary" />
               </div>
               <div className="mt-4 flex items-baseline gap-1">
-                <span className="font-display text-4xl font-bold text-white">$9</span>
-                <span className="text-sm text-muted-foreground">/month</span>
+                <span className="font-display text-4xl font-bold text-white">{t.planPrice}</span>
+                <span className="text-sm text-muted-foreground">{t.planPeriod}</span>
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
-                Unlimited rooms, permanent galleries, bulk downloads, and priority support.
+                {t.planDesc}
               </p>
               <Button className="mt-6 w-full glow-blue" asChild>
                 <a href="/dashboard/login">
-                  Start your Pro trial
+                  {t.planCta}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </a>
               </Button>
               <ul className="mt-6 space-y-2 text-sm">
                 {[
-                  'Unlimited event rooms',
-                  'Permanent galleries',
-                  'Bulk photo download',
-                  'Photo moderation',
-                  'Remove SnapRooms branding',
-                  'Priority email support',
+                  t.planFeature1,
+                  t.planFeature2,
+                  t.planFeature3,
+                  t.planFeature4,
+                  t.planFeature5,
+                  t.planFeature6,
                 ].map((item) => (
                   <li key={item} className="flex items-center gap-2 text-muted-foreground">
                     <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
@@ -418,9 +415,9 @@ export function PlannersLandingPage() {
           </div>
 
           <p className="mt-8 text-center text-sm text-muted-foreground reveal">
-            Planning events for a venue or agency?{' '}
+            {t.customTerms}{' '}
             <a href="mailto:hello@snaprooms.app" className="text-primary hover:underline">
-              Contact us for custom terms
+              {t.contactUsLink}
             </a>
           </p>
         </div>
@@ -431,18 +428,19 @@ export function PlannersLandingPage() {
         <div className="container px-4">
           <div className="mx-auto max-w-2xl text-center reveal">
             <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              Deliver more than the event
+              {t.finalTitle}
             </h2>
             <p className="mt-3 text-muted-foreground">
-              Create your first room in seconds. See why planners are making guest
-              photo collection part of every proposal.
+              {t.finalDesc}
             </p>
             <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Button size="lg" className="glow-blue" asChild>
-                <a href="/">Create free room</a>
+                <a href="/">{t.finalCta}</a>
               </Button>
               <Button size="lg" variant="outline" className="border-white/[0.07] bg-transparent hover:bg-white/[0.03]" asChild>
-                <a href="/pricing">View pricing</a>
+                <a href="/pricing">
+                  {t.viewPricing}
+                </a>
               </Button>
             </div>
           </div>

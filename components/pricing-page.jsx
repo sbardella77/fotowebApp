@@ -157,32 +157,16 @@ const recurringTiers = [
 
 const allTiers = [...eventTiers, ...recurringTiers]
 
-const faqs = [
-  {
-    q: 'Can I really use SnapRooms for free?',
-    a: 'Yes. The free plan gives you one active room and up to 50 photos. It is perfect for trying SnapRooms or hosting a small casual event. Guests always upload for free — they never pay. Standard-quality photo downloads are also free. Original-quality downloads require a one-time €1.99 unlock per room on the Free plan.',
-  },
-  {
-    q: 'What is the difference between Pro Event and Wedding Pro?',
-    a: 'Both are one-time per-event purchases with unlimited photos and guests. Wedding Pro adds wedding-specific QR signage assets, longer post-event gallery access, and a premium experience tailored for weddings.',
-  },
-  {
-    q: 'Do guests need to sign up or install an app?',
-    a: 'No. Guests simply scan your QR code or open your room link and upload photos instantly from any phone. Zero friction, zero downloads, zero cost. Original-quality photo downloads on Free rooms require a one-time €1.99 room unlock, which the room owner can purchase.',
-  },
-  {
-    q: 'Why is Professional priced monthly instead of per event?',
-    a: 'Professional is built for photographers, planners, and venues who run events repeatedly for clients. A monthly subscription keeps costs predictable as you scale from one client event to the next.',
-  },
-  {
-    q: 'Can I use SnapRooms as part of my paid photography or planning services?',
-    a: 'Yes. The Professional and Business plans include commercial use rights. You can create rooms for clients, deliver galleries, and include SnapRooms as part of your service packages.',
-  },
-  {
-    q: 'Do you offer custom pricing for agencies or corporate teams?',
-    a: 'Yes. Our Business tier is designed for organizations that need volume pricing, invoicing, or custom terms. Contact us at hello@snaprooms.app and we will reply within one business day.',
-  },
-]
+function getFaqs(t) {
+  return [
+    { q: t.pricingFaq1Question, a: t.pricingFaq1Answer },
+    { q: t.pricingFaq2Question, a: t.pricingFaq2Answer },
+    { q: t.pricingFaq3Question, a: t.pricingFaq3Answer },
+    { q: t.pricingFaq4Question, a: t.pricingFaq4Answer },
+    { q: t.pricingFaq5Question, a: t.pricingFaq5Answer },
+    { q: t.pricingFaq6Question, a: t.pricingFaq6Answer },
+  ]
+}
 
 function FeatureValue({ value }) {
   if (value === true) {
@@ -368,6 +352,8 @@ export function PricingPage() {
   const tCommon = useTranslations('common')
 
   useScrollReveal()
+
+  const faqs = getFaqs(t)
 
   useEffect(() => {
     trackPageView('landing', { variant: 'pricing' })
