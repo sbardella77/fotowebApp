@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useRef, useEffect } from 'react'
 import {
   Camera,
   Heart,
@@ -20,6 +20,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { InstallCta } from '@/components/install-cta'
+import { useTranslations } from '@/components/i18n-provider'
 import { trackEvent } from '@/lib/analytics/track-client'
 import { EVENT_HERO_CTA_CLICKED } from '@/lib/analytics/events'
 
@@ -50,6 +51,7 @@ function useScrollReveal() {
 }
 
 export function LandingPage({
+  locale,
   onCreateEvent,
   eventName,
   setEventName,
@@ -59,6 +61,9 @@ export function LandingPage({
   createError = null,
   onClearCreateError,
 }) {
+  const t = useTranslations('landing')
+  const tNav = useTranslations('nav')
+  const tFooter = useTranslations('footer')
   const featuresRef = useRef(null)
   useScrollReveal()
 
@@ -81,13 +86,13 @@ export function LandingPage({
               onClick={() => scrollToSection('how-it-works')}
               className="hidden text-sm text-muted-foreground hover:text-foreground sm:block"
             >
-              How it works
+              {tNav.howItWorks}
             </button>
             <Button size="sm" variant="ghost" asChild className="font-body">
-              <a href="/dashboard/login">Sign in</a>
+              <a href="/dashboard/login">{tNav.signIn}</a>
             </Button>
             <Button size="sm" onClick={() => scrollToSection('create')} className="font-body">
-              Create room
+              {tNav.createRoom}
             </Button>
           </div>
         </div>
@@ -122,19 +127,19 @@ export function LandingPage({
             <div className="animate-fade-up delay-100 mb-6 inline-flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-[#141C2E] px-3 py-1">
               <Sparkles className="h-3 w-3 text-primary" />
               <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-muted-foreground">
-                No apps • No signup
+                {t.badge}
               </span>
             </div>
 
             {/* Headline */}
             <h1 className="animate-fade-up delay-200 font-display text-[2rem] font-extrabold tracking-[-0.03em] text-white sm:text-5xl sm:leading-tight lg:text-6xl">
-              Every guest photo.
-              <span className="block text-gradient">One room.</span>
+              {t.headline1}
+              <span className="block text-gradient">{t.headline2}</span>
             </h1>
 
             {/* Subheadline */}
             <p className="animate-fade-up delay-300 mx-auto mt-6 max-w-xl text-lg font-light text-muted-foreground">
-              Create a room, share a QR code, collect every moment instantly.
+              {t.subheadline}
             </p>
 
             {/* CTA */}
@@ -144,14 +149,14 @@ export function LandingPage({
                   <Input
                     value={eventName}
                     onChange={(e) => setEventName(e.target.value)}
-                    placeholder="Room name (e.g. Sarah's Wedding)"
+                    placeholder={t.roomNamePlaceholder}
                     className="h-12 flex-1 rounded-lg border-white/[0.07] bg-[#141C2E] text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                   />
                   <Input
                     type="email"
                     value={ownerEmail}
                     onChange={(e) => setOwnerEmail(e.target.value)}
-                    placeholder="Your email"
+                    placeholder={t.emailPlaceholder}
                     className="h-12 flex-1 rounded-lg border-white/[0.07] bg-[#141C2E] text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                   />
                 </div>
@@ -168,7 +173,7 @@ export function LandingPage({
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                   ) : (
                     <>
-                      Create your room — it's free
+                      {t.ctaButton}
                       <ArrowRight className="h-4 w-4" />
                     </>
                   )}
@@ -178,17 +183,17 @@ export function LandingPage({
               {createError?.limit === 'room_count' && (
                 <div className="mx-auto max-w-md rounded-xl border border-white/[0.07] bg-[#141C2E] p-4 text-left">
                   <p className="text-sm font-medium text-white">
-                    You&apos;ve reached the Free plan limit of 1 active room.
+                    {t.errorLimitTitle}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Upgrade to Professional to create and manage multiple rooms for all your events.
+                    {t.errorLimitDesc}
                   </p>
                   <div className="mt-3 flex gap-2">
                     <Button size="sm" className="glow-blue" asChild>
-                      <a href="/pricing">View pricing</a>
+                      <a href="/pricing">{t.viewPricing}</a>
                     </Button>
                     <Button size="sm" variant="outline" className="border-white/[0.07] bg-[#0D1220]" asChild>
-                      <a href="/dashboard/login">Start Professional</a>
+                      <a href="/dashboard/login">{t.startProfessional}</a>
                     </Button>
                   </div>
                 </div>
@@ -197,40 +202,40 @@ export function LandingPage({
               {createError && createError.limit !== 'room_count' && (
                 <div className="mx-auto max-w-md rounded-xl border border-red-500/20 bg-red-500/[0.06] p-4 text-left">
                   <p className="text-sm font-medium text-red-400">
-                    {createError.error || 'Unable to create room. Please try again.'}
+                    {createError.error || t.genericError}
                   </p>
                 </div>
               )}
 
               {/* Microcopy */}
               <p className="text-sm font-light text-muted-foreground">
-                Create a room in seconds. No signup required.
+                {t.microcopy1}
               </p>
 
               {/* Trust line */}
               <p className="text-xs font-light text-muted-foreground">
-                No apps. No logins. Works instantly on any phone.
+                {t.trustLine1}
               </p>
               <p className="text-xs font-light text-muted-foreground/70">
-                We'll use your email to help you manage and recover your room.
+                {t.trustLine2}
               </p>
 
               {/* Secondary owner CTA */}
               <p className="text-xs text-muted-foreground">
-                Already created a room?{' '}
+                {t.alreadyCreated}{' '}
                 <a href="/dashboard/login" className="underline underline-offset-2 hover:text-foreground">
-                  Sign in
+                  {t.signInLink}
                 </a>
               </p>
 
               {/* Social proof */}
               <p className="font-mono text-[0.6rem] uppercase tracking-[0.1em] text-muted-foreground/60">
-                Used at weddings, parties & events worldwide
+                {t.socialProof1}
               </p>
 
               {/* Micro-urgency / quiet reassurance */}
               <p className="text-xs font-light text-muted-foreground/70">
-                Used at weddings, parties and events every day.
+                {t.socialProof2}
               </p>
             </div>
 
@@ -238,15 +243,15 @@ export function LandingPage({
             <div className="animate-fade-up delay-500 mt-6 flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground">
               <div className="flex items-center gap-1.5">
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                <span>Free forever</span>
+                <span>{t.freeForever}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                <span>Unlimited guests</span>
+                <span>{t.unlimitedGuests}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                <span>Instant gallery</span>
+                <span>{t.instantGallery}</span>
               </div>
             </div>
           </div>
@@ -258,13 +263,13 @@ export function LandingPage({
         <div className="container px-4">
           <div className="reveal mx-auto max-w-3xl text-center">
             <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
-              How it works
+              {t.hiwLabel}
             </span>
             <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
-              Three simple steps
+              {t.hiwTitle}
             </h2>
             <p className="mt-3 font-light text-muted-foreground">
-              Collect every moment without chasing anyone
+              {t.hiwDesc}
             </p>
           </div>
 
@@ -273,20 +278,20 @@ export function LandingPage({
               {
                 step: '01',
                 icon: Sparkles,
-                title: 'Create your room',
-                desc: 'Name your room and get a unique code and QR code instantly.',
+                title: t.step1Title,
+                desc: t.step1Desc,
               },
               {
                 step: '02',
                 icon: Share2,
-                title: 'Share with guests',
-                desc: 'Send the link or display the QR code at your venue.',
+                title: t.step2Title,
+                desc: t.step2Desc,
               },
               {
                 step: '03',
                 icon: ImagePlus,
-                title: 'Collect photos',
-                desc: 'Watch your gallery fill up as guests upload.',
+                title: t.step3Title,
+                desc: t.step3Desc,
               },
             ].map((item, i) => (
               <div
@@ -299,7 +304,7 @@ export function LandingPage({
                 </div>
                 <div className="mt-4">
                   <div className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-                    Step {item.step}
+                    {t.stepLabel} {item.step}
                   </div>
                   <h3 className="mt-1 font-display text-lg font-bold tracking-tight text-white">
                     {item.title}
@@ -322,19 +327,19 @@ export function LandingPage({
               {/* Left: The Problem */}
               <div className="reveal">
                 <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
-                  The problem
+                  {t.problemLabel}
                 </span>
                 <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
-                  After the event, the photos are everywhere
+                  {t.problemTitle}
                 </h2>
                 <p className="mt-3 font-light text-muted-foreground">
-                  Your guests took hundreds of photos. Now they're scattered across messages, emails, and social apps. You'll never see most of them.
+                  {t.problemDesc}
                 </p>
                 <div className="mt-6 space-y-3">
                   {[
-                    { emoji: '💬', text: 'Some in WhatsApp, some in iMessage, some in Instagram DMs' },
-                    { emoji: '😰', text: 'You have to ask, download, and organize them yourself' },
-                    { emoji: '⏰', text: 'By the time you remember, guests have already deleted them' },
+                    { emoji: '💬', text: t.problem1 },
+                    { emoji: '😰', text: t.problem2 },
+                    { emoji: '⏰', text: t.problem3 },
                   ].map((item) => (
                     <div key={item.text} className="flex items-center gap-3 text-muted-foreground">
                       <span className="text-base">{item.emoji}</span>
@@ -351,18 +356,18 @@ export function LandingPage({
                   {[
                     {
                       icon: CheckCircle2,
-                      title: 'One link, all your photos',
-                      desc: 'Share one link with guests. Every photo they upload goes into the same gallery. You don\'t chase anyone.',
+                      title: t.solution1Title,
+                      desc: t.solution1Desc,
                     },
                     {
                       icon: Smartphone,
-                      title: 'No app needed',
-                      desc: 'Guests open a link and upload. Works on any phone, instantly.',
+                      title: t.solution2Title,
+                      desc: t.solution2Desc,
                     },
                     {
                       icon: Users,
-                      title: 'Unlimited guests',
-                      desc: 'Share with 5 people or 500. Everyone can upload, no accounts required.',
+                      title: t.solution3Title,
+                      desc: t.solution3Desc,
                     },
                   ].map((item) => (
                     <div key={item.title} className="flex items-start gap-3">
@@ -391,13 +396,13 @@ export function LandingPage({
         <div className="container px-4">
           <div className="reveal mx-auto max-w-3xl text-center">
             <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
-              Use cases
+              {t.useCasesLabel}
             </span>
             <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
-              Perfect for any occasion
+              {t.useCasesTitle}
             </h2>
             <p className="mt-3 font-light text-muted-foreground">
-              Trusted by hosts at events of all sizes
+              {t.useCasesDesc}
             </p>
           </div>
 
@@ -407,25 +412,25 @@ export function LandingPage({
                 icon: Heart,
                 color: 'text-rose-400',
                 bg: 'bg-rose-500/10',
-                title: 'Weddings',
-                desc: 'Capture every candid moment from your special day. Guests love contributing to your wedding album.',
-                bullets: ['Beautiful QR cards for tables', 'See photos as they happen'],
+                title: t.weddings,
+                desc: t.weddingsDesc,
+                bullets: [t.weddingsBullet1, t.weddingsBullet2],
               },
               {
                 icon: PartyPopper,
                 color: 'text-amber-400',
                 bg: 'bg-amber-500/10',
-                title: 'Birthday Parties',
-                desc: 'From milestone birthdays to surprise parties. Collect all the fun moments in one place.',
-                bullets: ['Instant sharing with friends', 'No social media required'],
+                title: t.birthdays,
+                desc: t.birthdaysDesc,
+                bullets: [t.birthdaysBullet1, t.birthdaysBullet2],
               },
               {
                 icon: Building2,
                 color: 'text-blue-400',
                 bg: 'bg-blue-500/10',
-                title: 'Corporate Events',
-                desc: 'Conferences, team building, company celebrations. Professional photo collection made simple.',
-                bullets: ['Branded QR codes', 'Download full gallery'],
+                title: t.corporate,
+                desc: t.corporateDesc,
+                bullets: [t.corporateBullet1, t.corporateBullet2],
               },
             ].map((item, i) => (
               <div
@@ -466,26 +471,25 @@ export function LandingPage({
                 <div className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-[#141C2E] px-3 py-1">
                   <QrCode className="h-3 w-3 text-primary" />
                   <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-                    Premium feature
+                    {t.qrBadge}
                   </span>
                 </div>
                 <h2 className="mt-4 font-display text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
-                  QR codes that work at your venue
+                  {t.qrTitle}
                 </h2>
                 <p className="mt-2 text-base font-light text-muted-foreground">
-                  Print it. Place it. Guests scan and upload instantly.
+                  {t.qrDesc1}
                 </p>
                 <p className="mt-4 font-light text-muted-foreground">
-                  Place a card on each table. Guests scan and upload in seconds.
-                  You'll have every photo by the end of the night.
+                  {t.qrDesc2}
                 </p>
 
                 <div className="mt-8 grid gap-4 sm:grid-cols-2">
                   {[
-                    { icon: Printer, title: 'Table cards', desc: '4×6 inch cards for guest tables' },
-                    { icon: Download, title: 'Entrance posters', desc: 'A4 and A5 sizes for displays' },
-                    { icon: Share2, title: 'Digital share', desc: 'Link works in invites, texts, email' },
-                    { icon: Sparkles, title: 'Clean design', desc: 'Matches your event aesthetic' },
+                    { icon: Printer, title: t.tableCards, desc: t.tableCardsDesc },
+                    { icon: Download, title: t.entrancePosters, desc: t.entrancePostersDesc },
+                    { icon: Share2, title: t.digitalShare, desc: t.digitalShareDesc },
+                    { icon: Sparkles, title: t.cleanDesign, desc: t.cleanDesignDesc },
                   ].map((item) => (
                     <div key={item.title} className="flex items-start gap-3">
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -509,12 +513,12 @@ export function LandingPage({
                   <div className="relative rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card">
                     <div className="text-center">
                       <p className="font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
-                        Sarah & Mike's Wedding
+                        Sarah & Mike&apos;s Wedding
                       </p>
                       <div className="mx-auto my-4 flex h-40 w-40 items-center justify-center rounded-xl border-2 border-dashed border-white/[0.07] bg-[#111827]">
                         <QrCode className="h-20 w-20 text-muted-foreground" />
                       </div>
-                      <p className="text-sm font-medium text-white">Scan to upload your photos</p>
+                      <p className="text-sm font-medium text-white">{t.scanToUpload}</p>
                       <p className="mt-1 font-mono text-[0.65rem] text-muted-foreground">snaprooms.app/room/sarah-mike</p>
                     </div>
                   </div>
@@ -522,7 +526,7 @@ export function LandingPage({
                   <div className="absolute -right-2 top-1/4 rounded-full border border-white/[0.07] bg-[#141C2E] px-3 py-1.5 text-xs font-medium shadow-lg">
                     <span className="flex items-center gap-1">
                       <CheckCircle2 className="h-3 w-3 text-emerald-400" />
-                      <span className="font-mono text-[0.65rem]">Instant upload</span>
+                      <span className="font-mono text-[0.65rem]">{t.instantUpload}</span>
                     </span>
                   </div>
                   <div className="absolute -left-2 bottom-1/4 rounded-full border border-white/[0.07] bg-[#141C2E] px-3 py-1.5 text-xs font-medium shadow-lg">
@@ -543,11 +547,11 @@ export function LandingPage({
         <div className="container px-4">
           <div className="reveal mx-auto max-w-2xl text-center">
             <p className="text-lg font-light text-muted-foreground">
-              "I didn't have to chase anyone for photos.
-              <span className="text-white"> They just appeared.</span>"
+              &ldquo;{t.quote}
+              <span className="text-white">{t.quoteHighlight}</span>&rdquo;
             </p>
             <p className="mt-3 font-mono text-[0.7rem] uppercase tracking-[0.1em] text-muted-foreground">
-              — Sarah, used at her wedding
+              {t.quoteAttribution}
             </p>
           </div>
         </div>
@@ -558,10 +562,10 @@ export function LandingPage({
         <div className="container px-4">
           <div className="reveal mx-auto max-w-2xl text-center">
             <h2 className="font-display text-3xl font-extrabold tracking-[-0.03em] text-white sm:text-4xl">
-              Don't miss a single photo
+              {t.finalTitle}
             </h2>
             <p className="mt-4 text-lg font-light text-muted-foreground">
-              Your guests are already taking pictures. Give them a simple way to share.
+              {t.finalDesc}
             </p>
 
             <div className="mt-8 flex w-full max-w-md mx-auto flex-col gap-3">
@@ -569,14 +573,14 @@ export function LandingPage({
                 <Input
                   value={eventName}
                   onChange={(e) => setEventName(e.target.value)}
-                  placeholder="Room name (e.g. Sarah's Wedding)"
+                  placeholder={t.finalPlaceholder}
                   className="h-12 flex-1 rounded-lg border-white/[0.07] bg-[#141C2E] text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                 />
                 <Input
                   type="email"
                   value={ownerEmail}
                   onChange={(e) => setOwnerEmail(e.target.value)}
-                  placeholder="Your email"
+                  placeholder={t.finalEmailPlaceholder}
                   className="h-12 flex-1 rounded-lg border-white/[0.07] bg-[#141C2E] text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                 />
               </div>
@@ -590,7 +594,7 @@ export function LandingPage({
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                 ) : (
                   <>
-                    Create your free room
+                    {t.finalCta}
                     <ArrowRight className="h-4 w-4" />
                   </>
                 )}
@@ -598,7 +602,7 @@ export function LandingPage({
             </div>
 
             <p className="mt-4 font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
-              Takes 10 seconds. No credit card required.
+              {t.finalMicrocopy}
             </p>
           </div>
         </div>
@@ -619,20 +623,20 @@ export function LandingPage({
               <span className="font-display text-sm font-bold tracking-tight text-primary">SnapRooms</span>
             </div>
             <p className="text-xs font-light text-muted-foreground">
-              The easiest way to collect guest photos.
+              {tFooter.tagline}
             </p>
             <div className="flex items-center gap-4">
               <a href="/pricing" className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
-                Pricing
+                {tFooter.pricing}
               </a>
               <a href="/privacy" className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
-                Privacy Policy
+                {tFooter.privacy}
               </a>
               <a href="/terms" className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
-                Terms
+                {tFooter.terms}
               </a>
               <a href="/dashboard/login" className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
-                Organizer sign in
+                {tFooter.organizerSignIn}
               </a>
             </div>
           </div>

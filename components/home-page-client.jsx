@@ -6,11 +6,14 @@ import { Loader2 } from 'lucide-react'
 import { LandingPage } from '@/components/landing-page'
 import { Button } from '@/components/ui/button'
 import { LanguageSwitcher } from '@/components/language-switcher'
+import { useTranslations } from '@/components/i18n-provider'
 import { trackEvent, trackPageView } from '@/lib/analytics/track-client'
 import { EVENT_LANDING_VIEW, EVENT_CREATE_ROOM_CLICKED } from '@/lib/analytics/events'
 
 export function HomePageClient({ locale = 'en' }) {
   const router = useRouter()
+  const t = useTranslations('landing')
+  const tCommon = useTranslations('common')
   const [eventName, setEventName] = useState('')
   const [ownerEmail, setOwnerEmail] = useState('')
   const [isCreating, setIsCreating] = useState(false)
@@ -61,7 +64,7 @@ export function HomePageClient({ locale = 'en' }) {
       try {
         payload = await response.json()
       } catch {
-        payload = { error: `Server error (${response.status}). Please try again.` }
+        payload = { error: `${t.serverError} (${response.status}). ${t.pleaseTryAgain}` }
       }
       if (response.ok && payload.event?.slug) {
         router.push(`/event/${payload.event.slug}?new=1`)
@@ -70,7 +73,7 @@ export function HomePageClient({ locale = 'en' }) {
       }
     } catch (e) {
       console.error('[createEvent] Error:', e)
-      setCreateError({ error: e.message || 'Unable to create room. Please try again.' })
+      setCreateError({ error: e.message || t.genericError })
     } finally {
       setIsCreating(false)
     }
@@ -90,7 +93,7 @@ export function HomePageClient({ locale = 'en' }) {
               <span className="font-semibold tracking-tight text-primary">SnapRooms</span>
             </div>
             <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
-              <a href="/dashboard/login">Sign in</a>
+              <a href="/dashboard/login">{tCommon.signIn}</a>
             </Button>
           </div>
         </header>
@@ -100,7 +103,7 @@ export function HomePageClient({ locale = 'en' }) {
             alt="SnapRooms"
             className="h-12 w-12 rounded-lg object-cover"
           />
-          <p className="text-lg font-medium text-foreground">Opening your room...</p>
+          <p className="text-lg font-medium text-foreground">{t.openingRoom}</p>
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       </main>
@@ -122,7 +125,7 @@ export function HomePageClient({ locale = 'en' }) {
           <div className="flex items-center gap-2">
             <LanguageSwitcher />
             <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
-              <a href="/dashboard/login">Sign in</a>
+              <a href="/dashboard/login">{tCommon.signIn}</a>
             </Button>
           </div>
         </div>
