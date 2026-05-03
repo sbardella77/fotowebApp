@@ -14,6 +14,7 @@ export async function generateMetadata({ params }) {
       canonical: `/${locale}/corporate-event-photo-sharing`,
       languages: {
         en: '/en/corporate-event-photo-sharing',
+        de: '/de/corporate-event-photo-sharing',
         it: '/it/corporate-event-photo-sharing',
         fr: '/fr/corporate-event-photo-sharing',
         es: '/es/corporate-event-photo-sharing',

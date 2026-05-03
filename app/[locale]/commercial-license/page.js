@@ -14,6 +14,7 @@ export async function generateMetadata({ params }) {
       canonical: `/${locale}/commercial-license`,
       languages: {
         en: '/en/commercial-license',
+        de: '/de/commercial-license',
         it: '/it/commercial-license',
         fr: '/fr/commercial-license',
         es: '/es/commercial-license',

@@ -14,6 +14,7 @@ export async function generateMetadata({ params }) {
       canonical: `/${locale}/for-event-planners`,
       languages: {
         en: '/en/for-event-planners',
+        de: '/de/for-event-planners',
         it: '/it/for-event-planners',
         fr: '/fr/for-event-planners',
         es: '/es/for-event-planners',

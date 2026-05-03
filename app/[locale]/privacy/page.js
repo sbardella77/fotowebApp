@@ -14,6 +14,7 @@ export async function generateMetadata({ params }) {
       canonical: `/${locale}/privacy`,
       languages: {
         en: '/en/privacy',
+        de: '/de/privacy',
         it: '/it/privacy',
         fr: '/fr/privacy',
         es: '/es/privacy',

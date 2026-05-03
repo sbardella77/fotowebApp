@@ -14,6 +14,7 @@ export async function generateMetadata({ params }) {
       canonical: `/${locale}/wedding-photo-sharing`,
       languages: {
         en: '/en/wedding-photo-sharing',
+        de: '/de/wedding-photo-sharing',
         it: '/it/wedding-photo-sharing',
         fr: '/fr/wedding-photo-sharing',
         es: '/es/wedding-photo-sharing',

@@ -14,6 +14,7 @@ export async function generateMetadata({ params }) {
       canonical: `/${locale}`,
       languages: {
         en: '/en',
+        de: '/de',
         it: '/it',
         fr: '/fr',
         es: '/es',

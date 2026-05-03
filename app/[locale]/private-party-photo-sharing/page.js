@@ -14,6 +14,7 @@ export async function generateMetadata({ params }) {
       canonical: `/${locale}/private-party-photo-sharing`,
       languages: {
         en: '/en/private-party-photo-sharing',
+        de: '/de/private-party-photo-sharing',
         it: '/it/private-party-photo-sharing',
         fr: '/fr/private-party-photo-sharing',
         es: '/es/private-party-photo-sharing',

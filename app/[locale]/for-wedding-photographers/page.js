@@ -14,6 +14,7 @@ export async function generateMetadata({ params }) {
       canonical: `/${locale}/for-wedding-photographers`,
       languages: {
         en: '/en/for-wedding-photographers',
+        de: '/de/for-wedding-photographers',
         it: '/it/for-wedding-photographers',
         fr: '/fr/for-wedding-photographers',
         es: '/es/for-wedding-photographers',
