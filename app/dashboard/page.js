@@ -954,7 +954,7 @@ export default function DashboardPage() {
               <p className="mt-3 text-sm font-light text-muted-foreground">
                 {forgotMode
                   ? t.enterEmailForReset
-                  : 'Access your rooms, share them again, and manage uploads in one place.'}
+                  : t.accessYourRooms}
               </p>
             </div>
 

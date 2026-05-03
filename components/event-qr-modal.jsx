@@ -14,6 +14,7 @@ import {
   ExternalLink,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useTranslations } from '@/components/i18n-provider'
 import { getQRCopy } from '@/lib/qr-copy'
 
 // Simple toast hook for internal use
@@ -58,6 +59,8 @@ export function EventQRModal({
   event,
   baseUrl = typeof window !== 'undefined' ? window.location.origin : '' 
 }) {
+  const t = useTranslations('room')
+  const tCommon = useTranslations('common')
   const { showToast, ToastComponent } = useToast()
   const qrContainerRef = useRef(null)
   const [copiedLink, setCopiedLink] = useState(false)
@@ -73,7 +76,10 @@ export function EventQRModal({
     return generateFilename(event.name)
   }, [event?.name])
 
-  const { headline, instruction, trustLine } = getQRCopy(event?.eventType)
+  const eventType = event?.eventType || 'generic'
+  const headline = t[`qrHeadline${eventType.charAt(0).toUpperCase() + eventType.slice(1)}`] || t.qrHeadlineGeneric
+  const instruction = t[`qrInstruction${eventType.charAt(0).toUpperCase() + eventType.slice(1)}`] || t.qrInstructionGeneric
+  const trustLine = t.qrTrustLine
 
   // Download QR code as PNG
   const handleDownload = useCallback(async () => {
@@ -82,7 +88,7 @@ export function EventQRModal({
     try {
       const svg = qrContainerRef.current.querySelector('svg')
       if (!svg) {
-        showToast('QR code not found', 'error')
+        showToast(t.qrCodeNotFound, 'error')
         return
       }
 
@@ -97,7 +103,7 @@ export function EventQRModal({
       const ctx = canvas.getContext('2d')
       
       if (!ctx) {
-        showToast('Failed to create image', 'error')
+        showToast(t.failedToCreateImage, 'error')
         return
       }
       
@@ -116,13 +122,13 @@ export function EventQRModal({
         
         // Convert to PNG and download
         if (typeof canvas.toBlob !== 'function') {
-          showToast('Download not supported on this browser', 'error')
+          showToast(t.downloadNotSupported, 'error')
           URL.revokeObjectURL(url)
           return
         }
         canvas.toBlob((blob) => {
           if (!blob) {
-            showToast('Failed to generate image', 'error')
+            showToast(t.failedToGenerateImage, 'error')
             return
           }
           
@@ -137,70 +143,70 @@ export function EventQRModal({
             
             URL.revokeObjectURL(downloadUrl)
             URL.revokeObjectURL(url)
-            showToast('QR code downloaded!')
+            showToast(t.qrCodeDownloaded)
           } catch (e) {
             console.warn('[qr-modal] download failed', e)
-            showToast('Download failed', 'error')
+        showToast(t.downloadFailed, 'error')
           }
         }, 'image/png')
       }
       
       img.onerror = () => {
         URL.revokeObjectURL(url)
-        showToast('Failed to generate image', 'error')
+        showToast(t.failedToGenerateImage, 'error')
       }
       
       img.src = url
     } catch (error) {
       console.error('Download error:', error)
-      showToast('Download failed', 'error')
+      showToast(t.downloadFailed, 'error')
     }
   }, [filename, showToast])
 
   // Copy event link
   const handleCopyLink = useCallback(async () => {
     if (typeof navigator === 'undefined' || !navigator.clipboard || !navigator.clipboard.writeText) {
-      showToast('Copy not supported on this device', 'error')
+      showToast(t.copyNotSupported, 'error')
       return
     }
     try {
       await navigator.clipboard.writeText(eventUrl)
       setCopiedLink(true)
-      showToast('Link copied!')
+      showToast(t.linkCopied)
       setTimeout(() => setCopiedLink(false), 2000)
     } catch {
-      showToast('Failed to copy', 'error')
+      showToast(t.failedToCopy, 'error')
     }
   }, [eventUrl, showToast])
 
   // Copy event code
   const handleCopyCode = useCallback(async () => {
     if (typeof navigator === 'undefined' || !navigator.clipboard || !navigator.clipboard.writeText) {
-      showToast('Copy not supported on this device', 'error')
+      showToast(t.copyNotSupported, 'error')
       return
     }
     try {
       await navigator.clipboard.writeText(event?.slug || '')
       setCopiedCode(true)
-      showToast('Code copied!')
+      showToast(t.codeCopied)
       setTimeout(() => setCopiedCode(false), 2000)
     } catch {
-      showToast('Failed to copy', 'error')
+      showToast(t.failedToCopy, 'error')
     }
   }, [event?.slug, showToast])
 
   // Share (native or fallback)
   const handleShare = useCallback(async () => {
     const shareData = {
-      title: `Join ${event?.name} on SnapRooms`,
-      text: `Upload your photos to ${event?.name}! Use code: ${event?.slug}`,
+      title: t.joinRoomOnSnapRooms.replace('{name}', event?.name || ''),
+      text: `${t.uploadYourPhotosTo.replace('{name}', event?.name || '')} ${t.useCode || 'Use code:'} ${event?.slug}`,
       url: eventUrl,
     }
     
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         await navigator.share(shareData)
-        showToast('Shared!')
+        showToast(t.shared)
       } catch {
         // User cancelled
       }
@@ -233,7 +239,7 @@ export function EventQRModal({
             <button
               className="absolute right-3 top-3 rounded-full p-2 text-muted-foreground transition-all hover:bg-muted hover:text-foreground"
               onClick={onClose}
-              aria-label="Close"
+              aria-label={tCommon.close}
             >
               <X className="h-5 w-5" />
             </button>
@@ -243,9 +249,9 @@ export function EventQRModal({
               <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
                 <Camera className="h-6 w-6 text-primary" />
               </div>
-              <h2 className="text-xl font-semibold tracking-tight">Share this room</h2>
+              <h2 className="text-xl font-semibold tracking-tight">{t.shareThisRoom}</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Guests scan the QR code to open the room and add photos instantly.
+                {t.guestsScanQR}
               </p>
             </div>
           </div>
@@ -254,7 +260,7 @@ export function EventQRModal({
           <div className="px-6 pb-6">
             {/* Event Name Card */}
             <div className="mb-4 rounded-xl border border-border/50 bg-muted/30 p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Room</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.roomLabel}</p>
               <p className="mt-1 text-lg font-semibold text-foreground">{event.name}</p>
             </div>
 
@@ -304,7 +310,7 @@ export function EventQRModal({
                 onClick={handleCopyCode}
                 className="group flex items-center gap-2 rounded-full border border-border/50 bg-muted/30 px-4 py-2 text-sm font-medium transition-all hover:bg-muted"
               >
-                <span className="text-muted-foreground">Code:</span>
+                <span className="text-muted-foreground">{t.roomCode}</span>
                 <span className="font-mono text-foreground">{event.slug}</span>
                 {copiedCode ? (
                   <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
@@ -327,7 +333,7 @@ export function EventQRModal({
                 ) : (
                   <Link2 className="h-4 w-4" />
                 )}
-                <span className="text-xs">Copy link</span>
+                <span className="text-xs">{t.copyLink}</span>
               </Button>
               
               <Button
@@ -337,7 +343,7 @@ export function EventQRModal({
                 onClick={handleDownload}
               >
                 <Download className="h-4 w-4" />
-                <span className="text-xs">Download QR</span>
+                <span className="text-xs">{t.downloadQR}</span>
               </Button>
               
               <Button
@@ -347,7 +353,7 @@ export function EventQRModal({
                 onClick={handlePrint}
               >
                 <Printer className="h-4 w-4" />
-                <span className="text-xs">Quick print</span>
+                <span className="text-xs">{t.quickPrint}</span>
               </Button>
               
               <Button
@@ -357,7 +363,7 @@ export function EventQRModal({
                 onClick={handleShare}
               >
                 <Share2 className="h-4 w-4" />
-                <span className="text-xs">Share</span>
+                <span className="text-xs">{tCommon.share}</span>
               </Button>
             </div>
             
@@ -371,7 +377,7 @@ export function EventQRModal({
                 onClick={(e) => e.stopPropagation()}
               >
                 <Printer className="h-3 w-3" />
-                Open advanced print page
+                {t.openAdvancedPrint}
                 <ExternalLink className="h-3 w-3" />
               </a>
             </div>
@@ -417,7 +423,7 @@ export function EventQRModal({
 
           {/* Event Code */}
           <div className="mb-4 text-center">
-            <p className="text-xs uppercase tracking-wide text-gray-400">Room code</p>
+            <p className="text-xs uppercase tracking-wide text-gray-400">{t.roomCode}</p>
             <p className="text-xl font-mono font-semibold text-gray-900">{event.slug}</p>
           </div>
 

@@ -18,6 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useTranslations } from '@/components/i18n-provider'
 import { trackEvent } from '@/lib/analytics/track-client'
 import {
   EVENT_DOWNLOAD_QUALITY_SELECTED,
@@ -29,6 +30,7 @@ const SWIPE_VELOCITY = 0.5
 
 const ImageWithLoading = ({ src, alt }) => {
   const [status, setStatus] = useState('loading')
+  const t = useTranslations('room')
 
   return (
     <div className="relative flex h-full w-full items-center justify-center">
@@ -40,7 +42,7 @@ const ImageWithLoading = ({ src, alt }) => {
       {status === 'error' && (
         <div className="flex flex-col items-center justify-center gap-2 text-white/40">
           <ImageOff className="h-10 w-10" />
-          <span className="text-sm">Failed to load</span>
+          <span className="text-sm">{t.failedToLoadImage}</span>
         </div>
       )}
       <img
@@ -92,6 +94,7 @@ const PhotoLightbox = ({
   })
 
   const photo = safePhotos[selectedIndex] || null
+  const t = useTranslations('room')
   const [isClosing, setIsClosing] = useState(false)
   const [isNavigating, setIsNavigating] = useState(false)
   const [downloaded, setDownloaded] = useState(false)
@@ -328,7 +331,7 @@ const PhotoLightbox = ({
       ref={containerRef}
       role="dialog"
       aria-modal="true"
-      aria-label="Photo viewer"
+      aria-label={t.photoViewer}
       className={`fixed inset-0 z-50 bg-black touch-none ${
         prefersReducedMotion ? '' : 'transition-opacity duration-200'
       } ${isClosing ? 'opacity-0' : 'opacity-100'}`}
@@ -356,7 +359,7 @@ const PhotoLightbox = ({
                     : 'text-white/80 hover:bg-white/10 hover:text-white'
                 }`}
                 onClick={(e) => e.stopPropagation()}
-                title={downloaded ? 'Downloaded!' : 'Download photo'}
+                title={downloaded ? t.downloaded : t.downloadPhoto}
               >
                 <Download className="h-5 w-5" />
               </Button>
@@ -371,9 +374,9 @@ const PhotoLightbox = ({
                 onClick={handleDownloadStandard}
               >
                 <div className="flex flex-col py-1">
-                  <span className="text-sm font-medium">Standard quality</span>
+                  <span className="text-sm font-medium">{t.standardQuality}</span>
                   <span className="text-xs text-muted-foreground">
-                    Great for sharing and social media
+                    {t.standardQualityDesc}
                   </span>
                 </div>
                 <Check className="ml-auto h-4 w-4 text-emerald-400 shrink-0" />
@@ -385,9 +388,9 @@ const PhotoLightbox = ({
                   onClick={handleDownloadOriginal}
                 >
                   <div className="flex flex-col py-1">
-                    <span className="text-sm font-medium">Original quality</span>
+                    <span className="text-sm font-medium">{t.originalQuality}</span>
                     <span className="text-xs text-muted-foreground">
-                      Full resolution as uploaded
+                      {t.originalQualityDesc}
                     </span>
                   </div>
                   <Check className="ml-auto h-4 w-4 text-emerald-400 shrink-0" />
@@ -402,9 +405,9 @@ const PhotoLightbox = ({
                   disabled={unlockBusy}
                 >
                   <div className="flex flex-col py-1">
-                    <span className="text-sm font-medium">Original quality</span>
+                    <span className="text-sm font-medium">{t.originalQuality}</span>
                     <span className="text-xs text-muted-foreground">
-                      Unlock for everyone in this room — €1.99
+                      {t.unlockForEveryone}
                     </span>
                   </div>
                   {unlockBusy ? (
@@ -419,9 +422,9 @@ const PhotoLightbox = ({
                   disabled
                 >
                   <div className="flex flex-col py-1">
-                    <span className="text-sm font-medium text-muted-foreground">Original quality</span>
+                    <span className="text-sm font-medium text-muted-foreground">{t.originalQuality}</span>
                     <span className="text-xs text-muted-foreground">
-                      Ask the room owner to unlock original downloads
+                      {t.askOwnerToUnlock}
                     </span>
                   </div>
                   <Lock className="ml-auto h-4 w-4 text-muted-foreground shrink-0" />
@@ -453,7 +456,7 @@ const PhotoLightbox = ({
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        <ImageWithLoading src={photo.url} alt={photo.originalName || 'Photo'} />
+        <ImageWithLoading src={photo.url} alt={photo.originalName || t.photo} />
       </div>
 
       {/* Navigation arrows (desktop) */}
@@ -485,7 +488,7 @@ const PhotoLightbox = ({
       {/* Mobile swipe hint */}
       <div className="pointer-events-none absolute bottom-16 left-0 right-0 flex justify-center sm:hidden">
         <div className="rounded-full bg-black/30 px-3 py-1 text-[10px] text-white/50 backdrop-blur-sm">
-          Swipe to navigate • Pull down to close
+          {t.swipeToNavigate}
         </div>
       </div>
 
@@ -493,11 +496,11 @@ const PhotoLightbox = ({
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pb-6 pt-12">
         <div className="mx-auto max-w-md text-center">
           <p className="truncate text-sm font-medium text-white/90">
-            {photo.originalName || 'Untitled'}
+            {photo.originalName || t.untitled}
           </p>
           {(photo.uploaderName || photo.caption) && (
             <p className="mt-0.5 truncate text-xs text-white/50">
-              {photo.uploaderName && `By ${photo.uploaderName}`}
+              {photo.uploaderName && `${t.by} ${photo.uploaderName}`}
               {photo.uploaderName && photo.caption && ' • '}
               {photo.caption}
             </p>

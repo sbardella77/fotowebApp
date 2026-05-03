@@ -3,6 +3,7 @@
 import { AlertCircle, ImageIcon, ImageOff, Loader2, RefreshCcw } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
+import { useTranslations } from '@/components/i18n-provider'
 import { getRenderablePhotos } from '@/lib/photo-utils'
 
 const skeletonItems = Array.from({ length: 12 }, (_, index) => index)
@@ -10,6 +11,7 @@ const skeletonItems = Array.from({ length: 12 }, (_, index) => index)
 const ImageWithLazyLoad = ({ src, alt, className, onLoad }) => {
   const [status, setStatus] = useState('loading')
   const [isVisible, setIsVisible] = useState(false)
+  const t = useTranslations('room')
   const imgRef = useRef(null)
 
   useEffect(() => {
@@ -86,9 +88,10 @@ const PhotoGalleryGrid = ({
   error = '',
   onRetry,
   onSelectPhoto,
-  emptyTitle = 'No photos yet',
-  emptyDescription = 'Be the first to add a photo.',
+  emptyTitle,
+  emptyDescription,
 }) => {
+  const t = useTranslations('room')
   // Defensive: normalize and filter photos through the crash-proof layer
   const safePhotos = getRenderablePhotos(photos)
 
@@ -110,13 +113,13 @@ const PhotoGalleryGrid = ({
       <div className="flex min-h-[180px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-muted/30 p-6 text-center">
         <AlertCircle className="h-7 w-7 text-destructive/60" />
         <div>
-          <p className="text-sm font-medium">Failed to load</p>
+          <p className="text-sm font-medium">{t.unableToLoadGallery}</p>
           <p className="text-xs text-muted-foreground">{error}</p>
         </div>
         {onRetry && (
           <Button variant="outline" size="sm" onClick={onRetry} className="h-8">
             <RefreshCcw className="mr-1.5 h-3.5 w-3.5" />
-            Retry
+            {t.retry}
           </Button>
         )}
       </div>
@@ -130,8 +133,8 @@ const PhotoGalleryGrid = ({
           <ImageIcon className="h-6 w-6 text-primary/60" />
         </div>
         <div>
-          <p className="text-sm font-medium">{emptyTitle}</p>
-          <p className="text-xs text-muted-foreground">{emptyDescription}</p>
+          <p className="text-sm font-medium">{emptyTitle || t.noPhotosYet}</p>
+          <p className="text-xs text-muted-foreground">{emptyDescription || t.beFirst}</p>
         </div>
       </div>
     )
@@ -145,11 +148,11 @@ const PhotoGalleryGrid = ({
           className="group relative aspect-square overflow-hidden bg-muted transition-transform duration-200 will-change-transform active:scale-95"
           onClick={() => onSelectPhoto?.(index)}
           type="button"
-          aria-label={`View photo ${index + 1} of ${safePhotos.length}${photo.originalName ? `, ${photo.originalName}` : ''}`}
+          aria-label={`${t.photo} ${index + 1} / ${safePhotos.length}${photo.originalName ? `, ${photo.originalName}` : ''}`}
         >
           <ImageWithLazyLoad
             src={photo.url}
-            alt={photo.originalName || `Photo ${index + 1}`}
+            alt={photo.originalName || `${t.photo} ${index + 1}`}
             className="transition-transform duration-300 group-hover:scale-105"
           />
           <div className="absolute inset-0 bg-black/0 transition-colors duration-200 group-hover:bg-black/10" />
