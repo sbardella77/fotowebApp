@@ -1,16 +1,9 @@
-import { BirthdayLandingPage } from '@/components/birthday-landing-page'
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
+import { LOCALES, DEFAULT_LOCALE, LOCALE_COOKIE_NAME } from '@/lib/i18n/config'
 
-export const metadata = {
-  title: 'Birthday Photo Sharing with QR Code | SnapRooms',
-  description:
-    'Collect birthday party photos from every guest in one simple gallery. Share a QR code, let friends upload instantly — no app, no signup.',
-  alternates: {
-    canonical: '/birthday-photo-sharing',
-  },
-}
-
-export const dynamic = 'force-dynamic'
-
-export default function BirthdayPhotoSharing() {
-  return <BirthdayLandingPage />
+export default function BirthdayRedirect() {
+  const cookieLocale = cookies().get(LOCALE_COOKIE_NAME)?.value
+  const locale = LOCALES.includes(cookieLocale) ? cookieLocale : DEFAULT_LOCALE
+  redirect(`/${locale}/birthday-photo-sharing`)
 }

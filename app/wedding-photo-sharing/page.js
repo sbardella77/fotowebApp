@@ -1,14 +1,9 @@
-import { WeddingLandingPage } from '@/components/wedding-landing-page'
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
+import { LOCALES, DEFAULT_LOCALE, LOCALE_COOKIE_NAME } from '@/lib/i18n/config'
 
-export const metadata = {
-  title: 'Wedding Photo Sharing with QR Code | SnapRooms',
-  description:
-    'Collect wedding guest photos in one simple room. Share a QR code, let guests upload instantly, and keep every moment together — no app, no signup.',
-  alternates: {
-    canonical: '/wedding-photo-sharing',
-  },
-}
-
-export default function WeddingPhotoSharingPage() {
-  return <WeddingLandingPage />
+export default function WeddingRedirect() {
+  const cookieLocale = cookies().get(LOCALE_COOKIE_NAME)?.value
+  const locale = LOCALES.includes(cookieLocale) ? cookieLocale : DEFAULT_LOCALE
+  redirect(`/${locale}/wedding-photo-sharing`)
 }

@@ -38,13 +38,13 @@ function Section({ number, title, children }) {
   )
 }
 
-export function TermsPage() {
+export function TermsPage({ locale = 'en' }) {
   useScrollReveal()
 
   useEffect(() => {
-    trackPageView('landing', { variant: 'terms' })
-    trackEvent(EVENT_LANDING_VIEW, { variant: 'terms' })
-  }, [])
+    trackPageView('landing', { variant: 'terms', locale })
+    trackEvent(EVENT_LANDING_VIEW, { variant: 'terms', locale })
+  }, [locale])
 
   return (
     <div className="dark relative min-h-screen bg-background font-body text-foreground">

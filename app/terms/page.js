@@ -1,16 +1,9 @@
-import { TermsPage } from '@/components/terms-page'
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
+import { LOCALES, DEFAULT_LOCALE, LOCALE_COOKIE_NAME } from '@/lib/i18n/config'
 
-export const metadata = {
-  title: 'Terms of Service — SnapRooms',
-  description:
-    'Terms of Service and commercial use terms for SnapRooms. Read our product-ready terms for hosts, photographers, and event professionals.',
-  alternates: {
-    canonical: '/terms',
-  },
-}
-
-export const dynamic = 'force-dynamic'
-
-export default function Terms() {
-  return <TermsPage />
+export default function TermsRedirect() {
+  const cookieLocale = cookies().get(LOCALE_COOKIE_NAME)?.value
+  const locale = LOCALES.includes(cookieLocale) ? cookieLocale : DEFAULT_LOCALE
+  redirect(`/${locale}/terms`)
 }

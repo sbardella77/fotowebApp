@@ -1,16 +1,9 @@
-import { PhotographersLandingPage } from '@/components/photographers-landing-page'
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
+import { LOCALES, DEFAULT_LOCALE, LOCALE_COOKIE_NAME } from '@/lib/i18n/config'
 
-export const metadata = {
-  title: 'Wedding Photo Sharing for Photographers — SnapRooms',
-  description:
-    'Offer private photo collection as part of your wedding photography packages. Guests upload instantly via QR code — no app, no signup. Built for professionals.',
-  alternates: {
-    canonical: '/for-wedding-photographers',
-  },
-}
-
-export const dynamic = 'force-dynamic'
-
-export default function ForWeddingPhotographers() {
-  return <PhotographersLandingPage />
+export default function PhotographersRedirect() {
+  const cookieLocale = cookies().get(LOCALE_COOKIE_NAME)?.value
+  const locale = LOCALES.includes(cookieLocale) ? cookieLocale : DEFAULT_LOCALE
+  redirect(`/${locale}/for-wedding-photographers`)
 }

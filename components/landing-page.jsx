@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { InstallCta } from '@/components/install-cta'
 import { trackEvent } from '@/lib/analytics/track-client'
 import { EVENT_HERO_CTA_CLICKED } from '@/lib/analytics/events'
 
@@ -602,6 +603,10 @@ export function LandingPage({
           </div>
         </div>
       </section>
+
+      <div className="container mx-auto max-w-3xl px-4 pb-6">
+        <InstallCta mode="landing" />
+      </div>
 
       {/* Footer */}
       <footer className="border-t border-white/[0.07] bg-[#0D1220] py-8">

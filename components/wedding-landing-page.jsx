@@ -27,6 +27,8 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { LanguageSwitcher } from '@/components/language-switcher'
+import { InstallCta } from '@/components/install-cta'
 import {
   Accordion,
   AccordionContent,
@@ -60,7 +62,7 @@ function useScrollReveal() {
   }, [])
 }
 
-export function WeddingLandingPage() {
+export function WeddingLandingPage({ locale = 'en' }) {
   const router = useRouter()
   const [eventName, setEventName] = useState('')
   const [ownerEmail, setOwnerEmail] = useState('')
@@ -132,6 +134,7 @@ export function WeddingLandingPage() {
             >
               FAQ
             </button>
+            <LanguageSwitcher />
             <Button size="sm" variant="ghost" asChild className="font-body">
               <a href="/dashboard/login">Sign in</a>
             </Button>
@@ -749,6 +752,10 @@ export function WeddingLandingPage() {
           </div>
         </div>
       </section>
+
+      <div className="container mx-auto max-w-3xl px-4 pb-6">
+        <InstallCta mode="landing" />
+      </div>
 
       {/* Footer */}
       <footer className="border-t border-white/[0.07] bg-[#0D1220] py-8">

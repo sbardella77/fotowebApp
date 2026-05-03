@@ -1,16 +1,9 @@
-import { CorporateLandingPage } from '@/components/corporate-landing-page'
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
+import { LOCALES, DEFAULT_LOCALE, LOCALE_COOKIE_NAME } from '@/lib/i18n/config'
 
-export const metadata = {
-  title: 'Corporate Event Photo Collection — SnapRooms',
-  description:
-    'Collect attendee photos from conferences, offsites, and company events with a simple QR code. No app installs, no IT setup, instant galleries.',
-  alternates: {
-    canonical: '/corporate-event-photo-sharing',
-  },
-}
-
-export const dynamic = 'force-dynamic'
-
-export default function CorporateEventPhotoSharing() {
-  return <CorporateLandingPage />
+export default function CorporateRedirect() {
+  const cookieLocale = cookies().get(LOCALE_COOKIE_NAME)?.value
+  const locale = LOCALES.includes(cookieLocale) ? cookieLocale : DEFAULT_LOCALE
+  redirect(`/${locale}/corporate-event-photo-sharing`)
 }

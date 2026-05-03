@@ -1,6 +1,10 @@
 import './globals.css'
 import { Syne, IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google'
+import { cookies } from 'next/headers'
 import { AnalyticsProvider } from '@/components/analytics-provider'
+import { I18nProvider } from '@/components/i18n-provider'
+import { LocaleHtmlAttributes } from '@/components/locale-html-attributes'
+import { LOCALES, DEFAULT_LOCALE, LOCALE_COOKIE_NAME } from '@/lib/i18n/config'
 
 const syne = Syne({
   subsets: ['latin'],
@@ -45,17 +49,23 @@ export const metadata = {
 }
 
 function App({ children }) {
+  const cookieLocale = cookies().get(LOCALE_COOKIE_NAME)?.value
+  const locale = LOCALES.includes(cookieLocale) ? cookieLocale : DEFAULT_LOCALE
+
   return (
-    <html lang="en">
+    <html lang={locale} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: 'window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);' }} />
       </head>
       <body
         className={`${syne.variable} ${ibmPlexSans.variable} ${ibmPlexMono.variable} min-h-screen bg-background font-sans text-foreground antialiased`}
       >
-        <AnalyticsProvider>
-          {children}
-        </AnalyticsProvider>
+        <I18nProvider initialLocale={locale}>
+          <LocaleHtmlAttributes />
+          <AnalyticsProvider>
+            {children}
+          </AnalyticsProvider>
+        </I18nProvider>
       </body>
     </html>
   )

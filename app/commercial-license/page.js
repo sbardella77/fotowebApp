@@ -1,16 +1,9 @@
-import { CommercialLicensePage } from '@/components/commercial-license-page'
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
+import { LOCALES, DEFAULT_LOCALE, LOCALE_COOKIE_NAME } from '@/lib/i18n/config'
 
-export const metadata = {
-  title: 'Commercial License & Professional Terms — SnapRooms',
-  description:
-    'Commercial use terms for photographers, planners, venues, and agencies using SnapRooms as part of their professional services.',
-  alternates: {
-    canonical: '/commercial-license',
-  },
-}
-
-export const dynamic = 'force-dynamic'
-
-export default function CommercialLicense() {
-  return <CommercialLicensePage />
+export default function CommercialRedirect() {
+  const cookieLocale = cookies().get(LOCALE_COOKIE_NAME)?.value
+  const locale = LOCALES.includes(cookieLocale) ? cookieLocale : DEFAULT_LOCALE
+  redirect(`/${locale}/commercial-license`)
 }

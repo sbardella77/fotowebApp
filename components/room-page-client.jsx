@@ -40,6 +40,9 @@ import {
   EVENT_QR_OPENED,
   EVENT_ORIGINAL_DOWNLOAD_CHECKOUT_CANCELLED,
 } from '@/lib/analytics/events'
+import { useTranslations } from '@/components/i18n-provider'
+import { LanguageSwitcher } from '@/components/language-switcher'
+import { InstallCta } from '@/components/install-cta'
 
 
 const CHUNK_SIZE = 1024 * 1024
@@ -90,9 +93,10 @@ const useToast = () => {
 }
 
 function NewRoomShareBanner({ event, baseUrl, onDismiss, showToast, onShowQR }) {
+  const t = useTranslations('room')
   const eventUrl = `${baseUrl}/event/${event.slug}`
 
-  const shareText = `📸 Photos from ${event.name}\n\nAdd yours here 👇\n${eventUrl}`
+  const shareText = `📸 ${event.name}\n\n${eventUrl}`
 
   const openWhatsApp = () => {
     trackEvent(EVENT_WHATSAPP_SHARE_CLICKED, { room_slug: event?.slug, source: 'new_room_banner' })
@@ -106,7 +110,7 @@ function NewRoomShareBanner({ event, baseUrl, onDismiss, showToast, onShowQR }) 
 
   const openTelegram = () => {
     try {
-      const url = `https://t.me/share/url?url=${encodeURIComponent(eventUrl)}&text=${encodeURIComponent(`📸 Photos from ${event.name}`)}`
+      const url = `https://t.me/share/url?url=${encodeURIComponent(eventUrl)}&text=${encodeURIComponent(`📸 ${event.name}`)}`
       window.open(url, '_blank')
     } catch (e) {
       console.warn('[room] failed to open Telegram', e)
@@ -118,12 +122,12 @@ function NewRoomShareBanner({ event, baseUrl, onDismiss, showToast, onShowQR }) 
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(eventUrl)
-        showToast('Link copied!')
+        showToast(t.copied + '!')
       } else {
-        showToast('Copy not supported on this device', 'error')
+        showToast(t.copy + ' ' + t.error, 'error')
       }
     } catch {
-      showToast('Failed to copy', 'error')
+      showToast(t.error, 'error')
     }
   }
 
@@ -132,9 +136,9 @@ function NewRoomShareBanner({ event, baseUrl, onDismiss, showToast, onShowQR }) 
       <div className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="font-display text-base font-bold text-white">Your room is ready!</p>
+            <p className="font-display text-base font-bold text-white">{t.inviteOthers}</p>
             <p className="mt-1 text-sm font-light text-muted-foreground">
-              Invite guests to start sharing photos.
+              {t.noAppNeeded}
             </p>
           </div>
           <Button
@@ -174,7 +178,7 @@ function NewRoomShareBanner({ event, baseUrl, onDismiss, showToast, onShowQR }) 
             onClick={copyLink}
           >
             <Copy className="h-3.5 w-3.5" />
-            Copy link
+            {t.copyLink}
           </Button>
           <Button
             size="sm"
@@ -183,7 +187,7 @@ function NewRoomShareBanner({ event, baseUrl, onDismiss, showToast, onShowQR }) 
             onClick={onShowQR}
           >
             <QrCode className="h-3.5 w-3.5" />
-            QR code
+            {t.showQR}
           </Button>
         </div>
       </div>
@@ -214,6 +218,7 @@ function RoomNotFound() {
 }
 
 export default function RoomPageClient({ slug, isNew }) {
+  const t = useTranslations('room')
   const [guestName, setGuestName] = useState('')
   const [activeEvent, setActiveEvent] = useState(null)
   const [uploads, setUploads] = useState([])
@@ -256,8 +261,8 @@ export default function RoomPageClient({ slug, isNew }) {
     const params = new URLSearchParams(window.location.search)
     const unlock = params.get('unlock')
     if (unlock === 'success') {
-      setUnlockMessage('Original quality unlocked for this room!')
-      showToast('Original quality unlocked for this room!')
+      setUnlockMessage(t.originalQuality + ' ' + t.downloadAvailable)
+      showToast(t.originalQuality + ' ' + t.downloadAvailable)
       if (activeEvent?.slug) {
         loadEvent(activeEvent.slug, { silent: true })
       }
@@ -389,7 +394,7 @@ export default function RoomPageClient({ slug, isNew }) {
       }
 
       if (initPayload.session?.uploadStrategy === 'vercel-blob-client') {
-        updateUpload({ progress: 8, status: 'Uploading to event gallery storage' })
+        updateUpload({ progress: 8, status: t.uploading + ' ' + t.galleryTitle })
 
         const blob = await upload(initPayload.session.pathname || file.name, file, {
           access: 'public',
@@ -440,7 +445,7 @@ export default function RoomPageClient({ slug, isNew }) {
         return true
       }
 
-      updateUpload({ progress: 8, status: 'Uploading...' })
+      updateUpload({ progress: 8, status: t.uploading })
 
       for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex += 1) {
         const start = chunkIndex * CHUNK_SIZE
@@ -560,7 +565,7 @@ export default function RoomPageClient({ slug, isNew }) {
     setUploadSuccess(allSucceeded)
     if (allSucceeded) {
       setShowViralSection(true)
-      showToast(supportedFiles.length === 1 ? 'Your photo is now in the room' : 'Your photos are now in the room')
+      showToast(t.uploadSuccess)
 
       if (uploadCompletedTracked.current) {
         trackEvent(EVENT_SECOND_UPLOAD_COMPLETED, {
@@ -678,15 +683,18 @@ export default function RoomPageClient({ slug, isNew }) {
             </div>
             <span className="font-display text-sm font-bold tracking-tight text-primary">SnapRooms</span>
           </a>
-          {ownerSession?.authenticated && (
-            <a
-              href="/dashboard"
-              className="flex items-center gap-1.5 text-sm font-light text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <LayoutDashboard className="h-3.5 w-3.5" />
-              Dashboard
-            </a>
-          )}
+          <div className="flex items-center gap-2">
+            <LanguageSwitcher />
+            {ownerSession?.authenticated && (
+              <a
+                href="/dashboard"
+                className="flex items-center gap-1.5 text-sm font-light text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <LayoutDashboard className="h-3.5 w-3.5" />
+                Dashboard
+              </a>
+            )}
+          </div>
         </div>
       </header>
 
@@ -695,7 +703,7 @@ export default function RoomPageClient({ slug, isNew }) {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <Camera className="h-6 w-6" />
           </div>
-          <p className="text-lg font-light text-foreground">Opening your room...</p>
+          <p className="text-lg font-light text-foreground">{t.loading}...</p>
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : (
@@ -938,7 +946,7 @@ export default function RoomPageClient({ slug, isNew }) {
                       }}
                     >
                       <Camera className="h-5 w-5" />
-                      Snap your photo
+                      {t.snapPhoto}
                     </Button>
                     <Button
                       size="lg"
@@ -953,13 +961,13 @@ export default function RoomPageClient({ slug, isNew }) {
                       }}
                     >
                       <Upload className="h-5 w-5" />
-                      Upload your photo
+                      {t.uploadPhoto}
                     </Button>
                   </div>
                 )}
 
                 <p className="mt-4 text-xs font-light text-muted-foreground">
-                  No app. No signup. Works instantly on any phone.
+                  {t.noAppNeeded}
                 </p>
               </div>
             </div>
@@ -987,7 +995,7 @@ export default function RoomPageClient({ slug, isNew }) {
                 <div className="p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-display text-base font-bold text-white">Invite others to share</p>
+                      <p className="font-display text-base font-bold text-white">{t.inviteOthers}</p>
                       <p className="mt-1 text-sm font-light text-muted-foreground">
                         The more people share, the better the memories.
                       </p>
@@ -1020,7 +1028,7 @@ export default function RoomPageClient({ slug, isNew }) {
                       <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
                       </svg>
-                      Share on WhatsApp
+                      {t.shareOnWhatsApp}
                     </Button>
                     <Button
                       size="sm"
@@ -1031,17 +1039,17 @@ export default function RoomPageClient({ slug, isNew }) {
                         try {
                           if (navigator.clipboard && navigator.clipboard.writeText) {
                             await navigator.clipboard.writeText(`${baseUrl}/event/${activeEvent.slug}`)
-                            showToast('Link copied!')
+                            showToast(t.copied + '!')
                           } else {
-                            showToast('Copy not supported on this device', 'error')
+                            showToast(t.copy + ' ' + t.error, 'error')
                           }
                         } catch {
-                          showToast('Failed to copy', 'error')
+                          showToast(t.error, 'error')
                         }
                       }}
                     >
                       <Copy className="h-3.5 w-3.5" />
-                      Copy link
+                      {t.copyLink}
                     </Button>
                     <Button
                       size="sm"
@@ -1057,7 +1065,7 @@ export default function RoomPageClient({ slug, isNew }) {
                         if (typeof navigator !== 'undefined' && navigator.share) {
                           try {
                             await navigator.share(shareData)
-                            showToast('Shared!')
+                            showToast(t.share + '!')
                           } catch {
                             // user cancelled
                           }
@@ -1065,18 +1073,18 @@ export default function RoomPageClient({ slug, isNew }) {
                           try {
                             if (navigator.clipboard && navigator.clipboard.writeText) {
                               await navigator.clipboard.writeText(`${baseUrl}/event/${activeEvent.slug}`)
-                              showToast('Link copied!')
+                              showToast(t.copied + '!')
                             } else {
-                              showToast('Share not supported on this device', 'error')
+                              showToast(t.share + ' ' + t.error, 'error')
                             }
                           } catch {
-                            showToast('Failed to copy', 'error')
+                            showToast(t.error, 'error')
                           }
                         }
                       }}
                     >
                       <Share2 className="h-3.5 w-3.5" />
-                      Share
+                      {t.nativeShare}
                     </Button>
                     <Button
                       size="sm"
@@ -1088,7 +1096,7 @@ export default function RoomPageClient({ slug, isNew }) {
                       }}
                     >
                       <QrCode className="h-3.5 w-3.5" />
-                      QR code
+                      {t.showQR}
                     </Button>
                   </div>
                 </div>
@@ -1107,6 +1115,8 @@ export default function RoomPageClient({ slug, isNew }) {
                 }}
               />
             )}
+
+            <InstallCta mode="room" className="mt-4" />
 
             {uploads.length > 0 && (
               <div className="mt-4 space-y-2">
@@ -1134,7 +1144,7 @@ export default function RoomPageClient({ slug, isNew }) {
               <div className="p-5 sm:p-6">
                 <div className="flex items-center gap-3">
                   <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
-                    Room photos
+                    {t.galleryTitle}
                   </span>
                   <Badge variant="secondary" className="rounded-full font-mono text-[0.6rem] bg-[#111827] text-muted-foreground border-white/[0.07]">
                     {galleryPhotos.length}
@@ -1146,7 +1156,7 @@ export default function RoomPageClient({ slug, isNew }) {
                   </p>
                 )}
                 <p className="mt-1 text-sm font-light text-muted-foreground">
-                  Tap any photo to view and download. Original quality may require a one-time unlock on Free rooms.
+                  {t.downloadAvailable}
                 </p>
 
                 <div className="mt-5">
@@ -1181,7 +1191,7 @@ export default function RoomPageClient({ slug, isNew }) {
           }}
         >
           <Camera className="h-4 w-4" />
-          Snap photo
+          {t.snapPhoto}
         </Button>
       </div>
 

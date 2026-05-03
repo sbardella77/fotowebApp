@@ -1,16 +1,9 @@
-import { PlannersLandingPage } from '@/components/planners-landing-page'
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
+import { LOCALES, DEFAULT_LOCALE, LOCALE_COOKIE_NAME } from '@/lib/i18n/config'
 
-export const metadata = {
-  title: 'Event Photo Collection for Planners — SnapRooms',
-  description:
-    'One dashboard for every event you plan. Collect guest photos instantly with QR codes, manage multiple rooms, and deliver galleries to clients.',
-  alternates: {
-    canonical: '/for-event-planners',
-  },
-}
-
-export const dynamic = 'force-dynamic'
-
-export default function ForEventPlanners() {
-  return <PlannersLandingPage />
+export default function PlannersRedirect() {
+  const cookieLocale = cookies().get(LOCALE_COOKIE_NAME)?.value
+  const locale = LOCALES.includes(cookieLocale) ? cookieLocale : DEFAULT_LOCALE
+  redirect(`/${locale}/for-event-planners`)
 }

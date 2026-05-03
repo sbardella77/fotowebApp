@@ -1,20 +1,40 @@
 {
   "name": "SnapRooms",
   "short_name": "SnapRooms",
+  "description": "Collect every guest photo in one room. No app required.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#080C14",
   "theme_color": "#080C14",
+  "orientation": "portrait",
+  "categories": ["photo", "social", "utilities"],
   "icons": [
-    {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ],
+  "screenshots": [
     {
       "src": "/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "SnapRooms gallery view"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "SnapRooms mobile view"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Create room",
+      "short_name": "Create",
+      "description": "Create a new photo room",
+      "url": "/",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }
