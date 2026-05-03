@@ -10,6 +10,7 @@ import {
   EVENT_PHOTOGRAPHER_UPLOAD_COMPLETED,
   EVENT_PHOTOGRAPHER_UPLOAD_FAILED,
 } from '@/lib/analytics/events'
+import { useTranslations } from '@/components/i18n-provider'
 
 export default function PhotographerUploadPageClient({ token }) {
   const [loading, setLoading] = useState(true)
@@ -20,6 +21,8 @@ export default function PhotographerUploadPageClient({ token }) {
   const [assetsLoading, setAssetsLoading] = useState(false)
   const [uploadSuccess, setUploadSuccess] = useState(false)
   const fileInputRef = useRef(null)
+  const t = useTranslations('photographerUpload')
+  const tCommon = useTranslations('common')
 
   useEffect(() => {
     validateToken()
@@ -33,12 +36,12 @@ export default function PhotographerUploadPageClient({ token }) {
       const response = await fetch(`/api/photographer-upload/${token}`, { cache: 'no-store' })
       const payload = await response.json()
       if (!response.ok) {
-        throw new Error(payload.error || 'Invalid or expired link')
+        throw new Error(payload.error || t.invalidLink)
       }
       setEvent(payload.event)
       await loadAssets()
     } catch (err) {
-      setError(err.message || 'This link is invalid or has expired.')
+      setError(err.message || t.invalidLink)
     } finally {
       setLoading(false)
     }
@@ -92,7 +95,7 @@ export default function PhotographerUploadPageClient({ token }) {
       const initPayload = await initResponse.json()
 
       if (!initResponse.ok) {
-        throw new Error(initPayload.error || 'Unable to initialize upload')
+        throw new Error(initPayload.error || t.unableToInitialize)
       }
 
       if (initPayload.session?.uploadStrategy === 'vercel-blob-client') {
@@ -123,7 +126,7 @@ export default function PhotographerUploadPageClient({ token }) {
         const completePayload = await completeResponse.json()
 
         if (!completeResponse.ok) {
-          throw new Error(completePayload.error || 'Unable to finalize upload')
+          throw new Error(completePayload.error || t.unableToFinalize)
         }
 
         trackEvent(EVENT_PHOTOGRAPHER_UPLOAD_COMPLETED, { room_slug: event.slug, asset_id: completePayload.asset?.id, file_size: file.size })
@@ -147,7 +150,7 @@ export default function PhotographerUploadPageClient({ token }) {
           })
 
           if (!chunkResponse.ok) {
-            throw new Error('Chunk upload failed')
+            throw new Error(t.chunkFailed)
           }
         }
 
@@ -159,7 +162,7 @@ export default function PhotographerUploadPageClient({ token }) {
         const completePayload = await completeResponse.json()
 
         if (!completeResponse.ok) {
-          throw new Error(completePayload.error || 'Unable to finalize upload')
+          throw new Error(completePayload.error || t.unableToFinalize)
         }
 
         trackEvent(EVENT_PHOTOGRAPHER_UPLOAD_COMPLETED, { room_slug: event.slug, asset_id: completePayload.asset?.id, file_size: file.size })
@@ -168,7 +171,7 @@ export default function PhotographerUploadPageClient({ token }) {
       }
     } catch (err) {
       trackEvent(EVENT_PHOTOGRAPHER_UPLOAD_FAILED, { room_slug: event?.slug, error: err.message })
-      setError(err.message || 'Upload failed. Please try again.')
+      setError(err.message || t.uploadFailed)
     } finally {
       setUploading(false)
       if (fileInputRef.current) {
@@ -184,7 +187,7 @@ export default function PhotographerUploadPageClient({ token }) {
         <div className="flex min-h-screen items-center justify-center">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Loading...
+            {t.loading}
           </div>
         </div>
       </main>
@@ -200,7 +203,7 @@ export default function PhotographerUploadPageClient({ token }) {
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-red-500/10 text-red-400">
               <Camera className="h-6 w-6" />
             </div>
-            <h1 className="font-display text-xl font-bold text-white">Link unavailable</h1>
+            <h1 className="font-display text-xl font-bold text-white">{t.linkUnavailable}</h1>
             <p className="mt-2 text-sm font-light text-muted-foreground">{error}</p>
           </div>
         </div>
@@ -227,13 +230,13 @@ export default function PhotographerUploadPageClient({ token }) {
           <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card">
             <div className="p-5 sm:p-6">
               <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
-                Private upload
+                {t.privateUpload}
               </span>
               <h1 className="mt-1 font-display text-xl font-bold tracking-tight text-white sm:text-2xl">
                 {event?.name}
               </h1>
               <p className="mt-2 text-sm font-light text-muted-foreground">
-                Upload original-quality files privately. Only visible to the room owner. Separate from guest photos.
+                {t.uploadDesc}
               </p>
             </div>
           </div>
@@ -244,9 +247,9 @@ export default function PhotographerUploadPageClient({ token }) {
               <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <FolderHeart className="h-6 w-6" />
               </div>
-              <h2 className="font-display text-lg font-bold text-white">Upload professional files</h2>
+              <h2 className="font-display text-lg font-bold text-white">{t.uploadProfessionalFiles}</h2>
               <p className="mt-2 text-sm font-light text-muted-foreground">
-                JPEG or PNG up to 100 MB. Files are stored privately and never shown in the public gallery.
+                {t.fileTypes}
               </p>
 
               <input
@@ -269,14 +272,14 @@ export default function PhotographerUploadPageClient({ token }) {
                   ) : (
                     <Upload className="h-4 w-4" />
                   )}
-                  {uploading ? 'Uploading...' : 'Select file'}
+                  {uploading ? t.uploading : t.selectFile}
                 </Button>
               </div>
 
               {uploadSuccess && (
                 <div className="mt-4 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-5 py-3 text-sm font-medium text-emerald-400">
                   <CheckCircle2 className="mr-1.5 inline h-4 w-4" />
-                  File uploaded successfully
+                  {t.uploadSuccess}
                 </div>
               )}
 
@@ -293,7 +296,7 @@ export default function PhotographerUploadPageClient({ token }) {
             <div className="p-5 sm:p-6">
               <div className="flex items-center gap-3">
                 <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
-                  Your uploads
+                  {t.yourUploads}
                 </span>
               </div>
 
@@ -301,14 +304,14 @@ export default function PhotographerUploadPageClient({ token }) {
                 {assetsLoading ? (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading...
+                    {t.loading}
                   </div>
                 ) : assets.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-white/[0.07] bg-[#0D1220] p-8 text-center">
                     <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
                       <ImagePlus className="h-5 w-5" />
                     </div>
-                    <p className="text-sm font-light text-muted-foreground">No uploads yet</p>
+                    <p className="text-sm font-light text-muted-foreground">{t.noUploadsYet}</p>
                   </div>
                 ) : (
                   <div className="space-y-3">

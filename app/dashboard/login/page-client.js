@@ -6,8 +6,10 @@ import { Camera, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { identifyUser } from '@/lib/analytics/track-client'
+import { useTranslations } from '@/components/i18n-provider'
 
 export default function LoginPageClient({ redirect }) {
+  const t = useTranslations('auth')
   const router = useRouter()
 
   const [email, setEmail] = useState('')
@@ -32,7 +34,7 @@ export default function LoginPageClient({ redirect }) {
       const payload = await response.json()
 
       if (!response.ok) {
-        throw new Error(payload.error || 'Sign in failed')
+        throw new Error(payload.error || t.signInFailed)
       }
 
       identifyUser(email.trim())
@@ -43,14 +45,14 @@ export default function LoginPageClient({ redirect }) {
         router.push('/dashboard')
       }
     } catch (err) {
-      setError(err.message || 'Sign in failed')
+      setError(err.message || t.signInFailed)
       setBusy(false)
     }
   }
 
   const handleForgot = async () => {
     if (!email.trim()) {
-      setError('Enter your email first')
+      setError(t.enterEmailFirst)
       return
     }
     setError('')
@@ -65,12 +67,12 @@ export default function LoginPageClient({ redirect }) {
       const payload = await response.json()
 
       if (!response.ok) {
-        throw new Error(payload.error || 'Unable to send reset link')
+        throw new Error(payload.error || t.unableToSendReset)
       }
 
       setForgotSent(true)
     } catch (err) {
-      setError(err.message || 'Unable to send reset link')
+      setError(err.message || t.unableToSendReset)
     } finally {
       setBusy(false)
     }
@@ -93,7 +95,7 @@ export default function LoginPageClient({ redirect }) {
             href="/"
             className="text-sm font-light text-muted-foreground transition-colors hover:text-foreground"
           >
-            Back to home
+            {t.backToHome}
           </a>
         </div>
       </header>
@@ -105,18 +107,18 @@ export default function LoginPageClient({ redirect }) {
           <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card">
             <div className="p-6 sm:p-8">
               <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-                Owner access
+                {t.ownerAccess}
               </span>
               <h1 className="mt-2 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                Sign in to manage your rooms
+                {t.signInToManage}
               </h1>
               <p className="mt-2 text-sm font-light text-muted-foreground">
-                Access your rooms, share them again, and manage uploads in one place.
+                {t.accessYourRooms}
               </p>
 
               <form onSubmit={handleLogin} className="mt-6 space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">Email</label>
+                  <label className="text-sm font-medium text-foreground">{t.emailLabel}</label>
                   <Input
                     type="email"
                     value={email}
@@ -127,7 +129,7 @@ export default function LoginPageClient({ redirect }) {
                         passwordRef.current?.focus()
                       }
                     }}
-                    placeholder="you@example.com"
+                    placeholder={t.emailPlaceholder}
                     disabled={busy}
                     required
                     autoFocus
@@ -136,14 +138,14 @@ export default function LoginPageClient({ redirect }) {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">Password</label>
+                  <label className="text-sm font-medium text-foreground">{t.passwordLabel}</label>
                   <div className="relative">
                     <Input
                       ref={passwordRef}
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Enter your password"
+                      placeholder={t.passwordPlaceholder}
                       disabled={busy}
                       required
                       className="h-11 border-white/[0.07] bg-[#0D1220] pr-10 text-foreground placeholder:text-muted-foreground/60"
@@ -167,7 +169,7 @@ export default function LoginPageClient({ redirect }) {
 
                 {forgotSent && (
                   <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm font-light text-emerald-400">
-                    If that email is linked to an account, we&apos;ve sent a reset link.
+                    {t.resetSent}
                   </div>
                 )}
 
@@ -176,11 +178,11 @@ export default function LoginPageClient({ redirect }) {
                   className="h-11 w-full glow-blue"
                   disabled={busy || !email.trim() || !password}
                 >
-                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sign in'}
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.signIn}
                 </Button>
 
                 <p className="text-center text-xs font-light text-muted-foreground/70">
-                  Your rooms and photos are private and secure.
+                  {t.trustNote}
                 </p>
               </form>
 
@@ -191,7 +193,7 @@ export default function LoginPageClient({ redirect }) {
                   disabled={busy}
                   className="text-sm font-light text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
                 >
-                  Forgot password?
+                  {t.forgotPassword}
                 </button>
               </div>
             </div>
@@ -200,14 +202,14 @@ export default function LoginPageClient({ redirect }) {
           {/* Footer */}
           <div className="mt-6 space-y-2 text-center">
             <p className="text-xs font-light text-muted-foreground">
-              Don&apos;t have rooms yet?{' '}
+              {t.noRoomsYet}{' '}
               <a href="/" className="text-primary transition-colors hover:underline">
-                Create your first room
+                {t.createYourFirstRoom}
               </a>
             </p>
             <p className="text-xs font-light text-muted-foreground/70">
               <a href="/privacy" className="transition-colors hover:text-muted-foreground">
-                Privacy Policy
+                {t.privacyPolicy}
               </a>
             </p>
           </div>

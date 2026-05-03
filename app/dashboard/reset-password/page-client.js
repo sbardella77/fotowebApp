@@ -6,8 +6,10 @@ import { Eye, EyeOff, Loader2, Lock, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { useTranslations } from '@/components/i18n-provider'
 
 export default function ResetPasswordPageClient({ token }) {
+  const t = useTranslations('auth')
   const router = useRouter()
 
   const [password, setPassword] = useState('')
@@ -20,7 +22,7 @@ export default function ResetPasswordPageClient({ token }) {
 
   useEffect(() => {
     if (!token) {
-      setError('Missing reset token')
+      setError(t.missingResetToken)
       setChecking(false)
       return
     }
@@ -31,25 +33,25 @@ export default function ResetPasswordPageClient({ token }) {
         if (data.valid) {
           setValid(true)
         } else {
-          setError(data.error || 'Invalid or expired link')
+          setError(data.error || t.invalidOrExpiredLink)
         }
       })
-      .catch(() => setError('Unable to verify link'))
+      .catch(() => setError(t.unableToVerifyLink))
       .finally(() => setChecking(false))
   }, [token])
 
-  const strength = validatePassword(password)
+  const strength = validatePassword(password, t)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
 
     if (!strength.valid) {
-      setError(`Password must have: ${strength.errors.join(', ')}`)
+      setError(`${t.passwordRequirements} ${strength.errors.join(', ')}`)
       return
     }
     if (password !== confirm) {
-      setError('Passwords do not match')
+      setError(t.passwordsDoNotMatch)
       return
     }
 
@@ -63,12 +65,12 @@ export default function ResetPasswordPageClient({ token }) {
       const payload = await response.json()
 
       if (!response.ok) {
-        throw new Error(payload.error || 'Unable to reset password')
+        throw new Error(payload.error || t.unableToResetPassword)
       }
 
       router.push('/dashboard')
     } catch (err) {
-      setError(err.message || 'Unable to reset password')
+      setError(err.message || t.unableToResetPassword)
       setBusy(false)
     }
   }
@@ -86,12 +88,12 @@ export default function ResetPasswordPageClient({ token }) {
       <main className="flex min-h-screen items-center justify-center bg-background px-4">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle>Link expired</CardTitle>
-            <CardDescription>{error || 'This reset link is no longer valid.'}</CardDescription>
+            <CardTitle>{t.linkExpired}</CardTitle>
+            <CardDescription>{error || t.resetLinkInvalid}</CardDescription>
           </CardHeader>
           <CardContent>
             <Button asChild className="w-full">
-              <a href="/dashboard/login">Go to sign in</a>
+              <a href="/dashboard/login">{t.goToSignIn}</a>
             </Button>
           </CardContent>
         </Card>
@@ -116,9 +118,9 @@ export default function ResetPasswordPageClient({ token }) {
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               <RefreshCw className="h-6 w-6" />
             </div>
-            <h1 className="text-2xl font-semibold tracking-tight">Reset your password</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">{t.resetYourPassword}</h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Choose a new password for your account.
+              {t.chooseNewPassword}
             </p>
           </div>
 
@@ -126,7 +128,7 @@ export default function ResetPasswordPageClient({ token }) {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Lock className="h-5 w-5 text-primary" />
-                New password
+                {t.newPassword}
               </CardTitle>
               <CardDescription>
                 Make it strong and memorable.
@@ -141,7 +143,7 @@ export default function ResetPasswordPageClient({ token }) {
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Create a strong password"
+                      placeholder={t.createStrongPassword}
                       disabled={busy}
                       required
                     />
@@ -157,12 +159,12 @@ export default function ResetPasswordPageClient({ token }) {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Confirm password</label>
+                  <label className="text-sm font-medium">{t.confirmPassword}</label>
                   <Input
                     type={showPassword ? 'text' : 'password'}
                     value={confirm}
                     onChange={(e) => setConfirm(e.target.value)}
-                    placeholder="Repeat your password"
+                    placeholder={t.repeatPassword}
                     disabled={busy}
                     required
                   />
@@ -170,14 +172,14 @@ export default function ResetPasswordPageClient({ token }) {
 
                 {password.length > 0 && (
                   <div className="space-y-1 rounded-lg border bg-muted/30 p-3 text-xs">
-                    <p className="font-medium text-muted-foreground">Password requirements:</p>
+                    <p className="font-medium text-muted-foreground">{t.passwordRequirements}</p>
                     <ul className="space-y-0.5">
                       {[
-                        { label: 'At least 12 characters', pass: password.length >= 12 },
-                        { label: 'One uppercase letter', pass: /[A-Z]/.test(password) },
-                        { label: 'One lowercase letter', pass: /[a-z]/.test(password) },
-                        { label: 'One number', pass: /[0-9]/.test(password) },
-                        { label: 'One symbol', pass: /[^A-Za-z0-9]/.test(password) },
+                        { label: t.min12Chars, pass: password.length >= 12 },
+                        { label: t.oneUppercase, pass: /[A-Z]/.test(password) },
+                        { label: t.oneLowercase, pass: /[a-z]/.test(password) },
+                        { label: t.oneNumber, pass: /[0-9]/.test(password) },
+                        { label: t.oneSymbol, pass: /[^A-Za-z0-9]/.test(password) },
                       ].map((req) => (
                         <li key={req.label} className={`flex items-center gap-1.5 ${req.pass ? 'text-green-600' : 'text-muted-foreground'}`}>
                           <span className={`inline-block h-1.5 w-1.5 rounded-full ${req.pass ? 'bg-green-600' : 'bg-muted-foreground/40'}`} />
@@ -191,7 +193,7 @@ export default function ResetPasswordPageClient({ token }) {
                 {error && <p className="text-sm text-destructive">{error}</p>}
 
                 <Button type="submit" className="w-full" disabled={busy || !password || !confirm}>
-                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Reset password & sign in'}
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.resetPasswordAndSignIn}
                 </Button>
               </form>
             </CardContent>
@@ -202,12 +204,12 @@ export default function ResetPasswordPageClient({ token }) {
   )
 }
 
-function validatePassword(password) {
+function validatePassword(password, t) {
   const errors = []
-  if (password.length < 12) errors.push('At least 12 characters')
-  if (!/[A-Z]/.test(password)) errors.push('One uppercase letter')
-  if (!/[a-z]/.test(password)) errors.push('One lowercase letter')
-  if (!/[0-9]/.test(password)) errors.push('One number')
-  if (!/[^A-Za-z0-9]/.test(password)) errors.push('One symbol')
+  if (password.length < 12) errors.push(t.min12Chars)
+  if (!/[A-Z]/.test(password)) errors.push(t.oneUppercase)
+  if (!/[a-z]/.test(password)) errors.push(t.oneLowercase)
+  if (!/[0-9]/.test(password)) errors.push(t.oneNumber)
+  if (!/[^A-Za-z0-9]/.test(password)) errors.push(t.oneSymbol)
   return { valid: errors.length === 0, errors }
 }

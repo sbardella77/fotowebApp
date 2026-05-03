@@ -7,8 +7,10 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { generateStrongPassword, validatePassword } from '@/lib/password-utils'
+import { useTranslations } from '@/components/i18n-provider'
 
 export default function SetupPasswordPageClient({ token }) {
+  const t = useTranslations('auth')
   const router = useRouter()
 
   const [email, setEmail] = useState('')
@@ -21,7 +23,7 @@ export default function SetupPasswordPageClient({ token }) {
 
   useEffect(() => {
     if (!token) {
-      setError('Missing setup token')
+      setError(t.missingSetupToken)
       setChecking(false)
       return
     }
@@ -32,10 +34,10 @@ export default function SetupPasswordPageClient({ token }) {
         if (data.email) {
           setEmail(data.email)
         } else {
-          setError(data.error || 'Invalid or expired link')
+          setError(data.error || t.invalidOrExpiredLink)
         }
       })
-      .catch(() => setError('Unable to verify link'))
+      .catch(() => setError(t.unableToVerifyLink))
       .finally(() => setChecking(false))
   }, [token])
 
@@ -46,11 +48,11 @@ export default function SetupPasswordPageClient({ token }) {
     setError('')
 
     if (!strength.valid) {
-      setError(`Password must have: ${strength.errors.join(', ')}`)
+      setError(`${t.passwordRequirements} ${strength.errors.join(', ')}`)
       return
     }
     if (password !== confirm) {
-      setError('Passwords do not match')
+      setError(t.passwordsDoNotMatch)
       return
     }
 
@@ -64,12 +66,12 @@ export default function SetupPasswordPageClient({ token }) {
       const payload = await response.json()
 
       if (!response.ok) {
-        throw new Error(payload.error || 'Unable to set password')
+        throw new Error(payload.error || t.unableToSetPassword)
       }
 
       router.push('/dashboard')
     } catch (err) {
-      setError(err.message || 'Unable to set password')
+      setError(err.message || t.unableToSetPassword)
       setBusy(false)
     }
   }
@@ -93,12 +95,12 @@ export default function SetupPasswordPageClient({ token }) {
       <main className="flex min-h-screen items-center justify-center bg-background px-4">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle>Link expired</CardTitle>
-            <CardDescription>{error || 'This setup link is no longer valid.'}</CardDescription>
+            <CardTitle>{t.linkExpired}</CardTitle>
+            <CardDescription>{error || t.setupLinkInvalid}</CardDescription>
           </CardHeader>
           <CardContent>
             <Button asChild className="w-full">
-              <a href="/dashboard/login">Go to sign in</a>
+              <a href="/dashboard/login">{t.goToSignIn}</a>
             </Button>
           </CardContent>
         </Card>
@@ -123,9 +125,9 @@ export default function SetupPasswordPageClient({ token }) {
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               <Lock className="h-6 w-6" />
             </div>
-            <h1 className="text-2xl font-semibold tracking-tight">Set your password</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">{t.setYourPassword}</h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Create a secure password for <strong>{email}</strong>.
+              {t.createSecurePassword.replace('{email}', email)}
             </p>
           </div>
 
@@ -133,24 +135,24 @@ export default function SetupPasswordPageClient({ token }) {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Sparkles className="h-5 w-5 text-primary" />
-                Secure your account
+                {t.secureYourAccount}
               </CardTitle>
               <CardDescription>
-                One password for all your rooms.
+                {t.onePasswordForAllRooms}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium">Password</label>
+                    <label className="text-sm font-medium">{t.passwordLabel}</label>
                     <button
                       type="button"
                       onClick={generate}
                       className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
                     >
                       <Wand2 className="h-3 w-3" />
-                      Generate strong
+                      {t.generateStrong}
                     </button>
                   </div>
                   <div className="relative">
@@ -158,7 +160,7 @@ export default function SetupPasswordPageClient({ token }) {
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Create a strong password"
+                      placeholder={t.createStrongPassword}
                       disabled={busy}
                       required
                     />
@@ -174,12 +176,12 @@ export default function SetupPasswordPageClient({ token }) {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Confirm password</label>
+                  <label className="text-sm font-medium">{t.confirmPassword}</label>
                   <Input
                     type={showPassword ? 'text' : 'password'}
                     value={confirm}
                     onChange={(e) => setConfirm(e.target.value)}
-                    placeholder="Repeat your password"
+                    placeholder={t.repeatPassword}
                     disabled={busy}
                     required
                   />
@@ -187,14 +189,14 @@ export default function SetupPasswordPageClient({ token }) {
 
                 {password.length > 0 && (
                   <div className="space-y-1 rounded-lg border bg-muted/30 p-3 text-xs">
-                    <p className="font-medium text-muted-foreground">Password requirements:</p>
+                    <p className="font-medium text-muted-foreground">{t.passwordRequirements}</p>
                     <ul className="space-y-0.5">
                       {[
-                        { label: 'At least 12 characters', pass: password.length >= 12 },
-                        { label: 'One uppercase letter', pass: /[A-Z]/.test(password) },
-                        { label: 'One lowercase letter', pass: /[a-z]/.test(password) },
-                        { label: 'One number', pass: /[0-9]/.test(password) },
-                        { label: 'One symbol', pass: /[^A-Za-z0-9]/.test(password) },
+                        { label: t.min12Chars, pass: password.length >= 12 },
+                        { label: t.oneUppercase, pass: /[A-Z]/.test(password) },
+                        { label: t.oneLowercase, pass: /[a-z]/.test(password) },
+                        { label: t.oneNumber, pass: /[0-9]/.test(password) },
+                        { label: t.oneSymbol, pass: /[^A-Za-z0-9]/.test(password) },
                       ].map((req) => (
                         <li key={req.label} className={`flex items-center gap-1.5 ${req.pass ? 'text-green-600' : 'text-muted-foreground'}`}>
                           <span className={`inline-block h-1.5 w-1.5 rounded-full ${req.pass ? 'bg-green-600' : 'bg-muted-foreground/40'}`} />
@@ -208,7 +210,7 @@ export default function SetupPasswordPageClient({ token }) {
                 {error && <p className="text-sm text-destructive">{error}</p>}
 
                 <Button type="submit" className="w-full" disabled={busy || !password || !confirm}>
-                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Set password & sign in'}
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.setPasswordAndSignIn}
                 </Button>
               </form>
             </CardContent>

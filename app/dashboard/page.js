@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslations } from '@/components/i18n-provider'
 import { useRouter } from 'next/navigation'
 import { upload } from '@vercel/blob/client'
 import { Camera, CheckCircle2, Copy, Download, Eye, EyeOff, FolderHeart, ImagePlus, LinkIcon, Loader2, Lock, LogOut, Pencil, Plus, QrCode, RefreshCw, Share2, Sparkles, Trash2, Upload } from 'lucide-react'
@@ -106,6 +107,10 @@ const DashboardPhotoCard = ({ photo, onApprove, onReject, onDelete, onOpenLightb
 export default function DashboardPage() {
   const router = useRouter()
 
+  const t = useTranslations('dashboard')
+  const tCommon = useTranslations('common')
+  const tPrivate = useTranslations('privateDelivery')
+
   const [authState, setAuthState] = useState({ loading: true, authenticated: false, email: '' })
   const [email, setEmail] = useState('')
   const [token, setToken] = useState('')
@@ -201,7 +206,7 @@ export default function DashboardPage() {
       }
     } catch (error) {
       setAuthState({ loading: false, authenticated: false, email: '' })
-      setMessage(error.message || 'Unable to load session')
+      setMessage(error.message || t.unableToLoadSession)
     }
   }
 
@@ -215,10 +220,10 @@ export default function DashboardPage() {
       })
       const payload = await response.json()
       if (!response.ok) {
-        throw new Error(payload.error || 'Authentication failed')
+        throw new Error(payload.error || t.authFailed)
       }
       setAuthState({ loading: false, authenticated: true, email: payload.email })
-      setMessage('Signed in.')
+      setMessage(t.signedIn)
       if (redirectParam && redirectParam.startsWith('/')) {
         router.push(redirectParam)
       }
@@ -235,7 +240,7 @@ export default function DashboardPage() {
     setSelectedSlug('')
     setEvents([])
     setAuthState({ loading: false, authenticated: false, email: '' })
-    setMessage('Signed out.')
+    setMessage(t.signedOut)
   }
 
   const loadPlan = async () => {
@@ -269,11 +274,11 @@ export default function DashboardPage() {
       })
       const payload = await response.json()
       if (!response.ok || !payload.url) {
-        throw new Error(payload.error || 'Unable to start checkout')
+        throw new Error(payload.error || t.unableToStartCheckout)
       }
       window.location.href = payload.url
     } catch (error) {
-      setMessage(error.message || 'Checkout failed. Please try again.')
+      setMessage(error.message || t.checkoutFailed)
       setCheckoutBusy(false)
     }
   }
@@ -285,9 +290,9 @@ export default function DashboardPage() {
       try {
         payload = await response.json()
       } catch {
-        throw new Error(response.status >= 500 ? 'Server error. Please try again.' : 'Unable to load rooms')
+        throw new Error(response.status >= 500 ? t.serverError : t.unableToLoadRooms)
       }
-      if (!response.ok) throw new Error(payload.error || 'Unable to load rooms')
+      if (!response.ok) throw new Error(payload.error || t.unableToLoadRooms)
       setEvents(payload.events || [])
       if (!selectedSlug && payload.events?.[0]?.slug) {
         setSelectedSlug(payload.events[0].slug)
@@ -309,12 +314,12 @@ export default function DashboardPage() {
       try {
         payload = await response.json()
       } catch {
-        throw new Error(response.status >= 500 ? 'Server error. Please try again.' : 'Unable to load room detail')
+        throw new Error(response.status >= 500 ? t.serverError : t.unableToLoadRoomDetail)
       }
-      if (!response.ok) throw new Error(payload.error || 'Unable to load room detail')
+      if (!response.ok) throw new Error(payload.error || t.unableToLoadRoomDetail)
       setSelectedEvent(payload.event)
       setSelectedSlug(payload.event.slug)
-      setMessage(`Viewing ${payload.event.name}.`)
+      setMessage(t.viewingRoom.replace('{name}', payload.event.name))
     } catch (error) {
       setMessage(error.message)
     } finally {
@@ -331,8 +336,8 @@ export default function DashboardPage() {
         body: JSON.stringify({ action }),
       })
       const payload = await response.json()
-      if (!response.ok) throw new Error(payload.error || 'Unable to update photo')
-      setMessage(action === 'approve' ? 'Photo approved.' : 'Photo hidden from the public gallery.')
+      if (!response.ok) throw new Error(payload.error || t.unableToUpdatePhoto)
+      setMessage(action === 'approve' ? t.photoApproved : t.photoHidden)
       await loadEventDetail(selectedSlug)
       await loadEvents()
     } catch (error) {
@@ -347,8 +352,8 @@ export default function DashboardPage() {
     try {
       const response = await fetch(`/api/owner/photos/${photoId}`, { method: 'DELETE' })
       const payload = await response.json()
-      if (!response.ok) throw new Error(payload.error || 'Unable to delete photo')
-      setMessage('Photo deleted.')
+      if (!response.ok) throw new Error(payload.error || t.unableToDeletePhoto)
+      setMessage(t.photoDeleted)
       await loadEventDetail(selectedSlug)
       await loadEvents()
     } catch (error) {
@@ -372,9 +377,9 @@ export default function DashboardPage() {
         body: JSON.stringify({ name: trimmed }),
       })
       const payload = await response.json()
-      if (!response.ok) throw new Error(payload.error || 'Unable to rename room')
+      if (!response.ok) throw new Error(payload.error || t.unableToRenameRoom)
       setSelectedEvent(payload.event)
-      setMessage('Room renamed.')
+      setMessage(t.roomRenamed)
       await loadEvents()
       setIsEditingName(false)
     } catch (error) {
@@ -390,8 +395,8 @@ export default function DashboardPage() {
     try {
       const response = await fetch(`/api/owner/events/${selectedSlug}`, { method: 'DELETE' })
       const payload = await response.json()
-      if (!response.ok) throw new Error(payload.error || 'Unable to delete room')
-      setMessage('Room deleted.')
+      if (!response.ok) throw new Error(payload.error || t.somethingWentWrong)
+      setMessage(t.roomDeleted)
       setSelectedEvent(null)
       setSelectedSlug('')
       await loadEvents()
@@ -413,14 +418,14 @@ export default function DashboardPage() {
       })
       const payload = await response.json()
       if (!response.ok) {
-        throw new Error(payload.error || 'Sign in failed')
+        throw new Error(payload.error || t.signInFailed)
       }
       setAuthState({ loading: false, authenticated: true, email: payload.email })
       setMessage('')
       identifyUser(payload.email)
       await loadEvents()
     } catch (error) {
-      setMessage(error.message || 'Sign in failed')
+      setMessage(error.message || t.signInFailed)
     } finally {
       setBusy((c) => ({ ...c, auth: false }))
     }
@@ -437,12 +442,12 @@ export default function DashboardPage() {
       })
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}))
-        throw new Error(payload.error || 'Something went wrong')
+        throw new Error(payload.error || t.somethingWentWrong)
       }
       setForgotSent(true)
       setMessage('')
     } catch (error) {
-      setMessage(error.message || 'Something went wrong')
+      setMessage(error.message || t.somethingWentWrong)
     } finally {
       setForgotBusy(false)
     }
@@ -460,13 +465,13 @@ export default function DashboardPage() {
     } else if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
       try {
         await navigator.clipboard.writeText(url)
-        setMessage('Link copied!')
+        setMessage(t.linkCopiedClipboard)
         setTimeout(() => setMessage(''), 2000)
       } catch {
-        setMessage('Unable to copy link')
+        setMessage(t.unableToCopyLink)
       }
     } else {
-      setMessage('Sharing not supported on this device')
+      setMessage(t.sharingNotSupported)
     }
   }
 
@@ -500,8 +505,8 @@ export default function DashboardPage() {
         body: JSON.stringify({ name: trimmed }),
       })
       const payload = await response.json()
-      if (!response.ok) throw new Error(payload.error || 'Unable to rename room')
-      setMessage('Room renamed.')
+      if (!response.ok) throw new Error(payload.error || t.unableToRenameRoom)
+      setMessage(t.roomRenamed)
       await loadEvents()
       if (selectedSlug === slug) {
         setSelectedEvent(payload.event)
@@ -537,7 +542,7 @@ export default function DashboardPage() {
         }),
       })
       const payload = await response.json()
-      if (!response.ok) throw new Error(payload.error || 'Unable to send recovery link')
+      if (!response.ok) throw new Error(payload.error || t.unableToSendRecovery)
       setRecoverySent(true)
     } catch (error) {
       setMessage(error.message)
@@ -556,12 +561,12 @@ export default function DashboardPage() {
   const createRoom = async () => {
     const trimmed = createName.trim()
     if (!trimmed || trimmed.length < 3) {
-      setCreateError({ error: 'Room name must be at least 3 characters' })
+      setCreateError({ error: t.roomNameMinChars })
       return
     }
 
     if (!authState.email) {
-      setCreateError({ error: 'You must be signed in to create a room.' })
+      setCreateError({ error: t.mustBeSignedIn })
       return
     }
 
@@ -579,7 +584,7 @@ export default function DashboardPage() {
       try {
         payload = await response.json()
       } catch {
-        payload = { error: `Server error (${response.status}). Please try again.` }
+        payload = { error: t.serverError }
       }
       if (!response.ok) {
         setCreateError(payload)
@@ -589,13 +594,13 @@ export default function DashboardPage() {
         setCreateError(null)
         await loadEvents()
         setSelectedSlug(payload.event.slug)
-        setMessage(`Room "${payload.event.name}" created.`)
+        setMessage(t.roomCreated.replace('{name}', payload.event.name))
       } else {
-        setCreateError({ error: 'Room created but response was unexpected. Please refresh.' })
+        setCreateError({ error: t.roomCreatedUnexpected })
       }
     } catch (e) {
       console.error('[createRoom] Error:', e)
-      setCreateError({ error: e.message || 'Unable to create room. Please try again.' })
+      setCreateError({ error: e.message || t.unableToCreateRoom })
     } finally {
       setCreateBusy(false)
     }
@@ -657,7 +662,7 @@ export default function DashboardPage() {
       const initPayload = await initResponse.json()
 
       if (!initResponse.ok) {
-        throw new Error(initPayload.error || 'Unable to initialize upload')
+        throw new Error(initPayload.error || t.unableToInitializeUpload)
       }
 
       if (initPayload.session?.uploadStrategy === 'vercel-blob-client') {
@@ -688,11 +693,11 @@ export default function DashboardPage() {
         const completePayload = await completeResponse.json()
 
         if (!completeResponse.ok) {
-          throw new Error(completePayload.error || 'Unable to finalize upload')
+          throw new Error(completePayload.error || t.unableToFinalizeUpload)
         }
 
         trackEvent(EVENT_PRIVATE_DELIVERY_UPLOAD_COMPLETED, { room_slug: selectedEvent.slug, asset_id: completePayload.asset?.id, file_size: file.size })
-        setMessage(`File "${file.name}" uploaded to private delivery.`)
+        setMessage(t.fileUploadedPrivate.replace('{name}', file.name))
         await loadPrivateAssets(selectedEvent.slug)
       } else {
         for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex += 1) {
@@ -712,7 +717,7 @@ export default function DashboardPage() {
           })
 
           if (!chunkResponse.ok) {
-            throw new Error('Chunk upload failed')
+            throw new Error(t.chunkUploadFailed)
           }
         }
 
@@ -724,15 +729,15 @@ export default function DashboardPage() {
         const completePayload = await completeResponse.json()
 
         if (!completeResponse.ok) {
-          throw new Error(completePayload.error || 'Unable to finalize upload')
+          throw new Error(completePayload.error || t.unableToFinalizeUpload)
         }
 
         trackEvent(EVENT_PRIVATE_DELIVERY_UPLOAD_COMPLETED, { room_slug: selectedEvent.slug, asset_id: completePayload.asset?.id, file_size: file.size })
-        setMessage(`File "${file.name}" uploaded to private delivery.`)
+        setMessage(t.fileUploadedPrivate.replace('{name}', file.name))
         await loadPrivateAssets(selectedEvent.slug)
       }
     } catch (error) {
-      setMessage(error.message || 'Upload failed. Please try again.')
+      setMessage(error.message || t.uploadFailed)
     } finally {
       setPrivateDeliveryUploading(false)
       if (privateDeliveryFileInputRef.current) {
@@ -754,9 +759,9 @@ export default function DashboardPage() {
     try {
       const response = await fetch(`/api/owner/private-delivery/${assetId}`, { method: 'DELETE' })
       const payload = await response.json()
-      if (!response.ok) throw new Error(payload.error || 'Unable to delete file')
+      if (!response.ok) throw new Error(payload.error || t.unableToDeleteFile)
       trackEvent(EVENT_PRIVATE_DELIVERY_DELETED, { room_slug: selectedEvent?.slug, asset_id: assetId })
-      setMessage('File deleted from private delivery.')
+      setMessage(t.fileDeletedPrivate)
       await loadPrivateAssets(selectedEvent.slug)
     } catch (error) {
       setMessage(error.message)
@@ -777,10 +782,10 @@ export default function DashboardPage() {
     try {
       const response = await fetch(`/api/owner/events/${selectedEvent.slug}/photographer-link`, { method: 'POST' })
       const payload = await response.json()
-      if (!response.ok) throw new Error(payload.error || 'Unable to generate link')
+      if (!response.ok) throw new Error(payload.error || t.unableToGenerateLink)
       trackEvent(EVENT_PHOTOGRAPHER_UPLOAD_LINK_CREATED, { room_slug: selectedEvent.slug })
       setPhotographerLink(payload.url)
-      setMessage('Photographer link generated. Copy it to share.')
+      setMessage(t.photographerLinkGenerated)
     } catch (error) {
       setMessage(error.message)
     } finally {
@@ -794,10 +799,10 @@ export default function DashboardPage() {
       await navigator.clipboard.writeText(photographerLink)
       trackEvent(EVENT_PHOTOGRAPHER_UPLOAD_LINK_COPIED, { room_slug: selectedEvent?.slug })
       setPhotographerLinkCopied(true)
-      setMessage('Link copied to clipboard.')
+      setMessage(t.linkCopiedClipboard)
       setTimeout(() => setPhotographerLinkCopied(false), 2000)
     } catch {
-      setMessage('Unable to copy link.')
+      setMessage(t.unableToCopyLink)
     }
   }
 
@@ -807,10 +812,10 @@ export default function DashboardPage() {
     try {
       const response = await fetch(`/api/owner/events/${selectedEvent.slug}/photographer-link`, { method: 'DELETE' })
       const payload = await response.json()
-      if (!response.ok) throw new Error(payload.error || 'Unable to revoke link')
+      if (!response.ok) throw new Error(payload.error || t.unableToRevokeLink)
       trackEvent(EVENT_PHOTOGRAPHER_UPLOAD_LINK_REVOKED, { room_slug: selectedEvent.slug })
       setPhotographerLink('')
-      setMessage('Photographer link revoked.')
+      setMessage(t.photographerLinkRevoked)
     } catch (error) {
       setMessage(error.message)
     } finally {
@@ -863,11 +868,11 @@ export default function DashboardPage() {
     if (upgrade === 'success') {
       const intent = params.get('intent')
       if (intent === 'professional') {
-        setMessage('Welcome to Professional! Your subscription is being confirmed.')
+        setMessage(t.welcomeProfessional)
       } else if (intent === 'high_quality_download') {
-        setMessage('Original quality downloads unlocked! Your room is being updated.')
+        setMessage(t.originalUnlocked)
       } else {
-        setMessage('Upgrade confirmed! Your event is being updated.')
+        setMessage(t.upgradeConfirmed)
       }
       loadPlan()
       loadEvents()
@@ -875,7 +880,7 @@ export default function DashboardPage() {
       router.replace('/dashboard', { scroll: false })
     } else if (upgrade === 'cancelled') {
       const intent = params.get('intent')
-      setMessage('Upgrade cancelled. You can upgrade anytime.')
+      setMessage(t.upgradeCancelled)
       if (intent === 'high_quality_download') {
         trackEvent(EVENT_ORIGINAL_DOWNLOAD_CHECKOUT_CANCELLED, {
           pageType: 'dashboard',
@@ -907,13 +912,13 @@ export default function DashboardPage() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Camera className="h-4 w-4" />
             </div>
-            <span className="font-display text-sm font-bold tracking-tight text-primary">SnapRooms</span>
+            <span className="font-display text-sm font-bold tracking-tight text-primary">{t.brand}</span>
           </a>
           {authState.authenticated ? (
             <div className="flex items-center gap-3">
               {(plan === 'professional' || plan === 'business') && (
                 <span className="hidden rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[0.65rem] font-medium uppercase tracking-wider text-primary sm:inline">
-                  Pro
+                  {t.proBadge}
                 </span>
               )}
               <span className="hidden font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground sm:inline">
@@ -921,12 +926,12 @@ export default function DashboardPage() {
               </span>
               <Button variant="ghost" size="sm" onClick={logout} className="font-body text-muted-foreground hover:text-foreground">
                 <LogOut className="mr-2 h-4 w-4" />
-                Sign out
+                {t.signOut}
               </Button>
             </div>
           ) : (
             <Button size="sm" variant="ghost" asChild className="font-body">
-              <a href="/">Create room</a>
+              <a href="/">{t.createRoom}</a>
             </Button>
           )}
         </div>
@@ -944,11 +949,11 @@ export default function DashboardPage() {
                 <Lock className="h-6 w-6" />
               </div>
               <h1 className="font-display text-2xl font-bold tracking-[-0.03em] text-white">
-                {forgotMode ? 'Reset your password' : 'Sign in to manage your rooms'}
+                {forgotMode ? t.resetYourPassword : t.signInToManage}
               </h1>
               <p className="mt-3 text-sm font-light text-muted-foreground">
                 {forgotMode
-                  ? 'Enter your email and we\'ll send you a secure reset link.'
+                  ? t.enterEmailForReset
                   : 'Access your rooms, share them again, and manage uploads in one place.'}
               </p>
             </div>
@@ -958,17 +963,17 @@ export default function DashboardPage() {
                 <div className="space-y-4">
                   {forgotSent ? (
                     <div className="rounded-xl border border-white/[0.07] bg-[#111827] p-4 text-sm text-muted-foreground text-center">
-                      If that email is linked to an account, we&apos;ve sent a reset link.
+                      {t.resetSent}
                     </div>
                   ) : (
                     <>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">Email</label>
+                        <label className="text-sm font-medium text-foreground">{t.emailLabel}</label>
                         <Input
                           type="email"
                           value={forgotEmail}
                           onChange={(e) => setForgotEmail(e.target.value)}
-                          placeholder="you@example.com"
+                          placeholder={t.emailPlaceholder}
                           className="h-11 rounded-lg border-white/[0.07] bg-[#0D1220] text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' && forgotEmail.trim()) sendForgotLink()
@@ -985,7 +990,7 @@ export default function DashboardPage() {
                         disabled={forgotBusy || !forgotEmail.trim()}
                         onClick={sendForgotLink}
                       >
-                        {forgotBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Send reset link'}
+                        {forgotBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.sendResetLink}
                       </Button>
                     </>
                   )}
@@ -1001,7 +1006,7 @@ export default function DashboardPage() {
                         setMessage('')
                       }}
                     >
-                      Back to sign in
+                      {t.backToSignIn}
                     </button>
                   </div>
                 </div>
@@ -1010,23 +1015,23 @@ export default function DashboardPage() {
               <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card">
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Email</label>
+                    <label className="text-sm font-medium text-foreground">{t.emailLabel}</label>
                     <Input
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com"
+                      placeholder={t.emailPlaceholder}
                       className="h-11 rounded-lg border-white/[0.07] bg-[#0D1220] text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Password</label>
+                    <label className="text-sm font-medium text-foreground">{t.passwordLabel}</label>
                     <div className="relative">
                       <Input
                         type={showPassword ? 'text' : 'password'}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Enter your password"
+                        placeholder={t.passwordPlaceholder}
                         className="h-11 rounded-lg border-white/[0.07] bg-[#0D1220] text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && email.trim() && password) loginWithPassword()
@@ -1051,7 +1056,7 @@ export default function DashboardPage() {
                     disabled={busy.auth || !email.trim() || !password}
                     onClick={loginWithPassword}
                   >
-                    {busy.auth ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sign in'}
+                    {busy.auth ? <Loader2 className="h-4 w-4 animate-spin" /> : t.signIn}
                   </Button>
 
                   <div className="text-center pt-1">
@@ -1064,7 +1069,7 @@ export default function DashboardPage() {
                         if (email.trim()) setForgotEmail(email.trim())
                       }}
                     >
-                      Forgot password?
+                      {t.forgotPassword}
                     </button>
                   </div>
                 </div>
@@ -1077,14 +1082,14 @@ export default function DashboardPage() {
               <Camera className="h-8 w-8" />
             </div>
             <h2 className="font-display text-xl font-bold tracking-tight text-white">
-              You don&apos;t have any rooms yet
+              {t.noRoomsYet}
             </h2>
             <p className="mt-3 max-w-sm text-sm font-light text-muted-foreground">
-              Create your first room and start collecting photos in seconds.
+              {t.noRoomsDesc}
             </p>
             <Button className="mt-8 glow-blue" onClick={openCreateDialog}>
               <Plus className="mr-2 h-4 w-4" />
-              Create your room
+              {t.createYourRoom}
             </Button>
           </div>
         ) : (
@@ -1093,15 +1098,15 @@ export default function DashboardPage() {
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h1 className="font-display text-2xl font-bold tracking-[-0.03em] text-white">
-                  Your rooms
+                  {t.yourRooms}
                 </h1>
                 <p className="mt-1 text-sm font-light text-muted-foreground">
-                  Open, share, rename, or manage the rooms you&apos;ve created.
+                  {t.yourRoomsDesc}
                 </p>
               </div>
               <Button size="sm" className="mt-3 sm:mt-0 glow-blue" onClick={openCreateDialog}>
                 <Plus className="mr-2 h-4 w-4" />
-                Create new room
+                {t.createNewRoom}
               </Button>
             </div>
 
@@ -1113,25 +1118,25 @@ export default function DashboardPage() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-                          Premium
+                          {t.premium}
                         </span>
                         <Sparkles className="h-3 w-3 text-primary" />
                       </div>
                       <h2 className="mt-1 font-display text-lg font-bold tracking-tight text-white">
-                        Unlock premium features
+                        {t.unlockPremium}
                       </h2>
                       <p className="mt-1 max-w-md text-sm font-light text-muted-foreground">
-                        Upgrade individual events or go Professional for unlimited client work.
+                        {t.upgradeDesc}
                       </p>
                       <p className="mt-2 text-xs font-light text-muted-foreground/70">
-                        Guests always upload for free. You only pay for the features you need.
+                        {t.guestsAlwaysFree}
                       </p>
                     </div>
 
                     <div className="flex flex-col items-start gap-3 sm:items-end">
                       <div className="flex items-center gap-2">
                         <Button size="sm" variant="outline" asChild className="border-white/[0.07] bg-[#0D1220]">
-                          <a href="/pricing">View pricing</a>
+                          <a href="/pricing">{t.viewPricing}</a>
                         </Button>
                       </div>
                       <Button
@@ -1143,7 +1148,7 @@ export default function DashboardPage() {
                         {checkoutBusy ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
-                          'Start Professional'
+                          t.startProfessional
                         )}
                       </Button>
                     </div>
@@ -1159,7 +1164,7 @@ export default function DashboardPage() {
             {/* Mono label above grid */}
             <div>
               <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
-                Rooms you created
+                {t.roomsYouCreated}
               </span>
             </div>
 
@@ -1197,10 +1202,10 @@ export default function DashboardPage() {
                         />
                         <div className="flex gap-2">
                           <Button size="sm" className="h-8" disabled={busy.detail} onClick={() => saveRename(event.slug)}>
-                            {busy.detail ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save'}
+                            {busy.detail ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : tCommon.save}
                           </Button>
                           <Button size="sm" variant="ghost" className="h-8" onClick={cancelRename}>
-                            Cancel
+                            {tCommon.cancel}
                           </Button>
                         </div>
                       </div>
@@ -1210,13 +1215,13 @@ export default function DashboardPage() {
                           {event.name}
                         </h3>
                         <p className="mt-1 font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
-                          Code: {event.slug}
+                          {t.code} {event.slug}
                         </p>
                         {event.billingTier && (
                           <div className="mt-1.5">
                             <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[0.65rem] font-medium text-primary">
                               <Sparkles className="mr-1 h-2.5 w-2.5" />
-                              {event.billingTier === 'wedding_pro' ? 'Wedding Pro' : 'Pro Event'}
+                              {event.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent}
                             </span>
                           </div>
                         )}
@@ -1226,21 +1231,21 @@ export default function DashboardPage() {
                     {editingSlug !== event.slug && (
                       <>
                         <p className="mt-3 text-sm font-light text-muted-foreground">
-                          {event.photoCount || event.photos?.length || 0} photos
+                          {event.photoCount || event.photos?.length || 0} {t.photos}
                         </p>
 
                         {/* Primary actions */}
                         <div className="mt-4 flex flex-wrap gap-2">
                           <Button size="sm" asChild className="glow-blue" onClick={(e) => e.stopPropagation()}>
-                            <a href={`/event/${event.slug}`}>Open room</a>
+                            <a href={`/event/${event.slug}`}>{t.openRoom}</a>
                           </Button>
                           <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); shareEvent(event) }} className="border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground">
                             <Share2 className="mr-1.5 h-3.5 w-3.5" />
-                            Share
+                            {t.share}
                           </Button>
                           <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); openQR(event) }} className="border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground">
                             <QrCode className="mr-1.5 h-3.5 w-3.5" />
-                            QR
+                            {t.qr}
                           </Button>
                         </div>
 
@@ -1252,7 +1257,7 @@ export default function DashboardPage() {
                             onClick={(e) => { e.stopPropagation(); startRename(event) }}
                           >
                             <Pencil className="h-3.5 w-3.5" />
-                            Rename
+                            {t.rename}
                           </button>
                           <button
                             type="button"
@@ -1260,7 +1265,7 @@ export default function DashboardPage() {
                             onClick={(e) => { e.stopPropagation(); startDelete(event) }}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
-                            Delete
+                            {tCommon.delete}
                           </button>
                         </div>
                       </>
@@ -1278,29 +1283,29 @@ export default function DashboardPage() {
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
-                        Room photos
+                        {t.roomPhotos}
                       </span>
                       <h3 className="mt-1 font-display text-lg font-bold tracking-tight text-white">
                         {selectedEvent.name}
                       </h3>
                       <p className="mt-1 font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
-                        Code: {selectedEvent.slug}
+                        {t.code} {selectedEvent.slug}
                       </p>
                       <p className="mt-1 text-sm font-light text-muted-foreground">
-                        {photos.length} total photos
+                        {photos.length} {t.totalPhotos}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button size="sm" asChild className="glow-blue">
-                        <a href={`/event/${selectedEvent.slug}`}>Open room</a>
+                        <a href={`/event/${selectedEvent.slug}`}>{t.openRoom}</a>
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => shareEvent(selectedEvent)} className="border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground">
                         <Share2 className="mr-1.5 h-3.5 w-3.5" />
-                        Share
+                        {t.share}
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => openQR(selectedEvent)} className="border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground">
                         <QrCode className="mr-1.5 h-3.5 w-3.5" />
-                        QR
+                        {t.qr}
                       </Button>
                     </div>
                     {/* Event-level upgrade for free-tier rooms */}
@@ -1313,7 +1318,7 @@ export default function DashboardPage() {
                           disabled={checkoutBusy}
                           onClick={() => startCheckout('pro_event', selectedEvent.id, 'dashboard_room_detail')}
                         >
-                          {checkoutBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Pro Event €29'}
+                          {checkoutBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : `${t.proEvent} €29`}
                         </Button>
                         <Button
                           size="sm"
@@ -1322,7 +1327,7 @@ export default function DashboardPage() {
                           disabled={checkoutBusy}
                           onClick={() => startCheckout('wedding_pro', selectedEvent.id, 'dashboard_room_detail')}
                         >
-                          {checkoutBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Wedding Pro €49'}
+                          {checkoutBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : `${t.weddingPro} €49`}
                         </Button>
                       </div>
                     )}
@@ -1330,7 +1335,7 @@ export default function DashboardPage() {
                       <div className="mt-2">
                         <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
                           <Sparkles className="mr-1 h-3 w-3" />
-                          {selectedEvent.billingTier === 'wedding_pro' ? 'Wedding Pro' : 'Pro Event'}
+                          {selectedEvent.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent}
                         </span>
                       </div>
                     )}
@@ -1340,7 +1345,7 @@ export default function DashboardPage() {
                     {busy.detail ? (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Loading photos...
+                        {t.loadingPhotos}
                       </div>
                     ) : photos.length === 0 ? (
                       <div className="rounded-xl border border-dashed border-white/[0.07] bg-[#0D1220] p-8 text-center">
@@ -1348,10 +1353,10 @@ export default function DashboardPage() {
                           <ImagePlus className="h-5 w-5" />
                         </div>
                         <p className="text-sm font-light text-muted-foreground">
-                          No photos uploaded to this room yet.
+                          {t.noPhotosYet}
                         </p>
                         <p className="mt-1 text-xs font-light text-muted-foreground/70">
-                          Share the room link so guests can start adding photos.
+                          {t.shareToStart}
                         </p>
                       </div>
                     ) : (
@@ -1386,14 +1391,14 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-2">
                         <FolderHeart className="h-4 w-4 text-primary" />
                         <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
-                          Private delivery
+                          {tPrivate.privateDelivery}
                         </span>
                       </div>
                       <h3 className="mt-1 font-display text-lg font-bold tracking-tight text-white">
-                        Professional files
+                        {tPrivate.professionalFiles}
                       </h3>
                       <p className="mt-1 text-sm font-light text-muted-foreground">
-                        Original-quality files for the couple. Not visible to guests.
+                        {tPrivate.privateDeliveryDesc}
                       </p>
                     </div>
                     <div>
@@ -1415,7 +1420,7 @@ export default function DashboardPage() {
                         ) : (
                           <Upload className="mr-1.5 h-3.5 w-3.5" />
                         )}
-                        {privateDeliveryUploading ? 'Uploading...' : 'Upload file'}
+                        {privateDeliveryUploading ? tPrivate.uploading : tPrivate.uploadFile}
                       </Button>
                     </div>
                   </div>
@@ -1424,7 +1429,7 @@ export default function DashboardPage() {
                     {privateDeliveryLoading ? (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Loading private files...
+                        {tPrivate.loadingPrivateFiles}
                       </div>
                     ) : privateAssets.length === 0 ? (
                       <div className="rounded-xl border border-dashed border-primary/10 bg-[#0D1220] p-8 text-center">
@@ -1432,10 +1437,10 @@ export default function DashboardPage() {
                           <FolderHeart className="h-5 w-5" />
                         </div>
                         <p className="text-sm font-light text-muted-foreground">
-                          No private delivery files yet.
+                          {tPrivate.noPrivateFiles}
                         </p>
                         <p className="mt-1 text-xs font-light text-muted-foreground/70">
-                          Upload original-quality wedding files here. They stay private and are never shown in the public gallery.
+                          {tPrivate.uploadOriginalDesc}
                         </p>
                       </div>
                     ) : (
@@ -1461,7 +1466,7 @@ export default function DashboardPage() {
                                 onClick={() => downloadPrivateAsset(asset)}
                               >
                                 <Download className="mr-1.5 h-3.5 w-3.5" />
-                                Download
+                                {tPrivate.download}
                               </Button>
                               <Button
                                 size="sm"
@@ -1484,10 +1489,10 @@ export default function DashboardPage() {
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
-                          Photographer link
+                          {tPrivate.photographerLink}
                         </span>
                         <p className="mt-1 text-sm font-light text-muted-foreground">
-                          Send this secure link to your photographer so they can upload original-quality files privately.
+                          {tPrivate.photographerLinkDesc}
                         </p>
                       </div>
                     </div>
@@ -1506,13 +1511,13 @@ export default function DashboardPage() {
                           ) : (
                             <LinkIcon className="mr-1.5 h-3.5 w-3.5" />
                           )}
-                          Generate link
+                          {tPrivate.generateLink}
                         </Button>
                       )}
 
                       {!photographerLink && selectedEvent?.hasPhotographerUploadLink && (
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm text-muted-foreground">A photographer link already exists.</p>
+                          <p className="text-sm text-muted-foreground">{tPrivate.linkAlreadyExists}</p>
                           <Button
                             size="sm"
                             variant="outline"
@@ -1525,7 +1530,7 @@ export default function DashboardPage() {
                             ) : (
                               <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
                             )}
-                            Regenerate
+                            {tPrivate.regenerate}
                           </Button>
                           <Button
                             size="sm"
@@ -1535,7 +1540,7 @@ export default function DashboardPage() {
                             onClick={revokePhotographerLink}
                           >
                             <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                            Revoke
+                            {tPrivate.revoke}
                           </Button>
                         </div>
                       )}
@@ -1557,7 +1562,7 @@ export default function DashboardPage() {
                               ) : (
                                 <Copy className="mr-1.5 h-3.5 w-3.5" />
                               )}
-                              {photographerLinkCopied ? 'Copied' : 'Copy link'}
+                              {photographerLinkCopied ? tPrivate.copied : tPrivate.copyLink}
                             </Button>
                             <Button
                               size="sm"
@@ -1571,7 +1576,7 @@ export default function DashboardPage() {
                               ) : (
                                 <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
                               )}
-                              Regenerate
+                              {tPrivate.regenerate}
                             </Button>
                             <Button
                               size="sm"
@@ -1581,7 +1586,7 @@ export default function DashboardPage() {
                               onClick={revokePhotographerLink}
                             >
                               <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                              Revoke
+                              {tPrivate.revoke}
                             </Button>
                           </div>
                         </div>
@@ -1610,18 +1615,18 @@ export default function DashboardPage() {
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
         <DialogContent className="dark border-white/[0.07] bg-[#141C2E]">
           <DialogHeader>
-            <DialogTitle className="font-display text-lg font-bold text-white">Create new room</DialogTitle>
+            <DialogTitle className="font-display text-lg font-bold text-white">{t.createNewRoomDialog}</DialogTitle>
             <DialogDescription className="text-sm font-light text-muted-foreground">
-              Enter a name for your new room. Guests will see this name when they visit.
+              {t.createRoomDesc}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Room name</label>
+              <label className="text-sm font-medium text-foreground">{t.roomNameLabel}</label>
               <Input
                 value={createName}
                 onChange={(e) => setCreateName(e.target.value)}
-                placeholder="e.g. Sarah & Mike Wedding"
+                placeholder={t.roomNamePlaceholder}
                 className="h-11 rounded-lg border-white/[0.07] bg-[#0D1220] text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && createName.trim().length >= 3 && !createBusy) createRoom()
@@ -1637,7 +1642,7 @@ export default function DashboardPage() {
                   disabled={checkoutBusy}
                   onClick={() => startCheckout('professional', null, 'dashboard_create_room_limit')}
                 >
-                  {checkoutBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Upgrade to Professional'}
+                  {checkoutBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.upgradeToProfessional}
                 </Button>
               </div>
             ) : createError?.error ? (
@@ -1650,14 +1655,14 @@ export default function DashboardPage() {
               onClick={() => setCreateDialogOpen(false)}
               className="text-muted-foreground hover:text-foreground"
             >
-              Cancel
+              {tCommon.cancel}
             </Button>
             <Button
               className="glow-blue"
               disabled={createBusy || !createName.trim() || createName.trim().length < 3}
               onClick={createRoom}
             >
-              {createBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create room'}
+              {createBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.createRoomBtn}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1666,20 +1671,20 @@ export default function DashboardPage() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent className="border-white/[0.07] bg-[#141C2E]">
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-display text-lg font-bold text-white">Delete room?</AlertDialogTitle>
+            <AlertDialogTitle className="font-display text-lg font-bold text-white">{t.deleteRoomTitle}</AlertDialogTitle>
             <AlertDialogDescription className="text-sm font-light text-muted-foreground">
-              This will permanently delete <strong className="text-foreground">{selectedEvent?.name}</strong> and all {selectedEvent?.photos?.length || 0} photos. This action cannot be undone.
+              {t.deleteRoomWarning} <strong className="text-foreground">{selectedEvent?.name}</strong> {t.deleteRoomAnd} {selectedEvent?.photos?.length || 0} {t.deleteRoomPhotos}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)} className="border-white/[0.07] bg-[#0D1220] text-foreground hover:bg-[#111827] hover:text-foreground">
-              Cancel
+              {tCommon.cancel}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={deleteEvent}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+              {tCommon.delete}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1692,7 +1697,7 @@ export default function DashboardPage() {
               <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
                 <Camera className="h-3 w-3" />
               </div>
-              <span className="font-display text-sm font-bold tracking-tight text-primary">SnapRooms</span>
+              <span className="font-display text-sm font-bold tracking-tight text-primary">{t.brand}</span>
             </div>
             <p className="text-xs font-light text-muted-foreground">
               The easiest way to collect guest photos.

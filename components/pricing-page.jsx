@@ -18,6 +18,7 @@ import { MarketingNav } from '@/components/marketing-nav'
 import { MarketingFooter } from '@/components/marketing-footer'
 import { trackEvent, trackPageView } from '@/lib/analytics/track-client'
 import { EVENT_LANDING_VIEW } from '@/lib/analytics/events'
+import { useTranslations } from '@/components/i18n-provider'
 
 function useScrollReveal() {
   useEffect(() => {
@@ -193,7 +194,88 @@ function FeatureValue({ value }) {
   return <span className="text-sm text-muted-foreground">{value}</span>
 }
 
+function translateTierName(t, tier) {
+  switch (tier.id) {
+    case 'free': return t.freeTierName
+    case 'pro-event': return t.proEvent
+    case 'wedding-pro': return t.weddingPro
+    case 'professional': return t.professional
+    case 'business': return t.business
+    default: return tier.name
+  }
+}
+
+function translateTierTarget(t, tier) {
+  switch (tier.id) {
+    case 'free': return t.freeTierAudience
+    case 'pro-event': return t.proEventAudience
+    case 'wedding-pro': return t.weddingProAudience
+    case 'professional': return t.professionalAudience
+    case 'business': return t.businessAudience
+    default: return tier.target
+  }
+}
+
+function translateTierDescription(t, tier) {
+  switch (tier.id) {
+    case 'free': return t.freeTierDesc
+    case 'pro-event': return t.proEventDesc
+    case 'wedding-pro': return t.weddingProDesc
+    case 'professional': return t.professionalDesc
+    case 'business': return t.businessDesc
+    default: return tier.description
+  }
+}
+
+function translateTierCta(t, tier) {
+  switch (tier.id) {
+    case 'free': return t.createFreeRoomBtn
+    case 'pro-event': return t.upgradeThisEvent
+    case 'wedding-pro': return t.createWeddingRoom
+    case 'professional': return t.startProfessional
+    case 'business': return t.contactSales
+    default: return tier.cta.label
+  }
+}
+
+function translateInterval(t, interval) {
+  if (interval === '/ event') return t.perEvent
+  if (interval === '/ month') return t.perMonth
+  return interval
+}
+
+function translateFeatureName(t, name) {
+  const map = {
+    'Active rooms': t.activeRooms,
+    'Photo limit': t.photoLimit,
+    'Guest uploads': t.guestUploads,
+    'QR code sharing': t.qrCodeSharing,
+    'Full gallery downloads': t.fullGalleryDownloads,
+    'SnapRooms branding removed': t.brandingRemoved,
+    'Wedding-focused premium experience': t.weddingPremium,
+    'Commercial use': t.commercialUse,
+    'Priority support': t.prioritySupport,
+    'Custom setup': t.customSetup,
+  }
+  return map[name] || name
+}
+
+function translateFeatureValue(t, value) {
+  if (value === 'Multiple') return t.multiple
+  if (value === 'Dedicated') return t.dedicated
+  return value
+}
+
 function TierCard({ tier, index, delayOffset = 0 }) {
+  const t = useTranslations('pricing')
+
+  const displayName = translateTierName(t, tier)
+  const displayTarget = translateTierTarget(t, tier)
+  const displayDescription = translateTierDescription(t, tier)
+  const displayCta = translateTierCta(t, tier)
+  const displayInterval = translateInterval(t, tier.interval)
+  const displayBadge = tier.badge === 'Most popular' ? t.mostPopular : tier.badge === 'Custom' ? t.businessPrice : tier.badge
+
   return (
     <div
       className={`reveal relative flex flex-col rounded-2xl border p-6 shadow-card ${
@@ -213,36 +295,36 @@ function TierCard({ tier, index, delayOffset = 0 }) {
             }`}
           >
             {tier.badge === 'Most popular' && <Sparkles className="h-3 w-3" />}
-            {tier.badge}
+            {displayBadge}
           </span>
         </div>
       )}
 
       <div className="mt-2">
         <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-muted-foreground">
-          {tier.target}
+          {displayTarget}
         </span>
-        <h3 className="mt-2 font-display text-lg font-bold text-white">{tier.name}</h3>
+        <h3 className="mt-2 font-display text-lg font-bold text-white">{displayName}</h3>
       </div>
 
       <div className="mt-4 flex items-baseline gap-1">
         <span className="font-display text-3xl font-bold text-white">{tier.price}</span>
-        {tier.interval && <span className="text-sm text-muted-foreground">{tier.interval}</span>}
+        {displayInterval && <span className="text-sm text-muted-foreground">{displayInterval}</span>}
       </div>
 
       {tier.secondaryPrice && (
         <p className="mt-1 text-xs text-muted-foreground">
-          or <span className="text-foreground">{tier.secondaryPrice}</span> (save 17%)
+          {t.or} <span className="text-foreground">{tier.secondaryPrice}</span> ({t.save17})
         </p>
       )}
 
-      <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{tier.description}</p>
+      <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{displayDescription}</p>
 
       <div className="mt-5">
         {tier.cta.variant === 'primary' ? (
           <Button className="w-full glow-blue" size="sm" asChild>
             <a href={tier.cta.href}>
-              {tier.cta.label}
+              {displayCta}
               <ArrowRight className="ml-2 h-4 w-4" />
             </a>
           </Button>
@@ -253,7 +335,7 @@ function TierCard({ tier, index, delayOffset = 0 }) {
             size="sm"
             asChild
           >
-            <a href={tier.cta.href}>{tier.cta.label}</a>
+            <a href={tier.cta.href}>{displayCta}</a>
           </Button>
         )}
       </div>
@@ -269,9 +351,9 @@ function TierCard({ tier, index, delayOffset = 0 }) {
               <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             )}
             <span className="text-muted-foreground">
-              {f.name}
+              {translateFeatureName(t, f.name)}
               {typeof f.value === 'string' && (
-                <span className="text-foreground">: {f.value}</span>
+                <span className="text-foreground">: {translateFeatureValue(t, f.value)}</span>
               )}
             </span>
           </li>
@@ -282,6 +364,9 @@ function TierCard({ tier, index, delayOffset = 0 }) {
 }
 
 export function PricingPage() {
+  const t = useTranslations('pricing')
+  const tCommon = useTranslations('common')
+
   useScrollReveal()
 
   useEffect(() => {
@@ -303,15 +388,14 @@ export function PricingPage() {
         <div className="container relative px-4">
           <div className="mx-auto max-w-3xl text-center">
             <span className="inline-block font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary animate-fade-up">
-              Pricing
+              {t.title}
             </span>
             <h1 className="mt-4 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl animate-fade-up delay-100">
-              Simple pricing for{' '}
-              <span className="text-gradient">every kind of event</span>
+              {t.heroTitle1}{' '}
+              <span className="text-gradient">{t.heroTitle2}</span>
             </h1>
             <p className="mt-4 text-base text-muted-foreground sm:text-lg animate-fade-up delay-200">
-              Guests always upload for free. You only pay if you want more rooms,
-              more photos, and premium event tools.
+              {t.heroSubtitle}
             </p>
           </div>
         </div>
@@ -326,8 +410,8 @@ export function PricingPage() {
                 <Calendar className="h-4 w-4" />
               </div>
               <div>
-                <h2 className="font-display text-base font-semibold text-white">Pay per event</h2>
-                <p className="text-xs text-muted-foreground">For personal celebrations and one-off occasions</p>
+                <h2 className="font-display text-base font-semibold text-white">{t.payPerEvent}</h2>
+                <p className="text-xs text-muted-foreground">{t.payPerEventSubtitle}</p>
               </div>
             </div>
 
@@ -349,8 +433,8 @@ export function PricingPage() {
                 <Briefcase className="h-4 w-4" />
               </div>
               <div>
-                <h2 className="font-display text-base font-semibold text-white">Pay monthly</h2>
-                <p className="text-xs text-muted-foreground">For professionals and businesses who run events regularly</p>
+                <h2 className="font-display text-base font-semibold text-white">{t.payMonthly}</h2>
+                <p className="text-xs text-muted-foreground">{t.payMonthlySubtitle}</p>
               </div>
             </div>
 
@@ -370,29 +454,29 @@ export function PricingPage() {
         <div className="container px-4">
           <div className="mx-auto max-w-3xl text-center reveal">
             <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              Compare all plans
+              {t.comparePlans}
             </h2>
             <p className="mt-3 text-muted-foreground">
-              Pick the plan that fits your event. Upgrade or downgrade anytime.
+              {t.compareDesc}
             </p>
           </div>
 
           <div className="mx-auto mt-12 max-w-4xl reveal overflow-x-auto">
             <div className="min-w-[700px] overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141C2E]">
               <div className="grid grid-cols-[1.75fr_1fr_1fr_1fr_1fr_1fr] gap-4 border-b border-white/[0.07] px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                <span>Feature</span>
-                <span className="text-center">Free</span>
-                <span className="text-center text-primary">Pro Event</span>
-                <span className="text-center">Wedding Pro</span>
-                <span className="text-center">Professional</span>
-                <span className="text-center">Business</span>
+                <span>{t.feature}</span>
+                <span className="text-center">{t.free}</span>
+                <span className="text-center text-primary">{t.proEvent}</span>
+                <span className="text-center">{t.weddingPro}</span>
+                <span className="text-center">{t.professional}</span>
+                <span className="text-center">{t.business}</span>
               </div>
               {allTiers[0].features.map((f) => (
                 <div
                   key={f.name}
                   className="grid grid-cols-[1.75fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-5 py-3 text-sm border-b border-white/[0.04] last:border-0"
                 >
-                  <span className="text-muted-foreground">{f.name}</span>
+                  <span className="text-muted-foreground">{translateFeatureName(t, f.name)}</span>
                   {allTiers.map((tier) => {
                     const feature = tier.features.find((tf) => tf.name === f.name)
                     return (
@@ -416,12 +500,10 @@ export function PricingPage() {
               <Users className="h-6 w-6" />
             </div>
             <h2 className="mt-5 font-display text-xl font-bold tracking-tight text-white sm:text-2xl">
-              Guests always upload for free
+              {t.guestsAlwaysFree}
             </h2>
             <p className="mt-3 text-muted-foreground">
-              No matter which plan you choose, your guests never pay to upload photos.
-              There are no hidden fees, no guest limits, and no surprise charges.
-              The price you see is the only price you pay.
+              {t.noHiddenFees} {t.noSurprises} {t.onlyPriceYouPay}
             </p>
           </div>
         </div>
@@ -432,19 +514,19 @@ export function PricingPage() {
         <div className="container px-4">
           <div className="mx-auto max-w-3xl text-center reveal">
             <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              Find the right plan for your event
+              {t.findRightPlan}
             </h2>
             <p className="mt-3 text-muted-foreground">
-              Explore event-specific guides to see how SnapRooms fits your occasion.
+              {t.exploreGuides}
             </p>
           </div>
 
           <div className="mx-auto mt-10 grid max-w-4xl gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              { href: '/wedding-photo-sharing', label: 'Weddings', icon: Heart },
-              { href: '/birthday-photo-sharing', label: 'Birthdays', icon: Sparkles },
-              { href: '/private-party-photo-sharing', label: 'Private Parties', icon: Calendar },
-              { href: '/corporate-event-photo-sharing', label: 'Corporate Events', icon: Briefcase },
+              { href: '/wedding-photo-sharing', label: t.weddings, icon: Heart },
+              { href: '/birthday-photo-sharing', label: t.birthdays, icon: Sparkles },
+              { href: '/private-party-photo-sharing', label: t.privateParties, icon: Calendar },
+              { href: '/corporate-event-photo-sharing', label: t.corporateEvents, icon: Briefcase },
             ].map((link) => (
               <a
                 key={link.href}
@@ -470,24 +552,23 @@ export function PricingPage() {
               <Briefcase className="h-6 w-6" />
             </div>
             <h2 className="mt-5 font-display text-xl font-bold tracking-tight text-white sm:text-2xl">
-              Running events professionally?
+              {t.runningProfessionally}
             </h2>
             <p className="mt-3 text-muted-foreground">
-              Photographers, planners, and venues use SnapRooms Professional and
-              Business tiers to deliver a premium photo-collection experience to clients.
+              {t.proCtaDesc}
             </p>
             <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Button asChild className="glow-blue">
                 <a href="/for-wedding-photographers">
-                  For Photographers
+                  {t.forPhotographers}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </a>
               </Button>
               <Button variant="outline" className="border-white/[0.07] bg-transparent hover:bg-white/[0.03]" asChild>
-                <a href="/for-event-planners">For Planners</a>
+                <a href="/for-event-planners">{t.forPlanners}</a>
               </Button>
               <Button variant="outline" className="border-white/[0.07] bg-transparent hover:bg-white/[0.03]" asChild>
-                <a href="/commercial-license">Commercial License</a>
+                <a href="/commercial-license">{t.commercialLicense}</a>
               </Button>
             </div>
           </div>
@@ -503,7 +584,7 @@ export function PricingPage() {
                 <HelpCircle className="h-6 w-6" />
               </div>
               <h2 className="mt-5 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                Frequently asked questions
+                {t.faqTitle}
               </h2>
             </div>
 
@@ -528,17 +609,17 @@ export function PricingPage() {
         <div className="container px-4">
           <div className="mx-auto max-w-2xl text-center reveal">
             <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              Ready to collect every guest photo?
+              {t.readyToCollect}
             </h2>
             <p className="mt-3 text-muted-foreground">
-              Create your first room in seconds. No credit card required.
+              {t.createFirstRoomCta}
             </p>
             <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Button size="lg" className="glow-blue" asChild>
-                <a href="/">Create free room</a>
+                <a href="/">{t.createFreeRoom}</a>
               </Button>
               <Button size="lg" variant="outline" className="border-white/[0.07] bg-transparent hover:bg-white/[0.03]" asChild>
-                <a href="/dashboard/login">Sign in to upgrade</a>
+                <a href="/dashboard/login">{t.signInToUpgrade}</a>
               </Button>
             </div>
           </div>
