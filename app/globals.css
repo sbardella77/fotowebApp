@@ -212,6 +212,42 @@ code {
   .shadow-card {
     box-shadow: 0 40px 80px rgba(0,0,0,0.55);
   }
+
+  /* Premium surface utilities */
+  .surface-elevated {
+    background-color: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 16px;
+  }
+
+  .surface-deep {
+    background-color: var(--color-bg-deep);
+    border: 1px solid var(--color-border);
+    border-radius: 16px;
+  }
+
+  /* Focus ring for accessibility */
+  .focus-ring {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--color-accent-soft);
+    border-color: var(--color-accent) !important;
+  }
+
+  /* Touch target comfort */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Premium loading pulse */
+  .pulse-soft {
+    animation: pulseSoft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes pulseSoft {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
 }
 
 /* ── Typography Overrides ────────────────────────────────────────────────── */
@@ -456,6 +492,49 @@ code {
 .dark section {
   padding-top: 3rem;
   padding-bottom: 3rem;
+}
+
+/* ── Accessibility & Interaction ─────────────────────────────────────────── */
+
+.dark *:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.dark button:focus-visible,
+.dark a:focus-visible,
+.dark [role="button"]:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+.dark input:focus-visible,
+.dark textarea:focus-visible,
+.dark select:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+  border-color: var(--color-accent) !important;
+}
+
+/* Ensure minimum touch targets on mobile */
+.dark button,
+.dark a,
+.dark [role="button"] {
+  min-height: 36px;
+}
+
+/* Banner readability improvements */
+.dark .bg-amber-500\/10,
+.dark .bg-amber-500\/\[0\.06\],
+.dark .bg-amber-500\/\[0\.10\] {
+  background-color: rgba(212, 168, 83, 0.08) !important;
+  border-color: rgba(212, 168, 83, 0.25) !important;
+}
+
+.dark .text-amber-400,
+.dark .text-amber-500 {
+  color: var(--color-accent) !important;
 }
 
 /* ── Animations ──────────────────────────────────────────────────────────── */

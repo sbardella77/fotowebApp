@@ -122,7 +122,7 @@ export function HomePageClient({ locale = 'en' }) {
             />
             <span className="font-semibold tracking-tight text-primary">SnapRooms</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <LanguageSwitcher />
             <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
               <a href="/dashboard/login">{tCommon.signIn}</a>

@@ -97,11 +97,11 @@ const PhotoGalleryGrid = ({
 
   if (loading && safePhotos.length === 0) {
     return (
-      <div className="grid grid-cols-3 gap-1 sm:gap-2 md:grid-cols-4">
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5 md:grid-cols-4">
         {skeletonItems.map((item) => (
           <div 
             key={item} 
-            className="relative aspect-square animate-pulse bg-muted"
+            className="relative aspect-square animate-pulse rounded-lg bg-muted"
           />
         ))}
       </div>
@@ -110,14 +110,14 @@ const PhotoGalleryGrid = ({
 
   if (error) {
     return (
-      <div className="flex min-h-[180px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-muted/30 p-6 text-center">
-        <AlertCircle className="h-7 w-7 text-destructive/60" />
+      <div className="flex min-h-[200px] flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-border bg-muted/30 p-8 text-center">
+        <AlertCircle className="h-8 w-8 text-destructive/60" />
         <div>
           <p className="text-sm font-medium">{t.unableToLoadGallery}</p>
           <p className="text-xs text-muted-foreground">{error}</p>
         </div>
         {onRetry && (
-          <Button variant="outline" size="sm" onClick={onRetry} className="h-8">
+          <Button variant="outline" size="sm" onClick={onRetry} className="h-9">
             <RefreshCcw className="mr-1.5 h-3.5 w-3.5" />
             {t.retry}
           </Button>
@@ -128,8 +128,8 @@ const PhotoGalleryGrid = ({
 
   if (safePhotos.length === 0) {
     return (
-      <div className="flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/30 p-6 text-center">
-        <div className="rounded-full bg-primary/10 p-3">
+      <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border bg-muted/30 p-8 text-center">
+        <div className="rounded-2xl bg-primary/10 p-3">
           <ImageIcon className="h-6 w-6 text-primary/60" />
         </div>
         <div>
@@ -141,11 +141,11 @@ const PhotoGalleryGrid = ({
   }
 
   return (
-    <div className="grid grid-cols-3 gap-1 sm:gap-2 md:grid-cols-4">
+    <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5 md:grid-cols-4">
       {safePhotos.map((photo, index) => (
         <button
           key={photo.id}
-          className="group relative aspect-square overflow-hidden bg-muted transition-transform duration-200 will-change-transform active:scale-95"
+          className="group relative aspect-square overflow-hidden rounded-lg bg-muted transition-transform duration-200 will-change-transform active:scale-95"
           onClick={() => onSelectPhoto?.(index)}
           type="button"
           aria-label={`${t.photo} ${index + 1} / ${safePhotos.length}${photo.originalName ? `, ${photo.originalName}` : ''}`}

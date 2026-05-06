@@ -54,7 +54,7 @@ const DashboardPhotoCard = ({ photo, onApprove, onReject, onDelete, onOpenLightb
   const isBusy = busyId === photo.id
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card">
+    <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card transition-transform duration-200 hover:-translate-y-px">
       <button className="block w-full text-left" onClick={onOpenLightbox} type="button">
         <img alt={photo.originalName} className="aspect-square w-full object-cover" src={photo.url} />
       </button>
@@ -76,7 +76,7 @@ const DashboardPhotoCard = ({ photo, onApprove, onReject, onDelete, onOpenLightb
             disabled={isBusy || photo.status === 'VISIBLE'}
             size="sm"
             onClick={onApprove}
-            className="h-8"
+            className="h-9"
           >
             {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
           </Button>
@@ -85,7 +85,7 @@ const DashboardPhotoCard = ({ photo, onApprove, onReject, onDelete, onOpenLightb
             size="sm"
             variant="outline"
             onClick={onReject}
-            className="h-8 border-white/[0.07] bg-[#0D1220] hover:bg-[#111827]"
+            className="h-9 border-white/[0.07] bg-[#0D1220] hover:bg-[#111827]"
           >
             <EyeOff className="h-3.5 w-3.5" />
           </Button>
@@ -94,7 +94,7 @@ const DashboardPhotoCard = ({ photo, onApprove, onReject, onDelete, onOpenLightb
             size="sm"
             variant="destructive"
             onClick={onDelete}
-            className="h-8"
+            className="h-9"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
@@ -917,7 +917,7 @@ export default function DashboardPage() {
           {authState.authenticated ? (
             <div className="flex items-center gap-3">
               {(plan === 'professional' || plan === 'business') && (
-                <span className="hidden rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[0.65rem] font-medium uppercase tracking-wider text-primary sm:inline">
+                <span className="hidden rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wider text-primary sm:inline">
                   {t.proBadge}
                 </span>
               )}
@@ -945,13 +945,13 @@ export default function DashboardPage() {
         ) : !authState.authenticated ? (
           <div className="mx-auto max-w-sm py-12">
             <div className="mb-8 text-center">
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                <Lock className="h-6 w-6" />
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <Lock className="h-7 w-7" />
               </div>
               <h1 className="font-display text-2xl font-bold tracking-[-0.03em] text-white">
                 {forgotMode ? t.resetYourPassword : t.signInToManage}
               </h1>
-              <p className="mt-3 text-sm font-light text-muted-foreground">
+              <p className="mt-3 text-sm font-light leading-relaxed text-muted-foreground">
                 {forgotMode
                   ? t.enterEmailForReset
                   : t.accessYourRooms}
@@ -1078,13 +1078,13 @@ export default function DashboardPage() {
           </div>
         ) : events.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-              <Camera className="h-8 w-8" />
+            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-primary/10 text-primary">
+              <Camera className="h-10 w-10" />
             </div>
-            <h2 className="font-display text-xl font-bold tracking-tight text-white">
+            <h2 className="font-display text-2xl font-bold tracking-tight text-white">
               {t.noRoomsYet}
             </h2>
-            <p className="mt-3 max-w-sm text-sm font-light text-muted-foreground">
+            <p className="mt-3 max-w-sm text-sm font-light leading-relaxed text-muted-foreground">
               {t.noRoomsDesc}
             </p>
             <Button className="mt-8 glow-blue" onClick={openCreateDialog}>
@@ -1093,18 +1093,18 @@ export default function DashboardPage() {
             </Button>
           </div>
         ) : (
-          <div className="mx-auto max-w-5xl space-y-8">
+          <div className="mx-auto max-w-5xl space-y-10">
             {/* Top summary area */}
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h1 className="font-display text-2xl font-bold tracking-[-0.03em] text-white">
                   {t.yourRooms}
                 </h1>
-                <p className="mt-1 text-sm font-light text-muted-foreground">
+                <p className="mt-1.5 text-sm font-light text-muted-foreground">
                   {t.yourRoomsDesc}
                 </p>
               </div>
-              <Button size="sm" className="mt-3 sm:mt-0 glow-blue" onClick={openCreateDialog}>
+              <Button size="sm" className="mt-2 sm:mt-0 glow-blue" onClick={openCreateDialog}>
                 <Plus className="mr-2 h-4 w-4" />
                 {t.createNewRoom}
               </Button>
@@ -1122,10 +1122,10 @@ export default function DashboardPage() {
                         </span>
                         <Sparkles className="h-3 w-3 text-primary" />
                       </div>
-                      <h2 className="mt-1 font-display text-lg font-bold tracking-tight text-white">
+                      <h2 className="mt-2 font-display text-lg font-bold tracking-tight text-white">
                         {t.unlockPremium}
                       </h2>
-                      <p className="mt-1 max-w-md text-sm font-light text-muted-foreground">
+                      <p className="mt-1.5 max-w-md text-sm font-light leading-relaxed text-muted-foreground">
                         {t.upgradeDesc}
                       </p>
                       <p className="mt-2 text-xs font-light text-muted-foreground/70">
@@ -1157,8 +1157,12 @@ export default function DashboardPage() {
               </div>
             )}
 
+            {/* Message banner */}
             {message ? (
-              <div className="rounded-xl border border-white/[0.07] bg-[#141C2E] p-3 text-sm text-muted-foreground">{message}</div>
+              <div className="rounded-xl border border-white/[0.07] bg-[#141C2E] p-4 text-sm text-muted-foreground flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+                {message}
+              </div>
             ) : null}
 
             {/* Mono label above grid */}
@@ -1168,7 +1172,8 @@ export default function DashboardPage() {
               </span>
             </div>
 
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {/* Event cards grid */}
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {events.map((event) => (
                 <div
                   key={event.id}
@@ -1211,31 +1216,32 @@ export default function DashboardPage() {
                       </div>
                     ) : (
                       <>
-                        <h3 className="font-display text-base font-bold tracking-tight text-white truncate">
-                          {event.name}
-                        </h3>
-                        <p className="mt-1 font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
-                          {t.code} {event.slug}
-                        </p>
-                        {event.billingTier && (
-                          <div className="mt-1.5">
-                            <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[0.65rem] font-medium text-primary">
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="font-display text-base font-bold tracking-tight text-white truncate">
+                            {event.name}
+                          </h3>
+                          {event.billingTier && (
+                            <span className="inline-flex shrink-0 items-center rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[0.6rem] font-semibold text-primary">
                               <Sparkles className="mr-1 h-2.5 w-2.5" />
                               {event.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent}
                             </span>
-                          </div>
-                        )}
-                      </>
-                    )}
-
-                    {editingSlug !== event.slug && (
-                      <>
-                        <p className="mt-3 text-sm font-light text-muted-foreground">
-                          {event.photoCount || event.photos?.length || 0} {t.photos}
+                          )}
+                        </div>
+                        <p className="mt-1.5 font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
+                          {t.code} {event.slug}
                         </p>
 
+                        <div className="mt-4 flex items-center gap-4">
+                          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                            <ImagePlus className="h-3.5 w-3.5 text-primary" />
+                            <span className="font-light">
+                              {event.photoCount || event.photos?.length || 0} {t.photos}
+                            </span>
+                          </div>
+                        </div>
+
                         {/* Primary actions */}
-                        <div className="mt-4 flex flex-wrap gap-2">
+                        <div className="mt-5 flex flex-wrap gap-2">
                           <Button size="sm" asChild className="glow-blue" onClick={(e) => e.stopPropagation()}>
                             <a href={`/event/${event.slug}`}>{t.openRoom}</a>
                           </Button>
@@ -1280,82 +1286,84 @@ export default function DashboardPage() {
               <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card">
                 <div className="p-5 sm:p-6">
                   {/* Room context header */}
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
                       <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
                         {t.roomPhotos}
                       </span>
-                      <h3 className="mt-1 font-display text-lg font-bold tracking-tight text-white">
+                      <h3 className="mt-1.5 font-display text-lg font-bold tracking-tight text-white">
                         {selectedEvent.name}
                       </h3>
                       <p className="mt-1 font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
                         {t.code} {selectedEvent.slug}
                       </p>
-                      <p className="mt-1 text-sm font-light text-muted-foreground">
+                      <p className="mt-1.5 text-sm font-light text-muted-foreground">
                         {photos.length} {t.totalPhotos}
                       </p>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button size="sm" asChild className="glow-blue">
-                        <a href={`/event/${selectedEvent.slug}`}>{t.openRoom}</a>
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => shareEvent(selectedEvent)} className="border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground">
-                        <Share2 className="mr-1.5 h-3.5 w-3.5" />
-                        {t.share}
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => openQR(selectedEvent)} className="border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground">
-                        <QrCode className="mr-1.5 h-3.5 w-3.5" />
-                        {t.qr}
-                      </Button>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" asChild className="glow-blue">
+                          <a href={`/event/${selectedEvent.slug}`}>{t.openRoom}</a>
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => shareEvent(selectedEvent)} className="border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground">
+                          <Share2 className="mr-1.5 h-3.5 w-3.5" />
+                          {t.share}
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => openQR(selectedEvent)} className="border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground">
+                          <QrCode className="mr-1.5 h-3.5 w-3.5" />
+                          {t.qr}
+                        </Button>
+                      </div>
+                      {/* Event-level upgrade for free-tier rooms */}
+                      {plan !== 'professional' && plan !== 'business' && !selectedEvent.billingTier && (
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-primary/20 bg-primary/5 text-primary hover:bg-primary/10"
+                            disabled={checkoutBusy}
+                            onClick={() => startCheckout('pro_event', selectedEvent.id, 'dashboard_room_detail')}
+                          >
+                            {checkoutBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : `${t.proEvent} €29`}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-primary/20 bg-primary/5 text-primary hover:bg-primary/10"
+                            disabled={checkoutBusy}
+                            onClick={() => startCheckout('wedding_pro', selectedEvent.id, 'dashboard_room_detail')}
+                          >
+                            {checkoutBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : `${t.weddingPro} €49`}
+                          </Button>
+                        </div>
+                      )}
+                      {selectedEvent.billingTier && (
+                        <div className="mt-1">
+                          <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+                            <Sparkles className="mr-1 h-3 w-3" />
+                            {selectedEvent.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                    {/* Event-level upgrade for free-tier rooms */}
-                    {plan !== 'professional' && plan !== 'business' && !selectedEvent.billingTier && (
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-primary/20 bg-primary/5 text-primary hover:bg-primary/10"
-                          disabled={checkoutBusy}
-                          onClick={() => startCheckout('pro_event', selectedEvent.id, 'dashboard_room_detail')}
-                        >
-                          {checkoutBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : `${t.proEvent} €29`}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-primary/20 bg-primary/5 text-primary hover:bg-primary/10"
-                          disabled={checkoutBusy}
-                          onClick={() => startCheckout('wedding_pro', selectedEvent.id, 'dashboard_room_detail')}
-                        >
-                          {checkoutBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : `${t.weddingPro} €49`}
-                        </Button>
-                      </div>
-                    )}
-                    {selectedEvent.billingTier && (
-                      <div className="mt-2">
-                        <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
-                          <Sparkles className="mr-1 h-3 w-3" />
-                          {selectedEvent.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent}
-                        </span>
-                      </div>
-                    )}
                   </div>
 
-                  <div className="mt-6">
+                  <div className="mt-8">
                     {busy.detail ? (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         {t.loadingPhotos}
                       </div>
                     ) : photos.length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-white/[0.07] bg-[#0D1220] p-8 text-center">
-                        <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                          <ImagePlus className="h-5 w-5" />
+                      <div className="rounded-xl border border-dashed border-white/[0.07] bg-[#0D1220] p-10 text-center">
+                        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                          <ImagePlus className="h-6 w-6" />
                         </div>
-                        <p className="text-sm font-light text-muted-foreground">
+                        <p className="text-sm font-medium text-white">
                           {t.noPhotosYet}
                         </p>
-                        <p className="mt-1 text-xs font-light text-muted-foreground/70">
+                        <p className="mt-1 text-xs font-light text-muted-foreground">
                           {t.shareToStart}
                         </p>
                       </div>
@@ -1386,7 +1394,7 @@ export default function DashboardPage() {
             {selectedEvent && hasPrivateDeliveryAccess(selectedEvent) && (
               <div className="rounded-2xl border border-primary/20 bg-[#141C2E] shadow-card">
                 <div className="p-5 sm:p-6">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <div className="flex items-center gap-2">
                         <FolderHeart className="h-4 w-4 text-primary" />
@@ -1394,10 +1402,10 @@ export default function DashboardPage() {
                           {tPrivate.privateDelivery}
                         </span>
                       </div>
-                      <h3 className="mt-1 font-display text-lg font-bold tracking-tight text-white">
+                      <h3 className="mt-2 font-display text-lg font-bold tracking-tight text-white">
                         {tPrivate.professionalFiles}
                       </h3>
-                      <p className="mt-1 text-sm font-light text-muted-foreground">
+                      <p className="mt-1.5 text-sm font-light leading-relaxed text-muted-foreground">
                         {tPrivate.privateDeliveryDesc}
                       </p>
                     </div>
@@ -1425,21 +1433,21 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  <div className="mt-6">
+                  <div className="mt-8">
                     {privateDeliveryLoading ? (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         {tPrivate.loadingPrivateFiles}
                       </div>
                     ) : privateAssets.length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-primary/10 bg-[#0D1220] p-8 text-center">
-                        <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                          <FolderHeart className="h-5 w-5" />
+                      <div className="rounded-xl border border-dashed border-primary/10 bg-[#0D1220] p-10 text-center">
+                        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                          <FolderHeart className="h-6 w-6" />
                         </div>
-                        <p className="text-sm font-light text-muted-foreground">
+                        <p className="text-sm font-medium text-white">
                           {tPrivate.noPrivateFiles}
                         </p>
-                        <p className="mt-1 text-xs font-light text-muted-foreground/70">
+                        <p className="mt-1 text-xs font-light text-muted-foreground">
                           {tPrivate.uploadOriginalDesc}
                         </p>
                       </div>
@@ -1462,7 +1470,7 @@ export default function DashboardPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-8 border-white/[0.07] bg-[#141C2E] hover:bg-[#111827] hover:text-foreground"
+                                className="h-9 border-white/[0.07] bg-[#141C2E] hover:bg-[#111827] hover:text-foreground"
                                 onClick={() => downloadPrivateAsset(asset)}
                               >
                                 <Download className="mr-1.5 h-3.5 w-3.5" />
@@ -1471,7 +1479,7 @@ export default function DashboardPage() {
                               <Button
                                 size="sm"
                                 variant="destructive"
-                                className="h-8"
+                                className="h-9"
                                 disabled={busy.detail}
                                 onClick={() => deletePrivateAsset(asset.id)}
                               >
@@ -1491,7 +1499,7 @@ export default function DashboardPage() {
                         <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
                           {tPrivate.photographerLink}
                         </span>
-                        <p className="mt-1 text-sm font-light text-muted-foreground">
+                        <p className="mt-1.5 text-sm font-light leading-relaxed text-muted-foreground">
                           {tPrivate.photographerLinkDesc}
                         </p>
                       </div>
@@ -1535,7 +1543,7 @@ export default function DashboardPage() {
                           <Button
                             size="sm"
                             variant="destructive"
-                            className="h-8"
+                            className="h-9"
                             disabled={photographerLinkBusy}
                             onClick={revokePhotographerLink}
                           >
@@ -1581,7 +1589,7 @@ export default function DashboardPage() {
                             <Button
                               size="sm"
                               variant="destructive"
-                              className="h-8"
+                              className="h-9"
                               disabled={photographerLinkBusy}
                               onClick={revokePhotographerLink}
                             >

@@ -81,10 +81,10 @@ export function LandingPage({
             </div>
             <span className="font-display text-sm font-bold tracking-tight text-primary">SnapRooms</span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => scrollToSection('how-it-works')}
-              className="hidden text-sm text-muted-foreground hover:text-foreground sm:block"
+              className="hidden text-sm text-muted-foreground hover:text-foreground transition-colors sm:block"
             >
               {tNav.howItWorks}
             </button>
@@ -99,7 +99,7 @@ export function LandingPage({
       </nav>
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden pt-24 pb-16 sm:pt-32 sm:pb-24">
+      <section className="relative overflow-hidden pt-28 pb-20 sm:pt-36 sm:pb-28">
         {/* Grid background */}
         <div className="absolute inset-0 bg-grid opacity-50" aria-hidden="true" />
         {/* Radial fade toward edges */}
@@ -132,19 +132,19 @@ export function LandingPage({
             </div>
 
             {/* Headline */}
-            <h1 className="animate-fade-up delay-200 font-display text-[2rem] font-extrabold tracking-[-0.03em] text-white sm:text-5xl sm:leading-tight lg:text-6xl">
+            <h1 className="animate-fade-up delay-200 font-display text-[2.25rem] font-extrabold tracking-[-0.03em] text-white sm:text-5xl sm:leading-tight lg:text-6xl">
               {t.headline1}
               <span className="block text-gradient">{t.headline2}</span>
             </h1>
 
             {/* Subheadline */}
-            <p className="animate-fade-up delay-300 mx-auto mt-6 max-w-xl text-lg font-light text-muted-foreground">
+            <p className="animate-fade-up delay-300 mx-auto mt-6 max-w-lg text-lg font-light leading-relaxed text-muted-foreground">
               {t.subheadline}
             </p>
 
-            {/* CTA */}
-            <div id="create" className="animate-fade-up delay-400 mt-10 flex flex-col items-center gap-4">
-              <div className="flex w-full max-w-md flex-col gap-3">
+            {/* CTA Form */}
+            <div id="create" className="animate-fade-up delay-400 mt-10">
+              <div className="mx-auto flex w-full max-w-md flex-col gap-3">
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <Input
                     value={eventName}
@@ -180,8 +180,9 @@ export function LandingPage({
                 </Button>
               </div>
 
+              {/* Error states */}
               {createError?.limit === 'room_count' && (
-                <div className="mx-auto max-w-md rounded-xl border border-white/[0.07] bg-[#141C2E] p-4 text-left">
+                <div className="mx-auto mt-4 max-w-md rounded-xl border border-white/[0.07] bg-[#141C2E] p-4 text-left">
                   <p className="text-sm font-medium text-white">
                     {t.errorLimitTitle}
                   </p>
@@ -200,66 +201,48 @@ export function LandingPage({
               )}
 
               {createError && createError.limit !== 'room_count' && (
-                <div className="mx-auto max-w-md rounded-xl border border-red-500/20 bg-red-500/[0.06] p-4 text-left">
+                <div className="mx-auto mt-4 max-w-md rounded-xl border border-red-500/20 bg-red-500/[0.06] p-4 text-left">
                   <p className="text-sm font-medium text-red-400">
                     {createError.error || t.genericError}
                   </p>
                 </div>
               )}
 
-              {/* Microcopy */}
-              <p className="text-sm font-light text-muted-foreground">
-                {t.microcopy1}
-              </p>
+              {/* Trust signals - consolidated */}
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-5 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>{t.freeForever}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>{t.unlimitedGuests}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>{t.instantGallery}</span>
+                </div>
+              </div>
 
-              {/* Trust line */}
-              <p className="text-xs font-light text-muted-foreground">
-                {t.trustLine1}
-              </p>
-              <p className="text-xs font-light text-muted-foreground/70">
-                {t.trustLine2}
-              </p>
-
-              {/* Secondary owner CTA */}
-              <p className="text-xs text-muted-foreground">
-                {t.alreadyCreated}{' '}
-                <a href="/dashboard/login" className="underline underline-offset-2 hover:text-foreground">
+              {/* Secondary microcopy */}
+              <p className="mt-4 text-xs font-light text-muted-foreground/70">
+                {t.microcopy1}{' '}&middot;{' '}
+                <a href="/dashboard/login" className="underline underline-offset-2 hover:text-foreground transition-colors">
                   {t.signInLink}
                 </a>
               </p>
 
               {/* Social proof */}
-              <p className="font-mono text-[0.6rem] uppercase tracking-[0.1em] text-muted-foreground/60">
+              <p className="mt-3 font-mono text-[0.6rem] uppercase tracking-[0.1em] text-muted-foreground/50">
                 {t.socialProof1}
               </p>
-
-              {/* Micro-urgency / quiet reassurance */}
-              <p className="text-xs font-light text-muted-foreground/70">
-                {t.socialProof2}
-              </p>
-            </div>
-
-            {/* Trust signals */}
-            <div className="animate-fade-up delay-500 mt-6 flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground">
-              <div className="flex items-center gap-1.5">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                <span>{t.freeForever}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                <span>{t.unlimitedGuests}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                <span>{t.instantGallery}</span>
-              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* How It Works */}
-      <section id="how-it-works" className="border-y border-white/[0.07] bg-[#0D1220] py-20 sm:py-24">
+      <section id="how-it-works" className="border-y border-white/[0.07] bg-[#0D1220] py-20 sm:py-28">
         <div className="container px-4">
           <div className="reveal mx-auto max-w-3xl text-center">
             <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
@@ -268,12 +251,12 @@ export function LandingPage({
             <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
               {t.hiwTitle}
             </h2>
-            <p className="mt-3 font-light text-muted-foreground">
+            <p className="mt-3 font-light leading-relaxed text-muted-foreground">
               {t.hiwDesc}
             </p>
           </div>
 
-          <div className="mx-auto mt-12 grid max-w-5xl gap-8 sm:grid-cols-3">
+          <div className="mx-auto mt-14 grid max-w-5xl gap-8 sm:grid-cols-3">
             {[
               {
                 step: '01',
@@ -302,14 +285,14 @@ export function LandingPage({
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#141C2E] border border-white/[0.07] text-primary shadow-card">
                   <item.icon className="h-6 w-6" />
                 </div>
-                <div className="mt-4">
+                <div className="mt-5">
                   <div className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
                     {t.stepLabel} {item.step}
                   </div>
-                  <h3 className="mt-1 font-display text-lg font-bold tracking-tight text-white">
+                  <h3 className="mt-2 font-display text-lg font-bold tracking-tight text-white">
                     {item.title}
                   </h3>
-                  <p className="mt-2 text-sm font-light text-muted-foreground">
+                  <p className="mt-2 text-sm font-light leading-relaxed text-muted-foreground">
                     {item.desc}
                   </p>
                 </div>
@@ -320,10 +303,10 @@ export function LandingPage({
       </section>
 
       {/* Why SnapRooms - Pain Point */}
-      <section className="py-20 sm:py-24">
+      <section className="py-20 sm:py-28">
         <div className="container px-4">
           <div className="mx-auto max-w-6xl">
-            <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+            <div className="grid gap-14 lg:grid-cols-2 lg:items-center">
               {/* Left: The Problem */}
               <div className="reveal">
                 <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
@@ -332,10 +315,10 @@ export function LandingPage({
                 <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
                   {t.problemTitle}
                 </h2>
-                <p className="mt-3 font-light text-muted-foreground">
+                <p className="mt-3 font-light leading-relaxed text-muted-foreground">
                   {t.problemDesc}
                 </p>
-                <div className="mt-6 space-y-3">
+                <div className="mt-8 space-y-4">
                   {[
                     { emoji: '💬', text: t.problem1 },
                     { emoji: '😰', text: t.problem2 },
@@ -352,7 +335,7 @@ export function LandingPage({
               {/* Right: The Solution */}
               <div className="reveal relative" style={{ transitionDelay: '100ms' }}>
                 <div className="absolute -inset-4 rounded-3xl bg-gradient-to-br from-primary/10 to-transparent" />
-                <div className="relative space-y-4 rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card">
+                <div className="relative space-y-5 rounded-2xl border border-white/[0.07] bg-[#141C2E] p-7 shadow-card">
                   {[
                     {
                       icon: CheckCircle2,
@@ -370,7 +353,7 @@ export function LandingPage({
                       desc: t.solution3Desc,
                     },
                   ].map((item) => (
-                    <div key={item.title} className="flex items-start gap-3">
+                    <div key={item.title} className="flex items-start gap-4">
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                         <item.icon className="h-5 w-5" />
                       </div>
@@ -378,7 +361,7 @@ export function LandingPage({
                         <h3 className="font-display text-lg font-bold tracking-tight text-white">
                           {item.title}
                         </h3>
-                        <p className="mt-1 text-sm font-light text-muted-foreground">
+                        <p className="mt-1 text-sm font-light leading-relaxed text-muted-foreground">
                           {item.desc}
                         </p>
                       </div>
@@ -392,7 +375,7 @@ export function LandingPage({
       </section>
 
       {/* Use Cases */}
-      <section className="border-y border-white/[0.07] bg-[#0D1220] py-20 sm:py-24">
+      <section className="border-y border-white/[0.07] bg-[#0D1220] py-20 sm:py-28">
         <div className="container px-4">
           <div className="reveal mx-auto max-w-3xl text-center">
             <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
@@ -401,12 +384,12 @@ export function LandingPage({
             <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
               {t.useCasesTitle}
             </h2>
-            <p className="mt-3 font-light text-muted-foreground">
+            <p className="mt-3 font-light leading-relaxed text-muted-foreground">
               {t.useCasesDesc}
             </p>
           </div>
 
-          <div className="mx-auto mt-12 grid max-w-5xl gap-8 sm:grid-cols-3">
+          <div className="mx-auto mt-14 grid max-w-5xl gap-6 sm:grid-cols-3">
             {[
               {
                 icon: Heart,
@@ -435,22 +418,22 @@ export function LandingPage({
             ].map((item, i) => (
               <div
                 key={item.title}
-                className="reveal group relative overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 transition-all duration-200 hover:-translate-y-px hover:border-white/[0.12]"
+                className="reveal group relative overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141C2E] p-7 transition-all duration-200 hover:-translate-y-px hover:border-white/[0.12]"
                 style={{ transitionDelay: `${i * 60}ms` }}
               >
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#111827]">
                   <item.icon className={`h-6 w-6 ${item.color}`} />
                 </div>
-                <h3 className="mt-4 font-display text-lg font-bold tracking-tight text-white">
+                <h3 className="mt-5 font-display text-lg font-bold tracking-tight text-white">
                   {item.title}
                 </h3>
-                <p className="mt-2 text-sm font-light text-muted-foreground">
+                <p className="mt-2 text-sm font-light leading-relaxed text-muted-foreground">
                   {item.desc}
                 </p>
-                <ul className="mt-4 space-y-2 text-sm font-light text-muted-foreground">
+                <ul className="mt-5 space-y-2.5 text-sm font-light text-muted-foreground">
                   {item.bullets.map((bullet) => (
                     <li key={bullet} className="flex items-center gap-2">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
                       <span>{bullet}</span>
                     </li>
                   ))}
@@ -462,10 +445,10 @@ export function LandingPage({
       </section>
 
       {/* QR Sharing Section */}
-      <section className="py-20 sm:py-24">
+      <section className="py-20 sm:py-28">
         <div className="container px-4">
           <div className="mx-auto max-w-6xl">
-            <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+            <div className="grid gap-14 lg:grid-cols-2 lg:items-center">
               {/* Left: Content */}
               <div className="reveal order-2 lg:order-1">
                 <div className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-[#141C2E] px-3 py-1">
@@ -474,17 +457,17 @@ export function LandingPage({
                     {t.qrBadge}
                   </span>
                 </div>
-                <h2 className="mt-4 font-display text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
+                <h2 className="mt-5 font-display text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
                   {t.qrTitle}
                 </h2>
-                <p className="mt-2 text-base font-light text-muted-foreground">
+                <p className="mt-3 text-base font-light leading-relaxed text-muted-foreground">
                   {t.qrDesc1}
                 </p>
-                <p className="mt-4 font-light text-muted-foreground">
+                <p className="mt-4 font-light leading-relaxed text-muted-foreground">
                   {t.qrDesc2}
                 </p>
 
-                <div className="mt-8 grid gap-4 sm:grid-cols-2">
+                <div className="mt-10 grid gap-5 sm:grid-cols-2">
                   {[
                     { icon: Printer, title: t.tableCards, desc: t.tableCardsDesc },
                     { icon: Download, title: t.entrancePosters, desc: t.entrancePostersDesc },
@@ -497,43 +480,53 @@ export function LandingPage({
                       </div>
                       <div>
                         <h4 className="font-display text-sm font-bold text-white">{item.title}</h4>
-                        <p className="text-sm font-light text-muted-foreground">{item.desc}</p>
+                        <p className="text-sm font-light leading-relaxed text-muted-foreground">{item.desc}</p>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Right: Visual */}
+              {/* Right: Visual - more tangible phone-like preview */}
               <div className="reveal order-1 lg:order-2" style={{ transitionDelay: '100ms' }}>
-                <div className="relative mx-auto max-w-sm">
-                  <div className="absolute -top-4 -right-4 h-24 w-24 rounded-full bg-primary/10 blur-2xl" aria-hidden="true" />
-                  <div className="absolute -bottom-4 -left-4 h-24 w-24 rounded-full bg-cyan-500/10 blur-2xl" aria-hidden="true" />
+                <div className="relative mx-auto max-w-xs sm:max-w-sm">
+                  <div className="absolute -top-6 -right-6 h-28 w-28 rounded-full bg-primary/10 blur-2xl" aria-hidden="true" />
+                  <div className="absolute -bottom-6 -left-6 h-28 w-28 rounded-full bg-cyan-500/10 blur-2xl" aria-hidden="true" />
 
-                  <div className="relative rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card">
+                  <div className="relative rounded-[2rem] border border-white/[0.07] bg-[#141C2E] p-5 shadow-card sm:p-6">
+                    {/* Phone notch simulation */}
+                    <div className="mx-auto mb-5 h-1.5 w-16 rounded-full bg-white/10" />
+
                     <div className="text-center">
                       <p className="font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
                         Sarah & Mike&apos;s Wedding
                       </p>
-                      <div className="mx-auto my-4 flex h-40 w-40 items-center justify-center rounded-xl border-2 border-dashed border-white/[0.07] bg-[#111827]">
-                        <QrCode className="h-20 w-20 text-muted-foreground" />
+
+                      {/* QR code area with stronger visual */}
+                      <div className="mx-auto my-5 flex h-44 w-44 items-center justify-center rounded-2xl border-2 border-dashed border-white/[0.07] bg-[#111827]">
+                        <div className="text-center">
+                          <QrCode className="mx-auto h-16 w-16 text-muted-foreground" />
+                          <p className="mt-2 font-mono text-[0.6rem] text-muted-foreground">snaprooms.app</p>
+                        </div>
                       </div>
+
                       <p className="text-sm font-medium text-white">{t.scanToUpload}</p>
                       <p className="mt-1 font-mono text-[0.65rem] text-muted-foreground">snaprooms.app/room/sarah-mike</p>
                     </div>
-                  </div>
 
-                  <div className="absolute -right-2 top-1/4 rounded-full border border-white/[0.07] bg-[#141C2E] px-3 py-1.5 text-xs font-medium shadow-lg">
-                    <span className="flex items-center gap-1">
-                      <CheckCircle2 className="h-3 w-3 text-emerald-400" />
-                      <span className="font-mono text-[0.65rem]">{t.instantUpload}</span>
-                    </span>
-                  </div>
-                  <div className="absolute -left-2 bottom-1/4 rounded-full border border-white/[0.07] bg-[#141C2E] px-3 py-1.5 text-xs font-medium shadow-lg">
-                    <span className="flex items-center gap-1">
-                      <Users className="h-3 w-3 text-primary" />
-                      <span className="font-mono text-[0.65rem]">47 photos</span>
-                    </span>
+                    {/* Floating badges */}
+                    <div className="absolute -right-3 top-1/4 rounded-full border border-white/[0.07] bg-[#141C2E] px-3 py-1.5 text-xs font-medium shadow-lg">
+                      <span className="flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                        <span className="font-mono text-[0.65rem]">{t.instantUpload}</span>
+                      </span>
+                    </div>
+                    <div className="absolute -left-3 bottom-1/4 rounded-full border border-white/[0.07] bg-[#141C2E] px-3 py-1.5 text-xs font-medium shadow-lg">
+                      <span className="flex items-center gap-1">
+                        <Users className="h-3 w-3 text-primary" />
+                        <span className="font-mono text-[0.65rem]">47 photos</span>
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -543,14 +536,14 @@ export function LandingPage({
       </section>
 
       {/* Social Proof */}
-      <section className="border-y border-white/[0.07] bg-[#0D1220] py-12">
+      <section className="border-y border-white/[0.07] bg-[#0D1220] py-14">
         <div className="container px-4">
           <div className="reveal mx-auto max-w-2xl text-center">
-            <p className="text-lg font-light text-muted-foreground">
+            <p className="text-lg font-light leading-relaxed text-muted-foreground">
               &ldquo;{t.quote}
               <span className="text-white">{t.quoteHighlight}</span>&rdquo;
             </p>
-            <p className="mt-3 font-mono text-[0.7rem] uppercase tracking-[0.1em] text-muted-foreground">
+            <p className="mt-4 font-mono text-[0.7rem] uppercase tracking-[0.1em] text-muted-foreground">
               {t.quoteAttribution}
             </p>
           </div>
@@ -558,17 +551,17 @@ export function LandingPage({
       </section>
 
       {/* Final CTA */}
-      <section className="py-20 sm:py-24">
+      <section className="py-20 sm:py-28">
         <div className="container px-4">
           <div className="reveal mx-auto max-w-2xl text-center">
             <h2 className="font-display text-3xl font-extrabold tracking-[-0.03em] text-white sm:text-4xl">
               {t.finalTitle}
             </h2>
-            <p className="mt-4 text-lg font-light text-muted-foreground">
+            <p className="mt-5 text-lg font-light leading-relaxed text-muted-foreground">
               {t.finalDesc}
             </p>
 
-            <div className="mt-8 flex w-full max-w-md mx-auto flex-col gap-3">
+            <div className="mt-10 flex w-full max-w-md mx-auto flex-col gap-3">
               <div className="flex flex-col gap-3 sm:flex-row">
                 <Input
                   value={eventName}
@@ -601,14 +594,14 @@ export function LandingPage({
               </Button>
             </div>
 
-            <p className="mt-4 font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
+            <p className="mt-5 font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
               {t.finalMicrocopy}
             </p>
           </div>
         </div>
       </section>
 
-      <div className="container mx-auto max-w-3xl px-4 pb-6">
+      <div className="container mx-auto max-w-3xl px-4 pb-8">
         <InstallCta mode="landing" />
       </div>
 
@@ -625,7 +618,7 @@ export function LandingPage({
             <p className="text-xs font-light text-muted-foreground">
               {tFooter.tagline}
             </p>
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center justify-center gap-4">
               <a href="/pricing" className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
                 {tFooter.pricing}
               </a>

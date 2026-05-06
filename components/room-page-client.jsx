@@ -78,7 +78,7 @@ const useToast = () => {
 
     return (
       <div
-        className={`fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-full px-4 py-2 text-sm font-medium shadow-lg transition-all font-body ${
+        className={`fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full px-5 py-2.5 text-sm font-medium shadow-xl transition-all font-body ${
           toast.type === 'success'
             ? 'bg-white text-[#080C14]'
             : 'bg-destructive text-destructive-foreground'
@@ -133,11 +133,11 @@ function NewRoomShareBanner({ event, baseUrl, onDismiss, showToast, onShowQR }) 
 
   return (
     <div className="mt-6 rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card">
-      <div className="p-5">
+      <div className="p-5 sm:p-6">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="font-display text-base font-bold text-white">{t.inviteOthers}</p>
-            <p className="mt-1 text-sm font-light text-muted-foreground">
+            <p className="mt-1 text-sm font-light leading-relaxed text-muted-foreground">
               {t.noAppNeeded}
             </p>
           </div>
@@ -150,7 +150,7 @@ function NewRoomShareBanner({ event, baseUrl, onDismiss, showToast, onShowQR }) 
             <X className="h-4 w-4" />
           </Button>
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <Button
             size="sm"
             className="gap-1.5 bg-[#25D366] text-white hover:bg-[#128C7E] border-transparent"
@@ -199,12 +199,12 @@ function RoomNotFound() {
   const t = useTranslations('room')
   return (
     <div className="flex min-h-[calc(100vh-3.5rem)] flex-col items-center justify-center gap-5 px-4 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-        <Camera className="h-6 w-6" />
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+        <Camera className="h-7 w-7" />
       </div>
       <div className="max-w-sm">
         <h1 className="font-display text-2xl font-bold tracking-tight text-white">{t.roomNotFound}</h1>
-        <p className="mt-2 text-sm font-light text-muted-foreground">
+        <p className="mt-2 text-sm font-light leading-relaxed text-muted-foreground">
           {t.roomNotFoundDesc}
         </p>
         <p className="mt-1 text-sm font-light text-muted-foreground">
@@ -685,7 +685,7 @@ export default function RoomPageClient({ slug, isNew }) {
             </div>
             <span className="font-display text-sm font-bold tracking-tight text-primary">SnapRooms</span>
           </a>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <LanguageSwitcher />
             {ownerSession?.authenticated && (
               <a
@@ -702,14 +702,14 @@ export default function RoomPageClient({ slug, isNew }) {
 
       {busy.join && !activeEvent ? (
         <div className="relative z-10 flex min-h-[calc(100vh-3.5rem)] flex-col items-center justify-center gap-4 px-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <Camera className="h-6 w-6" />
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <Camera className="h-7 w-7" />
           </div>
           <p className="text-lg font-light text-foreground">{t.loading}</p>
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <section className="container relative z-10 px-4 py-8 pb-16">
+        <section className="container relative z-10 px-4 py-8 pb-20">
           <div className="mx-auto max-w-3xl space-y-6">
             {/* Room info card */}
             <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card">
@@ -719,21 +719,21 @@ export default function RoomPageClient({ slug, isNew }) {
                     <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
                       {t.roomLabel}
                     </span>
-                    <h1 className="font-display text-xl font-bold tracking-tight text-white sm:text-2xl">
+                    <h1 className="mt-1.5 font-display text-xl font-bold tracking-tight text-white sm:text-2xl">
                       {activeEvent.name}
                     </h1>
                   </div>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground"
+                    className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground"
                     onClick={() => loadEvent(activeEvent.slug, { silent: true })}
                   >
                     <RefreshCcw className={`h-4 w-4 ${busy.refresh ? 'animate-spin' : ''}`} />
                   </Button>
                 </div>
 
-                <div className="mt-4 flex flex-wrap items-center gap-4 text-sm font-light text-muted-foreground">
+                <div className="mt-5 flex flex-wrap items-center gap-5 text-sm font-light text-muted-foreground">
                   <div className="flex items-center gap-1.5">
                     <Users className="h-4 w-4 text-primary" />
                     <span>{t.openForUploads}</span>
@@ -745,18 +745,18 @@ export default function RoomPageClient({ slug, isNew }) {
                 </div>
 
                 {/* Room code + share actions */}
-                <div className="mt-5 rounded-xl border border-white/[0.07] bg-[#0D1220] p-4 text-center">
+                <div className="mt-6 rounded-xl border border-white/[0.07] bg-[#0D1220] p-5 text-center">
                   <p className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-muted-foreground">
                     {t.roomCode}
                   </p>
-                  <p className="mt-1 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                  <p className="mt-2 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
                     {activeEvent.slug}
                   </p>
                   <p className="mt-1 text-xs font-light text-muted-foreground">
                     {t.shareCodeHint}
                   </p>
 
-                  <div className="mt-3 flex flex-wrap justify-center gap-2">
+                  <div className="mt-4 flex flex-wrap justify-center gap-2">
                     <Button
                       size="sm"
                       variant="outline"
@@ -840,23 +840,27 @@ export default function RoomPageClient({ slug, isNew }) {
               </div>
             </div>
 
-            {/* Upload hero */}
+            {/* Upload hero - stronger visual affordance */}
             <div ref={heroRef} className="rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card overflow-hidden">
               <div className="p-6 text-center sm:p-8">
+                <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <Camera className="h-7 w-7" />
+                </div>
+
                 <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
                   {t.addYourPhotos}
                 </h2>
-                <p className="mt-2 text-base font-light text-muted-foreground">
+                <p className="mt-2 text-base font-light leading-relaxed text-muted-foreground">
                   {t.bePartOf} {activeEvent.name}
                 </p>
 
-                <p className="mt-2 font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
+                <p className="mt-3 font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
                   {galleryPhotos.length > 0
                     ? `${galleryPhotos.length} ${t.photosShared}`
                     : t.beFirst}
                 </p>
 
-                <div className="mt-5 mx-auto max-w-sm">
+                <div className="mt-6 mx-auto max-w-sm">
                   <div className="space-y-2 text-left">
                     <label className="text-sm font-medium text-foreground">{t.guestNamePlaceholder}</label>
                     <Input
@@ -869,7 +873,7 @@ export default function RoomPageClient({ slug, isNew }) {
                 </div>
 
                 {uploadSuccess && (
-                  <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-5 py-3 text-sm font-medium text-emerald-400">
+                  <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-5 py-3 text-sm font-medium text-emerald-400">
                     <CheckCircle2 className="h-4 w-4" />
                     {lastUploadCount === 1
                       ? t.yourPhotoIsInRoom
@@ -878,7 +882,7 @@ export default function RoomPageClient({ slug, isNew }) {
                 )}
 
                 {uploadFormatError && (
-                  <div className="mt-5 inline-flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/[0.06] px-5 py-3 text-sm font-medium text-red-400">
+                  <div className="mt-6 inline-flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/[0.06] px-5 py-3 text-sm font-medium text-red-400">
                     <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <circle cx="12" cy="12" r="10" />
                       <line x1="12" y1="8" x2="12" y2="12" />
@@ -889,13 +893,13 @@ export default function RoomPageClient({ slug, isNew }) {
                 )}
 
                 {photoLimitError && (
-                  <div className="mt-5 rounded-xl border border-amber-500/20 bg-amber-500/10 px-5 py-4 text-left">
+                  <div className="mt-6 rounded-xl border border-amber-500/20 bg-amber-500/10 px-5 py-4 text-left">
                     {ownerSession?.authenticated && ownerSession?.email?.toLowerCase() === activeEvent?.ownerEmail?.toLowerCase() ? (
                       <>
                         <p className="text-sm font-medium text-amber-400">
                           {t.freeLimitReached}
                         </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
+                        <p className="mt-1 text-xs font-light text-muted-foreground">
                           {t.upgradeToContinueOwner}
                         </p>
                         <div className="mt-3 flex flex-wrap gap-2">
@@ -921,7 +925,7 @@ export default function RoomPageClient({ slug, isNew }) {
                         <p className="text-sm font-medium text-amber-400">
                           {t.photoLimitReachedGuest}
                         </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
+                        <p className="mt-1 text-xs font-light text-muted-foreground">
                           {t.askOwnerToUpgrade}
                         </p>
                       </>
@@ -930,15 +934,15 @@ export default function RoomPageClient({ slug, isNew }) {
                 )}
 
                 {isUploading ? (
-                  <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/[0.07] bg-[#0D1220] px-5 py-3 text-sm font-medium text-foreground">
+                  <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/[0.07] bg-[#0D1220] px-5 py-3 text-sm font-medium text-foreground">
                     <Loader2 className="h-4 w-4 animate-spin text-primary" />
                     {`${t.uploading} ${uploads.filter((u) => u.progress < 100).length} ${t.photosLabel}...`}
                   </div>
                 ) : (
-                  <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-center">
+                  <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
                     <Button
                       size="lg"
-                      className="h-12 gap-2 rounded-lg px-6 text-base font-body font-medium glow-blue"
+                      className="h-14 gap-2 rounded-xl px-8 text-base font-body font-medium glow-blue touch-target"
                       disabled={Boolean(photoLimitError)}
                       onClick={() => {
                         setUploadSuccess(false)
@@ -953,7 +957,7 @@ export default function RoomPageClient({ slug, isNew }) {
                     <Button
                       size="lg"
                       variant="outline"
-                      className="h-12 gap-2 rounded-lg px-6 text-base font-body font-medium border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground"
+                      className="h-14 gap-2 rounded-xl px-8 text-base font-body font-medium border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground touch-target"
                       disabled={Boolean(photoLimitError)}
                       onClick={() => {
                         setUploadSuccess(false)
@@ -968,7 +972,7 @@ export default function RoomPageClient({ slug, isNew }) {
                   </div>
                 )}
 
-                <p className="mt-4 text-xs font-light text-muted-foreground">
+                <p className="mt-5 text-xs font-light text-muted-foreground">
                   {t.noAppNeeded}
                 </p>
               </div>
@@ -994,11 +998,11 @@ export default function RoomPageClient({ slug, isNew }) {
             {/* Viral share section */}
             {showViralSection && (
               <div className="mt-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06]">
-                <div className="p-5">
+                <div className="p-5 sm:p-6">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-display text-base font-bold text-white">{t.inviteOthers}</p>
-                      <p className="mt-1 text-sm font-light text-muted-foreground">
+                      <p className="mt-1 text-sm font-light leading-relaxed text-muted-foreground">
                         {t.viralDesc}
                       </p>
                     </div>
@@ -1011,7 +1015,7 @@ export default function RoomPageClient({ slug, isNew }) {
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
+                  <div className="mt-5 flex flex-wrap gap-2">
                     <Button
                       size="sm"
                       className="gap-1.5 bg-[#25D366] text-white hover:bg-[#128C7E] border-transparent"
@@ -1118,14 +1122,16 @@ export default function RoomPageClient({ slug, isNew }) {
               />
             )}
 
-            <InstallCta mode="room" className="mt-4" />
+            {/* Install CTA - placed before gallery for better timing */}
+            <InstallCta mode="room" className="mt-2" />
 
+            {/* Upload progress */}
             {uploads.length > 0 && (
               <div className="mt-4 space-y-2">
                 {uploads.map((upload) => (
                   <div
                     key={upload.id}
-                    className="flex items-center gap-3 rounded-lg border border-white/[0.07] bg-[#141C2E] p-3"
+                    className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-[#141C2E] p-3"
                   >
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-foreground">{upload.name}</p>
@@ -1141,8 +1147,8 @@ export default function RoomPageClient({ slug, isNew }) {
               </div>
             )}
 
-            {/* Gallery */}
-            <div className="mt-6 rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card">
+            {/* Gallery - premium framing */}
+            <div className="mt-8 rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card">
               <div className="p-5 sm:p-6">
                 <div className="flex items-center gap-3">
                   <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
@@ -1153,15 +1159,15 @@ export default function RoomPageClient({ slug, isNew }) {
                   </Badge>
                 </div>
                 {unlockMessage && (
-                  <p className="mt-2 text-sm font-medium text-emerald-400">
+                  <p className="mt-3 text-sm font-medium text-emerald-400">
                     {unlockMessage}
                   </p>
                 )}
-                <p className="mt-1 text-sm font-light text-muted-foreground">
+                <p className="mt-2 text-sm font-light text-muted-foreground">
                   {t.downloadAvailable}
                 </p>
 
-                <div className="mt-5">
+                <div className="mt-6">
                   <PhotoGalleryGrid
                     photos={galleryPhotos}
                     loading={galleryLoading}
@@ -1184,7 +1190,7 @@ export default function RoomPageClient({ slug, isNew }) {
       >
         <Button
           size="sm"
-          className="h-11 gap-2 rounded-full px-6 text-sm font-body font-medium glow-blue"
+          className="h-12 gap-2 rounded-full px-7 text-sm font-body font-medium glow-blue"
           onClick={() => {
             setUploadSuccess(false)
             setUploadFormatError('')
