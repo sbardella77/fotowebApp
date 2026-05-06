@@ -3,16 +3,11 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Camera,
-  Heart,
   QrCode,
-  Users,
-  ImagePlus,
   CheckCircle2,
   ArrowRight,
   Sparkles,
   Download,
-  Shield,
   Lock,
   Infinity,
   Briefcase,
@@ -30,6 +25,10 @@ import {
   EVENT_CREATE_ROOM_CLICKED,
 } from '@/lib/analytics/events'
 import { useTranslations } from '@/components/i18n-provider'
+import { PhoneMockup } from '@/components/marketing/phone-mockup'
+import { TrustStrip } from '@/components/marketing/trust-strip'
+import { HowItWorks } from '@/components/marketing/how-it-works'
+import { SectionHeader } from '@/components/marketing/section-header'
 
 function useScrollReveal() {
   useEffect(() => {
@@ -110,7 +109,7 @@ export function PhotographersLandingPage({ locale }) {
       {/* Hero */}
       <section className="relative overflow-hidden pt-28 pb-16 sm:pt-36 sm:pb-24">
         <div className="absolute inset-0 bg-grid opacity-50" aria-hidden="true" />
-        <div className="absolute -top-40 -right-40 h-96 w-96 rounded-full bg-blue-500/10 blur-[100px]" aria-hidden="true" />
+        <div className="absolute -top-40 -right-40 h-96 w-96 rounded-full bg-primary/10 blur-[100px]" aria-hidden="true" />
         <div className="absolute -bottom-40 -left-40 h-96 w-96 rounded-full bg-primary/5 blur-[100px]" aria-hidden="true" />
 
         <div className="container relative px-4">
@@ -125,69 +124,66 @@ export function PhotographersLandingPage({ locale }) {
             <p className="mt-4 text-base text-muted-foreground sm:text-lg animate-fade-up delay-200">
               {t.heroSubheadline}
             </p>
-
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3 text-sm text-muted-foreground animate-fade-up delay-300">
-              <span className="inline-flex items-center gap-1.5">
-                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                {t.trustUnlimitedEvents}
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                {t.trustBulkDownload}
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                {t.trustPrivate}
-              </span>
+            <div className="mt-8 animate-fade-up delay-300">
+              <TrustStrip items={[
+                { icon: Infinity, text: t.trustUnlimitedEvents },
+                { icon: Download, text: t.trustBulkDownload },
+                { icon: Lock, text: t.trustPrivate },
+              ]} />
             </div>
           </div>
 
-          {/* Create Form */}
-          <div id="create" className="mx-auto mt-12 max-w-lg animate-fade-up delay-400">
-            <div className="rounded-2xl border border-border bg-surface p-6 shadow-card">
-              <div className="space-y-3">
-                <Input
-                  placeholder={t.eventPlaceholder}
-                  value={eventName}
-                  onChange={(e) => setEventName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && createEvent()}
-                  className="h-12 rounded-lg border-border bg-raised"
-                />
-                <Input
-                  placeholder={t.emailPlaceholder}
-                  type="email"
-                  value={ownerEmail}
-                  onChange={(e) => setOwnerEmail(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && createEvent()}
-                  className="h-12 rounded-lg border-border bg-raised"
-                />
-                <Button
-                  className="h-12 w-full cta-primary"
-                  onClick={createEvent}
-                  disabled={isCreating}
-                >
-                  {isCreating ? (
-                    <>
-                      {t.creating}
-                    </>
-                  ) : (
-                    <>
-                      {t.ctaButton}
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </>
-                  )}
-                </Button>
+          <div className="mx-auto mt-12 grid max-w-5xl items-center gap-10 sm:grid-cols-2">
+            {/* Create Form */}
+            <div id="create" className="animate-fade-up delay-400">
+              <div className="rounded-2xl border border-white/[0.08] bg-raised/60 p-6 shadow-elevated">
+                <div className="space-y-3">
+                  <Input
+                    placeholder={t.eventPlaceholder}
+                    value={eventName}
+                    onChange={(e) => setEventName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && createEvent()}
+                    className="h-12 rounded-lg border-border bg-raised"
+                  />
+                  <Input
+                    placeholder={t.emailPlaceholder}
+                    type="email"
+                    value={ownerEmail}
+                    onChange={(e) => setOwnerEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && createEvent()}
+                    className="h-12 rounded-lg border-border bg-raised"
+                  />
+                  <Button
+                    className="h-12 w-full cta-primary"
+                    onClick={createEvent}
+                    disabled={isCreating}
+                  >
+                    {isCreating ? (
+                      <>{t.creating}</>
+                    ) : (
+                      <>
+                        {t.ctaButton}
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <p className="mt-3 text-center font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
+                  {t.formHelper}
+                </p>
               </div>
-              <p className="mt-3 text-center font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
-                {t.formHelper}
-              </p>
+            </div>
+
+            {/* Phone Mockup */}
+            <div className="animate-fade-up delay-500 flex justify-center">
+              <PhoneMockup />
             </div>
           </div>
         </div>
       </section>
 
       {/* Problem / Solution */}
-      <section className="relative border-t border-border bg-raised/50 py-16 sm:py-24">
+      <section className="relative border-t border-white/[0.06] bg-raised/50 py-24 sm:py-32">
         <div className="container px-4">
           <div className="mx-auto grid max-w-5xl gap-10 sm:grid-cols-2 sm:items-center">
             <div className="reveal">
@@ -202,8 +198,8 @@ export function PhotographersLandingPage({ locale }) {
               </p>
             </div>
             <div className="reveal space-y-4" style={{ transitionDelay: '100ms' }}>
-              <div className="rounded-2xl border border-border bg-surface p-6 shadow-card">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface border border-border text-primary shadow-card">
+              <div className="rounded-xl bg-surface border border-white/[0.08] p-6">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-raised border border-white/[0.08] text-primary">
                   <QrCode className="h-6 w-6" />
                 </div>
                 <h3 className="mt-4 font-display text-lg font-semibold text-foreground">
@@ -213,8 +209,8 @@ export function PhotographersLandingPage({ locale }) {
                   {t.solution1Desc}
                 </p>
               </div>
-              <div className="rounded-2xl border border-border bg-surface p-6 shadow-card">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface border border-border text-primary shadow-card">
+              <div className="rounded-xl bg-surface border border-white/[0.08] p-6">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-raised border border-white/[0.08] text-primary">
                   <Download className="h-6 w-6" />
                 </div>
                 <h3 className="mt-4 font-display text-lg font-semibold text-foreground">
@@ -230,21 +226,17 @@ export function PhotographersLandingPage({ locale }) {
       </section>
 
       {/* Features Grid */}
-      <section className="relative py-16 sm:py-24">
+      <section className="relative py-24 sm:py-32">
         <div className="container px-4">
-          <div className="mx-auto max-w-3xl text-center reveal">
-            <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-              {t.featuresLabel}
-            </span>
-            <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-              {t.featuresTitle}
-            </h2>
-            <p className="mt-3 text-muted-foreground">
-              {t.featuresDesc}
-            </p>
+          <div className="reveal">
+            <SectionHeader
+              label={t.featuresLabel}
+              title={t.featuresTitle}
+              description={t.featuresDesc}
+            />
           </div>
 
-          <div className="mx-auto mt-12 grid max-w-5xl gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mx-auto mt-16 grid max-w-5xl gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {[
               {
                 icon: Infinity,
@@ -279,10 +271,10 @@ export function PhotographersLandingPage({ locale }) {
             ].map((f, i) => (
               <div
                 key={f.title}
-                className="reveal rounded-2xl border border-border bg-surface p-6 shadow-card hover:-translate-y-px hover:border-white/[0.12] transition-all duration-200"
+                className="reveal rounded-xl bg-surface border border-white/[0.08] p-6 transition-all duration-200 hover:-translate-y-px hover:border-white/[0.12] hover:shadow-elevated"
                 style={{ transitionDelay: `${i * 60}ms` }}
               >
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface border border-border text-primary shadow-card">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-raised border border-white/[0.08] text-primary">
                   <f.icon className="h-5 w-5" />
                 </div>
                 <h3 className="mt-4 font-display text-base font-semibold text-foreground">
@@ -296,60 +288,27 @@ export function PhotographersLandingPage({ locale }) {
       </section>
 
       {/* How It Works */}
-      <section className="relative border-t border-border bg-raised/50 py-16 sm:py-24">
+      <section className="relative border-t border-white/[0.06] bg-raised/50 py-24 sm:py-32">
         <div className="container px-4">
-          <div className="mx-auto max-w-3xl text-center reveal">
-            <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-              {t.howItWorksLabel}
-            </span>
-            <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-              {t.howItWorksTitle}
-            </h2>
+          <div className="reveal">
+            <SectionHeader
+              label={t.howItWorksLabel}
+              title={t.howItWorksTitle}
+            />
           </div>
-
-          <div className="mx-auto mt-12 grid max-w-4xl gap-6 sm:grid-cols-3">
-            {[
-              {
-                step: '01',
-                title: t.step1Title,
-                desc: t.step1Desc,
-              },
-              {
-                step: '02',
-                title: t.step2Title,
-                desc: t.step2Desc,
-              },
-              {
-                step: '03',
-                title: t.step3Title,
-                desc: t.step3Desc,
-              },
-            ].map((item, i) => (
-              <div
-                key={item.step}
-                className="reveal relative rounded-2xl border border-border bg-surface p-6 text-center shadow-card"
-                style={{ transitionDelay: `${i * 80}ms` }}
-              >
-                <span className="font-mono text-3xl font-bold text-primary/20">
-                  {item.step}
-                </span>
-                <h3 className="mt-3 font-display text-base font-semibold text-foreground">
-                  {item.title}
-                </h3>
-                <p className="mt-2 text-sm text-muted-foreground">{item.desc}</p>
-              </div>
-            ))}
+          <div className="mx-auto mt-16 max-w-5xl">
+            <HowItWorks t={t} />
           </div>
         </div>
       </section>
 
       {/* Testimonial */}
-      <section className="relative py-16 sm:py-24">
+      <section className="relative py-24 sm:py-32">
         <div className="container px-4">
           <div className="mx-auto max-w-3xl reveal">
-            <div className="rounded-2xl border border-border bg-surface p-8 sm:p-10 shadow-card text-center">
+            <div className="rounded-2xl border border-white/[0.08] bg-surface p-8 sm:p-10 shadow-elevated text-center">
               <Sparkles className="mx-auto h-6 w-6 text-primary" />
-              <blockquote className="mt-5 font-display text-lg font-medium text-foreground sm:text-xl">
+              <blockquote className="mt-5 font-display text-xl text-foreground">
                 &ldquo;{t.testimonialQuote}&rdquo;
               </blockquote>
               <p className="mt-4 text-sm text-muted-foreground">
@@ -361,19 +320,17 @@ export function PhotographersLandingPage({ locale }) {
       </section>
 
       {/* Pricing Teaser */}
-      <section className="relative border-t border-border bg-raised/50 py-16 sm:py-24">
+      <section className="relative border-t border-white/[0.06] bg-raised/50 py-24 sm:py-32">
         <div className="container px-4">
-          <div className="mx-auto max-w-3xl text-center reveal">
-            <h2 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-              {t.pricingTitle}
-            </h2>
-            <p className="mt-3 text-muted-foreground">
-              {t.pricingDesc}
-            </p>
+          <div className="reveal">
+            <SectionHeader
+              title={t.pricingTitle}
+              description={t.pricingDesc}
+            />
           </div>
 
           <div className="mx-auto mt-10 max-w-md reveal">
-            <div className="rounded-2xl border border-primary/20 bg-surface p-8 shadow-card">
+            <div className="rounded-2xl border border-primary/20 bg-surface p-8 shadow-elevated">
               <div className="flex items-center gap-2">
                 <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
                   {t.planLabel}
@@ -421,7 +378,7 @@ export function PhotographersLandingPage({ locale }) {
       </section>
 
       {/* Final CTA */}
-      <section className="relative pb-16 sm:pb-24">
+      <section className="relative py-24 sm:py-32">
         <div className="container px-4">
           <div className="mx-auto max-w-2xl text-center reveal">
             <h2 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">

@@ -3,15 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Camera,
-  Heart,
-  PartyPopper,
   QrCode,
-  Users,
-  ImagePlus,
-  CheckCircle2,
-  ArrowRight,
-  Sparkles,
   Smartphone,
   Download,
   Wine,
@@ -20,6 +12,9 @@ import {
   Shield,
   Lock,
   EyeOff,
+  ArrowRight,
+  CheckCircle2,
+  Users,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -38,6 +33,10 @@ import {
   EVENT_CREATE_ROOM_CLICKED,
 } from '@/lib/analytics/events'
 import { useTranslations } from '@/components/i18n-provider'
+import { PhoneMockup } from '@/components/marketing/phone-mockup'
+import { TrustStrip } from '@/components/marketing/trust-strip'
+import { HowItWorks } from '@/components/marketing/how-it-works'
+import { SectionHeader } from '@/components/marketing/section-header'
 
 function useScrollReveal() {
   useEffect(() => {
@@ -123,78 +122,79 @@ export function PrivatePartyLandingPage() {
         <div className="absolute -bottom-40 -left-40 h-96 w-96 rounded-full bg-primary/5 blur-[100px]" aria-hidden="true" />
 
         <div className="container relative px-4">
-          <div className="mx-auto max-w-3xl text-center">
-            <span className="inline-block font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary animate-fade-up">
-              {t.heroEyebrow}
-            </span>
-            <h1 className="mt-4 font-display text-3xl font-bold tracking-tight text-foreground sm:text-4xl animate-fade-up delay-100">
-              {t.heroHeadline1}{' '}
-              <span className="text-gradient">{t.heroHeadline2}</span>
-            </h1>
-            <p className="mt-4 text-base text-muted-foreground sm:text-lg animate-fade-up delay-200">
-              {t.heroSubheadline}
-            </p>
-
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3 text-sm text-muted-foreground animate-fade-up delay-300">
-              <span className="inline-flex items-center gap-1.5">
-                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                {t.trustFreeForever}
+          <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-2 lg:items-center">
+            <div className="animate-fade-up">
+              <span className="inline-block font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
+                {t.heroEyebrow}
               </span>
-              <span className="inline-flex items-center gap-1.5">
-                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                {t.trustUnlimitedGuests}
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                {t.trustCompletelyPrivate}
-              </span>
-            </div>
-          </div>
-
-          {/* Create Form */}
-          <div id="create" className="mx-auto mt-12 max-w-lg animate-fade-up delay-400">
-            <div className="rounded-2xl border border-border bg-surface p-6 shadow-card">
-              <div className="space-y-3">
-                <Input
-                  placeholder={t.eventPlaceholder}
-                  value={eventName}
-                  onChange={(e) => setEventName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && createEvent()}
-                  className="h-12 rounded-lg border-border bg-raised"
-                />
-                <Input
-                  placeholder={t.emailPlaceholder}
-                  type="email"
-                  value={ownerEmail}
-                  onChange={(e) => setOwnerEmail(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && createEvent()}
-                  className="h-12 rounded-lg border-border bg-raised"
-                />
-                <Button
-                  className="h-12 w-full cta-primary"
-                  onClick={createEvent}
-                  disabled={isCreating}
-                >
-                  {isCreating ? (
-                    t.creating
-                  ) : (
-                    <>
-                      {t.ctaButton}
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </>
-                  )}
-                </Button>
-              </div>
-              <p className="mt-3 text-center font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
-                {t.finalMicrocopy}
+              <h1 className="mt-4 font-display text-3xl font-bold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
+                {t.heroHeadline1}{' '}
+                <span className="text-gradient">{t.heroHeadline2}</span>
+              </h1>
+              <p className="mt-4 text-base text-muted-foreground sm:text-lg">
+                {t.heroSubheadline}
               </p>
+
+              <div className="mt-8 animate-fade-up delay-200">
+                <TrustStrip
+                  items={[
+                    { icon: CheckCircle2, text: t.trustFreeForever },
+                    { icon: Users, text: t.trustUnlimitedGuests },
+                    { icon: EyeOff, text: t.trustCompletelyPrivate },
+                  ]}
+                />
+              </div>
+
+              {/* Create Form */}
+              <div id="create" className="mt-10 max-w-lg animate-fade-up delay-300">
+                <div className="rounded-2xl border border-white/[0.08] bg-raised/60 p-6 shadow-elevated">
+                  <div className="space-y-3">
+                    <Input
+                      placeholder={t.eventPlaceholder}
+                      value={eventName}
+                      onChange={(e) => setEventName(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && createEvent()}
+                      className="h-12 rounded-lg border-border bg-surface"
+                    />
+                    <Input
+                      placeholder={t.emailPlaceholder}
+                      type="email"
+                      value={ownerEmail}
+                      onChange={(e) => setOwnerEmail(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && createEvent()}
+                      className="h-12 rounded-lg border-border bg-surface"
+                    />
+                    <Button
+                      className="h-12 w-full cta-primary"
+                      onClick={createEvent}
+                      disabled={isCreating}
+                    >
+                      {isCreating ? (
+                        t.creating
+                      ) : (
+                        <>
+                          {t.ctaButton}
+                          <ArrowRight className="ml-2 h-4 w-4" />
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <p className="mt-3 text-center font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
+                    {t.finalMicrocopy}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="hidden lg:flex justify-center animate-fade-up delay-200">
+              <PhoneMockup eventName="Private Party" url="snaprooms.app/room/party" />
             </div>
           </div>
         </div>
       </section>
 
       {/* Problem */}
-      <section className="relative border-t border-border bg-raised/50 py-16 sm:py-24">
+      <section className="relative border-t border-white/[0.06] py-24 sm:py-32">
         <div className="container px-4">
           <div className="mx-auto grid max-w-5xl gap-10 sm:grid-cols-2 sm:items-center">
             <div className="reveal">
@@ -208,8 +208,8 @@ export function PrivatePartyLandingPage() {
                 {t.problemDesc2}
               </p>
             </div>
-            <div className="reveal rounded-2xl border border-border bg-surface p-6 shadow-card" style={{ transitionDelay: '100ms' }}>
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface border border-border text-primary shadow-card">
+            <div className="reveal rounded-2xl border border-border bg-surface p-6 shadow-elevated" style={{ transitionDelay: '100ms' }}>
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-raised border border-border text-primary shadow-subtle">
                 <Flame className="h-6 w-6" />
               </div>
               <h3 className="mt-4 font-display text-lg font-semibold text-foreground">
@@ -224,66 +224,25 @@ export function PrivatePartyLandingPage() {
       </section>
 
       {/* How It Works */}
-      <section className="relative py-16 sm:py-24">
+      <section className="relative py-24 sm:py-32">
         <div className="container px-4">
-          <div className="mx-auto max-w-3xl text-center reveal">
-            <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-              {t.howItWorksLabel}
-            </span>
-            <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-              {t.howItWorksTitle}
-            </h2>
+          <div className="reveal">
+            <SectionHeader label={t.howItWorksLabel} title={t.howItWorksTitle} />
           </div>
-
-          <div className="mx-auto mt-12 grid max-w-4xl gap-6 sm:grid-cols-3">
-            {[
-              {
-                step: '01',
-                title: t.step1Title,
-                desc: t.step1Desc,
-              },
-              {
-                step: '02',
-                title: t.step2Title,
-                desc: t.step2Desc,
-              },
-              {
-                step: '03',
-                title: t.step3Title,
-                desc: t.step3Desc,
-              },
-            ].map((item, i) => (
-              <div
-                key={item.step}
-                className="reveal relative rounded-2xl border border-border bg-surface p-6 text-center shadow-card"
-                style={{ transitionDelay: `${i * 80}ms` }}
-              >
-                <span className="font-mono text-3xl font-bold text-primary/20">
-                  {item.step}
-                </span>
-                <h3 className="mt-3 font-display text-base font-semibold text-foreground">
-                  {item.title}
-                </h3>
-                <p className="mt-2 text-sm text-muted-foreground">{item.desc}</p>
-              </div>
-            ))}
+          <div className="mx-auto mt-16 max-w-4xl">
+            <HowItWorks t={t} />
           </div>
         </div>
       </section>
 
       {/* Why Private Parties */}
-      <section className="relative border-t border-border bg-raised/50 py-16 sm:py-24">
+      <section className="relative border-t border-white/[0.06] py-24 sm:py-32">
         <div className="container px-4">
-          <div className="mx-auto max-w-3xl text-center reveal">
-            <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-              {t.featuresLabel}
-            </span>
-            <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-              {t.featuresTitle}
-            </h2>
+          <div className="reveal">
+            <SectionHeader label={t.featuresLabel} title={t.featuresTitle} />
           </div>
 
-          <div className="mx-auto mt-12 grid max-w-5xl gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mx-auto mt-16 grid max-w-5xl gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {[
               {
                 icon: Wine,
@@ -318,10 +277,10 @@ export function PrivatePartyLandingPage() {
             ].map((f, i) => (
               <div
                 key={f.title}
-                className="reveal rounded-2xl border border-border bg-surface p-6 shadow-card hover:-translate-y-px hover:border-white/[0.12] transition-all duration-200"
+                className="reveal rounded-2xl border border-border bg-surface p-6 shadow-elevated hover:-translate-y-px hover:border-white/[0.08] transition-all duration-200"
                 style={{ transitionDelay: `${i * 60}ms` }}
               >
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface border border-border text-primary shadow-card">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-raised border border-border text-primary shadow-subtle">
                   <f.icon className="h-5 w-5" />
                 </div>
                 <h3 className="mt-4 font-display text-base font-semibold text-foreground">
@@ -335,7 +294,7 @@ export function PrivatePartyLandingPage() {
       </section>
 
       {/* QR Section */}
-      <section className="relative py-16 sm:py-24">
+      <section className="relative py-24 sm:py-32">
         <div className="container px-4">
           <div className="mx-auto max-w-5xl">
             <div className="reveal grid gap-10 sm:grid-cols-2 sm:items-center">
@@ -354,7 +313,7 @@ export function PrivatePartyLandingPage() {
                 </p>
               </div>
               <div className="reveal flex justify-center" style={{ transitionDelay: '100ms' }}>
-                <div className="rounded-2xl border border-border bg-surface p-8 shadow-card">
+                <div className="rounded-2xl border border-border bg-surface p-8 shadow-elevated">
                   <div className="flex h-40 w-40 items-center justify-center rounded-xl bg-raised border border-border">
                     <QrCode className="h-20 w-20 text-primary" />
                   </div>
@@ -372,10 +331,10 @@ export function PrivatePartyLandingPage() {
       </section>
 
       {/* Trust */}
-      <section className="relative border-t border-border bg-raised/50 py-16 sm:py-24">
+      <section className="relative border-t border-white/[0.06] py-24 sm:py-32">
         <div className="container px-4">
           <div className="mx-auto max-w-3xl text-center reveal">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface border border-border text-primary mx-auto shadow-card">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-raised border border-border text-primary mx-auto shadow-subtle">
               <Shield className="h-6 w-6" />
             </div>
             <h2 className="mt-5 font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
@@ -394,7 +353,7 @@ export function PrivatePartyLandingPage() {
             ].map((item, i) => (
               <div
                 key={item.title}
-                className="reveal rounded-xl border border-border bg-surface p-5 text-center shadow-card"
+                className="reveal rounded-2xl border border-border bg-surface p-5 text-center shadow-elevated"
                 style={{ transitionDelay: `${i * 60}ms` }}
               >
                 <h3 className="font-display text-sm font-semibold text-foreground">{item.title}</h3>
@@ -406,13 +365,11 @@ export function PrivatePartyLandingPage() {
       </section>
 
       {/* FAQ */}
-      <section className="relative py-16 sm:py-24">
+      <section className="relative py-24 sm:py-32">
         <div className="container px-4">
           <div className="mx-auto max-w-3xl">
             <div className="text-center reveal">
-              <h2 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-                {t.faqTitle}
-              </h2>
+              <SectionHeader title={t.faqTitle} />
             </div>
 
             <div className="mt-10 reveal">
@@ -446,7 +403,7 @@ export function PrivatePartyLandingPage() {
                   <AccordionItem
                     key={i}
                     value={`item-${i}`}
-                    className="rounded-xl border border-border bg-surface px-5 shadow-card"
+                    className="rounded-2xl border border-border bg-surface px-5 shadow-elevated"
                   >
                     <AccordionTrigger className="text-left text-sm font-semibold text-foreground hover:no-underline">
                       {faq.q}

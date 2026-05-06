@@ -36,6 +36,11 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion'
+import { PhoneMockup } from '@/components/marketing/phone-mockup'
+import { TrustStrip } from '@/components/marketing/trust-strip'
+import { HowItWorks } from '@/components/marketing/how-it-works'
+import { UseCaseCards } from '@/components/marketing/use-case-cards'
+import { SectionHeader } from '@/components/marketing/section-header'
 
 function scrollToSection(sectionId) {
   const element = document.getElementById(sectionId)
@@ -112,6 +117,36 @@ export function WeddingLandingPage({ locale = 'en' }) {
     }
   }
 
+  const trustItems = [
+    { icon: CheckCircle2, text: t.trustFreeForever },
+    { icon: CheckCircle2, text: t.trustUnlimitedGuests },
+    { icon: CheckCircle2, text: t.trustInstantGallery },
+  ]
+
+  const useCases = [
+    {
+      icon: Church,
+      color: 'text-rose-400',
+      title: t.useCase1Title,
+      desc: t.useCase1Desc,
+      bullets: [t.useCase1Bullet1, t.useCase1Bullet2],
+    },
+    {
+      icon: Wine,
+      color: 'text-amber-400',
+      title: t.useCase2Title,
+      desc: t.useCase2Desc,
+      bullets: [t.useCase2Bullet1, t.useCase2Bullet2],
+    },
+    {
+      icon: Heart,
+      color: 'text-pink-400',
+      title: t.useCase3Title,
+      desc: t.useCase3Desc,
+      bullets: [t.useCase3Bullet1, t.useCase3Bullet2],
+    },
+  ]
+
   return (
     <div className="dark relative min-h-screen bg-background font-body text-foreground">
       {/* Noise texture overlay */}
@@ -163,73 +198,75 @@ export function WeddingLandingPage({ locale = 'en' }) {
         />
 
         <div className="container relative px-4">
-          <div className="mx-auto max-w-3xl text-center">
-            {/* Badge */}
-            <div className="animate-fade-up inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1">
-              <Heart className="h-3 w-3 text-rose-400" />
-              <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-                {t.heroEyebrow}
-              </span>
-            </div>
+          <div className="mx-auto max-w-6xl">
+            <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+              {/* Left: Copy + Form */}
+              <div className="text-center lg:text-left">
+                {/* Badge */}
+                <div className="animate-fade-up inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1">
+                  <Heart className="h-3 w-3 text-rose-400" />
+                  <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
+                    {t.heroEyebrow}
+                  </span>
+                </div>
 
-            {/* H1 */}
-            <h1 className="animate-fade-up delay-100 mt-6 font-display text-4xl font-extrabold tracking-[-0.03em] text-foreground sm:text-5xl lg:text-6xl">
-              {t.heroHeadline1}{' '}
-              <span className="text-gradient">{t.heroHeadline2}</span>
-            </h1>
+                {/* H1 */}
+                <h1 className="animate-fade-up delay-100 mt-6 font-display text-4xl font-extrabold tracking-[-0.03em] text-foreground sm:text-5xl lg:text-6xl">
+                  {t.heroHeadline1}{' '}
+                  <span className="text-gradient">{t.heroHeadline2}</span>
+                </h1>
 
-            {/* Subheadline */}
-            <p className="animate-fade-up delay-200 mt-6 text-lg font-light leading-relaxed text-muted-foreground sm:text-xl">
-              {t.heroSubheadline}
-            </p>
+                {/* Subheadline */}
+                <p className="animate-fade-up delay-200 mt-6 text-lg font-light leading-relaxed text-muted-foreground sm:text-xl">
+                  {t.heroSubheadline}
+                </p>
 
-            {/* Create room form */}
-            <div id="create" className="animate-fade-up delay-300 mt-10 flex w-full max-w-lg mx-auto flex-col gap-3">
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <Input
-                  value={eventName}
-                  onChange={(e) => setEventName(e.target.value)}
-                  placeholder={t.eventPlaceholder}
-                  className="h-12 flex-1 rounded-lg border-input bg-surface text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-                />
-                <Input
-                  type="email"
-                  value={ownerEmail}
-                  onChange={(e) => setOwnerEmail(e.target.value)}
-                  placeholder={t.finalEmailPlaceholder}
-                  className="h-12 flex-1 rounded-lg border-input bg-surface text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-                />
+                {/* Create room form card */}
+                <div
+                  id="create"
+                  className="animate-fade-up delay-300 mt-10 rounded-2xl border border-white/[0.08] bg-raised/60 p-6 shadow-elevated"
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <Input
+                      value={eventName}
+                      onChange={(e) => setEventName(e.target.value)}
+                      placeholder={t.eventPlaceholder}
+                      className="h-12 flex-1 rounded-lg border-input bg-surface text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                    />
+                    <Input
+                      type="email"
+                      value={ownerEmail}
+                      onChange={(e) => setOwnerEmail(e.target.value)}
+                      placeholder={t.finalEmailPlaceholder}
+                      className="h-12 flex-1 rounded-lg border-input bg-surface text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                    />
+                  </div>
+                  <Button
+                    size="lg"
+                    className="mt-3 h-12 w-full gap-2 rounded-lg px-8 text-base font-body font-medium whitespace-nowrap cta-primary"
+                    onClick={createEvent}
+                    disabled={isCreating || !eventName?.trim() || eventName.trim().length < 3 || !ownerEmail?.trim() || !ownerEmail.includes('@')}
+                  >
+                    {isCreating ? (
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                    ) : (
+                      <>
+                        {t.ctaButton}
+                        <ArrowRight className="h-4 w-4" />
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {/* Trust signals */}
+                <div className="animate-fade-up delay-500 mt-6">
+                  <TrustStrip items={trustItems} />
+                </div>
               </div>
-              <Button
-                size="lg"
-                className="h-12 gap-2 rounded-lg px-8 text-base font-body font-medium whitespace-nowrap cta-primary"
-                onClick={createEvent}
-                disabled={isCreating || !eventName?.trim() || eventName.trim().length < 3 || !ownerEmail?.trim() || !ownerEmail.includes('@')}
-              >
-                {isCreating ? (
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                ) : (
-                  <>
-                    {t.ctaButton}
-                    <ArrowRight className="h-4 w-4" />
-                  </>
-                )}
-              </Button>
-            </div>
 
-            {/* Trust signals */}
-            <div className="animate-fade-up delay-500 mt-6 flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground">
-              <div className="flex items-center gap-1.5">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                <span>{t.trustFreeForever}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                <span>{t.trustUnlimitedGuests}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                <span>{t.trustInstantGallery}</span>
+              {/* Right: PhoneMockup */}
+              <div className="animate-fade-up delay-200 hidden lg:flex justify-center">
+                <PhoneMockup />
               </div>
             </div>
           </div>
@@ -237,7 +274,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
       </section>
 
       {/* Problem Section */}
-      <section className="py-20 sm:py-24">
+      <section className="border-t border-white/[0.06] py-24 sm:py-32">
         <div className="container px-4">
           <div className="mx-auto max-w-6xl">
             <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
@@ -309,138 +346,41 @@ export function WeddingLandingPage({ locale = 'en' }) {
       </section>
 
       {/* How It Works */}
-      <section id="how-it-works" className="border-y border-border bg-background py-20 sm:py-24">
+      <section id="how-it-works" className="border-y border-border bg-background py-24 sm:py-32">
         <div className="container px-4">
-          <div className="reveal mx-auto max-w-3xl text-center">
-            <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
-              {t.howItWorksLabel}
-            </span>
-            <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-foreground sm:text-3xl">
-              {t.howItWorksTitle}
-            </h2>
-            <p className="mt-3 font-light text-muted-foreground">
-              {t.howItWorksDesc}
-            </p>
+          <div className="reveal">
+            <SectionHeader
+              label={t.howItWorksLabel}
+              title={t.howItWorksTitle}
+              description={t.howItWorksDesc}
+            />
           </div>
 
-          <div className="mx-auto mt-12 grid max-w-5xl gap-8 sm:grid-cols-3">
-            {[
-              {
-                step: '01',
-                icon: Sparkles,
-                title: t.step1Title,
-                desc: t.step1Desc,
-              },
-              {
-                step: '02',
-                icon: Share2,
-                title: t.step2Title,
-                desc: t.step2Desc,
-              },
-              {
-                step: '03',
-                icon: ImagePlus,
-                title: t.step3Title,
-                desc: t.step3Desc,
-              },
-            ].map((item, i) => (
-              <div
-                key={item.step}
-                className="reveal relative flex flex-col items-center text-center"
-                style={{ transitionDelay: `${i * 60}ms` }}
-              >
-                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-surface border border-border text-primary shadow-card">
-                  <item.icon className="h-6 w-6" />
-                </div>
-                <div className="mt-4">
-                  <div className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-                    {t.stepLabel} {item.step}
-                  </div>
-                  <h3 className="mt-1 font-display text-lg font-bold tracking-tight text-foreground">
-                    {item.title}
-                  </h3>
-                  <p className="mt-2 text-sm font-light text-muted-foreground">
-                    {item.desc}
-                  </p>
-                </div>
-              </div>
-            ))}
+          <div className="mx-auto mt-12 max-w-5xl">
+            <HowItWorks t={t} />
           </div>
         </div>
       </section>
 
       {/* Wedding Use Cases */}
-      <section className="border-y border-border bg-background py-20 sm:py-24">
+      <section className="border-y border-border bg-background py-24 sm:py-32">
         <div className="container px-4">
-          <div className="reveal mx-auto max-w-3xl text-center">
-            <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
-              {t.useCasesLabel}
-            </span>
-            <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-foreground sm:text-3xl">
-              {t.useCasesTitle}
-            </h2>
-            <p className="mt-3 font-light text-muted-foreground">
-              {t.useCasesDesc}
-            </p>
+          <div className="reveal">
+            <SectionHeader
+              label={t.useCasesLabel}
+              title={t.useCasesTitle}
+              description={t.useCasesDesc}
+            />
           </div>
 
-          <div className="mx-auto mt-12 grid max-w-5xl gap-8 sm:grid-cols-3">
-            {[
-              {
-                icon: Church,
-                color: 'text-rose-400',
-                bg: 'bg-rose-500/10',
-                title: t.useCase1Title,
-                desc: t.useCase1Desc,
-                bullets: [t.useCase1Bullet1, t.useCase1Bullet2],
-              },
-              {
-                icon: Wine,
-                color: 'text-amber-400',
-                bg: 'bg-amber-500/10',
-                title: t.useCase2Title,
-                desc: t.useCase2Desc,
-                bullets: [t.useCase2Bullet1, t.useCase2Bullet2],
-              },
-              {
-                icon: Heart,
-                color: 'text-pink-400',
-                bg: 'bg-pink-500/10',
-                title: t.useCase3Title,
-                desc: t.useCase3Desc,
-                bullets: [t.useCase3Bullet1, t.useCase3Bullet2],
-              },
-            ].map((item, i) => (
-              <div
-                key={item.title}
-                className="reveal group relative overflow-hidden rounded-xl border border-border bg-surface p-6 transition-all duration-200 hover:-translate-y-px hover:border-white/[0.08]"
-                style={{ transitionDelay: `${i * 60}ms` }}
-              >
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-raised">
-                  <item.icon className={`h-6 w-6 ${item.color}`} />
-                </div>
-                <h3 className="mt-4 font-display text-lg font-bold tracking-tight text-foreground">
-                  {item.title}
-                </h3>
-                <p className="mt-2 text-sm font-light text-muted-foreground">
-                  {item.desc}
-                </p>
-                <ul className="mt-4 space-y-2 text-sm font-light text-muted-foreground">
-                  {item.bullets.map((bullet) => (
-                    <li key={bullet} className="flex items-center gap-2">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                      <span>{bullet}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+          <div className="mx-auto mt-12 max-w-5xl">
+            <UseCaseCards cases={useCases} />
           </div>
         </div>
       </section>
 
       {/* QR Code Section */}
-      <section className="py-20 sm:py-24">
+      <section className="border-t border-white/[0.06] py-24 sm:py-32">
         <div className="container px-4">
           <div className="mx-auto max-w-6xl">
             <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
@@ -521,18 +461,14 @@ export function WeddingLandingPage({ locale = 'en' }) {
       </section>
 
       {/* Benefits */}
-      <section className="border-y border-border bg-background py-20 sm:py-24">
+      <section className="border-y border-border bg-background py-24 sm:py-32">
         <div className="container px-4">
-          <div className="reveal mx-auto max-w-3xl text-center">
-            <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
-              {t.benefitsLabel}
-            </span>
-            <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-foreground sm:text-3xl">
-              {t.benefitsTitle}
-            </h2>
-            <p className="mt-3 font-light text-muted-foreground">
-              {t.benefitsDesc}
-            </p>
+          <div className="reveal">
+            <SectionHeader
+              label={t.benefitsLabel}
+              title={t.benefitsTitle}
+              description={t.benefitsDesc}
+            />
           </div>
 
           <div className="mx-auto mt-12 grid max-w-5xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -589,7 +525,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
       </section>
 
       {/* Trust / Privacy */}
-      <section className="py-20 sm:py-24">
+      <section className="border-t border-white/[0.06] py-24 sm:py-32">
         <div className="container px-4">
           <div className="mx-auto max-w-6xl">
             <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
@@ -637,7 +573,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
               <div className="reveal relative" style={{ transitionDelay: '100ms' }}>
                 <div className="absolute -inset-4 rounded-3xl bg-gradient-to-br from-primary/10 to-transparent" />
                 <div className="relative rounded-xl border border-border bg-surface p-8 shadow-card text-center">
-                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10 text-primary">
                     <Shield className="h-7 w-7" />
                   </div>
                   <p className="mt-4 text-lg font-light text-muted-foreground">
@@ -654,15 +590,13 @@ export function WeddingLandingPage({ locale = 'en' }) {
       </section>
 
       {/* FAQ */}
-      <section id="faq" className="border-y border-border bg-background py-20 sm:py-24">
+      <section id="faq" className="border-y border-border bg-background py-24 sm:py-32">
         <div className="container px-4">
-          <div className="reveal mx-auto max-w-3xl text-center">
-            <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
-              {t.faqLabel}
-            </span>
-            <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-foreground sm:text-3xl">
-              {t.faqTitle}
-            </h2>
+          <div className="reveal">
+            <SectionHeader
+              label={t.faqLabel}
+              title={t.faqTitle}
+            />
           </div>
 
           <div className="reveal mx-auto mt-12 max-w-3xl">
@@ -708,7 +642,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
       </section>
 
       {/* Final CTA */}
-      <section className="py-20 sm:py-24">
+      <section className="border-t border-white/[0.06] py-24 sm:py-32">
         <div className="container px-4">
           <div className="reveal mx-auto max-w-2xl text-center">
             <h2 className="font-display text-3xl font-extrabold tracking-[-0.03em] text-foreground sm:text-4xl">

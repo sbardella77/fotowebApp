@@ -15,26 +15,26 @@
     --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
 
     /* ── Color Primitives ── */
-    /* Background scale (cool dark) */
-    --bg-base: 220 24% 6%;        /* #0b0f17 */
-    --bg-surface: 220 20% 10%;    /* #111827 */
-    --bg-raised: 220 18% 14%;     /* #181f2e */
-    --bg-elevated: 220 16% 18%;   /* #1f2738 */
-    --bg-overlay: 220 24% 6% / 0.8;
+    /* Background scale (graphite dark) */
+    --bg-base: 220 15% 5%;        /* #0a0c10 — near black graphite */
+    --bg-surface: 220 12% 8%;     /* #11131a */
+    --bg-raised: 220 10% 12%;     /* #181a22 */
+    --bg-elevated: 220 10% 16%;   /* #20222c */
+    --bg-overlay: 220 15% 5% / 0.85;
 
     /* Foreground scale */
-    --text-primary: 210 20% 98%;   /* #f8fafc */
-    --text-secondary: 210 14% 76%; /* #b8c4ce */
-    --text-muted: 210 10% 52%;     /* #7a8a9a */
-    --text-disabled: 210 10% 36%;  /* #566372 */
+    --text-primary: 0 0% 98%;      /* #fafafa */
+    --text-secondary: 220 10% 72%; /* #aeb2bc */
+    --text-muted: 220 8% 50%;      /* #767986 */
+    --text-disabled: 220 8% 36%;   /* #56585f */
 
-    /* Accent (violet — modern, accessible on dark) */
-    --accent: 265 89% 66%;         /* #8b5cf6 */
-    --accent-hover: 265 89% 72%;   /* #a78bfa */
-    --accent-active: 265 89% 58%;  /* #7c3aed */
-    --accent-soft: 265 89% 66% / 0.12;
-    --accent-ghost: 265 89% 66% / 0.06;
-    --accent-glow: 265 89% 66% / 0.35;
+    /* Accent (lime/yellow — bold, high-conversion) */
+    --accent: 78 95% 55%;          /* #d4f935 — electric lime */
+    --accent-hover: 78 100% 62%;   /* #e0ff52 */
+    --accent-active: 78 90% 48%;   /* #c2e02a */
+    --accent-soft: 78 95% 55% / 0.12;
+    --accent-ghost: 78 95% 55% / 0.06;
+    --accent-glow: 78 95% 55% / 0.35;
 
     /* Semantic status */
     --success: 145 65% 48%;        /* #22c55e */
@@ -47,9 +47,9 @@
     --info-soft: 210 90% 58% / 0.12;
 
     /* Borders */
-    --border-subtle: 220 14% 20%;   /* #1e293b */
-    --border-visible: 220 14% 26%;  /* #283548 */
-    --border-focus: 265 89% 66%;    /* accent */
+    --border-subtle: 220 10% 18%;   /* #1a1c24 */
+    --border-visible: 220 10% 24%;  /* #22242e */
+    --border-focus: 78 95% 55%;     /* accent */
 
     /* shadcn/ui semantic mappings */
     --background: var(--bg-base);
@@ -74,7 +74,7 @@
     --radius: 0.75rem;
 
     /* Chart colors */
-    --chart-1: 265 89% 66%;
+    --chart-1: 78 95% 55%;
     --chart-2: 145 65% 48%;
     --chart-3: 210 90% 58%;
     --chart-4: 38 95% 56%;
