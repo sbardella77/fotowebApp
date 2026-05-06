@@ -50,7 +50,7 @@ function Section({ number, title, icon: Icon, children }) {
             <Icon className="h-4 w-4" />
           </div>
         )}
-        <h2 className="font-display text-lg font-semibold text-white">
+        <h2 className="font-display text-lg font-semibold text-foreground">
           {number && `${number}. `}{title}
         </h2>
       </div>
@@ -80,10 +80,10 @@ export function CommercialLicensePage() {
         <div className="absolute inset-0 bg-grid opacity-50" aria-hidden="true" />
         <div className="container relative px-4">
           <div className="mx-auto max-w-3xl text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#141C2E] border border-white/[0.07] text-primary mx-auto shadow-card">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface border border-border text-primary mx-auto shadow-card">
               <Briefcase className="h-6 w-6" />
             </div>
-            <h1 className="mt-5 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            <h1 className="mt-5 font-display text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
               {t.commercialTitle}
             </h1>
             <p className="mt-3 text-sm text-muted-foreground">
@@ -94,7 +94,7 @@ export function CommercialLicensePage() {
       </section>
 
       {/* Document */}
-      <section className="relative border-t border-white/[0.07] bg-[#0D1220]/30 py-12 sm:py-16">
+      <section className="relative border-t border-border bg-raised/30 py-12 sm:py-16">
         <div className="container px-4">
           <div className="mx-auto max-w-3xl space-y-12">
             {/* Disclaimer */}
@@ -259,7 +259,7 @@ export function CommercialLicensePage() {
               </p>
             </Section>
 
-            <div className="reveal rounded-xl border border-white/[0.07] bg-[#141C2E] p-6 text-center">
+            <div className="reveal rounded-xl border border-border bg-surface p-6 text-center">
               <p className="text-sm text-muted-foreground">
                 {t.commercialAcceptance}{' '}
                 <a href="/terms" className="text-primary hover:underline">
@@ -268,18 +268,18 @@ export function CommercialLicensePage() {
               </p>
             </div>
 
-            <div className="reveal flex flex-col items-center gap-4 rounded-xl border border-white/[0.07] bg-[#141C2E] p-8 text-center">
-              <h3 className="font-display text-lg font-semibold text-white">
+            <div className="reveal flex flex-col items-center gap-4 rounded-xl border border-border bg-surface p-8 text-center">
+              <h3 className="font-display text-lg font-semibold text-foreground">
                 {t.readyToUse}
               </h3>
               <p className="text-sm text-muted-foreground">
                 {t.readyToUseDesc}
               </p>
               <div className="flex flex-col gap-3 sm:flex-row">
-                <Button className="glow-blue" asChild>
+                <Button className="cta-primary" asChild>
                   <a href="/">{t.createFreeEvent}</a>
                 </Button>
-                <Button variant="outline" className="border-white/[0.07] bg-transparent hover:bg-white/[0.03]" asChild>
+                <Button variant="outline" className="border-border bg-transparent hover:bg-white/[0.03]" asChild>
                   <a href="/pricing">{t.viewProPlans}</a>
                 </Button>
               </div>

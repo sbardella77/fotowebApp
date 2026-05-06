@@ -15,7 +15,7 @@ export default function EventError({ error, reset }: { error: Error & { digest?:
 
   return (
     <main className="dark min-h-screen bg-background font-body text-foreground">
-      <header className="border-b border-white/[0.07] bg-background/80 backdrop-blur-md">
+      <header className="border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container flex h-14 items-center justify-between px-4">
           <a href="/" className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -32,7 +32,7 @@ export default function EventError({ error, reset }: { error: Error & { digest?:
         </div>
 
         <div className="max-w-sm">
-          <h1 className="font-display text-xl font-bold tracking-tight text-white sm:text-2xl">
+          <h1 className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
             Diese Galerie konnte leider nicht geladen werden.
           </h1>
           <p className="mt-3 text-sm font-light text-muted-foreground leading-relaxed">
@@ -50,7 +50,7 @@ export default function EventError({ error, reset }: { error: Error & { digest?:
           </button>
           <a
             href="/"
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-white/[0.07] bg-[#141C2E] px-6 text-sm font-medium text-foreground transition-colors hover:bg-[#111827] hover:text-foreground"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-border bg-surface px-6 text-sm font-medium text-foreground transition-colors hover:bg-elevated hover:text-foreground"
           >
             Zurück zur Startseite
           </a>

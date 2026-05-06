@@ -54,7 +54,7 @@ const DashboardPhotoCard = ({ photo, onApprove, onReject, onDelete, onOpenLightb
   const isBusy = busyId === photo.id
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-surface shadow-card transition-transform duration-200 hover:-translate-y-px">
+    <div className="overflow-hidden surface-elevated rounded-xl transition-transform duration-200 hover:-translate-y-px">
       <button className="block w-full text-left" onClick={onOpenLightbox} type="button">
         <img alt={photo.originalName} className="aspect-square w-full object-cover" src={photo.url} />
       </button>
@@ -75,7 +75,7 @@ const DashboardPhotoCard = ({ photo, onApprove, onReject, onDelete, onOpenLightb
           <Button disabled={isBusy || photo.status === 'VISIBLE'} size="sm" onClick={onApprove} className="h-9">
             {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
           </Button>
-          <Button disabled={isBusy || photo.status === 'HIDDEN'} size="sm" variant="outline" onClick={onReject} className="h-9 border-white/[0.06] bg-raised hover:bg-elevated">
+          <Button disabled={isBusy || photo.status === 'HIDDEN'} size="sm" variant="outline" onClick={onReject} className="h-9 border-border bg-raised hover:bg-elevated">
             <EyeOff className="h-3.5 w-3.5" />
           </Button>
           <Button disabled={isBusy} size="sm" variant="destructive" onClick={onDelete} className="h-9">
@@ -885,10 +885,10 @@ export default function DashboardPage() {
     <main className="relative min-h-screen bg-background font-body text-foreground">
       <div className="absolute inset-0 bg-grid opacity-[0.025] pointer-events-none" aria-hidden="true" />
 
-      <header className="relative z-10 border-b border-white/[0.04] bg-background/70 backdrop-blur-xl">
+      <header className="relative z-10 bg-background/80 backdrop-blur-xl border-b border-border">
         <div className="container flex h-16 items-center justify-between px-4">
           <a href="/" className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-subtle">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-subtle">
               <Camera className="h-[18px] w-[18px]" />
             </div>
             <span className="font-display text-[15px] font-bold tracking-tight text-primary">{t.brand}</span>
@@ -924,7 +924,7 @@ export default function DashboardPage() {
         ) : !authState.authenticated ? (
           <div className="mx-auto max-w-sm py-12">
             <div className="mb-8 text-center">
-              <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <Lock className="h-8 w-8" />
               </div>
               <h1 className="font-display text-2xl font-bold tracking-[-0.02em] text-foreground">
@@ -936,10 +936,10 @@ export default function DashboardPage() {
             </div>
 
             {forgotMode ? (
-              <div className="rounded-2xl border border-white/[0.06] bg-surface p-6 shadow-card">
+              <div className="surface-elevated rounded-xl p-6">
                 <div className="space-y-4">
                   {forgotSent ? (
-                    <div className="rounded-xl border border-white/[0.06] bg-raised p-4 text-sm text-muted-foreground text-center">
+                    <div className="rounded-xl border border-border bg-raised p-4 text-sm text-muted-foreground text-center">
                       {t.resetSent}
                     </div>
                   ) : (
@@ -951,14 +951,14 @@ export default function DashboardPage() {
                           value={forgotEmail}
                           onChange={(e) => setForgotEmail(e.target.value)}
                           placeholder={t.emailPlaceholder}
-                          className="h-11 rounded-xl border-white/[0.06] bg-raised text-foreground placeholder:text-muted-foreground"
+                          className="h-11 rounded-lg border-input bg-surface text-foreground placeholder:text-muted-foreground"
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' && forgotEmail.trim()) sendForgotLink()
                           }}
                         />
                       </div>
                       {message && <p className="text-sm text-destructive">{message}</p>}
-                      <Button className="w-full h-11 glow-accent" disabled={forgotBusy || !forgotEmail.trim()} onClick={sendForgotLink}>
+                      <Button className="w-full h-11 cta-primary" disabled={forgotBusy || !forgotEmail.trim()} onClick={sendForgotLink}>
                         {forgotBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.sendResetLink}
                       </Button>
                     </>
@@ -980,7 +980,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             ) : (
-              <div className="rounded-2xl border border-white/[0.06] bg-surface p-6 shadow-card">
+              <div className="surface-elevated rounded-xl p-6">
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-foreground">{t.emailLabel}</label>
@@ -989,7 +989,7 @@ export default function DashboardPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder={t.emailPlaceholder}
-                      className="h-11 rounded-xl border-white/[0.06] bg-raised text-foreground placeholder:text-muted-foreground"
+                      className="h-11 rounded-lg border-input bg-surface text-foreground placeholder:text-muted-foreground"
                     />
                   </div>
                   <div className="space-y-2">
@@ -1000,7 +1000,7 @@ export default function DashboardPage() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder={t.passwordPlaceholder}
-                        className="h-11 rounded-xl border-white/[0.06] bg-raised text-foreground placeholder:text-muted-foreground"
+                        className="h-11 rounded-lg border-input bg-surface text-foreground placeholder:text-muted-foreground"
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && email.trim() && password) loginWithPassword()
                         }}
@@ -1017,7 +1017,7 @@ export default function DashboardPage() {
 
                   {message && <p className="text-sm text-destructive">{message}</p>}
 
-                  <Button className="w-full h-11 glow-accent" disabled={busy.auth || !email.trim() || !password} onClick={loginWithPassword}>
+                  <Button className="w-full h-11 cta-primary" disabled={busy.auth || !email.trim() || !password} onClick={loginWithPassword}>
                     {busy.auth ? <Loader2 className="h-4 w-4 animate-spin" /> : t.signIn}
                   </Button>
 
@@ -1045,7 +1045,7 @@ export default function DashboardPage() {
             </div>
             <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">{t.noRoomsYet}</h2>
             <p className="mt-3 max-w-sm text-sm font-light leading-relaxed text-muted-foreground">{t.noRoomsDesc}</p>
-            <Button className="mt-8 glow-accent" onClick={openCreateDialog}>
+            <Button className="mt-8 cta-primary" onClick={openCreateDialog}>
               <Plus className="mr-2 h-4 w-4" />
               {t.createYourRoom}
             </Button>
@@ -1057,14 +1057,14 @@ export default function DashboardPage() {
                 <h1 className="font-display text-2xl font-bold tracking-[-0.02em] text-foreground">{t.yourRooms}</h1>
                 <p className="mt-1.5 text-sm font-light text-muted-foreground">{t.yourRoomsDesc}</p>
               </div>
-              <Button size="sm" className="mt-2 sm:mt-0 glow-accent" onClick={openCreateDialog}>
+              <Button size="sm" className="mt-2 sm:mt-0 cta-primary" onClick={openCreateDialog}>
                 <Plus className="mr-2 h-4 w-4" />
                 {t.createNewRoom}
               </Button>
             </div>
 
             {plan !== 'professional' && plan !== 'business' && (
-              <div className="rounded-2xl border border-white/[0.06] bg-surface shadow-card overflow-hidden">
+              <div className="surface-elevated rounded-xl overflow-hidden">
                 <div className="p-5 sm:p-6">
                   <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
@@ -1078,11 +1078,11 @@ export default function DashboardPage() {
                     </div>
                     <div className="flex flex-col items-start gap-3 sm:items-end">
                       <div className="flex items-center gap-2">
-                        <Button size="sm" variant="outline" asChild className="border-white/[0.06] bg-raised">
+                        <Button size="sm" variant="outline" asChild className="border-border bg-raised">
                           <a href="/pricing">{t.viewPricing}</a>
                         </Button>
                       </div>
-                      <Button size="sm" className="glow-accent" disabled={checkoutBusy} onClick={() => startCheckout('professional', null, 'dashboard_banner')}>
+                      <Button size="sm" className="cta-primary" disabled={checkoutBusy} onClick={() => startCheckout('professional', null, 'dashboard_banner')}>
                         {checkoutBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.startProfessional}
                       </Button>
                     </div>
@@ -1092,7 +1092,7 @@ export default function DashboardPage() {
             )}
 
             {message ? (
-              <div className="rounded-xl border border-white/[0.06] bg-surface p-4 text-sm text-muted-foreground flex items-center gap-2.5 shadow-subtle">
+              <div className="rounded-xl border border-border bg-surface p-4 text-sm text-muted-foreground flex items-center gap-2.5 shadow-subtle">
                 <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
                 {message}
               </div>
@@ -1114,10 +1114,10 @@ export default function DashboardPage() {
                     })
                     setSelectedSlug(event.slug)
                   }}
-                  className={`group relative overflow-hidden rounded-2xl border bg-surface transition-all duration-200 hover:-translate-y-px cursor-pointer ${
+                  className={`group relative overflow-hidden rounded-xl border bg-surface transition-all duration-200 hover:-translate-y-px cursor-pointer ${
                     selectedSlug === event.slug
                       ? 'border-primary/40 shadow-[0_0_0_1px_hsl(var(--accent)/0.15)]'
-                      : 'border-white/[0.06] hover:border-white/[0.10]'
+                      : 'border-border hover:border-white/[0.08]'
                   }`}
                 >
                   <div className="p-5">
@@ -1126,7 +1126,7 @@ export default function DashboardPage() {
                         <Input
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
-                          className="h-9 rounded-xl border-white/[0.06] bg-raised text-foreground"
+                          className="h-9 rounded-lg border-input bg-surface text-foreground"
                           disabled={busy.detail}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') saveRename(event.slug)
@@ -1162,19 +1162,19 @@ export default function DashboardPage() {
                           </div>
                         </div>
                         <div className="mt-5 flex flex-wrap gap-2">
-                          <Button size="sm" asChild className="glow-accent" onClick={(e) => e.stopPropagation()}>
+                          <Button size="sm" asChild className="cta-primary" onClick={(e) => e.stopPropagation()}>
                             <a href={`/event/${event.slug}`}>{t.openRoom}</a>
                           </Button>
-                          <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); shareEvent(event) }} className="border-white/[0.06] bg-raised hover:bg-elevated hover:text-foreground">
+                          <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); shareEvent(event) }} className="border-border bg-raised hover:bg-elevated hover:text-foreground">
                             <Share2 className="mr-1.5 h-3.5 w-3.5" />
                             {t.share}
                           </Button>
-                          <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); openQR(event) }} className="border-white/[0.06] bg-raised hover:bg-elevated hover:text-foreground">
+                          <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); openQR(event) }} className="border-border bg-raised hover:bg-elevated hover:text-foreground">
                             <QrCode className="mr-1.5 h-3.5 w-3.5" />
                             {t.qr}
                           </Button>
                         </div>
-                        <div className="mt-4 flex gap-3 pt-4 border-t border-white/[0.06]">
+                        <div className="mt-4 flex gap-3 pt-4 border-t border-border">
                           <button type="button" className="inline-flex items-center gap-1.5 text-xs font-light text-muted-foreground hover:text-foreground transition-colors" onClick={(e) => { e.stopPropagation(); startRename(event) }}>
                             <Pencil className="h-3.5 w-3.5" />
                             {t.rename}
@@ -1192,7 +1192,7 @@ export default function DashboardPage() {
             </div>
 
             {selectedEvent && (
-              <div className="rounded-2xl border border-white/[0.06] bg-surface shadow-card">
+              <div className="surface-elevated rounded-xl">
                 <div className="p-5 sm:p-6">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
@@ -1203,14 +1203,14 @@ export default function DashboardPage() {
                     </div>
                     <div className="flex flex-col gap-2">
                       <div className="flex flex-wrap gap-2">
-                        <Button size="sm" asChild className="glow-accent">
+                        <Button size="sm" asChild className="cta-primary">
                           <a href={`/event/${selectedEvent.slug}`}>{t.openRoom}</a>
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => shareEvent(selectedEvent)} className="border-white/[0.06] bg-raised hover:bg-elevated hover:text-foreground">
+                        <Button size="sm" variant="outline" onClick={() => shareEvent(selectedEvent)} className="border-border bg-raised hover:bg-elevated hover:text-foreground">
                           <Share2 className="mr-1.5 h-3.5 w-3.5" />
                           {t.share}
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => openQR(selectedEvent)} className="border-white/[0.06] bg-raised hover:bg-elevated hover:text-foreground">
+                        <Button size="sm" variant="outline" onClick={() => openQR(selectedEvent)} className="border-border bg-raised hover:bg-elevated hover:text-foreground">
                           <QrCode className="mr-1.5 h-3.5 w-3.5" />
                           {t.qr}
                         </Button>
@@ -1243,8 +1243,8 @@ export default function DashboardPage() {
                         {t.loadingPhotos}
                       </div>
                     ) : photos.length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-white/[0.06] bg-raised p-10 text-center">
-                        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                      <div className="rounded-xl border border-dashed border-border bg-raised p-10 text-center">
+                        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
                           <ImagePlus className="h-6 w-6" />
                         </div>
                         <p className="text-sm font-semibold text-foreground">{t.noPhotosYet}</p>
@@ -1274,7 +1274,7 @@ export default function DashboardPage() {
             )}
 
             {selectedEvent && hasPrivateDeliveryAccess(selectedEvent) && (
-              <div className="rounded-2xl border border-primary/20 bg-surface shadow-card">
+              <div className="rounded-xl border border-primary/20 bg-surface shadow-card">
                 <div className="p-5 sm:p-6">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div>
@@ -1287,7 +1287,7 @@ export default function DashboardPage() {
                     </div>
                     <div>
                       <input ref={privateDeliveryFileInputRef} type="file" accept="image/jpeg,image/png" className="hidden" onChange={onPrivateDeliveryFileSelect} />
-                      <Button size="sm" className="glow-accent" disabled={privateDeliveryUploading} onClick={() => privateDeliveryFileInputRef.current?.click()}>
+                      <Button size="sm" className="cta-primary" disabled={privateDeliveryUploading} onClick={() => privateDeliveryFileInputRef.current?.click()}>
                         {privateDeliveryUploading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1.5 h-3.5 w-3.5" />}
                         {privateDeliveryUploading ? tPrivate.uploading : tPrivate.uploadFile}
                       </Button>
@@ -1302,7 +1302,7 @@ export default function DashboardPage() {
                       </div>
                     ) : privateAssets.length === 0 ? (
                       <div className="rounded-xl border border-dashed border-primary/10 bg-raised p-10 text-center">
-                        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
                           <FolderHeart className="h-6 w-6" />
                         </div>
                         <p className="text-sm font-semibold text-foreground">{tPrivate.noPrivateFiles}</p>
@@ -1311,13 +1311,13 @@ export default function DashboardPage() {
                     ) : (
                       <div className="space-y-3">
                         {privateAssets.map((asset) => (
-                          <div key={asset.id} className="flex items-center justify-between gap-4 rounded-xl border border-white/[0.06] bg-raised p-4">
+                          <div key={asset.id} className="flex items-center justify-between gap-4 rounded-xl border border-border bg-raised p-4">
                             <div className="min-w-0">
                               <p className="truncate text-sm font-medium text-foreground">{asset.originalName}</p>
                               <p className="mt-0.5 text-xs font-light text-muted-foreground">{(asset.size / (1024 * 1024)).toFixed(1)} MB · {asset.mimeType?.replace('image/', '').toUpperCase()}</p>
                             </div>
                             <div className="flex items-center gap-2">
-                              <Button size="sm" variant="outline" className="h-9 border-white/[0.06] bg-surface hover:bg-elevated hover:text-foreground" onClick={() => downloadPrivateAsset(asset)}>
+                              <Button size="sm" variant="outline" className="h-9 border-border bg-surface hover:bg-elevated hover:text-foreground" onClick={() => downloadPrivateAsset(asset)}>
                                 <Download className="mr-1.5 h-3.5 w-3.5" />
                                 {tPrivate.download}
                               </Button>
@@ -1331,7 +1331,7 @@ export default function DashboardPage() {
                     )}
                   </div>
 
-                  <div className="mt-8 rounded-xl border border-white/[0.06] bg-raised p-5">
+                  <div className="mt-8 rounded-xl border border-border bg-raised p-5">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-primary">{tPrivate.photographerLink}</span>
@@ -1340,7 +1340,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="mt-4">
                       {!photographerLink && !selectedEvent?.hasPhotographerUploadLink && (
-                        <Button size="sm" variant="outline" className="border-white/[0.06] bg-surface hover:bg-elevated hover:text-foreground" disabled={photographerLinkBusy} onClick={generatePhotographerLink}>
+                        <Button size="sm" variant="outline" className="border-border bg-surface hover:bg-elevated hover:text-foreground" disabled={photographerLinkBusy} onClick={generatePhotographerLink}>
                           {photographerLinkBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <LinkIcon className="mr-1.5 h-3.5 w-3.5" />}
                           {tPrivate.generateLink}
                         </Button>
@@ -1348,7 +1348,7 @@ export default function DashboardPage() {
                       {!photographerLink && selectedEvent?.hasPhotographerUploadLink && (
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="text-sm text-muted-foreground">{tPrivate.linkAlreadyExists}</p>
-                          <Button size="sm" variant="outline" className="border-white/[0.06] bg-surface hover:bg-elevated hover:text-foreground" disabled={photographerLinkBusy} onClick={generatePhotographerLink}>
+                          <Button size="sm" variant="outline" className="border-border bg-surface hover:bg-elevated hover:text-foreground" disabled={photographerLinkBusy} onClick={generatePhotographerLink}>
                             {photographerLinkBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
                             {tPrivate.regenerate}
                           </Button>
@@ -1360,15 +1360,15 @@ export default function DashboardPage() {
                       )}
                       {photographerLink && (
                         <div className="space-y-3">
-                          <div className="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-surface px-3 py-2">
+                          <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2">
                             <span className="truncate text-sm text-foreground">{photographerLink}</span>
                           </div>
                           <div className="flex flex-wrap gap-2">
-                            <Button size="sm" variant="outline" className="border-white/[0.06] bg-surface hover:bg-elevated hover:text-foreground" onClick={copyPhotographerLink}>
+                            <Button size="sm" variant="outline" className="border-border bg-surface hover:bg-elevated hover:text-foreground" onClick={copyPhotographerLink}>
                               {photographerLinkCopied ? <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> : <Copy className="mr-1.5 h-3.5 w-3.5" />}
                               {photographerLinkCopied ? tPrivate.copied : tPrivate.copyLink}
                             </Button>
-                            <Button size="sm" variant="outline" className="border-white/[0.06] bg-surface hover:bg-elevated hover:text-foreground" disabled={photographerLinkBusy} onClick={generatePhotographerLink}>
+                            <Button size="sm" variant="outline" className="border-border bg-surface hover:bg-elevated hover:text-foreground" disabled={photographerLinkBusy} onClick={generatePhotographerLink}>
                               {photographerLinkBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
                               {tPrivate.regenerate}
                             </Button>
@@ -1401,7 +1401,7 @@ export default function DashboardPage() {
       />
 
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="border-white/[0.06] bg-surface">
+        <DialogContent className="rounded-xl shadow-xl border-border bg-surface">
           <DialogHeader>
             <DialogTitle className="font-display text-lg font-bold text-foreground">{t.createNewRoomDialog}</DialogTitle>
             <DialogDescription className="text-sm font-light text-muted-foreground">{t.createRoomDesc}</DialogDescription>
@@ -1413,7 +1413,7 @@ export default function DashboardPage() {
                 value={createName}
                 onChange={(e) => setCreateName(e.target.value)}
                 placeholder={t.roomNamePlaceholder}
-                className="h-11 rounded-xl border-white/[0.06] bg-raised text-foreground placeholder:text-muted-foreground"
+                className="h-11 rounded-lg border-input bg-surface text-foreground placeholder:text-muted-foreground"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && createName.trim().length >= 3 && !createBusy) createRoom()
                 }}
@@ -1423,7 +1423,7 @@ export default function DashboardPage() {
             {createError?.limit === 'room_count' ? (
               <div className="space-y-3">
                 <p className="text-sm text-destructive">{createError.error}</p>
-                <Button className="w-full glow-accent" disabled={checkoutBusy} onClick={() => startCheckout('professional', null, 'dashboard_create_room_limit')}>
+                <Button className="w-full cta-primary" disabled={checkoutBusy} onClick={() => startCheckout('professional', null, 'dashboard_create_room_limit')}>
                   {checkoutBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.upgradeToProfessional}
                 </Button>
               </div>
@@ -1435,7 +1435,7 @@ export default function DashboardPage() {
             <Button variant="ghost" onClick={() => setCreateDialogOpen(false)} className="text-muted-foreground hover:text-foreground">
               {tCommon.cancel}
             </Button>
-            <Button className="glow-accent" disabled={createBusy || !createName.trim() || createName.trim().length < 3} onClick={createRoom}>
+            <Button className="cta-primary" disabled={createBusy || !createName.trim() || createName.trim().length < 3} onClick={createRoom}>
               {createBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.createRoomBtn}
             </Button>
           </DialogFooter>
@@ -1443,7 +1443,7 @@ export default function DashboardPage() {
       </Dialog>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent className="border-white/[0.06] bg-surface">
+        <AlertDialogContent className="rounded-xl shadow-xl border-border bg-surface">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-display text-lg font-bold text-foreground">{t.deleteRoomTitle}</AlertDialogTitle>
             <AlertDialogDescription className="text-sm font-light text-muted-foreground">
@@ -1451,7 +1451,7 @@ export default function DashboardPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)} className="border-white/[0.06] bg-raised text-foreground hover:bg-elevated hover:text-foreground">
+            <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)} className="border-border bg-raised text-foreground hover:bg-elevated hover:text-foreground">
               {tCommon.cancel}
             </AlertDialogCancel>
             <AlertDialogAction onClick={deleteEvent} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
@@ -1461,7 +1461,7 @@ export default function DashboardPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <footer className="relative z-10 border-t border-white/[0.04] bg-surface py-8">
+      <footer className="relative z-10 border-t border-border bg-surface py-8">
         <div className="container px-4">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
             <div className="flex items-center gap-2.5">

@@ -118,7 +118,7 @@ export function PhotographersLandingPage({ locale }) {
             <span className="inline-block font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary animate-fade-up">
               {t.heroEyebrow}
             </span>
-            <h1 className="mt-4 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl animate-fade-up delay-100">
+            <h1 className="mt-4 font-display text-3xl font-bold tracking-tight text-foreground sm:text-4xl animate-fade-up delay-100">
               {t.heroHeadline1}{' '}
               <span className="text-gradient">{t.heroHeadline2}</span>
             </h1>
@@ -144,14 +144,14 @@ export function PhotographersLandingPage({ locale }) {
 
           {/* Create Form */}
           <div id="create" className="mx-auto mt-12 max-w-lg animate-fade-up delay-400">
-            <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card">
+            <div className="rounded-2xl border border-border bg-surface p-6 shadow-card">
               <div className="space-y-3">
                 <Input
                   placeholder={t.eventPlaceholder}
                   value={eventName}
                   onChange={(e) => setEventName(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && createEvent()}
-                  className="h-12 rounded-lg border-white/[0.07] bg-[#0D1220]"
+                  className="h-12 rounded-lg border-border bg-raised"
                 />
                 <Input
                   placeholder={t.emailPlaceholder}
@@ -159,10 +159,10 @@ export function PhotographersLandingPage({ locale }) {
                   value={ownerEmail}
                   onChange={(e) => setOwnerEmail(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && createEvent()}
-                  className="h-12 rounded-lg border-white/[0.07] bg-[#0D1220]"
+                  className="h-12 rounded-lg border-border bg-raised"
                 />
                 <Button
-                  className="h-12 w-full glow-blue"
+                  className="h-12 w-full cta-primary"
                   onClick={createEvent}
                   disabled={isCreating}
                 >
@@ -187,11 +187,11 @@ export function PhotographersLandingPage({ locale }) {
       </section>
 
       {/* Problem / Solution */}
-      <section className="relative border-t border-white/[0.07] bg-[#0D1220]/50 py-16 sm:py-24">
+      <section className="relative border-t border-border bg-raised/50 py-16 sm:py-24">
         <div className="container px-4">
           <div className="mx-auto grid max-w-5xl gap-10 sm:grid-cols-2 sm:items-center">
             <div className="reveal">
-              <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
+              <h2 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
                 {t.problemTitle}
               </h2>
               <p className="mt-4 text-muted-foreground">
@@ -202,22 +202,22 @@ export function PhotographersLandingPage({ locale }) {
               </p>
             </div>
             <div className="reveal space-y-4" style={{ transitionDelay: '100ms' }}>
-              <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#141C2E] border border-white/[0.07] text-primary shadow-card">
+              <div className="rounded-2xl border border-border bg-surface p-6 shadow-card">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface border border-border text-primary shadow-card">
                   <QrCode className="h-6 w-6" />
                 </div>
-                <h3 className="mt-4 font-display text-lg font-semibold text-white">
+                <h3 className="mt-4 font-display text-lg font-semibold text-foreground">
                   {t.solution1Title}
                 </h3>
                 <p className="mt-2 text-sm text-muted-foreground">
                   {t.solution1Desc}
                 </p>
               </div>
-              <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#141C2E] border border-white/[0.07] text-primary shadow-card">
+              <div className="rounded-2xl border border-border bg-surface p-6 shadow-card">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface border border-border text-primary shadow-card">
                   <Download className="h-6 w-6" />
                 </div>
-                <h3 className="mt-4 font-display text-lg font-semibold text-white">
+                <h3 className="mt-4 font-display text-lg font-semibold text-foreground">
                   {t.solution2Title}
                 </h3>
                 <p className="mt-2 text-sm text-muted-foreground">
@@ -236,7 +236,7 @@ export function PhotographersLandingPage({ locale }) {
             <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
               {t.featuresLabel}
             </span>
-            <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               {t.featuresTitle}
             </h2>
             <p className="mt-3 text-muted-foreground">
@@ -279,13 +279,13 @@ export function PhotographersLandingPage({ locale }) {
             ].map((f, i) => (
               <div
                 key={f.title}
-                className="reveal rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card hover:-translate-y-px hover:border-white/[0.12] transition-all duration-200"
+                className="reveal rounded-2xl border border-border bg-surface p-6 shadow-card hover:-translate-y-px hover:border-white/[0.12] transition-all duration-200"
                 style={{ transitionDelay: `${i * 60}ms` }}
               >
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#141C2E] border border-white/[0.07] text-primary shadow-card">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface border border-border text-primary shadow-card">
                   <f.icon className="h-5 w-5" />
                 </div>
-                <h3 className="mt-4 font-display text-base font-semibold text-white">
+                <h3 className="mt-4 font-display text-base font-semibold text-foreground">
                   {f.title}
                 </h3>
                 <p className="mt-2 text-sm text-muted-foreground">{f.desc}</p>
@@ -296,13 +296,13 @@ export function PhotographersLandingPage({ locale }) {
       </section>
 
       {/* How It Works */}
-      <section className="relative border-t border-white/[0.07] bg-[#0D1220]/50 py-16 sm:py-24">
+      <section className="relative border-t border-border bg-raised/50 py-16 sm:py-24">
         <div className="container px-4">
           <div className="mx-auto max-w-3xl text-center reveal">
             <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
               {t.howItWorksLabel}
             </span>
-            <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               {t.howItWorksTitle}
             </h2>
           </div>
@@ -327,13 +327,13 @@ export function PhotographersLandingPage({ locale }) {
             ].map((item, i) => (
               <div
                 key={item.step}
-                className="reveal relative rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 text-center shadow-card"
+                className="reveal relative rounded-2xl border border-border bg-surface p-6 text-center shadow-card"
                 style={{ transitionDelay: `${i * 80}ms` }}
               >
                 <span className="font-mono text-3xl font-bold text-primary/20">
                   {item.step}
                 </span>
-                <h3 className="mt-3 font-display text-base font-semibold text-white">
+                <h3 className="mt-3 font-display text-base font-semibold text-foreground">
                   {item.title}
                 </h3>
                 <p className="mt-2 text-sm text-muted-foreground">{item.desc}</p>
@@ -347,9 +347,9 @@ export function PhotographersLandingPage({ locale }) {
       <section className="relative py-16 sm:py-24">
         <div className="container px-4">
           <div className="mx-auto max-w-3xl reveal">
-            <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] p-8 sm:p-10 shadow-card text-center">
+            <div className="rounded-2xl border border-border bg-surface p-8 sm:p-10 shadow-card text-center">
               <Sparkles className="mx-auto h-6 w-6 text-primary" />
-              <blockquote className="mt-5 font-display text-lg font-medium text-white sm:text-xl">
+              <blockquote className="mt-5 font-display text-lg font-medium text-foreground sm:text-xl">
                 &ldquo;{t.testimonialQuote}&rdquo;
               </blockquote>
               <p className="mt-4 text-sm text-muted-foreground">
@@ -361,10 +361,10 @@ export function PhotographersLandingPage({ locale }) {
       </section>
 
       {/* Pricing Teaser */}
-      <section className="relative border-t border-white/[0.07] bg-[#0D1220]/50 py-16 sm:py-24">
+      <section className="relative border-t border-border bg-raised/50 py-16 sm:py-24">
         <div className="container px-4">
           <div className="mx-auto max-w-3xl text-center reveal">
-            <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            <h2 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               {t.pricingTitle}
             </h2>
             <p className="mt-3 text-muted-foreground">
@@ -373,7 +373,7 @@ export function PhotographersLandingPage({ locale }) {
           </div>
 
           <div className="mx-auto mt-10 max-w-md reveal">
-            <div className="rounded-2xl border border-primary/20 bg-[#141C2E] p-8 shadow-card">
+            <div className="rounded-2xl border border-primary/20 bg-surface p-8 shadow-card">
               <div className="flex items-center gap-2">
                 <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
                   {t.planLabel}
@@ -381,13 +381,13 @@ export function PhotographersLandingPage({ locale }) {
                 <Sparkles className="h-3 w-3 text-primary" />
               </div>
               <div className="mt-4 flex items-baseline gap-1">
-                <span className="font-display text-4xl font-bold text-white">{t.planPrice}</span>
+                <span className="font-display text-4xl font-bold text-foreground">{t.planPrice}</span>
                 <span className="text-sm text-muted-foreground">{t.planPeriod}</span>
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
                 {t.planDesc}
               </p>
-              <Button className="mt-6 w-full glow-blue" asChild>
+              <Button className="mt-6 w-full cta-primary" asChild>
                 <a href="/dashboard/login">
                   {t.planCta}
                   <ArrowRight className="ml-2 h-4 w-4" />
@@ -424,17 +424,17 @@ export function PhotographersLandingPage({ locale }) {
       <section className="relative pb-16 sm:pb-24">
         <div className="container px-4">
           <div className="mx-auto max-w-2xl text-center reveal">
-            <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            <h2 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               {t.finalTitle}
             </h2>
             <p className="mt-3 text-muted-foreground">
               {t.finalDesc}
             </p>
             <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Button size="lg" className="glow-blue" asChild>
+              <Button size="lg" className="cta-primary" asChild>
                 <a href="/">{t.finalCta}</a>
               </Button>
-              <Button size="lg" variant="outline" className="border-white/[0.07] bg-transparent hover:bg-white/[0.03]" asChild>
+              <Button size="lg" variant="outline" className="border-border bg-transparent hover:bg-white/[0.03]" asChild>
                 <a href="/pricing">
                   {t.viewPricing}
                 </a>

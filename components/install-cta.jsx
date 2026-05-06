@@ -84,7 +84,7 @@ export function InstallCta({ mode = 'landing', className = '' }) {
   return (
     <>
       <div
-        className={`group relative overflow-hidden rounded-2xl border border-white/[0.04] bg-surface p-5 shadow-card transition-colors hover:border-white/[0.08] ${className}`}
+        className={`group relative overflow-hidden rounded-2xl border border-border bg-surface p-5 shadow-card transition-colors hover:border-white/[0.08] ${className}`}
       >
         <button
           type="button"
@@ -160,7 +160,7 @@ function InstallHelpModal({ isIOS, isDesktop, onClose }) {
       role="dialog"
       aria-modal="true"
     >
-      <div className="w-full max-w-sm rounded-t-3xl border border-white/[0.06] bg-surface p-6 shadow-elevated sm:rounded-3xl">
+      <div className="w-full max-w-sm rounded-t-3xl border border-border bg-surface p-6 shadow-elevated sm:rounded-3xl">
         <div className="mb-5 flex items-center justify-between">
           <h3 className="font-display text-base font-bold text-foreground">{t.openSettings}</h3>
           <button

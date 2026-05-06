@@ -82,7 +82,7 @@ export function HomePageClient({ locale = 'en' }) {
   if (isRedirecting) {
     return (
       <main className="min-h-screen bg-background text-foreground">
-        <header className="border-b border-white/[0.04] bg-background/70 backdrop-blur-xl">
+        <header className="border-b border-border bg-background/80 backdrop-blur-xl">
           <div className="container flex h-16 items-center justify-between px-4">
             <div className="flex items-center gap-2.5">
               <img src="/snaprooms-logo.svg" alt="SnapRooms" fetchPriority="high" className="h-9 w-9 rounded-xl object-cover shadow-subtle" />
@@ -94,7 +94,7 @@ export function HomePageClient({ locale = 'en' }) {
           </div>
         </header>
         <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center gap-4 px-4">
-          <img src="/snaprooms-logo.svg" alt="SnapRooms" fetchPriority="high" className="h-14 w-14 rounded-2xl object-cover shadow-elevated" />
+          <img src="/snaprooms-logo.svg" alt="SnapRooms" fetchPriority="high" className="h-14 w-14 rounded-xl object-cover shadow-card" />
           <p className="text-lg font-medium text-foreground">{t.openingRoom}</p>
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
@@ -104,7 +104,7 @@ export function HomePageClient({ locale = 'en' }) {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-white/[0.04] bg-background/70 backdrop-blur-xl">
+      <header className="border-b border-border bg-background/80 backdrop-blur-xl">
         <div className="container flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-2.5">
             <img src="/snaprooms-logo.svg" alt="SnapRooms" className="h-9 w-9 rounded-xl object-cover shadow-subtle" />

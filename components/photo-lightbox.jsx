@@ -36,11 +36,11 @@ const ImageWithLoading = ({ src, alt }) => {
     <div className="relative flex h-full w-full items-center justify-center">
       {status === 'loading' && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-white/40" />
+          <Loader2 className="h-8 w-8 animate-spin text-foreground/40" />
         </div>
       )}
       {status === 'error' && (
-        <div className="flex flex-col items-center justify-center gap-2 text-white/40">
+        <div className="flex flex-col items-center justify-center gap-2 text-foreground/40">
           <ImageOff className="h-10 w-10" />
           <span className="text-sm">{t.failedToLoadImage}</span>
         </div>
@@ -342,10 +342,10 @@ const PhotoLightbox = ({
     >
       {/* Header */}
       <div className="absolute left-0 right-0 top-0 z-10 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent px-3 py-3 sm:px-4 sm:py-4">
-        <div className="flex items-center gap-2 rounded-full bg-black/30 px-3 py-1.5 text-sm text-white/90 backdrop-blur-sm">
+        <div className="flex items-center gap-2 rounded-full bg-black/30 px-3 py-1.5 text-sm text-foreground/90 backdrop-blur-sm">
           <span className="font-medium">{selectedIndex + 1}</span>
-          <span className="text-white/40">/</span>
-          <span className="text-white/60">{safePhotos.length}</span>
+          <span className="text-foreground/40">/</span>
+          <span className="text-foreground/60">{safePhotos.length}</span>
         </div>
         <div className="flex items-center gap-1">
           <DropdownMenu>
@@ -356,7 +356,7 @@ const PhotoLightbox = ({
                 className={`h-9 w-9 transition-colors ${
                   downloaded
                     ? 'text-green-400 hover:text-green-300'
-                    : 'text-white/80 hover:bg-white/10 hover:text-white'
+                    : 'text-foreground/80 hover:bg-white/10 hover:text-foreground'
                 }`}
                 onClick={(e) => e.stopPropagation()}
                 title={downloaded ? t.downloaded : t.downloadPhoto}
@@ -366,11 +366,11 @@ const PhotoLightbox = ({
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="border-white/[0.06] bg-surface text-foreground min-w-[14rem]"
+              className="border-border bg-surface text-foreground min-w-[14rem]"
               onClick={(e) => e.stopPropagation()}
             >
               <DropdownMenuItem
-                className="cursor-pointer focus:bg-white/5 focus:text-white"
+                className="cursor-pointer focus:bg-white/5 focus:text-foreground"
                 onClick={handleDownloadStandard}
               >
                 <div className="flex flex-col py-1">
@@ -384,7 +384,7 @@ const PhotoLightbox = ({
 
               {canDownloadOriginal ? (
                 <DropdownMenuItem
-                  className="cursor-pointer focus:bg-white/5 focus:text-white"
+                  className="cursor-pointer focus:bg-white/5 focus:text-foreground"
                   onClick={handleDownloadOriginal}
                 >
                   <div className="flex flex-col py-1">
@@ -397,7 +397,7 @@ const PhotoLightbox = ({
                 </DropdownMenuItem>
               ) : isOwner ? (
                 <DropdownMenuItem
-                  className="cursor-pointer focus:bg-white/5 focus:text-white"
+                  className="cursor-pointer focus:bg-white/5 focus:text-foreground"
                   onClick={(e) => {
                     e.preventDefault()
                     handleUnlock()
@@ -436,7 +436,7 @@ const PhotoLightbox = ({
           <Button
             size="icon"
             variant="ghost"
-            className="h-9 w-9 text-white/80 hover:bg-white/10 hover:text-white"
+            className="h-9 w-9 text-foreground/80 hover:bg-white/10 hover:text-foreground"
             onClick={(e) => {
               e.stopPropagation()
               handleClose()
@@ -464,7 +464,7 @@ const PhotoLightbox = ({
         <>
           <button
             disabled={selectedIndex <= 0}
-            className="absolute left-2 top-1/2 hidden -translate-y-1/2 rounded-full bg-black/30 p-2 text-white/70 backdrop-blur-sm transition-all hover:bg-black/50 hover:text-white disabled:opacity-0 sm:left-4 sm:block"
+            className="absolute left-2 top-1/2 hidden -translate-y-1/2 rounded-full bg-black/30 p-2 text-foreground/70 backdrop-blur-sm transition-all hover:bg-black/50 hover:text-foreground disabled:opacity-0 sm:left-4 sm:block"
             onClick={(e) => {
               e.stopPropagation()
               selectPrevious()
@@ -474,7 +474,7 @@ const PhotoLightbox = ({
           </button>
           <button
             disabled={selectedIndex >= safePhotos.length - 1}
-            className="absolute right-2 top-1/2 hidden -translate-y-1/2 rounded-full bg-black/30 p-2 text-white/70 backdrop-blur-sm transition-all hover:bg-black/50 hover:text-white disabled:opacity-0 sm:right-4 sm:block"
+            className="absolute right-2 top-1/2 hidden -translate-y-1/2 rounded-full bg-black/30 p-2 text-foreground/70 backdrop-blur-sm transition-all hover:bg-black/50 hover:text-foreground disabled:opacity-0 sm:right-4 sm:block"
             onClick={(e) => {
               e.stopPropagation()
               selectNext()
@@ -487,7 +487,7 @@ const PhotoLightbox = ({
 
       {/* Mobile swipe hint */}
       <div className="pointer-events-none absolute bottom-16 left-0 right-0 flex justify-center sm:hidden">
-        <div className="rounded-full bg-black/30 px-3 py-1 text-[10px] text-white/50 backdrop-blur-sm">
+        <div className="rounded-full bg-black/30 px-3 py-1 text-[10px] text-foreground/50 backdrop-blur-sm">
           {t.swipeToNavigate}
         </div>
       </div>
@@ -495,11 +495,11 @@ const PhotoLightbox = ({
       {/* Footer info */}
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pb-6 pt-12">
         <div className="mx-auto max-w-md text-center">
-          <p className="truncate text-sm font-medium text-white/90">
+          <p className="truncate text-sm font-medium text-foreground/90">
             {photo.originalName || t.untitled}
           </p>
           {(photo.uploaderName || photo.caption) && (
-            <p className="mt-0.5 truncate text-xs text-white/50">
+            <p className="mt-0.5 truncate text-xs text-foreground/50">
               {photo.uploaderName && `${t.by} ${photo.uploaderName}`}
               {photo.uploaderName && photo.caption && ' • '}
               {photo.caption}

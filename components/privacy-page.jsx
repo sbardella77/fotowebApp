@@ -29,7 +29,7 @@ function useScrollReveal() {
 function Section({ title, children }) {
   return (
     <section className="mb-10 reveal">
-      <h2 className="text-lg font-semibold tracking-tight text-white">{title}</h2>
+      <h2 className="text-lg font-semibold tracking-tight text-foreground">{title}</h2>
       <div className="mt-3 space-y-3 text-sm text-muted-foreground leading-relaxed">
         {children}
       </div>
@@ -64,10 +64,10 @@ export function PrivacyPage({ locale = 'en' }) {
         <div className="absolute inset-0 bg-grid opacity-50" aria-hidden="true" />
         <div className="container relative px-4">
           <div className="mx-auto max-w-3xl text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#141C2E] border border-white/[0.07] text-primary mx-auto shadow-card">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface border border-border text-primary mx-auto shadow-card">
               <Shield className="h-6 w-6" />
             </div>
-            <h1 className="mt-5 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            <h1 className="mt-5 font-display text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
               {t.privacyTitle}
             </h1>
             <p className="mt-3 text-sm text-muted-foreground">
@@ -77,7 +77,7 @@ export function PrivacyPage({ locale = 'en' }) {
         </div>
       </section>
 
-      <section className="relative border-t border-white/[0.07] bg-[#0D1220]/30 py-12 sm:py-16">
+      <section className="relative border-t border-border bg-raised/30 py-12 sm:py-16">
         <div className="container px-4">
           <div className="mx-auto max-w-3xl space-y-10">
             <div className="reveal rounded-xl border border-primary/20 bg-primary/5 p-5">
@@ -176,7 +176,7 @@ export function PrivacyPage({ locale = 'en' }) {
               </p>
             </Section>
 
-            <div className="mt-12 border-t border-white/[0.07] pt-8 text-center">
+            <div className="mt-12 border-t border-border pt-8 text-center">
               <a
                 href="/"
                 className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80"

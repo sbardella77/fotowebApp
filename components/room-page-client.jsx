@@ -98,7 +98,7 @@ function NewRoomShareBanner({ event, baseUrl, onDismiss, showToast, onShowQR }) 
   }
 
   return (
-    <div className="mt-6 rounded-2xl border border-white/[0.06] bg-surface shadow-card">
+    <div className="mt-6 rounded-2xl border border-border bg-surface shadow-card">
       <div className="p-5 sm:p-6">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -110,18 +110,18 @@ function NewRoomShareBanner({ event, baseUrl, onDismiss, showToast, onShowQR }) 
           </Button>
         </div>
         <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <Button size="sm" className="gap-1.5 bg-[#25D366] text-white hover:bg-[#128C7E] border-transparent" onClick={openWhatsApp}>
+          <Button size="sm" className="gap-1.5 bg-[#25D366] text-foreground hover:bg-[#128C7E] border-transparent" onClick={openWhatsApp}>
             <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
             {t.whatsapp}
           </Button>
-          <Button size="sm" className="gap-1.5 bg-[#0088cc] text-white hover:bg-[#0077b3] border-transparent" onClick={openTelegram}>
+          <Button size="sm" className="gap-1.5 bg-[#0088cc] text-foreground hover:bg-[#0077b3] border-transparent" onClick={openTelegram}>
             <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
             {t.telegram}
           </Button>
-          <Button size="sm" variant="outline" className="gap-1.5 border-white/[0.06] bg-raised hover:bg-elevated hover:text-foreground" onClick={copyLink}>
+          <Button size="sm" variant="outline" className="gap-1.5 border-border bg-raised hover:bg-elevated hover:text-foreground" onClick={copyLink}>
             <Copy className="h-3.5 w-3.5" />{t.copyLink}
           </Button>
-          <Button size="sm" variant="outline" className="gap-1.5 border-white/[0.06] bg-raised hover:bg-elevated hover:text-foreground" onClick={onShowQR}>
+          <Button size="sm" variant="outline" className="gap-1.5 border-border bg-raised hover:bg-elevated hover:text-foreground" onClick={onShowQR}>
             <QrCode className="h-3.5 w-3.5" />{t.showQR}
           </Button>
         </div>
@@ -142,7 +142,7 @@ function RoomNotFound() {
         <p className="mt-2 text-sm font-light leading-relaxed text-muted-foreground">{t.roomNotFoundDesc}</p>
         <p className="mt-1 text-sm font-light text-muted-foreground">{t.roomNotFoundHelp}</p>
       </div>
-      <Button asChild className="glow-accent">
+      <Button asChild className="cta-primary">
         <a href="/">{t.backToHome}</a>
       </Button>
     </div>
@@ -362,7 +362,7 @@ export default function RoomPageClient({ slug, isNew }) {
   if (notFound) {
     return (
       <main className="min-h-screen bg-background font-body text-foreground">
-        <header className="border-b border-white/[0.04] bg-background/70 backdrop-blur-xl">
+        <header className="border-b border-border bg-background/70 backdrop-blur-xl">
           <div className="container flex h-16 items-center justify-between px-4">
             <a href="/" className="flex items-center gap-2.5">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-subtle"><Camera className="h-[18px] w-[18px]" /></div>
@@ -384,7 +384,7 @@ export default function RoomPageClient({ slug, isNew }) {
     <main className="relative min-h-screen bg-background font-body text-foreground">
       <div className="absolute inset-0 bg-grid opacity-[0.025] pointer-events-none" aria-hidden="true" />
 
-      <header className="relative z-10 border-b border-white/[0.04] bg-background/70 backdrop-blur-xl">
+      <header className="relative z-10 border-b border-border bg-background/70 backdrop-blur-xl">
         <div className="container flex h-16 items-center justify-between px-4">
           <a href="/" className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-subtle"><Camera className="h-[18px] w-[18px]" /></div>
@@ -411,7 +411,7 @@ export default function RoomPageClient({ slug, isNew }) {
         <section className="container relative z-10 px-4 py-8 pb-20">
           <div className="mx-auto max-w-3xl space-y-6">
             {/* Room info card */}
-            <div className="rounded-2xl border border-white/[0.06] bg-surface shadow-card">
+            <div className="rounded-2xl border border-border bg-surface shadow-card">
               <div className="p-5 sm:p-6">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
@@ -426,12 +426,12 @@ export default function RoomPageClient({ slug, isNew }) {
                   <span className="flex items-center gap-1.5"><Users className="h-4 w-4 text-primary" />{t.openForUploads}</span>
                   <span className="flex items-center gap-1.5"><ImagePlus className="h-4 w-4 text-primary" />{galleryPhotos.length} {t.photosLabel}</span>
                 </div>
-                <div className="mt-6 rounded-xl border border-white/[0.06] bg-raised p-5 text-center">
+                <div className="mt-6 rounded-xl border border-border bg-raised p-5 text-center">
                   <p className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">{t.roomCode}</p>
                   <p className="mt-2 font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">{activeEvent.slug}</p>
                   <p className="mt-1 text-xs font-light text-muted-foreground">{t.shareCodeHint}</p>
                   <div className="mt-4 flex flex-wrap justify-center gap-2">
-                    <Button size="sm" variant="outline" className="gap-1.5 border-white/[0.06] bg-elevated hover:bg-surface hover:text-foreground" onClick={async () => {
+                    <Button size="sm" variant="outline" className="gap-1.5 border-border bg-elevated hover:bg-surface hover:text-foreground" onClick={async () => {
                       trackEvent(EVENT_COPY_LINK_CLICKED, { room_slug: activeEvent?.slug, source: 'room_info_card' })
                       try {
                         if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -442,7 +442,7 @@ export default function RoomPageClient({ slug, isNew }) {
                       {copied ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                       {copied ? tCommon.copied : tCommon.copy}
                     </Button>
-                    <Button size="sm" variant="outline" className="gap-1.5 border-white/[0.06] bg-elevated hover:bg-surface hover:text-foreground" onClick={async () => {
+                    <Button size="sm" variant="outline" className="gap-1.5 border-border bg-elevated hover:bg-surface hover:text-foreground" onClick={async () => {
                       trackEvent(EVENT_NATIVE_SHARE_CLICKED, { room_slug: activeEvent?.slug, source: 'room_info_card' })
                       const shareData = { title: t.joinRoomOnSnapRooms.replace('{name}', activeEvent.name), text: t.uploadYourPhotosTo.replace('{name}', activeEvent.name) + ' ' + t.useCode + ': ' + activeEvent.slug }
                       if (typeof navigator !== 'undefined' && navigator.share) { try { await navigator.share(shareData); showToast(t.shared) } catch {} }
@@ -450,7 +450,7 @@ export default function RoomPageClient({ slug, isNew }) {
                     }}>
                       <Share2 className="h-3.5 w-3.5" />{t.nativeShare}
                     </Button>
-                    <Button size="sm" variant="outline" className="gap-1.5 border-white/[0.06] bg-elevated hover:bg-surface hover:text-foreground" onClick={() => { trackEvent(EVENT_QR_OPENED, { room_slug: activeEvent?.slug, source: 'room_info_card' }); setQrModalOpen(true) }}>
+                    <Button size="sm" variant="outline" className="gap-1.5 border-border bg-elevated hover:bg-surface hover:text-foreground" onClick={() => { trackEvent(EVENT_QR_OPENED, { room_slug: activeEvent?.slug, source: 'room_info_card' }); setQrModalOpen(true) }}>
                       <QrCode className="h-3.5 w-3.5" />{t.showQR}
                     </Button>
                   </div>
@@ -459,7 +459,7 @@ export default function RoomPageClient({ slug, isNew }) {
             </div>
 
             {/* Upload hero */}
-            <div ref={heroRef} className="rounded-2xl border border-white/[0.06] bg-surface shadow-card overflow-hidden">
+            <div ref={heroRef} className="rounded-2xl border border-border bg-surface shadow-card overflow-hidden">
               <div className="p-6 text-center sm:p-8">
                 <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                   <Camera className="h-7 w-7" />
@@ -472,7 +472,7 @@ export default function RoomPageClient({ slug, isNew }) {
                 <div className="mt-6 mx-auto max-w-sm">
                   <div className="space-y-2 text-left">
                     <label className="text-sm font-medium text-foreground">{t.guestNamePlaceholder}</label>
-                    <Input value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder={t.yourName} className="h-11 rounded-xl border-white/[0.06] bg-raised text-foreground placeholder:text-muted-foreground" />
+                    <Input value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder={t.yourName} className="h-11 rounded-xl border-border bg-raised text-foreground placeholder:text-muted-foreground" />
                   </div>
                 </div>
 
@@ -495,8 +495,8 @@ export default function RoomPageClient({ slug, isNew }) {
                         <p className="text-sm font-semibold text-warning">{t.freeLimitReached}</p>
                         <p className="mt-1 text-xs font-light text-muted-foreground">{t.upgradeToContinueOwner}</p>
                         <div className="mt-3 flex flex-wrap gap-2">
-                          <Button size="sm" className="glow-accent" asChild><a href="/pricing">{tCommon.viewPricing}</a></Button>
-                          <Button size="sm" variant="outline" className="border-white/[0.06] bg-raised" onClick={() => { if (typeof window !== 'undefined') { window.location.href = '/dashboard' } }}>{t.upgradeThisRoom}</Button>
+                          <Button size="sm" className="cta-primary" asChild><a href="/pricing">{tCommon.viewPricing}</a></Button>
+                          <Button size="sm" variant="outline" className="border-border bg-raised" onClick={() => { if (typeof window !== 'undefined') { window.location.href = '/dashboard' } }}>{t.upgradeThisRoom}</Button>
                         </div>
                       </>
                     ) : (
@@ -509,16 +509,16 @@ export default function RoomPageClient({ slug, isNew }) {
                 )}
 
                 {isUploading ? (
-                  <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/[0.06] bg-raised px-5 py-3 text-sm font-medium text-foreground">
+                  <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-border bg-raised px-5 py-3 text-sm font-medium text-foreground">
                     <Loader2 className="h-4 w-4 animate-spin text-primary" />
                     {`${t.uploading} ${uploads.filter((u) => u.progress < 100).length} ${t.photosLabel}...`}
                   </div>
                 ) : (
                   <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
-                    <Button size="lg" className="h-14 gap-2 rounded-xl px-8 text-base font-body font-semibold glow-accent touch-target" disabled={Boolean(photoLimitError)} onClick={() => { setUploadSuccess(false); setUploadFormatError(''); trackEvent(EVENT_SNAP_CTA_CLICKED, { room_slug: activeEvent?.slug }); cameraFileInputRef.current?.click() }}>
+                    <Button size="lg" className="h-14 gap-2 rounded-xl px-8 text-base font-body font-semibold cta-primary touch-target" disabled={Boolean(photoLimitError)} onClick={() => { setUploadSuccess(false); setUploadFormatError(''); trackEvent(EVENT_SNAP_CTA_CLICKED, { room_slug: activeEvent?.slug }); cameraFileInputRef.current?.click() }}>
                       <Camera className="h-5 w-5" />{t.snapPhoto}
                     </Button>
-                    <Button size="lg" variant="outline" className="h-14 gap-2 rounded-xl px-8 text-base font-body font-semibold border-white/[0.06] bg-raised hover:bg-elevated hover:text-foreground touch-target" disabled={Boolean(photoLimitError)} onClick={() => { setUploadSuccess(false); setUploadFormatError(''); trackEvent(EVENT_UPLOAD_CTA_CLICKED, { room_slug: activeEvent?.slug }); heroFileInputRef.current?.click() }}>
+                    <Button size="lg" variant="outline" className="h-14 gap-2 rounded-xl px-8 text-base font-body font-semibold border-border bg-raised hover:bg-elevated hover:text-foreground touch-target" disabled={Boolean(photoLimitError)} onClick={() => { setUploadSuccess(false); setUploadFormatError(''); trackEvent(EVENT_UPLOAD_CTA_CLICKED, { room_slug: activeEvent?.slug }); heroFileInputRef.current?.click() }}>
                       <Upload className="h-5 w-5" />{t.uploadPhoto}
                     </Button>
                   </div>
@@ -544,17 +544,17 @@ export default function RoomPageClient({ slug, isNew }) {
                     </Button>
                   </div>
                   <div className="mt-5 flex flex-wrap gap-2">
-                    <Button size="sm" className="gap-1.5 bg-[#25D366] text-white hover:bg-[#128C7E] border-transparent" onClick={() => { trackEvent(EVENT_WHATSAPP_SHARE_CLICKED, { room_slug: activeEvent?.slug, source: 'viral_section' }); try { window.open(`https://wa.me/?text=${encodeURIComponent(`📸 Photos from ${activeEvent.name}\n\nAdd yours here 👇\n${baseUrl}/event/${activeEvent.slug}`)}`, '_blank') } catch (e) { console.warn(e) } }}>
+                    <Button size="sm" className="gap-1.5 bg-[#25D366] text-foreground hover:bg-[#128C7E] border-transparent" onClick={() => { trackEvent(EVENT_WHATSAPP_SHARE_CLICKED, { room_slug: activeEvent?.slug, source: 'viral_section' }); try { window.open(`https://wa.me/?text=${encodeURIComponent(`📸 Photos from ${activeEvent.name}\n\nAdd yours here 👇\n${baseUrl}/event/${activeEvent.slug}`)}`, '_blank') } catch (e) { console.warn(e) } }}>
                       <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
                       {t.shareOnWhatsApp}
                     </Button>
-                    <Button size="sm" variant="outline" className="gap-1.5 border-white/[0.06] bg-raised hover:bg-elevated hover:text-foreground" onClick={async () => { trackEvent(EVENT_COPY_LINK_CLICKED, { room_slug: activeEvent?.slug, source: 'viral_section' }); try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(`${baseUrl}/event/${activeEvent.slug}`); showToast(t.copied + '!') } else { showToast(t.copy + ' ' + t.error, 'error') } } catch { showToast(t.error, 'error') } }}>
+                    <Button size="sm" variant="outline" className="gap-1.5 border-border bg-raised hover:bg-elevated hover:text-foreground" onClick={async () => { trackEvent(EVENT_COPY_LINK_CLICKED, { room_slug: activeEvent?.slug, source: 'viral_section' }); try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(`${baseUrl}/event/${activeEvent.slug}`); showToast(t.copied + '!') } else { showToast(t.copy + ' ' + t.error, 'error') } } catch { showToast(t.error, 'error') } }}>
                       <Copy className="h-3.5 w-3.5" />{t.copyLink}
                     </Button>
-                    <Button size="sm" variant="outline" className="gap-1.5 border-white/[0.06] bg-raised hover:bg-elevated hover:text-foreground" onClick={async () => { trackEvent(EVENT_NATIVE_SHARE_CLICKED, { room_slug: activeEvent?.slug, source: 'viral_section' }); const shareData = { title: t.joinRoomOnSnapRooms.replace('{name}', activeEvent.name), text: t.uploadYourPhotosTo.replace('{name}', activeEvent.name), url: `${baseUrl}/event/${activeEvent.slug}` }; if (typeof navigator !== 'undefined' && navigator.share) { try { await navigator.share(shareData); showToast(t.shared) } catch {} } else { try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(`${baseUrl}/event/${activeEvent.slug}`); showToast(t.copied + '!') } else { showToast(t.share + ' ' + t.error, 'error') } } catch { showToast(t.error, 'error') } } }}>
+                    <Button size="sm" variant="outline" className="gap-1.5 border-border bg-raised hover:bg-elevated hover:text-foreground" onClick={async () => { trackEvent(EVENT_NATIVE_SHARE_CLICKED, { room_slug: activeEvent?.slug, source: 'viral_section' }); const shareData = { title: t.joinRoomOnSnapRooms.replace('{name}', activeEvent.name), text: t.uploadYourPhotosTo.replace('{name}', activeEvent.name), url: `${baseUrl}/event/${activeEvent.slug}` }; if (typeof navigator !== 'undefined' && navigator.share) { try { await navigator.share(shareData); showToast(t.shared) } catch {} } else { try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(`${baseUrl}/event/${activeEvent.slug}`); showToast(t.copied + '!') } else { showToast(t.share + ' ' + t.error, 'error') } } catch { showToast(t.error, 'error') } } }}>
                       <Share2 className="h-3.5 w-3.5" />{t.nativeShare}
                     </Button>
-                    <Button size="sm" variant="outline" className="gap-1.5 border-white/[0.06] bg-raised hover:bg-elevated hover:text-foreground" onClick={() => { trackEvent(EVENT_QR_OPENED, { room_slug: activeEvent?.slug, source: 'viral_section' }); setQrModalOpen(true) }}>
+                    <Button size="sm" variant="outline" className="gap-1.5 border-border bg-raised hover:bg-elevated hover:text-foreground" onClick={() => { trackEvent(EVENT_QR_OPENED, { room_slug: activeEvent?.slug, source: 'viral_section' }); setQrModalOpen(true) }}>
                       <QrCode className="h-3.5 w-3.5" />{t.showQR}
                     </Button>
                   </div>
@@ -571,7 +571,7 @@ export default function RoomPageClient({ slug, isNew }) {
             {uploads.length > 0 && (
               <div className="mt-4 space-y-2">
                 {uploads.map((upload) => (
-                  <div key={upload.id} className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-surface p-3">
+                  <div key={upload.id} className="flex items-center gap-3 rounded-xl border border-border bg-surface p-3">
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-foreground">{upload.name}</p>
                       <p className="text-xs font-light text-muted-foreground">{upload.status}</p>
@@ -583,11 +583,11 @@ export default function RoomPageClient({ slug, isNew }) {
             )}
 
             {/* Gallery */}
-            <div className="mt-8 rounded-2xl border border-white/[0.06] bg-surface shadow-card">
+            <div className="mt-8 rounded-2xl border border-border bg-surface shadow-card">
               <div className="p-5 sm:p-6">
                 <div className="flex items-center gap-3">
                   <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-primary">{t.galleryTitle}</span>
-                  <Badge variant="secondary" className="rounded-full font-mono text-[10px] bg-raised text-muted-foreground border-white/[0.06]">{galleryPhotos.length}</Badge>
+                  <Badge variant="secondary" className="rounded-full font-mono text-[10px] bg-raised text-muted-foreground border-border">{galleryPhotos.length}</Badge>
                 </div>
                 {unlockMessage && <p className="mt-3 text-sm font-semibold text-success">{unlockMessage}</p>}
                 <p className="mt-2 text-sm font-light text-muted-foreground">{t.downloadAvailable}</p>
@@ -602,7 +602,7 @@ export default function RoomPageClient({ slug, isNew }) {
 
       {/* Sticky mobile CTA */}
       <div className={`fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] left-1/2 z-40 -translate-x-1/2 transition-opacity duration-200 sm:hidden ${showStickyCta ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-        <Button size="sm" className="h-12 gap-2 rounded-full px-7 text-sm font-body font-semibold glow-accent" onClick={() => { setUploadSuccess(false); setUploadFormatError(''); trackEvent(EVENT_SNAP_CTA_CLICKED, { room_slug: activeEvent?.slug, position: 'sticky_mobile' }); cameraFileInputRef.current?.click() }}>
+        <Button size="sm" className="h-12 gap-2 rounded-full px-7 text-sm font-body font-semibold cta-primary" onClick={() => { setUploadSuccess(false); setUploadFormatError(''); trackEvent(EVENT_SNAP_CTA_CLICKED, { room_slug: activeEvent?.slug, position: 'sticky_mobile' }); cameraFileInputRef.current?.click() }}>
           <Camera className="h-4 w-4" />{t.snapPhotoShort}
         </Button>
       </div>

@@ -1,29 +1,29 @@
 import './globals.css'
-import { Syne, IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google'
+import { Space_Grotesk, Inter, JetBrains_Mono } from 'next/font/google'
 import { cookies } from 'next/headers'
 import { AnalyticsProvider } from '@/components/analytics-provider'
 import { I18nProvider } from '@/components/i18n-provider'
 import { LocaleHtmlAttributes } from '@/components/locale-html-attributes'
 import { LOCALES, DEFAULT_LOCALE, LOCALE_COOKIE_NAME } from '@/lib/i18n/config'
 
-const syne = Syne({
+const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
-  weight: ['700', '800'],
-  variable: '--font-syne',
+  weight: ['500', '600', '700'],
+  variable: '--font-space-grotesk',
   display: 'swap',
 })
 
-const ibmPlexSans = IBM_Plex_Sans({
+const inter = Inter({
   subsets: ['latin'],
-  weight: ['300', '400', '500', '600'],
-  variable: '--font-ibm-plex-sans',
+  weight: ['400', '500', '600'],
+  variable: '--font-inter',
   display: 'swap',
 })
 
-const ibmPlexMono = IBM_Plex_Mono({
+const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
   weight: ['400', '500'],
-  variable: '--font-ibm-plex-mono',
+  variable: '--font-jetbrains-mono',
   display: 'swap',
 })
 
@@ -59,7 +59,7 @@ function App({ children }) {
         <script dangerouslySetInnerHTML={{ __html: 'window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);' }} />
       </head>
       <body
-        className={`${syne.variable} ${ibmPlexSans.variable} ${ibmPlexMono.variable} min-h-screen bg-background font-sans text-foreground antialiased`}
+        className={`${spaceGrotesk.variable} ${inter.variable} ${jetbrainsMono.variable} min-h-screen bg-background font-sans text-foreground antialiased`}
       >
         <I18nProvider initialLocale={locale}>
           <LocaleHtmlAttributes />

@@ -118,7 +118,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
       <div className="noise-overlay" aria-hidden="true" />
 
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-40 border-b border-white/[0.07] bg-background/80 backdrop-blur-md">
+      <nav className="fixed top-0 left-0 right-0 z-40 border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container flex h-14 items-center justify-between px-4">
           <a href="/" className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -165,7 +165,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
         <div className="container relative px-4">
           <div className="mx-auto max-w-3xl text-center">
             {/* Badge */}
-            <div className="animate-fade-up inline-flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-[#141C2E] px-3 py-1">
+            <div className="animate-fade-up inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1">
               <Heart className="h-3 w-3 text-rose-400" />
               <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
                 {t.heroEyebrow}
@@ -173,7 +173,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
             </div>
 
             {/* H1 */}
-            <h1 className="animate-fade-up delay-100 mt-6 font-display text-4xl font-extrabold tracking-[-0.03em] text-white sm:text-5xl lg:text-6xl">
+            <h1 className="animate-fade-up delay-100 mt-6 font-display text-4xl font-extrabold tracking-[-0.03em] text-foreground sm:text-5xl lg:text-6xl">
               {t.heroHeadline1}{' '}
               <span className="text-gradient">{t.heroHeadline2}</span>
             </h1>
@@ -190,19 +190,19 @@ export function WeddingLandingPage({ locale = 'en' }) {
                   value={eventName}
                   onChange={(e) => setEventName(e.target.value)}
                   placeholder={t.eventPlaceholder}
-                  className="h-12 flex-1 rounded-lg border-white/[0.07] bg-[#141C2E] text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                  className="h-12 flex-1 rounded-lg border-input bg-surface text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                 />
                 <Input
                   type="email"
                   value={ownerEmail}
                   onChange={(e) => setOwnerEmail(e.target.value)}
                   placeholder={t.finalEmailPlaceholder}
-                  className="h-12 flex-1 rounded-lg border-white/[0.07] bg-[#141C2E] text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                  className="h-12 flex-1 rounded-lg border-input bg-surface text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                 />
               </div>
               <Button
                 size="lg"
-                className="h-12 gap-2 rounded-lg px-8 text-base font-body font-medium whitespace-nowrap glow-blue"
+                className="h-12 gap-2 rounded-lg px-8 text-base font-body font-medium whitespace-nowrap cta-primary"
                 onClick={createEvent}
                 disabled={isCreating || !eventName?.trim() || eventName.trim().length < 3 || !ownerEmail?.trim() || !ownerEmail.includes('@')}
               >
@@ -246,7 +246,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
                 <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
                   {t.problemLabel}
                 </span>
-                <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
+                <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-foreground sm:text-3xl">
                   {t.problemTitle}
                 </h2>
                 <p className="mt-3 font-light text-muted-foreground">
@@ -269,7 +269,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
               {/* Right: The Solution */}
               <div className="reveal relative" style={{ transitionDelay: '100ms' }}>
                 <div className="absolute -inset-4 rounded-3xl bg-gradient-to-br from-primary/10 to-transparent" />
-                <div className="relative space-y-4 rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card">
+                <div className="relative space-y-4 surface-raised rounded-xl shadow-card p-6">
                   {[
                     {
                       icon: ImagePlus,
@@ -292,7 +292,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
                         <item.icon className="h-5 w-5" />
                       </div>
                       <div>
-                        <h3 className="font-display text-lg font-bold tracking-tight text-white">
+                        <h3 className="font-display text-lg font-bold tracking-tight text-foreground">
                           {item.title}
                         </h3>
                         <p className="mt-1 text-sm font-light text-muted-foreground">
@@ -309,13 +309,13 @@ export function WeddingLandingPage({ locale = 'en' }) {
       </section>
 
       {/* How It Works */}
-      <section id="how-it-works" className="border-y border-white/[0.07] bg-[#0D1220] py-20 sm:py-24">
+      <section id="how-it-works" className="border-y border-border bg-background py-20 sm:py-24">
         <div className="container px-4">
           <div className="reveal mx-auto max-w-3xl text-center">
             <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
               {t.howItWorksLabel}
             </span>
-            <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
+            <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-foreground sm:text-3xl">
               {t.howItWorksTitle}
             </h2>
             <p className="mt-3 font-light text-muted-foreground">
@@ -349,14 +349,14 @@ export function WeddingLandingPage({ locale = 'en' }) {
                 className="reveal relative flex flex-col items-center text-center"
                 style={{ transitionDelay: `${i * 60}ms` }}
               >
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#141C2E] border border-white/[0.07] text-primary shadow-card">
+                <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-surface border border-border text-primary shadow-card">
                   <item.icon className="h-6 w-6" />
                 </div>
                 <div className="mt-4">
                   <div className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
                     {t.stepLabel} {item.step}
                   </div>
-                  <h3 className="mt-1 font-display text-lg font-bold tracking-tight text-white">
+                  <h3 className="mt-1 font-display text-lg font-bold tracking-tight text-foreground">
                     {item.title}
                   </h3>
                   <p className="mt-2 text-sm font-light text-muted-foreground">
@@ -370,13 +370,13 @@ export function WeddingLandingPage({ locale = 'en' }) {
       </section>
 
       {/* Wedding Use Cases */}
-      <section className="border-y border-white/[0.07] bg-[#0D1220] py-20 sm:py-24">
+      <section className="border-y border-border bg-background py-20 sm:py-24">
         <div className="container px-4">
           <div className="reveal mx-auto max-w-3xl text-center">
             <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
               {t.useCasesLabel}
             </span>
-            <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
+            <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-foreground sm:text-3xl">
               {t.useCasesTitle}
             </h2>
             <p className="mt-3 font-light text-muted-foreground">
@@ -413,13 +413,13 @@ export function WeddingLandingPage({ locale = 'en' }) {
             ].map((item, i) => (
               <div
                 key={item.title}
-                className="reveal group relative overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 transition-all duration-200 hover:-translate-y-px hover:border-white/[0.12]"
+                className="reveal group relative overflow-hidden rounded-xl border border-border bg-surface p-6 transition-all duration-200 hover:-translate-y-px hover:border-white/[0.08]"
                 style={{ transitionDelay: `${i * 60}ms` }}
               >
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#111827]">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-raised">
                   <item.icon className={`h-6 w-6 ${item.color}`} />
                 </div>
-                <h3 className="mt-4 font-display text-lg font-bold tracking-tight text-white">
+                <h3 className="mt-4 font-display text-lg font-bold tracking-tight text-foreground">
                   {item.title}
                 </h3>
                 <p className="mt-2 text-sm font-light text-muted-foreground">
@@ -446,13 +446,13 @@ export function WeddingLandingPage({ locale = 'en' }) {
             <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
               {/* Left: Content */}
               <div className="reveal order-2 lg:order-1">
-                <div className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-[#141C2E] px-3 py-1">
+                <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1">
                   <QrCode className="h-3 w-3 text-primary" />
                   <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
                     {t.qrBadge}
                   </span>
                 </div>
-                <h2 className="mt-4 font-display text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
+                <h2 className="mt-4 font-display text-2xl font-bold tracking-[-0.03em] text-foreground sm:text-3xl">
                   {t.qrTitle}
                 </h2>
                 <p className="mt-2 text-base font-light text-muted-foreground">
@@ -474,7 +474,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
                         <item.icon className="h-4 w-4" />
                       </div>
                       <div>
-                        <h4 className="font-display text-sm font-bold text-white">{item.title}</h4>
+                        <h4 className="font-display text-sm font-bold text-foreground">{item.title}</h4>
                         <p className="text-sm font-light text-muted-foreground">{item.desc}</p>
                       </div>
                     </div>
@@ -488,26 +488,26 @@ export function WeddingLandingPage({ locale = 'en' }) {
                   <div className="absolute -top-4 -right-4 h-24 w-24 rounded-full bg-primary/10 blur-2xl" aria-hidden="true" />
                   <div className="absolute -bottom-4 -left-4 h-24 w-24 rounded-full bg-rose-500/10 blur-2xl" aria-hidden="true" />
 
-                  <div className="relative rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card">
+                  <div className="relative rounded-xl border border-border bg-surface p-6 shadow-card">
                     <div className="text-center">
                       <p className="font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
                         Sarah & Mike&apos;s Wedding
                       </p>
-                      <div className="mx-auto my-4 flex h-40 w-40 items-center justify-center rounded-xl border-2 border-dashed border-white/[0.07] bg-[#111827]">
+                      <div className="mx-auto my-4 flex h-40 w-40 items-center justify-center rounded-xl border-2 border-dashed border-border bg-raised">
                         <QrCode className="h-20 w-20 text-muted-foreground" />
                       </div>
-                      <p className="text-sm font-medium text-white">Scan to upload your photos</p>
+                      <p className="text-sm font-medium text-foreground">Scan to upload your photos</p>
                       <p className="mt-1 font-mono text-[0.65rem] text-muted-foreground">snaprooms.app/room/sarah-mike</p>
                     </div>
                   </div>
 
-                  <div className="absolute -right-2 top-1/4 rounded-full border border-white/[0.07] bg-[#141C2E] px-3 py-1.5 text-xs font-medium shadow-lg">
+                  <div className="absolute -right-2 top-1/4 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-medium shadow-lg">
                     <span className="flex items-center gap-1">
                       <CheckCircle2 className="h-3 w-3 text-emerald-400" />
                       <span className="font-mono text-[0.65rem]">Instant upload</span>
                     </span>
                   </div>
-                  <div className="absolute -left-2 bottom-1/4 rounded-full border border-white/[0.07] bg-[#141C2E] px-3 py-1.5 text-xs font-medium shadow-lg">
+                  <div className="absolute -left-2 bottom-1/4 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-medium shadow-lg">
                     <span className="flex items-center gap-1">
                       <Users className="h-3 w-3 text-primary" />
                       <span className="font-mono text-[0.65rem]">127 photos</span>
@@ -521,13 +521,13 @@ export function WeddingLandingPage({ locale = 'en' }) {
       </section>
 
       {/* Benefits */}
-      <section className="border-y border-white/[0.07] bg-[#0D1220] py-20 sm:py-24">
+      <section className="border-y border-border bg-background py-20 sm:py-24">
         <div className="container px-4">
           <div className="reveal mx-auto max-w-3xl text-center">
             <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
               {t.benefitsLabel}
             </span>
-            <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
+            <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-foreground sm:text-3xl">
               {t.benefitsTitle}
             </h2>
             <p className="mt-3 font-light text-muted-foreground">
@@ -570,13 +570,13 @@ export function WeddingLandingPage({ locale = 'en' }) {
             ].map((item, i) => (
               <div
                 key={item.title}
-                className="reveal rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 transition-all duration-200 hover:-translate-y-px hover:border-white/[0.12]"
+                className="reveal rounded-xl border border-border bg-surface p-6 transition-all duration-200 hover:-translate-y-px hover:border-white/[0.08]"
                 style={{ transitionDelay: `${i * 40}ms` }}
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
                   <item.icon className="h-5 w-5" />
                 </div>
-                <h3 className="mt-4 font-display text-base font-bold tracking-tight text-white">
+                <h3 className="mt-4 font-display text-base font-bold tracking-tight text-foreground">
                   {item.title}
                 </h3>
                 <p className="mt-2 text-sm font-light text-muted-foreground">
@@ -597,7 +597,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
                 <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
                   {t.privacyLabel}
                 </span>
-                <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
+                <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-foreground sm:text-3xl">
                   {t.privacyTitle}
                 </h2>
                 <p className="mt-3 font-light text-muted-foreground">
@@ -626,7 +626,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
                         <item.icon className="h-4 w-4" />
                       </div>
                       <div>
-                        <h4 className="font-display text-sm font-bold text-white">{item.title}</h4>
+                        <h4 className="font-display text-sm font-bold text-foreground">{item.title}</h4>
                         <p className="text-sm font-light text-muted-foreground">{item.desc}</p>
                       </div>
                     </div>
@@ -636,7 +636,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
 
               <div className="reveal relative" style={{ transitionDelay: '100ms' }}>
                 <div className="absolute -inset-4 rounded-3xl bg-gradient-to-br from-primary/10 to-transparent" />
-                <div className="relative rounded-2xl border border-white/[0.07] bg-[#141C2E] p-8 shadow-card text-center">
+                <div className="relative rounded-xl border border-border bg-surface p-8 shadow-card text-center">
                   <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                     <Shield className="h-7 w-7" />
                   </div>
@@ -654,13 +654,13 @@ export function WeddingLandingPage({ locale = 'en' }) {
       </section>
 
       {/* FAQ */}
-      <section id="faq" className="border-y border-white/[0.07] bg-[#0D1220] py-20 sm:py-24">
+      <section id="faq" className="border-y border-border bg-background py-20 sm:py-24">
         <div className="container px-4">
           <div className="reveal mx-auto max-w-3xl text-center">
             <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
               {t.faqLabel}
             </span>
-            <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-white sm:text-3xl">
+            <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-foreground sm:text-3xl">
               {t.faqTitle}
             </h2>
           </div>
@@ -693,8 +693,8 @@ export function WeddingLandingPage({ locale = 'en' }) {
                   a: t.faq6Answer,
                 },
               ].map((item, i) => (
-                <AccordionItem key={i} value={`item-${i}`} className="border-white/[0.07]">
-                  <AccordionTrigger className="text-left font-display text-base font-semibold tracking-tight text-white hover:no-underline">
+                <AccordionItem key={i} value={`item-${i}`} className="border-border">
+                  <AccordionTrigger className="text-left font-display text-base font-semibold tracking-tight text-foreground hover:no-underline">
                     {item.q}
                   </AccordionTrigger>
                   <AccordionContent className="text-sm font-light text-muted-foreground">
@@ -711,7 +711,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
       <section className="py-20 sm:py-24">
         <div className="container px-4">
           <div className="reveal mx-auto max-w-2xl text-center">
-            <h2 className="font-display text-3xl font-extrabold tracking-[-0.03em] text-white sm:text-4xl">
+            <h2 className="font-display text-3xl font-extrabold tracking-[-0.03em] text-foreground sm:text-4xl">
               {t.finalTitle}
             </h2>
             <p className="mt-4 text-lg font-light text-muted-foreground">
@@ -724,19 +724,19 @@ export function WeddingLandingPage({ locale = 'en' }) {
                   value={eventName}
                   onChange={(e) => setEventName(e.target.value)}
                   placeholder={t.finalPlaceholder}
-                  className="h-12 flex-1 rounded-lg border-white/[0.07] bg-[#141C2E] text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                  className="h-12 flex-1 rounded-lg border-input bg-surface text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                 />
                 <Input
                   type="email"
                   value={ownerEmail}
                   onChange={(e) => setOwnerEmail(e.target.value)}
                   placeholder={t.finalEmailPlaceholder}
-                  className="h-12 flex-1 rounded-lg border-white/[0.07] bg-[#141C2E] text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                  className="h-12 flex-1 rounded-lg border-input bg-surface text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                 />
               </div>
               <Button
                 size="lg"
-                className="h-12 gap-2 rounded-lg px-8 text-base font-body font-medium whitespace-nowrap glow-blue"
+                className="h-12 gap-2 rounded-lg px-8 text-base font-body font-medium whitespace-nowrap cta-primary"
                 onClick={createEvent}
                 disabled={isCreating || !eventName?.trim() || eventName.trim().length < 3 || !ownerEmail?.trim() || !ownerEmail.includes('@')}
               >
@@ -763,7 +763,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
       </div>
 
       {/* Footer */}
-      <footer className="border-t border-white/[0.07] bg-[#0D1220] py-8">
+      <footer className="bg-surface border-t border-border py-8">
         <div className="container px-4">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
             <a href="/" className="flex items-center gap-2">

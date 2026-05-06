@@ -67,7 +67,7 @@ export default function LoginPageClient({ redirect = '/dashboard' }) {
     <main className="relative min-h-screen bg-background font-body text-foreground">
       <div className="absolute inset-0 bg-grid opacity-[0.02] pointer-events-none" aria-hidden="true" />
 
-      <header className="relative z-10 border-b border-white/[0.04] bg-background/70 backdrop-blur-xl">
+      <header className="relative z-10 bg-background/80 backdrop-blur-xl border-b border-border">
         <div className="container flex h-16 items-center justify-between px-4">
           <a href="/" className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-subtle">
@@ -96,10 +96,10 @@ export default function LoginPageClient({ redirect = '/dashboard' }) {
           </div>
 
           {forgotMode ? (
-            <div className="rounded-2xl border border-white/[0.06] bg-surface p-6 shadow-card">
+            <div className="surface-elevated rounded-xl shadow-card p-6">
               <div className="space-y-4">
                 {forgotSent ? (
-                  <div className="rounded-xl border border-white/[0.06] bg-raised p-4 text-sm text-muted-foreground text-center">
+                  <div className="rounded-xl border border-border bg-raised p-4 text-sm text-muted-foreground text-center">
                     {t.resetSent}
                   </div>
                 ) : (
@@ -111,12 +111,12 @@ export default function LoginPageClient({ redirect = '/dashboard' }) {
                         value={forgotEmail}
                         onChange={(e) => setForgotEmail(e.target.value)}
                         placeholder={t.emailPlaceholder}
-                        className="h-11 rounded-xl border-white/[0.06] bg-raised text-foreground placeholder:text-muted-foreground"
+                        className="h-11 rounded-lg border-input bg-surface text-foreground placeholder:text-muted-foreground"
                         onKeyDown={(e) => { if (e.key === 'Enter' && forgotEmail.trim()) sendForgotLink() }}
                       />
                     </div>
                     {message && <p className="text-sm text-destructive">{message}</p>}
-                    <Button className="w-full h-11 glow-accent" disabled={forgotBusy || !forgotEmail.trim()} onClick={sendForgotLink}>
+                    <Button className="cta-primary w-full h-11" disabled={forgotBusy || !forgotEmail.trim()} onClick={sendForgotLink}>
                       {forgotBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.sendResetLink}
                     </Button>
                   </>
@@ -133,7 +133,7 @@ export default function LoginPageClient({ redirect = '/dashboard' }) {
               </div>
             </div>
           ) : (
-            <div className="rounded-2xl border border-white/[0.06] bg-surface p-6 shadow-card">
+            <div className="surface-elevated rounded-xl shadow-card p-6">
               <div className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">{t.emailLabel}</label>
@@ -142,7 +142,7 @@ export default function LoginPageClient({ redirect = '/dashboard' }) {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder={t.emailPlaceholder}
-                    className="h-11 rounded-xl border-white/[0.06] bg-raised text-foreground placeholder:text-muted-foreground"
+                    className="h-11 rounded-lg border-input bg-surface text-foreground placeholder:text-muted-foreground"
                   />
                 </div>
                 <div className="space-y-2">
@@ -153,7 +153,7 @@ export default function LoginPageClient({ redirect = '/dashboard' }) {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder={t.passwordPlaceholder}
-                      className="h-11 rounded-xl border-white/[0.06] bg-raised text-foreground placeholder:text-muted-foreground"
+                      className="h-11 rounded-lg border-input bg-surface text-foreground placeholder:text-muted-foreground"
                       onKeyDown={(e) => { if (e.key === 'Enter' && email.trim() && password) login() }}
                     />
                     <button
@@ -166,7 +166,7 @@ export default function LoginPageClient({ redirect = '/dashboard' }) {
                   </div>
                 </div>
                 {message && <p className="text-sm text-destructive">{message}</p>}
-                <Button className="w-full h-11 glow-accent" disabled={busy || !email.trim() || !password} onClick={login}>
+                <Button className="cta-primary w-full h-11" disabled={busy || !email.trim() || !password} onClick={login}>
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.signIn}
                 </Button>
                 <div className="text-center pt-1">

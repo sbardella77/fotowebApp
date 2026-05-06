@@ -8,7 +8,7 @@ export function MarketingFooter() {
   const t = useTranslations('footer')
 
   return (
-    <footer className="border-t border-white/[0.04] bg-background">
+    <footer className="bg-surface border-t border-border">
       <div className="container px-4 py-12">
         <div className="mx-auto max-w-5xl">
           <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
@@ -105,7 +105,7 @@ export function MarketingFooter() {
             </div>
           </div>
 
-          <div className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-white/[0.04] pt-8 sm:flex-row">
+          <div className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-border pt-8 sm:flex-row">
             <p className="text-xs text-muted-foreground">
               © {new Date().getFullYear()} SnapRooms. All rights reserved.
             </p>

@@ -262,20 +262,20 @@ function TierCard({ tier, index, delayOffset = 0 }) {
 
   return (
     <div
-      className={`reveal relative flex flex-col rounded-2xl border p-6 shadow-card ${
+      className={`reveal relative flex flex-col rounded-xl p-6 shadow-card ${
         tier.badge === 'Most popular'
-          ? 'border-primary/20 bg-[#141C2E]'
-          : 'border-white/[0.07] bg-[#141C2E]'
+          ? 'surface-elevated'
+          : 'surface-raised'
       }`}
       style={{ transitionDelay: `${(index + delayOffset) * 60}ms` }}
     >
       {tier.badge && (
         <div className="absolute -top-3 left-5">
           <span
-            className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium ${
+            className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium ${
               tier.badge === 'Most popular'
-                ? 'border-primary/30 bg-primary/10 text-primary'
-                : 'border-white/[0.07] bg-[#0D1220] text-muted-foreground'
+                ? 'bg-primary text-foreground'
+                : 'border border-border bg-surface text-muted-foreground'
             }`}
           >
             {tier.badge === 'Most popular' && <Sparkles className="h-3 w-3" />}
@@ -288,11 +288,11 @@ function TierCard({ tier, index, delayOffset = 0 }) {
         <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-muted-foreground">
           {displayTarget}
         </span>
-        <h3 className="mt-2 font-display text-lg font-bold text-white">{displayName}</h3>
+        <h3 className="mt-2 font-display text-lg font-bold text-foreground">{displayName}</h3>
       </div>
 
       <div className="mt-4 flex items-baseline gap-1">
-        <span className="font-display text-3xl font-bold text-white">{tier.price}</span>
+        <span className="font-display text-3xl font-bold text-foreground">{tier.price}</span>
         {displayInterval && <span className="text-sm text-muted-foreground">{displayInterval}</span>}
       </div>
 
@@ -306,7 +306,7 @@ function TierCard({ tier, index, delayOffset = 0 }) {
 
       <div className="mt-5">
         {tier.cta.variant === 'primary' ? (
-          <Button className="w-full glow-blue" size="sm" asChild>
+          <Button className="w-full cta-primary" size="sm" asChild>
             <a href={tier.cta.href}>
               {displayCta}
               <ArrowRight className="ml-2 h-4 w-4" />
@@ -315,7 +315,7 @@ function TierCard({ tier, index, delayOffset = 0 }) {
         ) : (
           <Button
             variant="outline"
-            className="w-full border-white/[0.07] bg-transparent hover:bg-white/[0.03]"
+            className="w-full border-border bg-transparent hover:bg-white/[0.03]"
             size="sm"
             asChild
           >
@@ -376,7 +376,7 @@ export function PricingPage() {
             <span className="inline-block font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary animate-fade-up">
               {t.title}
             </span>
-            <h1 className="mt-4 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl animate-fade-up delay-100">
+            <h1 className="mt-4 font-display text-3xl font-bold tracking-tight text-foreground sm:text-4xl animate-fade-up delay-100">
               {t.heroTitle1}{' '}
               <span className="text-gradient">{t.heroTitle2}</span>
             </h1>
@@ -396,7 +396,7 @@ export function PricingPage() {
                 <Calendar className="h-4 w-4" />
               </div>
               <div>
-                <h2 className="font-display text-base font-semibold text-white">{t.payPerEvent}</h2>
+                <h2 className="font-display text-base font-semibold text-foreground">{t.payPerEvent}</h2>
                 <p className="text-xs text-muted-foreground">{t.payPerEventSubtitle}</p>
               </div>
             </div>
@@ -414,12 +414,12 @@ export function PricingPage() {
       <section className="relative pb-16 sm:pb-24">
         <div className="container px-4">
           <div className="mx-auto max-w-5xl">
-            <div className="reveal flex items-center gap-3 mb-8 mt-10 pt-10 border-t border-white/[0.07]">
+            <div className="reveal flex items-center gap-3 mb-8 mt-10 pt-10 border-t border-border">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 border border-primary/20 text-primary">
                 <Briefcase className="h-4 w-4" />
               </div>
               <div>
-                <h2 className="font-display text-base font-semibold text-white">{t.payMonthly}</h2>
+                <h2 className="font-display text-base font-semibold text-foreground">{t.payMonthly}</h2>
                 <p className="text-xs text-muted-foreground">{t.payMonthlySubtitle}</p>
               </div>
             </div>
@@ -436,10 +436,10 @@ export function PricingPage() {
       </section>
 
       {/* Feature Comparison Table */}
-      <section className="relative border-t border-white/[0.07] bg-[#0D1220]/50 py-16 sm:py-24">
+      <section className="relative border-t border-border bg-surface py-16 sm:py-24">
         <div className="container px-4">
           <div className="mx-auto max-w-3xl text-center reveal">
-            <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            <h2 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               {t.comparePlans}
             </h2>
             <p className="mt-3 text-muted-foreground">
@@ -448,8 +448,8 @@ export function PricingPage() {
           </div>
 
           <div className="mx-auto mt-12 max-w-4xl reveal overflow-x-auto">
-            <div className="min-w-[700px] overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141C2E]">
-              <div className="grid grid-cols-[1.75fr_1fr_1fr_1fr_1fr_1fr] gap-4 border-b border-white/[0.07] px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            <div className="min-w-[700px] overflow-hidden rounded-xl border border-border surface-raised">
+              <div className="grid grid-cols-[1.75fr_1fr_1fr_1fr_1fr_1fr] gap-4 border-b border-border px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 <span>{t.feature}</span>
                 <span className="text-center">{t.free}</span>
                 <span className="text-center text-primary">{t.proEvent}</span>
@@ -460,7 +460,7 @@ export function PricingPage() {
               {allTiers[0].features.map((f) => (
                 <div
                   key={f.name}
-                  className="grid grid-cols-[1.75fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-5 py-3 text-sm border-b border-white/[0.04] last:border-0"
+                  className="grid grid-cols-[1.75fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-5 py-3 text-sm border-b border-border last:border-0"
                 >
                   <span className="text-muted-foreground">{translateFeatureName(t, f.name)}</span>
                   {allTiers.map((tier) => {
@@ -481,11 +481,11 @@ export function PricingPage() {
       {/* Guest Access Clarification */}
       <section className="relative py-16 sm:py-24">
         <div className="container px-4">
-          <div className="mx-auto max-w-3xl reveal rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-8 sm:p-10 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 mx-auto">
+          <div className="mx-auto max-w-3xl reveal rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-8 sm:p-10 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 mx-auto">
               <Users className="h-6 w-6" />
             </div>
-            <h2 className="mt-5 font-display text-xl font-bold tracking-tight text-white sm:text-2xl">
+            <h2 className="mt-5 font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
               {t.guestsAlwaysFree}
             </h2>
             <p className="mt-3 text-muted-foreground">
@@ -496,10 +496,10 @@ export function PricingPage() {
       </section>
 
       {/* Target Landing Page Links */}
-      <section className="relative border-t border-white/[0.07] bg-[#0D1220]/50 py-16 sm:py-24">
+      <section className="relative border-t border-border bg-surface py-16 sm:py-24">
         <div className="container px-4">
           <div className="mx-auto max-w-3xl text-center reveal">
-            <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            <h2 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               {t.findRightPlan}
             </h2>
             <p className="mt-3 text-muted-foreground">
@@ -517,12 +517,12 @@ export function PricingPage() {
               <a
                 key={link.href}
                 href={link.href}
-                className="reveal group flex items-center gap-3 rounded-xl border border-white/[0.07] bg-[#141C2E] p-4 shadow-card hover:border-white/[0.12] transition-all duration-200"
+                className="reveal group flex items-center gap-3 rounded-xl border border-border surface-raised p-4 shadow-card hover:border-white/[0.12] transition-all duration-200"
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors">
                   <link.icon className="h-5 w-5" />
                 </div>
-                <span className="font-display text-sm font-semibold text-white">{link.label}</span>
+                <span className="font-display text-sm font-semibold text-foreground">{link.label}</span>
                 <ArrowRight className="ml-auto h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
               </a>
             ))}
@@ -533,27 +533,27 @@ export function PricingPage() {
       {/* Professional CTA Band */}
       <section className="relative py-16 sm:py-24">
         <div className="container px-4">
-          <div className="mx-auto max-w-3xl reveal rounded-2xl border border-white/[0.07] bg-[#141C2E] p-8 sm:p-10 text-center shadow-card">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 border border-primary/20 text-primary mx-auto">
+          <div className="mx-auto max-w-3xl reveal rounded-xl border border-border surface-raised p-8 sm:p-10 text-center shadow-card">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 border border-primary/20 text-primary mx-auto">
               <Briefcase className="h-6 w-6" />
             </div>
-            <h2 className="mt-5 font-display text-xl font-bold tracking-tight text-white sm:text-2xl">
+            <h2 className="mt-5 font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
               {t.runningProfessionally}
             </h2>
             <p className="mt-3 text-muted-foreground">
               {t.proCtaDesc}
             </p>
             <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Button asChild className="glow-blue">
+              <Button asChild className="cta-primary">
                 <a href="/for-wedding-photographers">
                   {t.forPhotographers}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </a>
               </Button>
-              <Button variant="outline" className="border-white/[0.07] bg-transparent hover:bg-white/[0.03]" asChild>
+              <Button variant="outline" className="border-border bg-transparent hover:bg-white/[0.03]" asChild>
                 <a href="/for-event-planners">{t.forPlanners}</a>
               </Button>
-              <Button variant="outline" className="border-white/[0.07] bg-transparent hover:bg-white/[0.03]" asChild>
+              <Button variant="outline" className="border-border bg-transparent hover:bg-white/[0.03]" asChild>
                 <a href="/commercial-license">{t.commercialLicense}</a>
               </Button>
             </div>
@@ -562,14 +562,14 @@ export function PricingPage() {
       </section>
 
       {/* FAQ */}
-      <section className="relative border-t border-white/[0.07] bg-[#0D1220]/50 py-16 sm:py-24">
+      <section className="relative border-t border-border bg-surface py-16 sm:py-24">
         <div className="container px-4">
           <div className="mx-auto max-w-3xl">
             <div className="text-center reveal">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#141C2E] border border-white/[0.07] text-primary mx-auto shadow-card">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl surface-raised border border-border text-primary mx-auto shadow-card">
                 <HelpCircle className="h-6 w-6" />
               </div>
-              <h2 className="mt-5 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
+              <h2 className="mt-5 font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
                 {t.faqTitle}
               </h2>
             </div>
@@ -578,10 +578,10 @@ export function PricingPage() {
               {faqs.map((faq, i) => (
                 <div
                   key={i}
-                  className="reveal rounded-xl border border-white/[0.07] bg-[#141C2E] p-5 sm:p-6"
+                  className="reveal rounded-xl border border-border surface-raised p-5 sm:p-6"
                   style={{ transitionDelay: `${i * 60}ms` }}
                 >
-                  <h3 className="font-display text-sm font-semibold text-white">{faq.q}</h3>
+                  <h3 className="font-display text-sm font-semibold text-foreground">{faq.q}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{faq.a}</p>
                 </div>
               ))}
@@ -594,17 +594,17 @@ export function PricingPage() {
       <section className="relative pb-16 sm:pb-24">
         <div className="container px-4">
           <div className="mx-auto max-w-2xl text-center reveal">
-            <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            <h2 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               {t.readyToCollect}
             </h2>
             <p className="mt-3 text-muted-foreground">
               {t.createFirstRoomCta}
             </p>
             <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Button size="lg" className="glow-blue" asChild>
+              <Button size="lg" className="cta-primary" asChild>
                 <a href="/">{t.createFreeRoom}</a>
               </Button>
-              <Button size="lg" variant="outline" className="border-white/[0.07] bg-transparent hover:bg-white/[0.03]" asChild>
+              <Button size="lg" variant="outline" className="border-border bg-transparent hover:bg-white/[0.03]" asChild>
                 <a href="/dashboard/login">{t.signInToUpgrade}</a>
               </Button>
             </div>

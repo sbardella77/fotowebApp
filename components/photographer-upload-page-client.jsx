@@ -199,7 +199,7 @@ export default function PhotographerUploadPageClient({ token }) {
       <main className="dark relative min-h-screen bg-background font-body text-foreground">
         <div className="absolute inset-0 bg-grid opacity-[0.03] pointer-events-none" aria-hidden="true" />
         <div className="flex min-h-screen items-center justify-center px-4">
-          <div className="w-full max-w-md rounded-2xl border border-white/[0.06] bg-surface p-8 text-center shadow-card">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-8 text-center shadow-card">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
               <Camera className="h-6 w-6" />
             </div>
@@ -215,7 +215,7 @@ export default function PhotographerUploadPageClient({ token }) {
     <main className="dark relative min-h-screen bg-background font-body text-foreground">
       <div className="absolute inset-0 bg-grid opacity-[0.03] pointer-events-none" aria-hidden="true" />
 
-      <header className="sticky top-0 z-30 h-14 border-b border-white/[0.06] bg-background/80 backdrop-blur-md">
+      <header className="sticky top-0 z-30 h-14 border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container flex h-full items-center justify-between px-4">
           <a href="/" className="flex items-center gap-2 text-foreground">
             <Camera className="h-5 w-5 text-primary" />
@@ -227,7 +227,7 @@ export default function PhotographerUploadPageClient({ token }) {
       <section className="container mx-auto max-w-2xl px-4 py-10 sm:py-16">
         <div className="space-y-6">
           {/* Room info */}
-          <div className="rounded-2xl border border-white/[0.06] bg-surface shadow-card">
+          <div className="rounded-2xl border border-border bg-surface shadow-card">
             <div className="p-5 sm:p-6">
               <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
                 {t.privateUpload}
@@ -242,7 +242,7 @@ export default function PhotographerUploadPageClient({ token }) {
           </div>
 
           {/* Upload card */}
-          <div className="rounded-2xl border border-white/[0.06] bg-surface shadow-card overflow-hidden">
+          <div className="rounded-2xl border border-border bg-surface shadow-card overflow-hidden">
             <div className="p-6 text-center sm:p-8">
               <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <FolderHeart className="h-6 w-6" />
@@ -263,7 +263,7 @@ export default function PhotographerUploadPageClient({ token }) {
               <div className="mt-6">
                 <Button
                   size="lg"
-                  className="h-12 gap-2 rounded-lg px-6 text-base font-body font-medium glow-blue"
+                  className="h-12 gap-2 rounded-lg px-6 text-base font-body font-medium cta-primary"
                   disabled={uploading}
                   onClick={() => fileInputRef.current?.click()}
                 >
@@ -292,7 +292,7 @@ export default function PhotographerUploadPageClient({ token }) {
           </div>
 
           {/* Uploaded files list */}
-          <div className="rounded-2xl border border-white/[0.06] bg-surface shadow-card">
+          <div className="rounded-2xl border border-border bg-surface shadow-card">
             <div className="p-5 sm:p-6">
               <div className="flex items-center gap-3">
                 <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
@@ -307,7 +307,7 @@ export default function PhotographerUploadPageClient({ token }) {
                     {t.loading}
                   </div>
                 ) : assets.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-white/[0.06] bg-raised p-8 text-center">
+                  <div className="rounded-xl border border-dashed border-border bg-raised p-8 text-center">
                     <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
                       <ImagePlus className="h-5 w-5" />
                     </div>
@@ -318,7 +318,7 @@ export default function PhotographerUploadPageClient({ token }) {
                     {assets.map((asset) => (
                       <div
                         key={asset.id}
-                        className="flex items-center justify-between gap-4 rounded-xl border border-white/[0.06] bg-raised p-4"
+                        className="flex items-center justify-between gap-4 rounded-xl border border-border bg-raised p-4"
                       >
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium text-foreground">

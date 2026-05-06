@@ -128,7 +128,7 @@ export function CorporateLandingPage() {
             <span className="inline-block font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary animate-fade-up">
               {t.heroEyebrow}
             </span>
-            <h1 className="mt-4 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl animate-fade-up delay-100">
+            <h1 className="mt-4 font-display text-3xl font-bold tracking-tight text-foreground sm:text-4xl animate-fade-up delay-100">
               {t.heroHeadline1}{' '}
               <span className="text-gradient">{t.heroHeadline2}</span>
             </h1>
@@ -154,14 +154,14 @@ export function CorporateLandingPage() {
 
           {/* Create Form */}
           <div id="create" className="mx-auto mt-12 max-w-lg animate-fade-up delay-400">
-            <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card">
+            <div className="surface-raised rounded-xl shadow-card p-6">
               <div className="space-y-3">
                 <Input
                   placeholder={t.eventPlaceholder}
                   value={eventName}
                   onChange={(e) => setEventName(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && createEvent()}
-                  className="h-12 rounded-lg border-white/[0.07] bg-[#0D1220]"
+                  className="h-12 rounded-lg border-input bg-surface"
                 />
                 <Input
                   placeholder={t.emailPlaceholder}
@@ -169,10 +169,10 @@ export function CorporateLandingPage() {
                   value={ownerEmail}
                   onChange={(e) => setOwnerEmail(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && createEvent()}
-                  className="h-12 rounded-lg border-white/[0.07] bg-[#0D1220]"
+                  className="h-12 rounded-lg border-input bg-surface"
                 />
                 <Button
-                  className="h-12 w-full glow-blue"
+                  className="h-12 w-full cta-primary"
                   onClick={createEvent}
                   disabled={isCreating}
                 >
@@ -195,11 +195,11 @@ export function CorporateLandingPage() {
       </section>
 
       {/* Problem */}
-      <section className="relative border-t border-white/[0.07] bg-[#0D1220]/50 py-16 sm:py-24">
+      <section className="relative border-t border-border bg-background/50 py-16 sm:py-24">
         <div className="container px-4">
           <div className="mx-auto grid max-w-5xl gap-10 sm:grid-cols-2 sm:items-center">
             <div className="reveal">
-              <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
+              <h2 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
                 {t.problemTitle}
               </h2>
               <p className="mt-4 text-muted-foreground">
@@ -209,11 +209,11 @@ export function CorporateLandingPage() {
                 {t.problemDesc2}
               </p>
             </div>
-            <div className="reveal rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card" style={{ transitionDelay: '100ms' }}>
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#141C2E] border border-white/[0.07] text-primary shadow-card">
+            <div className="reveal rounded-xl border border-border bg-surface p-6 shadow-card" style={{ transitionDelay: '100ms' }}>
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-surface border border-border text-primary shadow-card">
                 <Presentation className="h-6 w-6" />
               </div>
-              <h3 className="mt-4 font-display text-lg font-semibold text-white">
+              <h3 className="mt-4 font-display text-lg font-semibold text-foreground">
                 {t.solutionTitle}
               </h3>
               <p className="mt-2 text-sm text-muted-foreground">
@@ -231,7 +231,7 @@ export function CorporateLandingPage() {
             <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
               {t.howItWorksLabel}
             </span>
-            <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               {t.howItWorksTitle}
             </h2>
           </div>
@@ -256,13 +256,13 @@ export function CorporateLandingPage() {
             ].map((item, i) => (
               <div
                 key={item.step}
-                className="reveal relative rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 text-center shadow-card"
+                className="reveal relative rounded-xl border border-border bg-surface p-6 text-center shadow-card"
                 style={{ transitionDelay: `${i * 80}ms` }}
               >
                 <span className="font-mono text-3xl font-bold text-primary/20">
                   {item.step}
                 </span>
-                <h3 className="mt-3 font-display text-base font-semibold text-white">
+                <h3 className="mt-3 font-display text-base font-semibold text-foreground">
                   {item.title}
                 </h3>
                 <p className="mt-2 text-sm text-muted-foreground">{item.desc}</p>
@@ -273,13 +273,13 @@ export function CorporateLandingPage() {
       </section>
 
       {/* Why Corporate */}
-      <section className="relative border-t border-white/[0.07] bg-[#0D1220]/50 py-16 sm:py-24">
+      <section className="relative border-t border-border bg-background/50 py-16 sm:py-24">
         <div className="container px-4">
           <div className="mx-auto max-w-3xl text-center reveal">
             <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
               {t.featuresLabel}
             </span>
-            <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               {t.featuresTitle}
             </h2>
           </div>
@@ -319,13 +319,13 @@ export function CorporateLandingPage() {
             ].map((f, i) => (
               <div
                 key={f.title}
-                className="reveal rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card hover:-translate-y-px hover:border-white/[0.12] transition-all duration-200"
+                className="reveal rounded-xl border border-border bg-surface p-6 shadow-card hover:-translate-y-px hover:border-white/[0.08] transition-all duration-200"
                 style={{ transitionDelay: `${i * 60}ms` }}
               >
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#141C2E] border border-white/[0.07] text-primary shadow-card">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-surface border border-border text-primary shadow-card">
                   <f.icon className="h-5 w-5" />
                 </div>
-                <h3 className="mt-4 font-display text-base font-semibold text-white">
+                <h3 className="mt-4 font-display text-base font-semibold text-foreground">
                   {f.title}
                 </h3>
                 <p className="mt-2 text-sm text-muted-foreground">{f.desc}</p>
@@ -342,7 +342,7 @@ export function CorporateLandingPage() {
             <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
               {t.useCasesLabel}
             </span>
-            <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               {t.useCasesTitle}
             </h2>
           </div>
@@ -367,13 +367,13 @@ export function CorporateLandingPage() {
             ].map((item, i) => (
               <div
                 key={item.title}
-                className="reveal rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card"
+                className="reveal rounded-xl border border-border bg-surface p-6 shadow-card"
                 style={{ transitionDelay: `${i * 80}ms` }}
               >
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#141C2E] border border-white/[0.07] text-primary shadow-card">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-surface border border-border text-primary shadow-card">
                   <item.icon className="h-5 w-5" />
                 </div>
-                <h3 className="mt-4 font-display text-base font-semibold text-white">
+                <h3 className="mt-4 font-display text-base font-semibold text-foreground">
                   {item.title}
                 </h3>
                 <p className="mt-2 text-sm text-muted-foreground">{item.desc}</p>
@@ -384,7 +384,7 @@ export function CorporateLandingPage() {
       </section>
 
       {/* QR Section */}
-      <section className="relative border-t border-white/[0.07] bg-[#0D1220]/50 py-16 sm:py-24">
+      <section className="relative border-t border-border bg-background/50 py-16 sm:py-24">
         <div className="container px-4">
           <div className="mx-auto max-w-5xl">
             <div className="reveal grid gap-10 sm:grid-cols-2 sm:items-center">
@@ -392,7 +392,7 @@ export function CorporateLandingPage() {
                 <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
                   {t.qrBadge}
                 </span>
-                <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
                   {t.qrTitle}
                 </h2>
                 <p className="mt-4 text-muted-foreground">
@@ -403,11 +403,11 @@ export function CorporateLandingPage() {
                 </p>
               </div>
               <div className="reveal flex justify-center" style={{ transitionDelay: '100ms' }}>
-                <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] p-8 shadow-card">
-                  <div className="flex h-40 w-40 items-center justify-center rounded-xl bg-[#0D1220] border border-white/[0.07]">
+                <div className="rounded-xl border border-border bg-surface p-8 shadow-card">
+                  <div className="flex h-40 w-40 items-center justify-center rounded-xl bg-raised border border-border">
                     <QrCode className="h-20 w-20 text-primary" />
                   </div>
-                  <p className="mt-4 text-center text-sm font-medium text-white">
+                  <p className="mt-4 text-center text-sm font-medium text-foreground">
                     {t.qrCardLabel}
                   </p>
                   <p className="mt-1 text-center text-xs text-muted-foreground">
@@ -424,10 +424,10 @@ export function CorporateLandingPage() {
       <section className="relative py-16 sm:py-24">
         <div className="container px-4">
           <div className="mx-auto max-w-3xl text-center reveal">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#141C2E] border border-white/[0.07] text-primary mx-auto shadow-card">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-surface border border-border text-primary mx-auto shadow-card">
               <Shield className="h-6 w-6" />
             </div>
-            <h2 className="mt-5 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            <h2 className="mt-5 font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               {t.privacyTitle}
             </h2>
             <p className="mt-3 text-muted-foreground">
@@ -443,10 +443,10 @@ export function CorporateLandingPage() {
             ].map((item, i) => (
               <div
                 key={item.title}
-                className="reveal rounded-xl border border-white/[0.07] bg-[#141C2E] p-5 text-center shadow-card"
+                className="reveal rounded-xl border border-border bg-surface p-5 text-center shadow-card"
                 style={{ transitionDelay: `${i * 60}ms` }}
               >
-                <h3 className="font-display text-sm font-semibold text-white">{item.title}</h3>
+                <h3 className="font-display text-sm font-semibold text-foreground">{item.title}</h3>
                 <p className="mt-2 text-xs text-muted-foreground">{item.desc}</p>
               </div>
             ))}
@@ -455,11 +455,11 @@ export function CorporateLandingPage() {
       </section>
 
       {/* FAQ */}
-      <section className="relative border-t border-white/[0.07] bg-[#0D1220]/50 py-16 sm:py-24">
+      <section className="relative border-t border-border bg-background/50 py-16 sm:py-24">
         <div className="container px-4">
           <div className="mx-auto max-w-3xl">
             <div className="text-center reveal">
-              <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
+              <h2 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
                 {t.faqTitle}
               </h2>
             </div>
@@ -495,9 +495,9 @@ export function CorporateLandingPage() {
                   <AccordionItem
                     key={i}
                     value={`item-${i}`}
-                    className="rounded-xl border border-white/[0.07] bg-[#141C2E] px-5 shadow-card"
+                    className="rounded-xl border border-border bg-surface px-5 shadow-card"
                   >
-                    <AccordionTrigger className="text-left text-sm font-semibold text-white hover:no-underline">
+                    <AccordionTrigger className="text-left text-sm font-semibold text-foreground hover:no-underline">
                       {faq.q}
                     </AccordionTrigger>
                     <AccordionContent className="text-sm text-muted-foreground">
@@ -515,17 +515,17 @@ export function CorporateLandingPage() {
       <section className="relative pb-16 sm:pb-24">
         <div className="container px-4">
           <div className="mx-auto max-w-2xl text-center reveal">
-            <h2 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            <h2 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               {t.finalTitle}
             </h2>
             <p className="mt-3 text-muted-foreground">
               {t.finalDesc}
             </p>
             <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Button size="lg" className="glow-blue" asChild>
+              <Button size="lg" className="cta-primary" asChild>
                 <a href="/">{t.finalCta}</a>
               </Button>
-              <Button size="lg" variant="outline" className="border-white/[0.07] bg-transparent hover:bg-white/[0.03]" asChild>
+              <Button size="lg" variant="outline" className="border-border bg-transparent hover:bg-white/[0.03]" asChild>
                 <a href="/pricing">{t.viewPricing}</a>
               </Button>
             </div>

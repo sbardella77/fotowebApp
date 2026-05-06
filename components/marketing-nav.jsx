@@ -14,7 +14,7 @@ export function MarketingNav({ variant = 'fixed' }) {
       : 'relative'
 
   return (
-    <nav className={`${navClass} border-b border-white/[0.04] bg-background/70 backdrop-blur-xl`}>
+    <nav className={`${navClass} bg-background/80 backdrop-blur-xl border-b border-border`}>
       <div className="container flex h-16 items-center justify-between px-4">
         <a href="/" className="flex items-center gap-2.5">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-subtle">
@@ -52,7 +52,7 @@ export function MarketingNav({ variant = 'fixed' }) {
           <Button size="sm" variant="ghost" asChild className="hidden sm:inline-flex">
             <a href="/dashboard/login">{t.signIn}</a>
           </Button>
-          <Button size="sm" asChild className="glow-accent">
+          <Button size="sm" asChild className="cta-primary">
             <a href="/">{t.createRoom}</a>
           </Button>
         </div>

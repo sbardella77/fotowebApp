@@ -68,7 +68,7 @@ function getCtaCopy(t, variant) {
 /* ── Hero Demo Loop (CSS-only fallback) ────────────────────────────────── */
 function HeroDemoLoop() {
   return (
-    <div className="relative mx-auto mt-8 max-w-[240px] overflow-hidden rounded-2xl border border-white/[0.08] bg-raised/80 p-4 shadow-elevated backdrop-blur-sm">
+    <div className="relative mx-auto mt-8 max-w-[240px] overflow-hidden rounded-xl border border-white/[0.08] bg-raised/80 p-4 shadow-card backdrop-blur-sm">
       <div className="flex items-center justify-between pb-3">
         <div className="flex items-center gap-2">
           <div className="h-2 w-2 rounded-full bg-red-400/80" />
@@ -82,7 +82,7 @@ function HeroDemoLoop() {
         <div className="demo-step absolute inset-0 flex flex-col items-center justify-center gap-2">
           <Sparkles className="h-6 w-6 text-primary" />
           <p className="text-xs font-semibold text-foreground">Create your event</p>
-          <div className="h-6 w-32 rounded-md bg-surface border border-white/[0.06]" />
+          <div className="h-6 w-32 rounded-md bg-surface border border-border" />
         </div>
         {/* Step 2: Share QR */}
         <div className="demo-step absolute inset-0 flex flex-col items-center justify-center gap-2" style={{ animationDelay: '1.6s' }}>
@@ -176,7 +176,7 @@ export function LandingPage({
       <div className="noise-overlay" aria-hidden="true" />
 
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/[0.06] bg-background/80 backdrop-blur-xl">
+      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-background/80 backdrop-blur-xl">
         <div className="container flex h-16 items-center justify-between px-4">
           <a href="/" className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-subtle">
@@ -220,7 +220,7 @@ export function LandingPage({
               </span>
             </div>
 
-            <h1 className="animate-fade-up delay-100 mt-6 font-display text-[2.75rem] font-extrabold leading-[1.08] tracking-[-0.03em] text-foreground sm:text-[3.5rem] lg:text-6xl text-balance text-shadow-sm">
+            <h1 className="animate-fade-up delay-100 mt-6 font-display text-4xl font-extrabold leading-[1.08] tracking-[-0.03em] text-foreground sm:text-5xl lg:text-6xl text-balance text-shadow-sm">
               {t.headline1}
               <span className="block text-gradient mt-2 sm:mt-3">{t.headline2}</span>
             </h1>
@@ -231,25 +231,25 @@ export function LandingPage({
 
             {/* CTA Form */}
             <div id="create" className="animate-fade-up delay-300 mt-10">
-              <div className="mx-auto w-full max-w-lg rounded-2xl border border-white/[0.08] bg-raised/70 p-5 sm:p-6 shadow-elevated backdrop-blur-sm">
+              <div className="mx-auto w-full max-w-lg rounded-xl border border-white/[0.08] bg-raised/70 p-5 sm:p-6 shadow-card backdrop-blur-sm">
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <Input
                     value={eventName}
                     onChange={(e) => setEventName(e.target.value)}
                     placeholder={t.roomNamePlaceholder}
-                    className="h-14 flex-1 rounded-xl border-white/[0.10] bg-surface text-base font-body text-foreground placeholder:text-muted-foreground/80 shadow-subtle focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:border-accent"
+                    className="h-14 flex-1 rounded-lg border-input bg-surface text-base font-body text-foreground placeholder:text-muted-foreground shadow-subtle"
                   />
                   <Input
                     type="email"
                     value={ownerEmail}
                     onChange={(e) => setOwnerEmail(e.target.value)}
                     placeholder={t.emailPlaceholder}
-                    className="h-14 flex-1 rounded-xl border-white/[0.10] bg-surface text-base font-body text-foreground placeholder:text-muted-foreground/80 shadow-subtle focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:border-accent"
+                    className="h-14 flex-1 rounded-lg border-input bg-surface text-base font-body text-foreground placeholder:text-muted-foreground shadow-subtle"
                   />
                 </div>
                 <Button
                   size="lg"
-                  className="mt-3 h-14 w-full gap-2 rounded-xl px-8 text-base font-body font-bold whitespace-nowrap cta-primary tracking-tight"
+                  className="mt-3 h-14 w-full gap-2 rounded-lg px-8 text-base font-body font-bold whitespace-nowrap cta-primary tracking-tight"
                   onClick={() => {
                     trackEvent(EVENT_HERO_CTA_CLICKED, { page_type: 'landing', variant: 'generic', position: 'hero' })
                     onCreateEvent()
@@ -268,7 +268,7 @@ export function LandingPage({
               </div>
 
               {createError?.limit === 'room_count' && (
-                <div className="mx-auto mt-4 max-w-lg rounded-2xl border border-white/[0.06] bg-surface p-5 text-left shadow-card">
+                <div className="mx-auto mt-4 max-w-lg rounded-xl border border-border bg-surface p-5 text-left shadow-card">
                   <p className="text-sm font-semibold text-foreground">{t.errorLimitTitle}</p>
                   <p className="mt-1 text-xs text-muted-foreground">{t.errorLimitDesc}</p>
                   <div className="mt-4 flex gap-2">
@@ -283,7 +283,7 @@ export function LandingPage({
               )}
 
               {createError && createError.limit !== 'room_count' && (
-                <div className="mx-auto mt-4 max-w-lg rounded-2xl border border-destructive/20 bg-destructive/10 p-5 text-left">
+                <div className="mx-auto mt-4 max-w-lg rounded-xl border border-destructive/20 bg-destructive/10 p-5 text-left">
                   <p className="text-sm font-medium text-destructive">{createError.error || t.genericError}</p>
                 </div>
               )}
@@ -303,7 +303,7 @@ export function LandingPage({
                 </span>
               </div>
 
-              <p className="mt-4 text-xs font-normal text-muted-foreground/80">
+              <p className="mt-4 text-xs font-normal text-muted-foreground">
                 {t.microcopy1}{' '}&middot;{' '}
                 <a href="/dashboard/login" className="underline underline-offset-2 hover:text-foreground transition-colors">
                   {t.signInLink}
@@ -317,7 +317,7 @@ export function LandingPage({
       </section>
 
       {/* How It Works */}
-      <section id="how-it-works" className="border-y border-white/[0.06] bg-surface py-28 sm:py-36">
+      <section id="how-it-works" className="border-y border-border bg-surface py-28 sm:py-36">
         <div className="container px-4">
           <div className="reveal mx-auto max-w-3xl text-center">
             <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-primary">
@@ -339,10 +339,10 @@ export function LandingPage({
             ].map((item, i) => (
               <div
                 key={item.step}
-                className="reveal relative flex flex-col items-center text-center rounded-2xl border border-white/[0.06] bg-raised/50 p-8 transition-all duration-300 hover:border-white/[0.10] hover:bg-raised hover:-translate-y-1"
+                className="reveal relative flex flex-col items-center text-center rounded-xl border border-border bg-raised/50 p-8 transition-all duration-300 hover:border-white/[0.08] hover:bg-raised hover:-translate-y-1"
                 style={{ transitionDelay: `${i * 80}ms` }}
               >
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-elevated border border-white/[0.08] text-primary shadow-subtle">
+                <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-elevated border border-white/[0.08] text-primary shadow-subtle">
                   <item.icon className="h-7 w-7" />
                 </div>
                 <div className="mt-6">
@@ -392,8 +392,8 @@ export function LandingPage({
               </div>
 
               <div className="reveal relative" style={{ transitionDelay: '100ms' }}>
-                <div className="absolute -inset-6 rounded-[2rem] bg-gradient-to-br from-primary/[0.08] to-transparent" />
-                <div className="relative space-y-5 rounded-2xl border border-white/[0.08] bg-surface p-8 shadow-card">
+                <div className="absolute -inset-6 rounded-2xl bg-gradient-to-br from-primary/[0.08] to-transparent" />
+                <div className="relative space-y-5 rounded-xl border border-white/[0.08] bg-surface p-8 shadow-card">
                   {[
                     { icon: CheckCircle2, title: t.solution1Title, desc: t.solution1Desc },
                     { icon: Smartphone, title: t.solution2Title, desc: t.solution2Desc },
@@ -421,7 +421,7 @@ export function LandingPage({
       </section>
 
       {/* Use Cases */}
-      <section className="border-y border-white/[0.06] bg-surface py-28 sm:py-36">
+      <section className="border-y border-border bg-surface py-28 sm:py-36">
         <div className="container px-4">
           <div className="reveal mx-auto max-w-3xl text-center">
             <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-primary">
@@ -443,7 +443,7 @@ export function LandingPage({
             ].map((item, i) => (
               <div
                 key={item.title}
-                className="reveal group relative overflow-hidden rounded-2xl border border-white/[0.06] bg-background p-7 transition-all duration-300 hover:-translate-y-1 hover:border-white/[0.10] hover:shadow-elevated"
+                className="reveal group relative overflow-hidden rounded-xl border border-border bg-background p-7 transition-all duration-300 hover:-translate-y-1 hover:border-white/[0.08] hover:shadow-card"
                 style={{ transitionDelay: `${i * 80}ms` }}
               >
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-raised">
@@ -517,14 +517,14 @@ export function LandingPage({
                   <div className="absolute -bottom-8 -left-8 h-40 w-40 rounded-full bg-blue-500/10 blur-3xl" aria-hidden="true" />
 
                   {/* Phone mockup */}
-                  <div className="relative rounded-[2.5rem] border border-white/[0.10] bg-raised p-4 shadow-card sm:p-5">
+                  <div className="relative rounded-[2.5rem] border border-white/[0.08] bg-raised p-4 shadow-card sm:p-5">
                     {/* Notch */}
                     <div className="mx-auto mb-4 h-1.5 w-16 rounded-full bg-white/10" />
 
                     {/* Screen content */}
-                    <div className="rounded-[2rem] border border-white/[0.06] bg-surface overflow-hidden">
+                    <div className="rounded-[2rem] border border-border bg-surface overflow-hidden">
                       {/* Header */}
-                      <div className="border-b border-white/[0.06] bg-raised/60 px-4 py-3.5 flex items-center justify-between">
+                      <div className="border-b border-border bg-raised/60 px-4 py-3.5 flex items-center justify-between">
                         <div>
                           <p className="font-display text-sm font-bold text-foreground truncate">Sarah & Mike&apos;s Wedding</p>
                           <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">snaprooms.app/room/sarah-mike</p>
@@ -536,24 +536,24 @@ export function LandingPage({
 
                       {/* Photo grid preview — richer, polaroid-like */}
                       <div className="grid grid-cols-3 gap-1.5 p-3">
-                        <div className="relative aspect-square rounded-lg bg-gradient-to-br from-rose-300/25 to-rose-600/10 border border-white/[0.06] shadow-subtle overflow-hidden">
+                        <div className="relative aspect-square rounded-lg bg-gradient-to-br from-rose-300/25 to-rose-600/10 border border-border shadow-subtle overflow-hidden">
                           <div className="absolute bottom-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-black/30 backdrop-blur-sm">
                             <Heart className="h-2.5 w-2.5 text-rose-300" />
                           </div>
                         </div>
-                        <div className="relative aspect-square rounded-lg bg-gradient-to-br from-amber-300/25 to-amber-600/10 border border-white/[0.06] shadow-subtle overflow-hidden" />
-                        <div className="relative aspect-square rounded-lg bg-gradient-to-br from-emerald-300/25 to-emerald-600/10 border border-white/[0.06] shadow-subtle overflow-hidden">
+                        <div className="relative aspect-square rounded-lg bg-gradient-to-br from-amber-300/25 to-amber-600/10 border border-border shadow-subtle overflow-hidden" />
+                        <div className="relative aspect-square rounded-lg bg-gradient-to-br from-emerald-300/25 to-emerald-600/10 border border-border shadow-subtle overflow-hidden">
                           <div className="absolute bottom-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-black/30 backdrop-blur-sm">
                             <Heart className="h-2.5 w-2.5 text-emerald-300" />
                           </div>
                         </div>
-                        <div className="relative aspect-square rounded-lg bg-gradient-to-br from-sky-300/25 to-sky-600/10 border border-white/[0.06] shadow-subtle overflow-hidden" />
-                        <div className="relative aspect-square rounded-lg bg-gradient-to-br from-violet-300/25 to-violet-600/10 border border-white/[0.06] shadow-subtle overflow-hidden">
+                        <div className="relative aspect-square rounded-lg bg-gradient-to-br from-sky-300/25 to-sky-600/10 border border-border shadow-subtle overflow-hidden" />
+                        <div className="relative aspect-square rounded-lg bg-gradient-to-br from-violet-300/25 to-violet-600/10 border border-border shadow-subtle overflow-hidden">
                           <div className="absolute inset-0 flex items-center justify-center">
-                            <Users className="h-5 w-5 text-white/20" />
+                            <Users className="h-5 w-5 text-foreground/20" />
                           </div>
                         </div>
-                        <div className="relative aspect-square rounded-lg bg-gradient-to-br from-orange-300/25 to-orange-600/10 border border-white/[0.06] shadow-subtle overflow-hidden">
+                        <div className="relative aspect-square rounded-lg bg-gradient-to-br from-orange-300/25 to-orange-600/10 border border-border shadow-subtle overflow-hidden">
                           <div className="absolute bottom-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-black/30 backdrop-blur-sm">
                             <Heart className="h-2.5 w-2.5 text-orange-300" />
                           </div>
@@ -562,7 +562,7 @@ export function LandingPage({
 
                       {/* QR area */}
                       <div className="px-5 pb-5 pt-1">
-                        <div className="mx-auto flex w-fit flex-col items-center gap-3 rounded-2xl border border-dashed border-white/[0.08] bg-raised/80 p-5">
+                        <div className="mx-auto flex w-fit flex-col items-center gap-3 rounded-xl border border-dashed border-white/[0.08] bg-raised/80 p-5">
                           {/* Stylized QR SVG */}
                           <svg width="96" height="96" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-foreground">
                             <rect width="96" height="96" rx="12" fill="currentColor" fillOpacity="0.06"/>
@@ -638,7 +638,7 @@ export function LandingPage({
       </section>
 
       {/* Social Proof */}
-      <section className="border-y border-white/[0.06] bg-surface py-20 sm:py-24">
+      <section className="border-y border-border bg-surface py-20 sm:py-24">
         <div className="container px-4">
           <div className="reveal mx-auto max-w-2xl text-center">
             <p className="text-xl font-normal leading-relaxed text-muted-foreground">
@@ -655,7 +655,7 @@ export function LandingPage({
       {/* Final CTA */}
       <section className="py-28 sm:py-36">
         <div className="container px-4">
-          <div className="reveal mx-auto max-w-2xl rounded-3xl border border-white/[0.08] bg-raised/60 p-8 sm:p-12 text-center shadow-card backdrop-blur-sm">
+          <div className="reveal mx-auto max-w-2xl surface-elevated rounded-xl p-8 sm:p-12 text-center backdrop-blur-sm">
             <h2 className="font-display text-3xl font-extrabold tracking-[-0.02em] text-foreground sm:text-4xl lg:text-5xl text-balance text-shadow-sm">
               {t.finalTitle}
             </h2>
@@ -669,19 +669,19 @@ export function LandingPage({
                   value={eventName}
                   onChange={(e) => setEventName(e.target.value)}
                   placeholder={t.finalPlaceholder}
-                  className="h-14 flex-1 rounded-xl border-white/[0.10] bg-surface text-base font-body text-foreground placeholder:text-muted-foreground/80 shadow-subtle focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:border-accent"
+                  className="h-14 flex-1 rounded-lg border-input bg-surface text-base font-body text-foreground placeholder:text-muted-foreground shadow-subtle"
                 />
                 <Input
                   type="email"
                   value={ownerEmail}
                   onChange={(e) => setOwnerEmail(e.target.value)}
                   placeholder={t.finalEmailPlaceholder}
-                  className="h-14 flex-1 rounded-xl border-white/[0.10] bg-surface text-base font-body text-foreground placeholder:text-muted-foreground/80 shadow-subtle focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:border-accent"
+                  className="h-14 flex-1 rounded-lg border-input bg-surface text-base font-body text-foreground placeholder:text-muted-foreground shadow-subtle"
                 />
               </div>
               <Button
                 size="lg"
-                className="h-14 w-full gap-2 rounded-xl px-8 text-base font-body font-bold whitespace-nowrap cta-primary tracking-tight"
+                className="h-14 w-full gap-2 rounded-lg px-8 text-base font-body font-bold whitespace-nowrap cta-primary tracking-tight"
                 onClick={onCreateEvent}
                 disabled={isCreating || !eventName?.trim() || eventName.trim().length < 3 || !ownerEmail?.trim() || !ownerEmail.includes('@')}
               >
@@ -708,7 +708,7 @@ export function LandingPage({
       </div>
 
       {/* Footer */}
-      <footer className="border-t border-white/[0.06] bg-surface py-12">
+      <footer className="border-t border-border bg-surface py-12">
         <div className="container px-4">
           <div className="flex flex-col items-center justify-between gap-5 sm:flex-row">
             <div className="flex items-center gap-2.5">
