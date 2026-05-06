@@ -15,7 +15,7 @@ const syne = Syne({
 
 const ibmPlexSans = IBM_Plex_Sans({
   subsets: ['latin'],
-  weight: ['300', '400', '500'],
+  weight: ['300', '400', '500', '600'],
   variable: '--font-ibm-plex-sans',
   display: 'swap',
 })
@@ -53,7 +53,7 @@ function App({ children }) {
   const locale = LOCALES.includes(cookieLocale) ? cookieLocale : DEFAULT_LOCALE
 
   return (
-    <html lang={locale} suppressHydrationWarning>
+    <html lang={locale} className="dark" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: 'window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);' }} />
       </head>

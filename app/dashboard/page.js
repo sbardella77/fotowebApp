@@ -54,7 +54,7 @@ const DashboardPhotoCard = ({ photo, onApprove, onReject, onDelete, onOpenLightb
   const isBusy = busyId === photo.id
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card transition-transform duration-200 hover:-translate-y-px">
+    <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-surface shadow-card transition-transform duration-200 hover:-translate-y-px">
       <button className="block w-full text-left" onClick={onOpenLightbox} type="button">
         <img alt={photo.originalName} className="aspect-square w-full object-cover" src={photo.url} />
       </button>
@@ -66,36 +66,19 @@ const DashboardPhotoCard = ({ photo, onApprove, onReject, onDelete, onOpenLightb
           </div>
           <Badge
             variant={photo.status === 'VISIBLE' ? 'default' : 'secondary'}
-            className="rounded-full capitalize font-mono text-[0.6rem]"
+            className="rounded-full capitalize font-mono text-[10px]"
           >
             {photo.status.toLowerCase()}
           </Badge>
         </div>
         <div className="grid grid-cols-3 gap-2">
-          <Button
-            disabled={isBusy || photo.status === 'VISIBLE'}
-            size="sm"
-            onClick={onApprove}
-            className="h-9"
-          >
+          <Button disabled={isBusy || photo.status === 'VISIBLE'} size="sm" onClick={onApprove} className="h-9">
             {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
           </Button>
-          <Button
-            disabled={isBusy || photo.status === 'HIDDEN'}
-            size="sm"
-            variant="outline"
-            onClick={onReject}
-            className="h-9 border-white/[0.07] bg-[#0D1220] hover:bg-[#111827]"
-          >
+          <Button disabled={isBusy || photo.status === 'HIDDEN'} size="sm" variant="outline" onClick={onReject} className="h-9 border-white/[0.06] bg-raised hover:bg-elevated">
             <EyeOff className="h-3.5 w-3.5" />
           </Button>
-          <Button
-            disabled={isBusy}
-            size="sm"
-            variant="destructive"
-            onClick={onDelete}
-            className="h-9"
-          >
+          <Button disabled={isBusy} size="sm" variant="destructive" onClick={onDelete} className="h-9">
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
         </div>
@@ -827,8 +810,6 @@ export default function DashboardPage() {
     loadSession()
   }, [])
 
-  // Removed auto-redirect: dashboard now shows inline login card when not authenticated
-
   useEffect(() => {
     if (!authState.authenticated) return
     loadEvents()
@@ -876,7 +857,6 @@ export default function DashboardPage() {
       }
       loadPlan()
       loadEvents()
-      // Clean URL without full reload
       router.replace('/dashboard', { scroll: false })
     } else if (upgrade === 'cancelled') {
       const intent = params.get('intent')
@@ -902,26 +882,25 @@ export default function DashboardPage() {
   }, [])
 
   return (
-    <main className="dark relative min-h-screen bg-background font-body text-foreground">
-      {/* Subtle grid background for dashboard */}
-      <div className="absolute inset-0 bg-grid opacity-[0.03] pointer-events-none" aria-hidden="true" />
+    <main className="relative min-h-screen bg-background font-body text-foreground">
+      <div className="absolute inset-0 bg-grid opacity-[0.025] pointer-events-none" aria-hidden="true" />
 
-      <header className="relative z-10 border-b border-white/[0.07] bg-background/80 backdrop-blur-md">
-        <div className="container flex h-14 items-center justify-between px-4">
-          <a href="/" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Camera className="h-4 w-4" />
+      <header className="relative z-10 border-b border-white/[0.04] bg-background/70 backdrop-blur-xl">
+        <div className="container flex h-16 items-center justify-between px-4">
+          <a href="/" className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-subtle">
+              <Camera className="h-[18px] w-[18px]" />
             </div>
-            <span className="font-display text-sm font-bold tracking-tight text-primary">{t.brand}</span>
+            <span className="font-display text-[15px] font-bold tracking-tight text-primary">{t.brand}</span>
           </a>
           {authState.authenticated ? (
             <div className="flex items-center gap-3">
               {(plan === 'professional' || plan === 'business') && (
-                <span className="hidden rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wider text-primary sm:inline">
+                <span className="hidden rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-primary sm:inline">
                   {t.proBadge}
                 </span>
               )}
-              <span className="hidden font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground sm:inline">
+              <span className="hidden font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground sm:inline">
                 {authState.email}
               </span>
               <Button variant="ghost" size="sm" onClick={logout} className="font-body text-muted-foreground hover:text-foreground">
@@ -945,24 +924,22 @@ export default function DashboardPage() {
         ) : !authState.authenticated ? (
           <div className="mx-auto max-w-sm py-12">
             <div className="mb-8 text-center">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                <Lock className="h-7 w-7" />
+              <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <Lock className="h-8 w-8" />
               </div>
-              <h1 className="font-display text-2xl font-bold tracking-[-0.03em] text-white">
+              <h1 className="font-display text-2xl font-bold tracking-[-0.02em] text-foreground">
                 {forgotMode ? t.resetYourPassword : t.signInToManage}
               </h1>
               <p className="mt-3 text-sm font-light leading-relaxed text-muted-foreground">
-                {forgotMode
-                  ? t.enterEmailForReset
-                  : t.accessYourRooms}
+                {forgotMode ? t.enterEmailForReset : t.accessYourRooms}
               </p>
             </div>
 
             {forgotMode ? (
-              <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card">
+              <div className="rounded-2xl border border-white/[0.06] bg-surface p-6 shadow-card">
                 <div className="space-y-4">
                   {forgotSent ? (
-                    <div className="rounded-xl border border-white/[0.07] bg-[#111827] p-4 text-sm text-muted-foreground text-center">
+                    <div className="rounded-xl border border-white/[0.06] bg-raised p-4 text-sm text-muted-foreground text-center">
                       {t.resetSent}
                     </div>
                   ) : (
@@ -974,27 +951,18 @@ export default function DashboardPage() {
                           value={forgotEmail}
                           onChange={(e) => setForgotEmail(e.target.value)}
                           placeholder={t.emailPlaceholder}
-                          className="h-11 rounded-lg border-white/[0.07] bg-[#0D1220] text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                          className="h-11 rounded-xl border-white/[0.06] bg-raised text-foreground placeholder:text-muted-foreground"
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' && forgotEmail.trim()) sendForgotLink()
                           }}
                         />
                       </div>
-
-                      {message && (
-                        <p className="text-sm text-destructive">{message}</p>
-                      )}
-
-                      <Button
-                        className="w-full h-11 glow-blue"
-                        disabled={forgotBusy || !forgotEmail.trim()}
-                        onClick={sendForgotLink}
-                      >
+                      {message && <p className="text-sm text-destructive">{message}</p>}
+                      <Button className="w-full h-11 glow-accent" disabled={forgotBusy || !forgotEmail.trim()} onClick={sendForgotLink}>
                         {forgotBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.sendResetLink}
                       </Button>
                     </>
                   )}
-
                   <div className="text-center pt-2">
                     <button
                       type="button"
@@ -1012,7 +980,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             ) : (
-              <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card">
+              <div className="rounded-2xl border border-white/[0.06] bg-surface p-6 shadow-card">
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-foreground">{t.emailLabel}</label>
@@ -1021,7 +989,7 @@ export default function DashboardPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder={t.emailPlaceholder}
-                      className="h-11 rounded-lg border-white/[0.07] bg-[#0D1220] text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                      className="h-11 rounded-xl border-white/[0.06] bg-raised text-foreground placeholder:text-muted-foreground"
                     />
                   </div>
                   <div className="space-y-2">
@@ -1032,7 +1000,7 @@ export default function DashboardPage() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder={t.passwordPlaceholder}
-                        className="h-11 rounded-lg border-white/[0.07] bg-[#0D1220] text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                        className="h-11 rounded-xl border-white/[0.06] bg-raised text-foreground placeholder:text-muted-foreground"
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && email.trim() && password) loginWithPassword()
                         }}
@@ -1047,15 +1015,9 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  {message && (
-                    <p className="text-sm text-destructive">{message}</p>
-                  )}
+                  {message && <p className="text-sm text-destructive">{message}</p>}
 
-                  <Button
-                    className="w-full h-11 glow-blue"
-                    disabled={busy.auth || !email.trim() || !password}
-                    onClick={loginWithPassword}
-                  >
+                  <Button className="w-full h-11 glow-accent" disabled={busy.auth || !email.trim() || !password} onClick={loginWithPassword}>
                     {busy.auth ? <Loader2 className="h-4 w-4 animate-spin" /> : t.signIn}
                   </Button>
 
@@ -1081,75 +1043,47 @@ export default function DashboardPage() {
             <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-primary/10 text-primary">
               <Camera className="h-10 w-10" />
             </div>
-            <h2 className="font-display text-2xl font-bold tracking-tight text-white">
-              {t.noRoomsYet}
-            </h2>
-            <p className="mt-3 max-w-sm text-sm font-light leading-relaxed text-muted-foreground">
-              {t.noRoomsDesc}
-            </p>
-            <Button className="mt-8 glow-blue" onClick={openCreateDialog}>
+            <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">{t.noRoomsYet}</h2>
+            <p className="mt-3 max-w-sm text-sm font-light leading-relaxed text-muted-foreground">{t.noRoomsDesc}</p>
+            <Button className="mt-8 glow-accent" onClick={openCreateDialog}>
               <Plus className="mr-2 h-4 w-4" />
               {t.createYourRoom}
             </Button>
           </div>
         ) : (
           <div className="mx-auto max-w-5xl space-y-10">
-            {/* Top summary area */}
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <h1 className="font-display text-2xl font-bold tracking-[-0.03em] text-white">
-                  {t.yourRooms}
-                </h1>
-                <p className="mt-1.5 text-sm font-light text-muted-foreground">
-                  {t.yourRoomsDesc}
-                </p>
+                <h1 className="font-display text-2xl font-bold tracking-[-0.02em] text-foreground">{t.yourRooms}</h1>
+                <p className="mt-1.5 text-sm font-light text-muted-foreground">{t.yourRoomsDesc}</p>
               </div>
-              <Button size="sm" className="mt-2 sm:mt-0 glow-blue" onClick={openCreateDialog}>
+              <Button size="sm" className="mt-2 sm:mt-0 glow-accent" onClick={openCreateDialog}>
                 <Plus className="mr-2 h-4 w-4" />
                 {t.createNewRoom}
               </Button>
             </div>
 
-            {/* Upgrade entry point */}
             {plan !== 'professional' && plan !== 'business' && (
-              <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card overflow-hidden">
+              <div className="rounded-2xl border border-white/[0.06] bg-surface shadow-card overflow-hidden">
                 <div className="p-5 sm:p-6">
                   <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-                          {t.premium}
-                        </span>
+                        <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-primary">{t.premium}</span>
                         <Sparkles className="h-3 w-3 text-primary" />
                       </div>
-                      <h2 className="mt-2 font-display text-lg font-bold tracking-tight text-white">
-                        {t.unlockPremium}
-                      </h2>
-                      <p className="mt-1.5 max-w-md text-sm font-light leading-relaxed text-muted-foreground">
-                        {t.upgradeDesc}
-                      </p>
-                      <p className="mt-2 text-xs font-light text-muted-foreground/70">
-                        {t.guestsAlwaysFree}
-                      </p>
+                      <h2 className="mt-2 font-display text-lg font-bold tracking-tight text-foreground">{t.unlockPremium}</h2>
+                      <p className="mt-1.5 max-w-md text-sm font-light leading-relaxed text-muted-foreground">{t.upgradeDesc}</p>
+                      <p className="mt-2 text-xs font-light text-muted-foreground/70">{t.guestsAlwaysFree}</p>
                     </div>
-
                     <div className="flex flex-col items-start gap-3 sm:items-end">
                       <div className="flex items-center gap-2">
-                        <Button size="sm" variant="outline" asChild className="border-white/[0.07] bg-[#0D1220]">
+                        <Button size="sm" variant="outline" asChild className="border-white/[0.06] bg-raised">
                           <a href="/pricing">{t.viewPricing}</a>
                         </Button>
                       </div>
-                      <Button
-                        size="sm"
-                        className="glow-blue"
-                        disabled={checkoutBusy}
-                        onClick={() => startCheckout('professional', null, 'dashboard_banner')}
-                      >
-                        {checkoutBusy ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          t.startProfessional
-                        )}
+                      <Button size="sm" className="glow-accent" disabled={checkoutBusy} onClick={() => startCheckout('professional', null, 'dashboard_banner')}>
+                        {checkoutBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.startProfessional}
                       </Button>
                     </div>
                   </div>
@@ -1157,22 +1091,17 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* Message banner */}
             {message ? (
-              <div className="rounded-xl border border-white/[0.07] bg-[#141C2E] p-4 text-sm text-muted-foreground flex items-center gap-2">
+              <div className="rounded-xl border border-white/[0.06] bg-surface p-4 text-sm text-muted-foreground flex items-center gap-2.5 shadow-subtle">
                 <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
                 {message}
               </div>
             ) : null}
 
-            {/* Mono label above grid */}
             <div>
-              <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
-                {t.roomsYouCreated}
-              </span>
+              <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-primary">{t.roomsYouCreated}</span>
             </div>
 
-            {/* Event cards grid */}
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {events.map((event) => (
                 <div
@@ -1185,10 +1114,10 @@ export default function DashboardPage() {
                     })
                     setSelectedSlug(event.slug)
                   }}
-                  className={`group relative overflow-hidden rounded-2xl border bg-[#141C2E] transition-all duration-200 hover:-translate-y-px cursor-pointer ${
+                  className={`group relative overflow-hidden rounded-2xl border bg-surface transition-all duration-200 hover:-translate-y-px cursor-pointer ${
                     selectedSlug === event.slug
-                      ? 'border-primary/40 shadow-[0_0_0_1px_rgba(212,168,83,0.15)]'
-                      : 'border-white/[0.07] hover:border-white/[0.12]'
+                      ? 'border-primary/40 shadow-[0_0_0_1px_hsl(var(--accent)/0.15)]'
+                      : 'border-white/[0.06] hover:border-white/[0.10]'
                   }`}
                 >
                   <div className="p-5">
@@ -1197,7 +1126,7 @@ export default function DashboardPage() {
                         <Input
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
-                          className="h-9 rounded-lg border-white/[0.07] bg-[#0D1220] text-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                          className="h-9 rounded-xl border-white/[0.06] bg-raised text-foreground"
                           disabled={busy.detail}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') saveRename(event.slug)
@@ -1217,59 +1146,40 @@ export default function DashboardPage() {
                     ) : (
                       <>
                         <div className="flex items-start justify-between gap-2">
-                          <h3 className="font-display text-base font-bold tracking-tight text-white truncate">
-                            {event.name}
-                          </h3>
+                          <h3 className="font-display text-base font-bold tracking-tight text-foreground truncate">{event.name}</h3>
                           {event.billingTier && (
-                            <span className="inline-flex shrink-0 items-center rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[0.6rem] font-semibold text-primary">
+                            <span className="inline-flex shrink-0 items-center rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
                               <Sparkles className="mr-1 h-2.5 w-2.5" />
                               {event.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent}
                             </span>
                           )}
                         </div>
-                        <p className="mt-1.5 font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
-                          {t.code} {event.slug}
-                        </p>
-
+                        <p className="mt-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">{t.code} {event.slug}</p>
                         <div className="mt-4 flex items-center gap-4">
                           <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                             <ImagePlus className="h-3.5 w-3.5 text-primary" />
-                            <span className="font-light">
-                              {event.photoCount || event.photos?.length || 0} {t.photos}
-                            </span>
+                            <span className="font-light">{event.photoCount || event.photos?.length || 0} {t.photos}</span>
                           </div>
                         </div>
-
-                        {/* Primary actions */}
                         <div className="mt-5 flex flex-wrap gap-2">
-                          <Button size="sm" asChild className="glow-blue" onClick={(e) => e.stopPropagation()}>
+                          <Button size="sm" asChild className="glow-accent" onClick={(e) => e.stopPropagation()}>
                             <a href={`/event/${event.slug}`}>{t.openRoom}</a>
                           </Button>
-                          <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); shareEvent(event) }} className="border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground">
+                          <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); shareEvent(event) }} className="border-white/[0.06] bg-raised hover:bg-elevated hover:text-foreground">
                             <Share2 className="mr-1.5 h-3.5 w-3.5" />
                             {t.share}
                           </Button>
-                          <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); openQR(event) }} className="border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground">
+                          <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); openQR(event) }} className="border-white/[0.06] bg-raised hover:bg-elevated hover:text-foreground">
                             <QrCode className="mr-1.5 h-3.5 w-3.5" />
                             {t.qr}
                           </Button>
                         </div>
-
-                        {/* Tertiary actions */}
-                        <div className="mt-4 flex gap-3 pt-4 border-t border-white/[0.07]">
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-1.5 text-xs font-light text-muted-foreground hover:text-foreground transition-colors"
-                            onClick={(e) => { e.stopPropagation(); startRename(event) }}
-                          >
+                        <div className="mt-4 flex gap-3 pt-4 border-t border-white/[0.06]">
+                          <button type="button" className="inline-flex items-center gap-1.5 text-xs font-light text-muted-foreground hover:text-foreground transition-colors" onClick={(e) => { e.stopPropagation(); startRename(event) }}>
                             <Pencil className="h-3.5 w-3.5" />
                             {t.rename}
                           </button>
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-1.5 text-xs font-light text-destructive hover:text-destructive/80 transition-colors"
-                            onClick={(e) => { e.stopPropagation(); startDelete(event) }}
-                          >
+                          <button type="button" className="inline-flex items-center gap-1.5 text-xs font-light text-destructive hover:text-destructive/80 transition-colors" onClick={(e) => { e.stopPropagation(); startDelete(event) }}>
                             <Trash2 className="h-3.5 w-3.5" />
                             {tCommon.delete}
                           </button>
@@ -1281,59 +1191,36 @@ export default function DashboardPage() {
               ))}
             </div>
 
-            {/* Photo moderation detail view */}
             {selectedEvent && (
-              <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card">
+              <div className="rounded-2xl border border-white/[0.06] bg-surface shadow-card">
                 <div className="p-5 sm:p-6">
-                  {/* Room context header */}
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
-                      <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
-                        {t.roomPhotos}
-                      </span>
-                      <h3 className="mt-1.5 font-display text-lg font-bold tracking-tight text-white">
-                        {selectedEvent.name}
-                      </h3>
-                      <p className="mt-1 font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
-                        {t.code} {selectedEvent.slug}
-                      </p>
-                      <p className="mt-1.5 text-sm font-light text-muted-foreground">
-                        {photos.length} {t.totalPhotos}
-                      </p>
+                      <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-primary">{t.roomPhotos}</span>
+                      <h3 className="mt-2 font-display text-lg font-bold tracking-tight text-foreground">{selectedEvent.name}</h3>
+                      <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">{t.code} {selectedEvent.slug}</p>
+                      <p className="mt-1.5 text-sm font-light text-muted-foreground">{photos.length} {t.totalPhotos}</p>
                     </div>
                     <div className="flex flex-col gap-2">
                       <div className="flex flex-wrap gap-2">
-                        <Button size="sm" asChild className="glow-blue">
+                        <Button size="sm" asChild className="glow-accent">
                           <a href={`/event/${selectedEvent.slug}`}>{t.openRoom}</a>
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => shareEvent(selectedEvent)} className="border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground">
+                        <Button size="sm" variant="outline" onClick={() => shareEvent(selectedEvent)} className="border-white/[0.06] bg-raised hover:bg-elevated hover:text-foreground">
                           <Share2 className="mr-1.5 h-3.5 w-3.5" />
                           {t.share}
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => openQR(selectedEvent)} className="border-white/[0.07] bg-[#0D1220] hover:bg-[#111827] hover:text-foreground">
+                        <Button size="sm" variant="outline" onClick={() => openQR(selectedEvent)} className="border-white/[0.06] bg-raised hover:bg-elevated hover:text-foreground">
                           <QrCode className="mr-1.5 h-3.5 w-3.5" />
                           {t.qr}
                         </Button>
                       </div>
-                      {/* Event-level upgrade for free-tier rooms */}
                       {plan !== 'professional' && plan !== 'business' && !selectedEvent.billingTier && (
                         <div className="flex flex-wrap gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-primary/20 bg-primary/5 text-primary hover:bg-primary/10"
-                            disabled={checkoutBusy}
-                            onClick={() => startCheckout('pro_event', selectedEvent.id, 'dashboard_room_detail')}
-                          >
+                          <Button size="sm" variant="outline" className="border-primary/20 bg-primary/5 text-primary hover:bg-primary/10" disabled={checkoutBusy} onClick={() => startCheckout('pro_event', selectedEvent.id, 'dashboard_room_detail')}>
                             {checkoutBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : `${t.proEvent} €29`}
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-primary/20 bg-primary/5 text-primary hover:bg-primary/10"
-                            disabled={checkoutBusy}
-                            onClick={() => startCheckout('wedding_pro', selectedEvent.id, 'dashboard_room_detail')}
-                          >
+                          <Button size="sm" variant="outline" className="border-primary/20 bg-primary/5 text-primary hover:bg-primary/10" disabled={checkoutBusy} onClick={() => startCheckout('wedding_pro', selectedEvent.id, 'dashboard_room_detail')}>
                             {checkoutBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : `${t.weddingPro} €49`}
                           </Button>
                         </div>
@@ -1356,16 +1243,12 @@ export default function DashboardPage() {
                         {t.loadingPhotos}
                       </div>
                     ) : photos.length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-white/[0.07] bg-[#0D1220] p-10 text-center">
+                      <div className="rounded-xl border border-dashed border-white/[0.06] bg-raised p-10 text-center">
                         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                           <ImagePlus className="h-6 w-6" />
                         </div>
-                        <p className="text-sm font-medium text-white">
-                          {t.noPhotosYet}
-                        </p>
-                        <p className="mt-1 text-xs font-light text-muted-foreground">
-                          {t.shareToStart}
-                        </p>
+                        <p className="text-sm font-semibold text-foreground">{t.noPhotosYet}</p>
+                        <p className="mt-1 text-xs font-light text-muted-foreground">{t.shareToStart}</p>
                       </div>
                     ) : (
                       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -1390,44 +1273,22 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* Private professional delivery section */}
             {selectedEvent && hasPrivateDeliveryAccess(selectedEvent) && (
-              <div className="rounded-2xl border border-primary/20 bg-[#141C2E] shadow-card">
+              <div className="rounded-2xl border border-primary/20 bg-surface shadow-card">
                 <div className="p-5 sm:p-6">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <div className="flex items-center gap-2">
                         <FolderHeart className="h-4 w-4 text-primary" />
-                        <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
-                          {tPrivate.privateDelivery}
-                        </span>
+                        <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-primary">{tPrivate.privateDelivery}</span>
                       </div>
-                      <h3 className="mt-2 font-display text-lg font-bold tracking-tight text-white">
-                        {tPrivate.professionalFiles}
-                      </h3>
-                      <p className="mt-1.5 text-sm font-light leading-relaxed text-muted-foreground">
-                        {tPrivate.privateDeliveryDesc}
-                      </p>
+                      <h3 className="mt-2 font-display text-lg font-bold tracking-tight text-foreground">{tPrivate.professionalFiles}</h3>
+                      <p className="mt-1.5 text-sm font-light leading-relaxed text-muted-foreground">{tPrivate.privateDeliveryDesc}</p>
                     </div>
                     <div>
-                      <input
-                        ref={privateDeliveryFileInputRef}
-                        type="file"
-                        accept="image/jpeg,image/png"
-                        className="hidden"
-                        onChange={onPrivateDeliveryFileSelect}
-                      />
-                      <Button
-                        size="sm"
-                        className="glow-blue"
-                        disabled={privateDeliveryUploading}
-                        onClick={() => privateDeliveryFileInputRef.current?.click()}
-                      >
-                        {privateDeliveryUploading ? (
-                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Upload className="mr-1.5 h-3.5 w-3.5" />
-                        )}
+                      <input ref={privateDeliveryFileInputRef} type="file" accept="image/jpeg,image/png" className="hidden" onChange={onPrivateDeliveryFileSelect} />
+                      <Button size="sm" className="glow-accent" disabled={privateDeliveryUploading} onClick={() => privateDeliveryFileInputRef.current?.click()}>
+                        {privateDeliveryUploading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1.5 h-3.5 w-3.5" />}
                         {privateDeliveryUploading ? tPrivate.uploading : tPrivate.uploadFile}
                       </Button>
                     </div>
@@ -1440,49 +1301,27 @@ export default function DashboardPage() {
                         {tPrivate.loadingPrivateFiles}
                       </div>
                     ) : privateAssets.length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-primary/10 bg-[#0D1220] p-10 text-center">
+                      <div className="rounded-xl border border-dashed border-primary/10 bg-raised p-10 text-center">
                         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                           <FolderHeart className="h-6 w-6" />
                         </div>
-                        <p className="text-sm font-medium text-white">
-                          {tPrivate.noPrivateFiles}
-                        </p>
-                        <p className="mt-1 text-xs font-light text-muted-foreground">
-                          {tPrivate.uploadOriginalDesc}
-                        </p>
+                        <p className="text-sm font-semibold text-foreground">{tPrivate.noPrivateFiles}</p>
+                        <p className="mt-1 text-xs font-light text-muted-foreground">{tPrivate.uploadOriginalDesc}</p>
                       </div>
                     ) : (
                       <div className="space-y-3">
                         {privateAssets.map((asset) => (
-                          <div
-                            key={asset.id}
-                            className="flex items-center justify-between gap-4 rounded-xl border border-white/[0.07] bg-[#0D1220] p-4"
-                          >
+                          <div key={asset.id} className="flex items-center justify-between gap-4 rounded-xl border border-white/[0.06] bg-raised p-4">
                             <div className="min-w-0">
-                              <p className="truncate text-sm font-medium text-foreground">
-                                {asset.originalName}
-                              </p>
-                              <p className="mt-0.5 text-xs font-light text-muted-foreground">
-                                {(asset.size / (1024 * 1024)).toFixed(1)} MB · {asset.mimeType?.replace('image/', '').toUpperCase()}
-                              </p>
+                              <p className="truncate text-sm font-medium text-foreground">{asset.originalName}</p>
+                              <p className="mt-0.5 text-xs font-light text-muted-foreground">{(asset.size / (1024 * 1024)).toFixed(1)} MB · {asset.mimeType?.replace('image/', '').toUpperCase()}</p>
                             </div>
                             <div className="flex items-center gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-9 border-white/[0.07] bg-[#141C2E] hover:bg-[#111827] hover:text-foreground"
-                                onClick={() => downloadPrivateAsset(asset)}
-                              >
+                              <Button size="sm" variant="outline" className="h-9 border-white/[0.06] bg-surface hover:bg-elevated hover:text-foreground" onClick={() => downloadPrivateAsset(asset)}>
                                 <Download className="mr-1.5 h-3.5 w-3.5" />
                                 {tPrivate.download}
                               </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                className="h-9"
-                                disabled={busy.detail}
-                                onClick={() => deletePrivateAsset(asset.id)}
-                              >
+                              <Button size="sm" variant="destructive" className="h-9" disabled={busy.detail} onClick={() => deletePrivateAsset(asset.id)}>
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                             </div>
@@ -1492,107 +1331,48 @@ export default function DashboardPage() {
                     )}
                   </div>
 
-                  {/* Photographer upload link */}
-                  <div className="mt-8 rounded-xl border border-white/[0.07] bg-[#0D1220] p-5">
+                  <div className="mt-8 rounded-xl border border-white/[0.06] bg-raised p-5">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
-                        <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
-                          {tPrivate.photographerLink}
-                        </span>
-                        <p className="mt-1.5 text-sm font-light leading-relaxed text-muted-foreground">
-                          {tPrivate.photographerLinkDesc}
-                        </p>
+                        <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-primary">{tPrivate.photographerLink}</span>
+                        <p className="mt-1.5 text-sm font-light leading-relaxed text-muted-foreground">{tPrivate.photographerLinkDesc}</p>
                       </div>
                     </div>
-
                     <div className="mt-4">
                       {!photographerLink && !selectedEvent?.hasPhotographerUploadLink && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-white/[0.07] bg-[#141C2E] hover:bg-[#111827] hover:text-foreground"
-                          disabled={photographerLinkBusy}
-                          onClick={generatePhotographerLink}
-                        >
-                          {photographerLinkBusy ? (
-                            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <LinkIcon className="mr-1.5 h-3.5 w-3.5" />
-                          )}
+                        <Button size="sm" variant="outline" className="border-white/[0.06] bg-surface hover:bg-elevated hover:text-foreground" disabled={photographerLinkBusy} onClick={generatePhotographerLink}>
+                          {photographerLinkBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <LinkIcon className="mr-1.5 h-3.5 w-3.5" />}
                           {tPrivate.generateLink}
                         </Button>
                       )}
-
                       {!photographerLink && selectedEvent?.hasPhotographerUploadLink && (
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="text-sm text-muted-foreground">{tPrivate.linkAlreadyExists}</p>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-white/[0.07] bg-[#141C2E] hover:bg-[#111827] hover:text-foreground"
-                            disabled={photographerLinkBusy}
-                            onClick={generatePhotographerLink}
-                          >
-                            {photographerLinkBusy ? (
-                              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                            )}
+                          <Button size="sm" variant="outline" className="border-white/[0.06] bg-surface hover:bg-elevated hover:text-foreground" disabled={photographerLinkBusy} onClick={generatePhotographerLink}>
+                            {photographerLinkBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
                             {tPrivate.regenerate}
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="h-9"
-                            disabled={photographerLinkBusy}
-                            onClick={revokePhotographerLink}
-                          >
+                          <Button size="sm" variant="destructive" className="h-9" disabled={photographerLinkBusy} onClick={revokePhotographerLink}>
                             <Trash2 className="mr-1.5 h-3.5 w-3.5" />
                             {tPrivate.revoke}
                           </Button>
                         </div>
                       )}
-
                       {photographerLink && (
                         <div className="space-y-3">
-                          <div className="flex items-center gap-2 rounded-lg border border-white/[0.07] bg-[#141C2E] px-3 py-2">
+                          <div className="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-surface px-3 py-2">
                             <span className="truncate text-sm text-foreground">{photographerLink}</span>
                           </div>
                           <div className="flex flex-wrap gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="border-white/[0.07] bg-[#141C2E] hover:bg-[#111827] hover:text-foreground"
-                              onClick={copyPhotographerLink}
-                            >
-                              {photographerLinkCopied ? (
-                                <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
-                              ) : (
-                                <Copy className="mr-1.5 h-3.5 w-3.5" />
-                              )}
+                            <Button size="sm" variant="outline" className="border-white/[0.06] bg-surface hover:bg-elevated hover:text-foreground" onClick={copyPhotographerLink}>
+                              {photographerLinkCopied ? <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> : <Copy className="mr-1.5 h-3.5 w-3.5" />}
                               {photographerLinkCopied ? tPrivate.copied : tPrivate.copyLink}
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="border-white/[0.07] bg-[#141C2E] hover:bg-[#111827] hover:text-foreground"
-                              disabled={photographerLinkBusy}
-                              onClick={generatePhotographerLink}
-                            >
-                              {photographerLinkBusy ? (
-                                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                              )}
+                            <Button size="sm" variant="outline" className="border-white/[0.06] bg-surface hover:bg-elevated hover:text-foreground" disabled={photographerLinkBusy} onClick={generatePhotographerLink}>
+                              {photographerLinkBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
                               {tPrivate.regenerate}
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              className="h-9"
-                              disabled={photographerLinkBusy}
-                              onClick={revokePhotographerLink}
-                            >
+                            <Button size="sm" variant="destructive" className="h-9" disabled={photographerLinkBusy} onClick={revokePhotographerLink}>
                               <Trash2 className="mr-1.5 h-3.5 w-3.5" />
                               {tPrivate.revoke}
                             </Button>
@@ -1621,12 +1401,10 @@ export default function DashboardPage() {
       />
 
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="dark border-white/[0.07] bg-[#141C2E]">
+        <DialogContent className="border-white/[0.06] bg-surface">
           <DialogHeader>
-            <DialogTitle className="font-display text-lg font-bold text-white">{t.createNewRoomDialog}</DialogTitle>
-            <DialogDescription className="text-sm font-light text-muted-foreground">
-              {t.createRoomDesc}
-            </DialogDescription>
+            <DialogTitle className="font-display text-lg font-bold text-foreground">{t.createNewRoomDialog}</DialogTitle>
+            <DialogDescription className="text-sm font-light text-muted-foreground">{t.createRoomDesc}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -1635,7 +1413,7 @@ export default function DashboardPage() {
                 value={createName}
                 onChange={(e) => setCreateName(e.target.value)}
                 placeholder={t.roomNamePlaceholder}
-                className="h-11 rounded-lg border-white/[0.07] bg-[#0D1220] text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                className="h-11 rounded-xl border-white/[0.06] bg-raised text-foreground placeholder:text-muted-foreground"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && createName.trim().length >= 3 && !createBusy) createRoom()
                 }}
@@ -1645,11 +1423,7 @@ export default function DashboardPage() {
             {createError?.limit === 'room_count' ? (
               <div className="space-y-3">
                 <p className="text-sm text-destructive">{createError.error}</p>
-                <Button
-                  className="w-full glow-blue"
-                  disabled={checkoutBusy}
-                  onClick={() => startCheckout('professional', null, 'dashboard_create_room_limit')}
-                >
+                <Button className="w-full glow-accent" disabled={checkoutBusy} onClick={() => startCheckout('professional', null, 'dashboard_create_room_limit')}>
                   {checkoutBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.upgradeToProfessional}
                 </Button>
               </div>
@@ -1658,18 +1432,10 @@ export default function DashboardPage() {
             ) : null}
           </div>
           <DialogFooter>
-            <Button
-              variant="ghost"
-              onClick={() => setCreateDialogOpen(false)}
-              className="text-muted-foreground hover:text-foreground"
-            >
+            <Button variant="ghost" onClick={() => setCreateDialogOpen(false)} className="text-muted-foreground hover:text-foreground">
               {tCommon.cancel}
             </Button>
-            <Button
-              className="glow-blue"
-              disabled={createBusy || !createName.trim() || createName.trim().length < 3}
-              onClick={createRoom}
-            >
+            <Button className="glow-accent" disabled={createBusy || !createName.trim() || createName.trim().length < 3} onClick={createRoom}>
               {createBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.createRoomBtn}
             </Button>
           </DialogFooter>
@@ -1677,43 +1443,36 @@ export default function DashboardPage() {
       </Dialog>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent className="border-white/[0.07] bg-[#141C2E]">
+        <AlertDialogContent className="border-white/[0.06] bg-surface">
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-display text-lg font-bold text-white">{t.deleteRoomTitle}</AlertDialogTitle>
+            <AlertDialogTitle className="font-display text-lg font-bold text-foreground">{t.deleteRoomTitle}</AlertDialogTitle>
             <AlertDialogDescription className="text-sm font-light text-muted-foreground">
               {t.deleteRoomWarning} <strong className="text-foreground">{selectedEvent?.name}</strong> {t.deleteRoomAnd} {selectedEvent?.photos?.length || 0} {t.deleteRoomPhotos}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)} className="border-white/[0.07] bg-[#0D1220] text-foreground hover:bg-[#111827] hover:text-foreground">
+            <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)} className="border-white/[0.06] bg-raised text-foreground hover:bg-elevated hover:text-foreground">
               {tCommon.cancel}
             </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={deleteEvent}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
+            <AlertDialogAction onClick={deleteEvent} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               {tCommon.delete}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <footer className="relative z-10 border-t border-white/[0.07] bg-[#0D1220] py-8">
+      <footer className="relative z-10 border-t border-white/[0.04] bg-surface py-8">
         <div className="container px-4">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-            <div className="flex items-center gap-2">
-              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                <Camera className="h-3 w-3" />
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-subtle">
+                <Camera className="h-3.5 w-3.5" />
               </div>
               <span className="font-display text-sm font-bold tracking-tight text-primary">{t.brand}</span>
             </div>
-            <p className="text-xs font-light text-muted-foreground">
-              The easiest way to collect guest photos.
-            </p>
+            <p className="text-xs font-light text-muted-foreground">The easiest way to collect guest photos.</p>
             <div className="flex items-center gap-4">
-              <a href="/privacy" className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
-                Privacy Policy
-              </a>
+              <a href="/privacy" className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">Privacy Policy</a>
             </div>
           </div>
         </div>

@@ -11,7 +11,6 @@ const skeletonItems = Array.from({ length: 12 }, (_, index) => index)
 const ImageWithLazyLoad = ({ src, alt, className, onLoad }) => {
   const [status, setStatus] = useState('loading')
   const [isVisible, setIsVisible] = useState(false)
-  const t = useTranslations('room')
   const imgRef = useRef(null)
 
   useEffect(() => {
@@ -22,7 +21,7 @@ const ImageWithLazyLoad = ({ src, alt, className, onLoad }) => {
           if (entry.isIntersecting) {
             setIsVisible(true)
             try {
-              observer && observer.disconnect()
+              observer?.disconnect()
             } catch {
               // ignore
             }
@@ -41,7 +40,7 @@ const ImageWithLazyLoad = ({ src, alt, className, onLoad }) => {
 
     return () => {
       try {
-        observer && observer.disconnect()
+        observer?.disconnect()
       } catch {
         // ignore
       }
@@ -92,16 +91,15 @@ const PhotoGalleryGrid = ({
   emptyDescription,
 }) => {
   const t = useTranslations('room')
-  // Defensive: normalize and filter photos through the crash-proof layer
   const safePhotos = getRenderablePhotos(photos)
 
   if (loading && safePhotos.length === 0) {
     return (
-      <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5 md:grid-cols-4">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 md:grid-cols-4">
         {skeletonItems.map((item) => (
           <div 
             key={item} 
-            className="relative aspect-square animate-pulse rounded-lg bg-muted"
+            className="relative aspect-square animate-pulse rounded-xl bg-muted"
           />
         ))}
       </div>
@@ -110,7 +108,7 @@ const PhotoGalleryGrid = ({
 
   if (error) {
     return (
-      <div className="flex min-h-[200px] flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-border bg-muted/30 p-8 text-center">
+      <div className="flex min-h-[220px] flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-border bg-muted/30 p-8 text-center">
         <AlertCircle className="h-8 w-8 text-destructive/60" />
         <div>
           <p className="text-sm font-medium">{t.unableToLoadGallery}</p>
@@ -128,7 +126,7 @@ const PhotoGalleryGrid = ({
 
   if (safePhotos.length === 0) {
     return (
-      <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border bg-muted/30 p-8 text-center">
+      <div className="flex min-h-[220px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border bg-muted/30 p-8 text-center">
         <div className="rounded-2xl bg-primary/10 p-3">
           <ImageIcon className="h-6 w-6 text-primary/60" />
         </div>
@@ -141,11 +139,11 @@ const PhotoGalleryGrid = ({
   }
 
   return (
-    <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5 md:grid-cols-4">
+    <div className="grid grid-cols-3 gap-2 sm:gap-3 md:grid-cols-4">
       {safePhotos.map((photo, index) => (
         <button
           key={photo.id}
-          className="group relative aspect-square overflow-hidden rounded-lg bg-muted transition-transform duration-200 will-change-transform active:scale-95"
+          className="group relative aspect-square overflow-hidden rounded-xl bg-muted transition-transform duration-200 will-change-transform active:scale-95"
           onClick={() => onSelectPhoto?.(index)}
           type="button"
           aria-label={`${t.photo} ${index + 1} / ${safePhotos.length}${photo.originalName ? `, ${photo.originalName}` : ''}`}

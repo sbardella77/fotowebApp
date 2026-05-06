@@ -366,7 +366,7 @@ const PhotoLightbox = ({
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="border-white/[0.07] bg-[#141C2E] text-white min-w-[14rem]"
+              className="border-white/[0.06] bg-surface text-foreground min-w-[14rem]"
               onClick={(e) => e.stopPropagation()}
             >
               <DropdownMenuItem
@@ -379,7 +379,7 @@ const PhotoLightbox = ({
                     {t.standardQualityDesc}
                   </span>
                 </div>
-                <Check className="ml-auto h-4 w-4 text-emerald-400 shrink-0" />
+                <Check className="ml-auto h-4 w-4 text-success shrink-0" />
               </DropdownMenuItem>
 
               {canDownloadOriginal ? (
@@ -393,7 +393,7 @@ const PhotoLightbox = ({
                       {t.originalQualityDesc}
                     </span>
                   </div>
-                  <Check className="ml-auto h-4 w-4 text-emerald-400 shrink-0" />
+                  <Check className="ml-auto h-4 w-4 text-success shrink-0" />
                 </DropdownMenuItem>
               ) : isOwner ? (
                 <DropdownMenuItem

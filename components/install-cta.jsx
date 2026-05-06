@@ -13,13 +13,6 @@ import {
   EVENT_ADD_TO_HOME_SCREEN_HELP_OPENED,
 } from '@/lib/analytics/events'
 
-/**
- * Install / Add-to-Home-Screen CTA.
- *
- * Modes:
- * - "landing": generic SnapRooms install prompt for marketing pages.
- * - "room": room-specific prompt encouraging guests to save the room.
- */
 export function InstallCta({ mode = 'landing', className = '' }) {
   const { isInstallable, isIOS, isStandalone, isDesktop, hasPromptFired, prompt } =
     useInstallPrompt()
@@ -28,7 +21,6 @@ export function InstallCta({ mode = 'landing', className = '' }) {
   const [showHelp, setShowHelp] = useState(false)
   const [hasTrackedView, setHasTrackedView] = useState(false)
 
-  // Respect previous dismissal (session only for landing; localStorage for room)
   useEffect(() => {
     if (typeof window === 'undefined') return
     try {
@@ -37,7 +29,7 @@ export function InstallCta({ mode = 'landing', className = '' }) {
         setDismissed(true)
       }
     } catch {
-      // ignore localStorage errors
+      // ignore
     }
   }, [mode])
 
@@ -92,29 +84,29 @@ export function InstallCta({ mode = 'landing', className = '' }) {
   return (
     <>
       <div
-        className={`relative overflow-hidden rounded-2xl border border-white/[0.07] bg-[#141C2E] p-5 shadow-card ${className}`}
+        className={`group relative overflow-hidden rounded-2xl border border-white/[0.04] bg-surface p-5 shadow-card transition-colors hover:border-white/[0.08] ${className}`}
       >
         <button
           type="button"
           onClick={handleDismiss}
-          className="absolute right-3 top-3 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+          className="absolute right-3 top-3 rounded-lg p-1.5 text-muted-foreground opacity-60 transition-opacity hover:bg-white/5 hover:opacity-100"
           aria-label={t.dismiss}
         >
           <X className="h-4 w-4" />
         </button>
 
         <div className="flex items-start gap-4 pr-8">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-105">
             <PlatformIcon className="h-5 w-5" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-foreground">{t.title}</p>
+            <p className="font-display text-sm font-semibold text-foreground">{t.title}</p>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{description}</p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={handlePrimaryAction}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground transition-all hover:bg-primary/90 active:scale-[0.98]"
               >
                 <Download className="h-3.5 w-3.5" />
                 {primaryLabel}
@@ -126,7 +118,7 @@ export function InstallCta({ mode = 'landing', className = '' }) {
                     setShowHelp(true)
                     trackEvent(EVENT_ADD_TO_HOME_SCREEN_HELP_OPENED, { mode, platform: isIOS ? 'ios' : isDesktop ? 'desktop' : 'other' })
                   }}
-                  className="inline-flex items-center gap-1 rounded-md px-2.5 py-2 text-xs text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+                  className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
                 >
                   <Info className="h-3.5 w-3.5" />
                   {t.openSettings}
@@ -168,13 +160,13 @@ function InstallHelpModal({ isIOS, isDesktop, onClose }) {
       role="dialog"
       aria-modal="true"
     >
-      <div className="w-full max-w-sm rounded-t-2xl border border-white/[0.07] bg-[#141C2E] p-6 shadow-card sm:rounded-2xl">
+      <div className="w-full max-w-sm rounded-t-3xl border border-white/[0.06] bg-surface p-6 shadow-elevated sm:rounded-3xl">
         <div className="mb-5 flex items-center justify-between">
-          <h3 className="font-display text-base font-bold text-white">{t.openSettings}</h3>
+          <h3 className="font-display text-base font-bold text-foreground">{t.openSettings}</h3>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
             aria-label={t.close}
           >
             <X className="h-4 w-4" />
@@ -184,21 +176,21 @@ function InstallHelpModal({ isIOS, isDesktop, onClose }) {
         <div className="space-y-5">
           {isIOS ? (
             <div className="flex items-start gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <Share2 className="h-4 w-4" />
               </div>
               <p className="text-sm leading-relaxed text-muted-foreground">{t.iOSInstructions}</p>
             </div>
           ) : isDesktop ? (
             <div className="flex items-start gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <Monitor className="h-4 w-4" />
               </div>
               <p className="text-sm leading-relaxed text-muted-foreground">{t.desktopInstructions}</p>
             </div>
           ) : (
             <div className="flex items-start gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <Smartphone className="h-4 w-4" />
               </div>
               <p className="text-sm leading-relaxed text-muted-foreground">{t.fallbackInstructions}</p>
@@ -209,7 +201,7 @@ function InstallHelpModal({ isIOS, isDesktop, onClose }) {
         <button
           type="button"
           onClick={onClose}
-          className="mt-7 w-full rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+          className="mt-7 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
         >
           {t.dismiss}
         </button>

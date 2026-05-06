@@ -5,61 +5,56 @@ import { Button } from '@/components/ui/button'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { useTranslations } from '@/components/i18n-provider'
 
-function scrollToSection(sectionId) {
-  const element = document.getElementById(sectionId)
-  if (element) {
-    element.scrollIntoView({ behavior: 'smooth' })
-  }
-}
-
-export function MarketingNav({ variant = 'default', ctaAction = 'scroll' }) {
+export function MarketingNav({ variant = 'fixed' }) {
   const t = useTranslations('nav')
 
+  const navClass =
+    variant === 'fixed'
+      ? 'fixed top-0 left-0 right-0 z-50'
+      : 'relative'
+
   return (
-    <nav className="fixed top-0 left-0 right-0 z-40 border-b border-white/[0.07] bg-background/80 backdrop-blur-md">
-      <div className="container flex h-14 items-center justify-between px-4">
-        <a href="/" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Camera className="h-4 w-4" />
+    <nav className={`${navClass} border-b border-white/[0.04] bg-background/70 backdrop-blur-xl`}>
+      <div className="container flex h-16 items-center justify-between px-4">
+        <a href="/" className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-subtle">
+            <Camera className="h-[18px] w-[18px]" />
           </div>
-          <span className="font-display text-sm font-bold tracking-tight text-primary">SnapRooms</span>
+          <span className="font-display text-[15px] font-bold tracking-tight text-foreground">
+            SnapRooms
+          </span>
         </a>
 
-        <div className="flex items-center gap-2 sm:gap-4">
+        <div className="flex items-center gap-1 sm:gap-2">
           <a
             href="/pricing"
-            className="hidden text-sm text-muted-foreground hover:text-foreground sm:block"
+            className="hidden px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline"
           >
             {t.pricing}
           </a>
           <a
             href="/for-wedding-photographers"
-            className="hidden text-sm text-muted-foreground hover:text-foreground lg:block"
+            className="hidden px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground lg:inline"
           >
             {t.forPhotographers}
           </a>
           <a
             href="/for-event-planners"
-            className="hidden text-sm text-muted-foreground hover:text-foreground lg:block"
+            className="hidden px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground lg:inline"
           >
             {t.forPlanners}
           </a>
 
+          <div className="mx-1 hidden h-4 w-px bg-white/10 sm:block" />
+
           <LanguageSwitcher />
 
-          <Button size="sm" variant="ghost" asChild className="font-body">
+          <Button size="sm" variant="ghost" asChild className="hidden sm:inline-flex">
             <a href="/dashboard/login">{t.signIn}</a>
           </Button>
-
-          {ctaAction === 'scroll' ? (
-            <Button size="sm" onClick={() => scrollToSection('create')} className="font-body">
-              {t.createRoom}
-            </Button>
-          ) : (
-            <Button size="sm" asChild className="font-body">
-              <a href="/">{t.createRoom}</a>
-            </Button>
-          )}
+          <Button size="sm" asChild className="glow-accent">
+            <a href="/">{t.createRoom}</a>
+          </Button>
         </div>
       </div>
     </nav>

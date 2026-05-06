@@ -54,7 +54,7 @@ export function LanguageSwitcher({ className = '' }) {
 
       {open && (
         <div
-          className="absolute right-0 z-50 mt-2 w-40 rounded-lg border border-white/[0.07] bg-[#141C2E] shadow-card"
+          className="absolute right-0 z-50 mt-2 w-40 rounded-lg border border-white/[0.07] bg-surface shadow-card"
           role="listbox"
           aria-label="Select language"
         >

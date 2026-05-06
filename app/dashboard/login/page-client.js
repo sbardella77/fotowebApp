@@ -1,30 +1,30 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Camera, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { identifyUser } from '@/lib/analytics/track-client'
 import { useTranslations } from '@/components/i18n-provider'
+import { identifyUser } from '@/lib/analytics/track-client'
 
-export default function LoginPageClient({ redirect }) {
-  const t = useTranslations('auth')
+export default function LoginPageClient({ redirect = '/dashboard' }) {
   const router = useRouter()
-
+  const t = useTranslations('dashboard')
+  const tCommon = useTranslations('common')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [forgotMode, setForgotMode] = useState(false)
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [forgotBusy, setForgotBusy] = useState(false)
   const [forgotSent, setForgotSent] = useState(false)
-  const passwordRef = useRef(null)
 
-  const handleLogin = async (e) => {
-    e.preventDefault()
-    setError('')
+  const login = async () => {
     setBusy(true)
-
+    setMessage('')
     try {
       const response = await fetch('/api/owner/login', {
         method: 'POST',
@@ -32,187 +32,165 @@ export default function LoginPageClient({ redirect }) {
         body: JSON.stringify({ email: email.trim(), password }),
       })
       const payload = await response.json()
-
-      if (!response.ok) {
-        throw new Error(payload.error || t.signInFailed)
-      }
-
-      identifyUser(email.trim())
-
-      if (redirect && redirect.startsWith('/')) {
-        router.push(redirect)
-      } else {
-        router.push('/dashboard')
-      }
-    } catch (err) {
-      setError(err.message || t.signInFailed)
-      setBusy(false)
-    }
-  }
-
-  const handleForgot = async () => {
-    if (!email.trim()) {
-      setError(t.enterEmailFirst)
-      return
-    }
-    setError('')
-    setBusy(true)
-
-    try {
-      const response = await fetch('/api/owner/forgot-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
-      })
-      const payload = await response.json()
-
-      if (!response.ok) {
-        throw new Error(payload.error || t.unableToSendReset)
-      }
-
-      setForgotSent(true)
-    } catch (err) {
-      setError(err.message || t.unableToSendReset)
+      if (!response.ok) throw new Error(payload.error || t.signInFailed)
+      identifyUser(payload.email)
+      router.push(redirect)
+    } catch (error) {
+      setMessage(error.message || t.signInFailed)
     } finally {
       setBusy(false)
     }
   }
 
-  return (
-    <main className="dark relative flex min-h-screen flex-col bg-background font-body text-foreground">
-      <div className="absolute inset-0 bg-grid opacity-[0.03] pointer-events-none" />
+  const sendForgotLink = async () => {
+    setForgotBusy(true)
+    setMessage('')
+    try {
+      const response = await fetch('/api/owner/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail.trim() }),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload.error || t.somethingWentWrong)
+      }
+      setForgotSent(true)
+    } catch (error) {
+      setMessage(error.message || t.somethingWentWrong)
+    } finally {
+      setForgotBusy(false)
+    }
+  }
 
-      {/* Header */}
-      <header className="relative z-10 border-b border-white/[0.07] bg-background/80 backdrop-blur-md">
-        <div className="container flex h-14 items-center justify-between px-4">
-          <a href="/" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Camera className="h-4 w-4" />
+  return (
+    <main className="relative min-h-screen bg-background font-body text-foreground">
+      <div className="absolute inset-0 bg-grid opacity-[0.02] pointer-events-none" aria-hidden="true" />
+
+      <header className="relative z-10 border-b border-white/[0.04] bg-background/70 backdrop-blur-xl">
+        <div className="container flex h-16 items-center justify-between px-4">
+          <a href="/" className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-subtle">
+              <Camera className="h-[18px] w-[18px]" />
             </div>
-            <span className="font-display text-sm font-bold tracking-tight text-primary">SnapRooms</span>
+            <span className="font-display text-[15px] font-bold tracking-tight text-primary">SnapRooms</span>
           </a>
-          <a
-            href="/"
-            className="text-sm font-light text-muted-foreground transition-colors hover:text-foreground"
-          >
-            {t.backToHome}
-          </a>
+          <Button size="sm" variant="ghost" asChild className="text-muted-foreground">
+            <a href="/">{tCommon.back}</a>
+          </Button>
         </div>
       </header>
 
-      {/* Content */}
-      <div className="relative z-10 flex flex-1 items-center justify-center px-4 py-12">
-        <div className="w-full max-w-md">
-          {/* Login card */}
-          <div className="rounded-2xl border border-white/[0.07] bg-[#141C2E] shadow-card">
-            <div className="p-6 sm:p-8">
-              <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
-                {t.ownerAccess}
-              </span>
-              <h1 className="mt-2 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                {t.signInToManage}
-              </h1>
-              <p className="mt-2 text-sm font-light text-muted-foreground">
-                {t.accessYourRooms}
-              </p>
+      <div className="relative z-10 flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center px-4 py-12">
+        <div className="w-full max-w-sm">
+          <div className="mb-8 text-center">
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <Camera className="h-8 w-8" />
+            </div>
+            <h1 className="font-display text-2xl font-bold tracking-[-0.02em] text-foreground">
+              {forgotMode ? t.resetYourPassword : t.signInToManage}
+            </h1>
+            <p className="mt-3 text-sm font-light leading-relaxed text-muted-foreground">
+              {forgotMode ? t.enterEmailForReset : t.accessYourRooms}
+            </p>
+          </div>
 
-              <form onSubmit={handleLogin} className="mt-6 space-y-4">
+          {forgotMode ? (
+            <div className="rounded-2xl border border-white/[0.06] bg-surface p-6 shadow-card">
+              <div className="space-y-4">
+                {forgotSent ? (
+                  <div className="rounded-xl border border-white/[0.06] bg-raised p-4 text-sm text-muted-foreground text-center">
+                    {t.resetSent}
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">{t.emailLabel}</label>
+                      <Input
+                        type="email"
+                        value={forgotEmail}
+                        onChange={(e) => setForgotEmail(e.target.value)}
+                        placeholder={t.emailPlaceholder}
+                        className="h-11 rounded-xl border-white/[0.06] bg-raised text-foreground placeholder:text-muted-foreground"
+                        onKeyDown={(e) => { if (e.key === 'Enter' && forgotEmail.trim()) sendForgotLink() }}
+                      />
+                    </div>
+                    {message && <p className="text-sm text-destructive">{message}</p>}
+                    <Button className="w-full h-11 glow-accent" disabled={forgotBusy || !forgotEmail.trim()} onClick={sendForgotLink}>
+                      {forgotBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.sendResetLink}
+                    </Button>
+                  </>
+                )}
+                <div className="text-center pt-2">
+                  <button
+                    type="button"
+                    className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline transition-colors"
+                    onClick={() => { setForgotMode(false); setForgotEmail(''); setForgotSent(false); setMessage('') }}
+                  >
+                    {t.backToSignIn}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-white/[0.06] bg-surface p-6 shadow-card">
+              <div className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">{t.emailLabel}</label>
                   <Input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        passwordRef.current?.focus()
-                      }
-                    }}
                     placeholder={t.emailPlaceholder}
-                    disabled={busy}
-                    required
-                    autoFocus
-                    className="h-11 border-white/[0.07] bg-[#0D1220] text-foreground placeholder:text-muted-foreground/60"
+                    className="h-11 rounded-xl border-white/[0.06] bg-raised text-foreground placeholder:text-muted-foreground"
                   />
                 </div>
-
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">{t.passwordLabel}</label>
                   <div className="relative">
                     <Input
-                      ref={passwordRef}
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder={t.passwordPlaceholder}
-                      disabled={busy}
-                      required
-                      className="h-11 border-white/[0.07] bg-[#0D1220] pr-10 text-foreground placeholder:text-muted-foreground/60"
+                      className="h-11 rounded-xl border-white/[0.06] bg-raised text-foreground placeholder:text-muted-foreground"
+                      onKeyDown={(e) => { if (e.key === 'Enter' && email.trim() && password) login() }}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
-                      tabIndex={-1}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                 </div>
-
-                {error && (
-                  <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm font-light text-red-400">
-                    {error}
-                  </div>
-                )}
-
-                {forgotSent && (
-                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm font-light text-emerald-400">
-                    {t.resetSent}
-                  </div>
-                )}
-
-                <Button
-                  type="submit"
-                  className="h-11 w-full glow-blue"
-                  disabled={busy || !email.trim() || !password}
-                >
+                {message && <p className="text-sm text-destructive">{message}</p>}
+                <Button className="w-full h-11 glow-accent" disabled={busy || !email.trim() || !password} onClick={login}>
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.signIn}
                 </Button>
-
-                <p className="text-center text-xs font-light text-muted-foreground/70">
-                  {t.trustNote}
-                </p>
-              </form>
-
-              <div className="mt-4 text-center">
-                <button
-                  type="button"
-                  onClick={handleForgot}
-                  disabled={busy}
-                  className="text-sm font-light text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-                >
-                  {t.forgotPassword}
-                </button>
+                <div className="text-center pt-1">
+                  <button
+                    type="button"
+                    className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline transition-colors"
+                    onClick={() => { setForgotMode(true); setMessage(''); if (email.trim()) setForgotEmail(email.trim()) }}
+                  >
+                    {t.forgotPassword}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Footer */}
-          <div className="mt-6 space-y-2 text-center">
-            <p className="text-xs font-light text-muted-foreground">
-              {t.noRoomsYet}{' '}
-              <a href="/" className="text-primary transition-colors hover:underline">
-                {t.createYourFirstRoom}
-              </a>
-            </p>
-            <p className="text-xs font-light text-muted-foreground/70">
-              <a href="/privacy" className="transition-colors hover:text-muted-foreground">
-                {t.privacyPolicy}
-              </a>
-            </p>
-          </div>
+          <p className="mt-8 text-center text-xs text-muted-foreground">
+            {t.noRoomsYet}{' '}
+            <a href="/" className="underline underline-offset-2 hover:text-foreground transition-colors">
+              {t.createYourRoom}
+            </a>
+          </p>
+          <p className="mt-2 text-center text-[11px] text-muted-foreground/70">
+            <a href="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</a>
+          </p>
         </div>
       </div>
     </main>
