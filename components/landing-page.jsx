@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import {
   Camera,
   Heart,
@@ -50,6 +50,109 @@ function useScrollReveal() {
   }, [])
 }
 
+/* ── A/B Test Configuration ────────────────────────────────────────────── */
+// Cambia questa stringa per testare varianti di copy sulla CTA principale.
+// Le traduzioni esistenti (t.ctaButton / t.finalCta) restano il fallback.
+const CTA_VARIANT = 'default' // 'default' | 'action' | 'personal' | 'short'
+
+function getCtaCopy(t, variant) {
+  const copies = {
+    default: { hero: t.ctaButton, final: t.finalCta },
+    action: { hero: 'Create your free event — start now', final: 'Start your free event' },
+    personal: { hero: 'Create my free event', final: 'Create my event now' },
+    short: { hero: 'Create event', final: 'Create event' },
+  }
+  return copies[variant] || copies.default
+}
+
+/* ── Hero Demo Loop (CSS-only fallback) ────────────────────────────────── */
+function HeroDemoLoop() {
+  return (
+    <div className="relative mx-auto mt-8 max-w-[240px] overflow-hidden rounded-2xl border border-white/[0.08] bg-raised/80 p-4 shadow-elevated backdrop-blur-sm">
+      <div className="flex items-center justify-between pb-3">
+        <div className="flex items-center gap-2">
+          <div className="h-2 w-2 rounded-full bg-red-400/80" />
+          <div className="h-2 w-2 rounded-full bg-amber-400/80" />
+          <div className="h-2 w-2 rounded-full bg-emerald-400/80" />
+        </div>
+        <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Preview</span>
+      </div>
+      <div className="relative h-32">
+        {/* Step 1: Create */}
+        <div className="demo-step absolute inset-0 flex flex-col items-center justify-center gap-2">
+          <Sparkles className="h-6 w-6 text-primary" />
+          <p className="text-xs font-semibold text-foreground">Create your event</p>
+          <div className="h-6 w-32 rounded-md bg-surface border border-white/[0.06]" />
+        </div>
+        {/* Step 2: Share QR */}
+        <div className="demo-step absolute inset-0 flex flex-col items-center justify-center gap-2" style={{ animationDelay: '1.6s' }}>
+          <QrCode className="h-6 w-6 text-primary" />
+          <p className="text-xs font-semibold text-foreground">Share QR code</p>
+          <div className="h-10 w-10 rounded-md bg-white border-2 border-dashed border-white/[0.15]" />
+        </div>
+        {/* Step 3: Photos arrive */}
+        <div className="demo-step absolute inset-0 flex flex-col items-center justify-center gap-2" style={{ animationDelay: '3.2s' }}>
+          <ImagePlus className="h-6 w-6 text-primary" />
+          <p className="text-xs font-semibold text-foreground">Photos arrive</p>
+          <div className="flex gap-1">
+            <div className="h-8 w-8 rounded-md bg-gradient-to-br from-rose-300/30 to-rose-500/10" />
+            <div className="h-8 w-8 rounded-md bg-gradient-to-br from-sky-300/30 to-sky-500/10" />
+            <div className="h-8 w-8 rounded-md bg-gradient-to-br from-emerald-300/30 to-emerald-500/10" />
+          </div>
+        </div>
+      </div>
+      <style jsx>{`
+        .demo-step {
+          opacity: 0;
+          transform: translateY(8px) scale(0.98);
+          animation: demoCycle 4.8s ease-in-out infinite;
+        }
+        @keyframes demoCycle {
+          0%, 100% { opacity: 0; transform: translateY(8px) scale(0.98); }
+          6% { opacity: 1; transform: translateY(0) scale(1); }
+          27% { opacity: 1; transform: translateY(0) scale(1); }
+          33% { opacity: 0; transform: translateY(-8px) scale(0.98); }
+        }
+      `}</style>
+    </div>
+  )
+}
+
+/* ── Live Mockup Micro-interactions ────────────────────────────────────── */
+function useLiveMockup() {
+  const [photoCount, setPhotoCount] = useState(47)
+  const [toast, setToast] = useState({ text: 'Mike uploaded 3 photos', visible: true })
+
+  useEffect(() => {
+    const toasts = [
+      { text: 'Mike uploaded 3 photos', delay: 0 },
+      { text: 'Sarah joined the event', delay: 5000 },
+      { text: 'New photo from James', delay: 10000 },
+    ]
+
+    let toastIndex = 0
+    const toastInterval = setInterval(() => {
+      toastIndex = (toastIndex + 1) % toasts.length
+      setToast({ text: toasts[toastIndex].text, visible: false })
+      // small delay to restart animation
+      requestAnimationFrame(() => {
+        setTimeout(() => setToast({ text: toasts[toastIndex].text, visible: true }), 50)
+      })
+    }, 5000)
+
+    const countInterval = setInterval(() => {
+      setPhotoCount((c) => (c >= 52 ? 47 : c + 1))
+    }, 4000)
+
+    return () => {
+      clearInterval(toastInterval)
+      clearInterval(countInterval)
+    }
+  }, [])
+
+  return { photoCount, toast }
+}
+
 export function LandingPage({
   locale,
   onCreateEvent,
@@ -64,6 +167,8 @@ export function LandingPage({
   const t = useTranslations('landing')
   const tNav = useTranslations('nav')
   const tFooter = useTranslations('footer')
+  const cta = getCtaCopy(t, CTA_VARIANT)
+  const { photoCount, toast } = useLiveMockup()
   useScrollReveal()
 
   return (
@@ -155,7 +260,7 @@ export function LandingPage({
                     <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
                   ) : (
                     <>
-                      {t.ctaButton}
+                      {cta.hero}
                       <ArrowRight className="h-5 w-5" />
                     </>
                   )}
@@ -204,6 +309,8 @@ export function LandingPage({
                   {t.signInLink}
                 </a>
               </p>
+
+              <HeroDemoLoop />
             </div>
           </div>
         </div>
@@ -417,19 +524,40 @@ export function LandingPage({
                     {/* Screen content */}
                     <div className="rounded-[2rem] border border-white/[0.06] bg-surface overflow-hidden">
                       {/* Header */}
-                      <div className="border-b border-white/[0.06] bg-raised/60 px-5 py-4">
-                        <p className="font-display text-sm font-bold text-foreground truncate">Sarah & Mike&apos;s Wedding</p>
-                        <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">snaprooms.app/room/sarah-mike</p>
+                      <div className="border-b border-white/[0.06] bg-raised/60 px-4 py-3.5 flex items-center justify-between">
+                        <div>
+                          <p className="font-display text-sm font-bold text-foreground truncate">Sarah & Mike&apos;s Wedding</p>
+                          <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">snaprooms.app/room/sarah-mike</p>
+                        </div>
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
+                          <Share2 className="h-3.5 w-3.5" />
+                        </div>
                       </div>
 
-                      {/* Photo grid preview */}
-                      <div className="grid grid-cols-3 gap-1 p-3">
-                        <div className="aspect-square rounded-xl bg-gradient-to-br from-rose-300/20 to-rose-500/10" />
-                        <div className="aspect-square rounded-xl bg-gradient-to-br from-amber-300/20 to-amber-500/10" />
-                        <div className="aspect-square rounded-xl bg-gradient-to-br from-emerald-300/20 to-emerald-500/10" />
-                        <div className="aspect-square rounded-xl bg-gradient-to-br from-sky-300/20 to-sky-500/10" />
-                        <div className="aspect-square rounded-xl bg-gradient-to-br from-violet-300/20 to-violet-500/10" />
-                        <div className="aspect-square rounded-xl bg-gradient-to-br from-orange-300/20 to-orange-500/10" />
+                      {/* Photo grid preview — richer, polaroid-like */}
+                      <div className="grid grid-cols-3 gap-1.5 p-3">
+                        <div className="relative aspect-square rounded-lg bg-gradient-to-br from-rose-300/25 to-rose-600/10 border border-white/[0.06] shadow-subtle overflow-hidden">
+                          <div className="absolute bottom-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-black/30 backdrop-blur-sm">
+                            <Heart className="h-2.5 w-2.5 text-rose-300" />
+                          </div>
+                        </div>
+                        <div className="relative aspect-square rounded-lg bg-gradient-to-br from-amber-300/25 to-amber-600/10 border border-white/[0.06] shadow-subtle overflow-hidden" />
+                        <div className="relative aspect-square rounded-lg bg-gradient-to-br from-emerald-300/25 to-emerald-600/10 border border-white/[0.06] shadow-subtle overflow-hidden">
+                          <div className="absolute bottom-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-black/30 backdrop-blur-sm">
+                            <Heart className="h-2.5 w-2.5 text-emerald-300" />
+                          </div>
+                        </div>
+                        <div className="relative aspect-square rounded-lg bg-gradient-to-br from-sky-300/25 to-sky-600/10 border border-white/[0.06] shadow-subtle overflow-hidden" />
+                        <div className="relative aspect-square rounded-lg bg-gradient-to-br from-violet-300/25 to-violet-600/10 border border-white/[0.06] shadow-subtle overflow-hidden">
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Users className="h-5 w-5 text-white/20" />
+                          </div>
+                        </div>
+                        <div className="relative aspect-square rounded-lg bg-gradient-to-br from-orange-300/25 to-orange-600/10 border border-white/[0.06] shadow-subtle overflow-hidden">
+                          <div className="absolute bottom-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-black/30 backdrop-blur-sm">
+                            <Heart className="h-2.5 w-2.5 text-orange-300" />
+                          </div>
+                        </div>
                       </div>
 
                       {/* QR area */}
@@ -438,19 +566,15 @@ export function LandingPage({
                           {/* Stylized QR SVG */}
                           <svg width="96" height="96" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-foreground">
                             <rect width="96" height="96" rx="12" fill="currentColor" fillOpacity="0.06"/>
-                            {/* Top-left finder */}
                             <rect x="8" y="8" width="24" height="24" rx="4" fill="currentColor"/>
                             <rect x="12" y="12" width="16" height="16" rx="2" fill="hsl(var(--bg-raised))"/>
                             <rect x="16" y="16" width="8" height="8" rx="2" fill="currentColor"/>
-                            {/* Top-right finder */}
                             <rect x="64" y="8" width="24" height="24" rx="4" fill="currentColor"/>
                             <rect x="68" y="12" width="16" height="16" rx="2" fill="hsl(var(--bg-raised))"/>
                             <rect x="72" y="16" width="8" height="8" rx="2" fill="currentColor"/>
-                            {/* Bottom-left finder */}
                             <rect x="8" y="64" width="24" height="24" rx="4" fill="currentColor"/>
                             <rect x="12" y="68" width="16" height="16" rx="2" fill="hsl(var(--bg-raised))"/>
                             <rect x="16" y="72" width="8" height="8" rx="2" fill="currentColor"/>
-                            {/* Data modules */}
                             <rect x="36" y="8" width="8" height="8" rx="2" fill="currentColor"/>
                             <rect x="48" y="8" width="8" height="8" rx="2" fill="currentColor"/>
                             <rect x="36" y="20" width="8" height="8" rx="2" fill="currentColor"/>
@@ -490,19 +614,21 @@ export function LandingPage({
                     <div className="absolute -left-4 bottom-1/3 rounded-full border border-white/[0.08] bg-elevated px-3.5 py-2 text-xs font-medium shadow-elevated">
                       <span className="flex items-center gap-1.5">
                         <Users className="h-3.5 w-3.5 text-primary" />
-                        <span className="font-mono text-[10px] text-foreground">47 photos</span>
+                        <span className="font-mono text-[10px] text-foreground">{photoCount} photos</span>
                       </span>
                     </div>
                     {/* Live toast */}
-                    <div className="absolute -right-2 bottom-8 rounded-full border border-white/[0.08] bg-elevated px-3 py-1.5 shadow-elevated animate-fade-in">
-                      <span className="flex items-center gap-1.5">
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75" />
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-success" />
+                    {toast.visible && (
+                      <div key={toast.text} className="absolute -right-2 bottom-8 rounded-full border border-white/[0.08] bg-elevated px-3 py-1.5 shadow-elevated animate-fade-in">
+                        <span className="flex items-center gap-1.5">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75" />
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-success" />
+                          </span>
+                          <span className="font-mono text-[10px] text-foreground">{toast.text}</span>
                         </span>
-                        <span className="font-mono text-[10px] text-foreground">Mike uploaded 3 photos</span>
-                      </span>
-                    </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -563,7 +689,7 @@ export function LandingPage({
                   <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
                 ) : (
                   <>
-                    {t.finalCta}
+                    {cta.final}
                     <ArrowRight className="h-5 w-5" />
                   </>
                 )}
