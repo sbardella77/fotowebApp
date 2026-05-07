@@ -12,11 +12,11 @@ export function HowItWorks({ steps, t }) {
   const displaySteps = steps || defaultSteps
 
   return (
-    <div className="grid gap-8 sm:grid-cols-3">
+    <div className="grid gap-6 sm:gap-8 sm:grid-cols-3">
       {displaySteps.map((step, i) => (
         <div
           key={step.num}
-          className="reveal relative flex flex-col items-center text-center group"
+          className="reveal relative flex flex-col items-center text-center group rounded-2xl border border-white/[0.06] bg-raised/50 p-6 sm:bg-transparent sm:border-transparent sm:p-0"
           style={{ transitionDelay: `${i * 100}ms` }}
         >
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-surface border border-white/[0.08] text-primary shadow-subtle transition-all duration-300 group-hover:border-primary/30 group-hover:shadow-glow">

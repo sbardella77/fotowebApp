@@ -4,11 +4,11 @@ import { CheckCircle2 } from 'lucide-react'
 
 export function UseCaseCards({ cases }) {
   return (
-    <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-4 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3">
       {cases.map((item, i) => (
         <div
           key={item.title}
-          className="reveal group relative overflow-hidden rounded-xl border border-white/[0.08] bg-surface p-6 transition-all duration-300 hover:-translate-y-1 hover:border-white/[0.12] hover:shadow-elevated"
+          className="reveal group relative overflow-hidden rounded-xl border border-white/[0.08] bg-raised p-6 transition-all duration-300 hover:-translate-y-1 hover:border-white/[0.12] hover:shadow-elevated"
           style={{ transitionDelay: `${i * 80}ms` }}
         >
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-raised border border-white/[0.08]">

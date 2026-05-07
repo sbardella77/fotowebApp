@@ -95,13 +95,20 @@ export function LandingPage({
             </div>
             <span className="font-display text-[15px] font-bold tracking-tight text-foreground">SnapRooms</span>
           </a>
-          <div className="flex items-center gap-1 sm:gap-2">
+          <div className="flex items-center gap-2 sm:gap-2">
             <button
               onClick={() => scrollToSection('how-it-works')}
               className="hidden px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline"
             >
               {tNav.howItWorks}
             </button>
+            {/* Mobile Sign In — visible text link with high contrast */}
+            <a
+              href="/dashboard/login"
+              className="inline-flex items-center px-2 py-2 text-sm font-semibold text-foreground transition-colors hover:text-primary sm:hidden"
+            >
+              {tNav.signIn}
+            </a>
             <Button size="sm" variant="ghost" asChild className="hidden sm:inline-flex text-muted-foreground hover:text-foreground">
               <a href="/dashboard/login">{tNav.signIn}</a>
             </Button>
@@ -144,25 +151,25 @@ export function LandingPage({
 
               {/* CTA Form */}
               <div id="create" className="animate-fade-up delay-300 mt-10">
-                <div className="rounded-2xl border border-white/[0.08] bg-raised/60 p-6 shadow-elevated backdrop-blur-sm">
+                <div className="rounded-2xl border border-white/[0.08] bg-raised p-5 sm:p-6 shadow-elevated sm:bg-raised/60 sm:backdrop-blur-sm">
                   <div className="flex flex-col gap-3 sm:flex-row">
                     <Input
                       value={eventName}
                       onChange={(e) => setEventName(e.target.value)}
                       placeholder={t.roomNamePlaceholder}
-                      className="h-12 flex-1 rounded-xl border-input bg-surface text-base font-body text-foreground placeholder:text-muted-foreground shadow-subtle"
+                      className="h-12 flex-1 rounded-xl border-white/[0.12] bg-surface text-base font-body text-foreground placeholder:text-muted-foreground shadow-subtle"
                     />
                     <Input
                       type="email"
                       value={ownerEmail}
                       onChange={(e) => setOwnerEmail(e.target.value)}
                       placeholder={t.emailPlaceholder}
-                      className="h-12 flex-1 rounded-xl border-input bg-surface text-base font-body text-foreground placeholder:text-muted-foreground shadow-subtle"
+                      className="h-12 flex-1 rounded-xl border-white/[0.12] bg-surface text-base font-body text-foreground placeholder:text-muted-foreground shadow-subtle"
                     />
                   </div>
                   <Button
                     size="lg"
-                    className="mt-3 h-12 w-full gap-2 rounded-xl px-8 text-base font-body font-bold whitespace-nowrap cta-primary tracking-tight"
+                    className="mt-3 h-14 sm:h-12 w-full gap-2 rounded-xl px-8 text-base font-body font-bold whitespace-nowrap cta-primary tracking-tight"
                     onClick={() => {
                       trackEvent(EVENT_HERO_CTA_CLICKED, { page_type: 'landing', variant: 'generic', position: 'hero' })
                       onCreateEvent()
@@ -232,20 +239,20 @@ export function LandingPage({
       </section>
 
       {/* How It Works */}
-      <section id="how-it-works" className="border-t border-white/[0.06] py-24 sm:py-32">
+      <section id="how-it-works" className="border-t border-white/[0.06] bg-surface py-20 sm:py-28">
         <div className="container px-4">
           <SectionHeader label={t.hiwLabel} title={t.hiwTitle} description={t.hiwDesc} />
-          <div className="mx-auto mt-16 max-w-5xl">
+          <div className="mx-auto mt-14 sm:mt-16 max-w-5xl">
             <HowItWorks t={t} />
           </div>
         </div>
       </section>
 
       {/* Use Cases */}
-      <section className="border-t border-white/[0.06] py-24 sm:py-32">
+      <section className="border-t border-white/[0.06] py-20 sm:py-28">
         <div className="container px-4">
           <SectionHeader label={t.useCasesLabel} title={t.useCasesTitle} description={t.useCasesDesc} />
-          <div className="mx-auto mt-16 max-w-5xl">
+          <div className="mx-auto mt-14 sm:mt-16 max-w-5xl">
             <UseCaseCards
               cases={[
                 { icon: Heart, color: 'text-rose-400', title: t.weddings, desc: t.weddingsDesc, bullets: [t.weddingsBullet1, t.weddingsBullet2] },
@@ -258,10 +265,10 @@ export function LandingPage({
       </section>
 
       {/* Social Proof */}
-      <section className="border-t border-white/[0.06] py-24 sm:py-32">
+      <section className="border-t border-white/[0.06] bg-surface py-20 sm:py-28">
         <div className="container px-4">
-          <div className="reveal mx-auto max-w-3xl text-center">
-            <p className="text-xl text-foreground font-display leading-relaxed">
+          <div className="reveal mx-auto max-w-3xl rounded-2xl border border-white/[0.08] bg-raised p-8 sm:p-10 text-center shadow-card">
+            <p className="text-xl sm:text-2xl text-foreground font-display leading-relaxed">
               &ldquo;{t.quote}
               <span className="text-primary">{t.quoteHighlight}</span>&rdquo;
             </p>
@@ -275,7 +282,7 @@ export function LandingPage({
       {/* Final CTA */}
       <section className="border-t border-white/[0.06] py-24 sm:py-32">
         <div className="container px-4">
-          <div className="reveal mx-auto max-w-2xl rounded-2xl border border-white/[0.08] bg-raised/60 p-6 sm:p-8 shadow-elevated backdrop-blur-sm text-center">
+          <div className="reveal mx-auto max-w-2xl rounded-2xl border border-white/[0.08] bg-raised p-6 sm:p-8 shadow-elevated sm:bg-raised/60 sm:backdrop-blur-sm text-center">
             <h2 className="font-display text-3xl font-extrabold tracking-[-0.02em] text-foreground sm:text-4xl lg:text-5xl text-balance text-shadow-sm">
               {t.finalTitle}
             </h2>
@@ -328,29 +335,29 @@ export function LandingPage({
       </div>
 
       {/* Footer */}
-      <footer className="border-t border-border bg-surface py-12">
+      <footer className="border-t border-white/[0.06] bg-background py-12">
         <div className="container px-4">
           <div className="flex flex-col items-center justify-between gap-5 sm:flex-row">
             <div className="flex items-center gap-2.5">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-subtle">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-glow">
                 <Camera className="h-3.5 w-3.5" />
               </div>
-              <span className="font-display text-sm font-bold tracking-tight text-primary">SnapRooms</span>
+              <span className="font-display text-sm font-bold tracking-tight text-foreground">SnapRooms</span>
             </div>
-            <p className="text-xs font-normal text-muted-foreground">
+            <p className="text-xs font-medium text-muted-foreground text-center sm:text-left max-w-xs">
               {tFooter.tagline}
             </p>
             <div className="flex flex-wrap items-center justify-center gap-5">
-              <a href="/pricing" className="text-xs font-normal text-muted-foreground hover:text-foreground transition-colors">
+              <a href="/pricing" className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
                 {tFooter.pricing}
               </a>
-              <a href="/privacy" className="text-xs font-normal text-muted-foreground hover:text-foreground transition-colors">
+              <a href="/privacy" className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
                 {tFooter.privacy}
               </a>
-              <a href="/terms" className="text-xs font-normal text-muted-foreground hover:text-foreground transition-colors">
+              <a href="/terms" className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
                 {tFooter.terms}
               </a>
-              <a href="/dashboard/login" className="text-xs font-normal text-muted-foreground hover:text-foreground transition-colors">
+              <a href="/dashboard/login" className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
                 {tFooter.organizerSignIn}
               </a>
             </div>

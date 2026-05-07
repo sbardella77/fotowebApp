@@ -24,9 +24,9 @@
 
     /* Foreground scale */
     --text-primary: 0 0% 98%;      /* #fafafa */
-    --text-secondary: 220 10% 72%; /* #aeb2bc */
-    --text-muted: 220 8% 50%;      /* #767986 */
-    --text-disabled: 220 8% 36%;   /* #56585f */
+    --text-secondary: 220 10% 78%; /* #b8bcc8 — increased for mobile readability */
+    --text-muted: 220 8% 58%;      /* #838699 — increased for mobile readability */
+    --text-disabled: 220 8% 40%;   /* #5e6068 */
 
     /* Accent (lime/yellow — bold, high-conversion) */
     --accent: 78 95% 55%;          /* #d4f935 — electric lime */
@@ -247,10 +247,20 @@
     inset: 0;
     pointer-events: none;
     z-index: 9999;
-    opacity: 0.04;
+    opacity: 0.025;
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
     background-repeat: repeat;
     background-size: 256px 256px;
+  }
+
+  @media (max-width: 640px) {
+    .bg-grid {
+      opacity: 0.04 !important;
+      background-size: 48px 48px !important;
+    }
+    .noise-overlay {
+      opacity: 0.015 !important;
+    }
   }
 
   .text-shadow {

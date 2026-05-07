@@ -25,7 +25,7 @@ export function MarketingNav({ variant = 'fixed' }) {
           </span>
         </a>
 
-        <div className="flex items-center gap-1 sm:gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <a
             href="/pricing"
             className="hidden px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline"
@@ -49,6 +49,13 @@ export function MarketingNav({ variant = 'fixed' }) {
 
           <LanguageSwitcher />
 
+          {/* Mobile Sign In — visible, high contrast, comfortable touch target */}
+          <a
+            href="/dashboard/login"
+            className="inline-flex items-center px-3 py-2 text-sm font-semibold text-foreground transition-colors hover:text-primary sm:hidden"
+          >
+            {t.signIn}
+          </a>
           <Button size="sm" variant="ghost" asChild className="hidden sm:inline-flex text-muted-foreground hover:text-foreground">
             <a href="/dashboard/login">{t.signIn}</a>
           </Button>
