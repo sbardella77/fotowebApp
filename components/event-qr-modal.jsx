@@ -57,7 +57,8 @@ export function EventQRModal({
   isOpen, 
   onClose, 
   event,
-  baseUrl = typeof window !== 'undefined' ? window.location.origin : '' 
+  baseUrl = typeof window !== 'undefined' ? window.location.origin : '',
+  className = ''
 }) {
   const t = useTranslations('room')
   const tCommon = useTranslations('common')
@@ -230,7 +231,7 @@ export function EventQRModal({
         onClick={onClose}
       >
         <div
-          className="relative my-auto w-full max-w-md overflow-hidden rounded-2xl bg-background shadow-2xl max-h-[90vh] overflow-y-auto overscroll-contain"
+          className={`relative my-auto w-full max-w-md overflow-hidden rounded-2xl bg-background shadow-2xl max-h-[90vh] overflow-y-auto overscroll-contain ${className}`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Modal Header with gradient */}

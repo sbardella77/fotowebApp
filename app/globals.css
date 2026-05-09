@@ -93,29 +93,29 @@
   }
 
   .dark {
-    /* Dark support — graphite premium */
-    --bg-base: 0 0% 12%;            /* #1F1F1F */
-    --bg-surface: 0 0% 18%;         /* #2F2F2F */
-    --bg-raised: 0 0% 23%;          /* #3A3A3A */
-    --bg-elevated: 0 0% 27%;        /* #454545 */
-    --bg-overlay: 0 0% 12% / 0.85;
+    /* Dark support — warm graphite premium */
+    --bg-base: 40 5% 16%;           /* #2A2A28 — warm graphite */
+    --bg-surface: 40 5% 24%;        /* #3D3D3A — softer card surface */
+    --bg-raised: 40 5% 29%;         /* #4A4A46 — raised surface */
+    --bg-elevated: 40 5% 34%;       /* #555550 — elevated surface */
+    --bg-overlay: 40 5% 16% / 0.85;
 
-    --text-primary: 0 0% 98%;       /* #fafafa */
-    --text-secondary: 220 10% 78%;  /* #b8bcc8 */
-    --text-muted: 220 8% 58%;       /* #838699 */
-    --text-disabled: 220 8% 40%;    /* #5e6068 */
+    --text-primary: 40 10% 95%;     /* #F2F0EB — warm white */
+    --text-secondary: 40 8% 78%;    /* #CCC8C0 — warm gray */
+    --text-muted: 40 6% 58%;        /* #A09C94 — warm muted */
+    --text-disabled: 40 5% 45%;     /* #8A8880 — soft disabled */
 
-    --accent: 78 95% 55%;           /* #d4f935 */
-    --accent-hover: 78 100% 62%;    /* #e0ff52 */
-    --accent-active: 78 90% 48%;    /* #c2e02a */
-    --accent-soft: 78 95% 55% / 0.12;
-    --accent-ghost: 78 95% 55% / 0.06;
-    --accent-glow: 78 95% 55% / 0.35;
-    --accent-dark: 78 95% 55%;      /* same as accent in dark */
+    --accent: 68 50% 48%;           /* #A8B838 — sophisticated lime */
+    --accent-hover: 68 55% 53%;     /* #B8C848 — luminous but not electric */
+    --accent-active: 68 45% 43%;    /* #98A828 — pressed state */
+    --accent-soft: 68 50% 48% / 0.12;
+    --accent-ghost: 68 50% 48% / 0.06;
+    --accent-glow: 68 50% 48% / 0.25;
+    --accent-dark: 68 50% 48%;      /* same as accent in dark */
 
-    --border-subtle: 0 0% 100% / 0.08;
-    --border-visible: 0 0% 100% / 0.12;
-    --border-focus: 78 95% 55%;
+    --border-subtle: 40 8% 100% / 0.09;
+    --border-visible: 40 8% 100% / 0.13;
+    --border-focus: 68 55% 53%;
 
     --background: var(--bg-base);
     --foreground: var(--text-primary);
@@ -123,8 +123,8 @@
     --card-foreground: var(--text-primary);
     --popover: var(--bg-raised);
     --popover-foreground: var(--text-primary);
-    --primary: var(--accent);
-    --primary-foreground: 0 0% 100%;
+    --primary: var(--accent-hover);
+    --primary-foreground: 40 10% 95%;
     --secondary: var(--bg-raised);
     --secondary-foreground: var(--text-primary);
     --muted: var(--bg-raised);
@@ -135,16 +135,16 @@
     --destructive-foreground: var(--text-primary);
     --border: var(--border-subtle);
     --input: var(--border-visible);
-    --ring: var(--accent);
+    --ring: var(--accent-hover);
 
     --sidebar-background: var(--bg-base);
     --sidebar-foreground: var(--text-primary);
-    --sidebar-primary: var(--accent);
-    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-primary: var(--accent-hover);
+    --sidebar-primary-foreground: 40 10% 95%;
     --sidebar-accent: var(--bg-raised);
     --sidebar-accent-foreground: var(--text-primary);
     --sidebar-border: var(--border-subtle);
-    --sidebar-ring: var(--accent);
+    --sidebar-ring: var(--accent-hover);
   }
 
   * {
@@ -355,6 +355,12 @@
   .shadow-glow-strong {
     box-shadow: 0 0 40px hsl(var(--accent-hover) / 0.45), 0 0 80px hsl(var(--accent-hover) / 0.15);
   }
+  .dark .shadow-glow {
+    box-shadow: 0 0 20px hsl(var(--accent-glow));
+  }
+  .dark .shadow-glow-strong {
+    box-shadow: 0 0 40px hsl(var(--accent-hover) / 0.3), 0 0 80px hsl(var(--accent-hover) / 0.1);
+  }
   .shadow-card {
     box-shadow: 0 4px 6px -1px hsl(37 20% 50% / 0.1), 0 2px 4px -2px hsl(37 20% 50% / 0.1), 0 0 0 1px hsl(var(--border-subtle));
   }
@@ -405,6 +411,30 @@
     box-shadow:
       0 0 0 1px hsl(var(--accent-hover) / 0.3),
       0 2px 8px hsl(var(--accent-hover) / 0.25);
+  }
+
+  /* Dark theme CTA — sophisticated warm lime on graphite */
+  .dark .cta-primary {
+    background: linear-gradient(180deg, hsl(var(--accent-hover)) 0%, hsl(var(--accent)) 100%);
+    color: hsl(40 10% 95%);
+    box-shadow:
+      0 0 0 1px hsl(var(--accent-hover) / 0.3),
+      0 4px 14px hsl(var(--accent) / 0.2),
+      0 1px 2px hsl(0 0% 0% / 0.2);
+  }
+  .dark .cta-primary:hover {
+    background: linear-gradient(180deg, hsl(var(--accent-hover)) 0%, hsl(var(--accent-hover)) 100%);
+    box-shadow:
+      0 0 0 1px hsl(var(--accent-hover) / 0.4),
+      0 6px 20px hsl(var(--accent) / 0.3),
+      0 2px 4px hsl(0 0% 0% / 0.25);
+    transform: translateY(-1px);
+  }
+  .dark .cta-primary:active {
+    transform: translateY(0) scale(0.98);
+    box-shadow:
+      0 0 0 1px hsl(var(--accent-hover) / 0.25),
+      0 2px 8px hsl(var(--accent) / 0.2);
   }
 
   .input-modern {

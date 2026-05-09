@@ -1388,7 +1388,7 @@ export default function DashboardPage() {
         )}
       </section>
 
-      <EventQRModal isOpen={qrOpen} onClose={() => setQrOpen(false)} event={qrEvent} />
+      <EventQRModal isOpen={qrOpen} onClose={() => setQrOpen(false)} event={qrEvent} className="dark" />
 
       <PhotoLightbox
         onOpenChange={setLightboxOpen}
@@ -1398,10 +1398,11 @@ export default function DashboardPage() {
         selectedIndex={lightboxIndex}
         event={selectedEvent ? { ...selectedEvent, ownerPlan: plan } : null}
         isOwner={true}
+        className="dark"
       />
 
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="rounded-xl shadow-xl border-border bg-surface">
+        <DialogContent className="dark rounded-xl shadow-xl border-border bg-surface">
           <DialogHeader>
             <DialogTitle className="font-display text-lg font-bold text-foreground">{t.createNewRoomDialog}</DialogTitle>
             <DialogDescription className="text-sm font-light text-muted-foreground">{t.createRoomDesc}</DialogDescription>
@@ -1443,7 +1444,7 @@ export default function DashboardPage() {
       </Dialog>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent className="rounded-xl shadow-xl border-border bg-surface">
+        <AlertDialogContent className="dark rounded-xl shadow-xl border-border bg-surface">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-display text-lg font-bold text-foreground">{t.deleteRoomTitle}</AlertDialogTitle>
             <AlertDialogDescription className="text-sm font-light text-muted-foreground">

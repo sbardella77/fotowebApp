@@ -75,6 +75,7 @@ const PhotoLightbox = ({
   onSelectIndex,
   event = null,
   isOwner = false,
+  className = '',
 }) => {
   // Defensive: ensure photos array only contains valid objects
   const safePhotos = photos.filter((photo, index) => {
@@ -326,13 +327,15 @@ const PhotoLightbox = ({
     }
   })()
 
+  const themeClass = className?.includes('dark') ? 'dark' : ''
+
   return (
     <div
       ref={containerRef}
       role="dialog"
       aria-modal="true"
       aria-label={t.photoViewer}
-      className={`fixed inset-0 z-50 bg-black touch-none ${
+      className={`fixed inset-0 z-50 bg-black touch-none ${themeClass} ${className} ${
         prefersReducedMotion ? '' : 'transition-opacity duration-200'
       } ${isClosing ? 'opacity-0' : 'opacity-100'}`}
       onClick={onContainerClick}
@@ -366,7 +369,7 @@ const PhotoLightbox = ({
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="border-border bg-surface text-foreground min-w-[14rem]"
+              className={`border-border bg-surface text-foreground min-w-[14rem] ${themeClass}`}
               onClick={(e) => e.stopPropagation()}
             >
               <DropdownMenuItem
