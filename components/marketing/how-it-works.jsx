@@ -16,20 +16,20 @@ export function HowItWorks({ steps, t }) {
       {displaySteps.map((step, i) => (
         <div
           key={step.num}
-          className="reveal relative flex flex-col items-center text-center group rounded-2xl border border-white/[0.06] bg-raised/50 p-6 sm:bg-transparent sm:border-transparent sm:p-0"
+          className="reveal relative flex flex-col items-center text-center group rounded-2xl border border-[#DDD7CA] bg-white p-6 sm:bg-white sm:border-[#DDD7CA] sm:p-6 shadow-subtle"
           style={{ transitionDelay: `${i * 100}ms` }}
         >
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-surface border border-white/[0.08] text-primary shadow-subtle transition-all duration-300 group-hover:border-primary/30 group-hover:shadow-glow">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#F1EDE3] border border-[#DDD7CA] text-[#8A9A1B] shadow-subtle transition-all duration-300 group-hover:border-[#DDEB72] group-hover:shadow-glow">
             <step.icon className="h-6 w-6" />
           </div>
           <div className="mt-5">
-            <div className="font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-primary">
+            <div className="font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-[#8A9A1B]">
               Step {step.num}
             </div>
-            <h3 className="mt-2 font-display text-lg font-bold tracking-tight text-foreground">
+            <h3 className="mt-2 font-display text-lg font-bold tracking-tight text-[#222222]">
               {step.title}
             </h3>
-            <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+            <p className="mt-2 text-sm text-[#5B5B5B] leading-relaxed">
               {step.desc}
             </p>
           </div>

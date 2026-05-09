@@ -81,38 +81,38 @@ export function HomePageClient({ locale = 'en' }) {
 
   if (isRedirecting) {
     return (
-      <main className="min-h-screen bg-background text-foreground">
-        <header className="border-b border-border bg-background/80 backdrop-blur-xl">
+      <main className="min-h-screen bg-[#F8F6F1] text-[#222222]">
+        <header className="border-b border-[#DDD7CA] bg-white/80 backdrop-blur-xl">
           <div className="container flex h-16 items-center justify-between px-4">
             <div className="flex items-center gap-2.5">
               <img src="/snaprooms-logo.svg" alt="SnapRooms" fetchPriority="high" className="h-9 w-9 rounded-xl object-cover shadow-subtle" />
-              <span className="font-display text-[15px] font-bold tracking-tight text-primary">SnapRooms</span>
+              <span className="font-display text-[15px] font-bold tracking-tight text-[#222222]">SnapRooms</span>
             </div>
-            <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
+            <Button asChild variant="ghost" size="sm" className="text-[#5B5B5B]">
               <a href="/dashboard/login">{tCommon.signIn}</a>
             </Button>
           </div>
         </header>
         <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center gap-4 px-4">
           <img src="/snaprooms-logo.svg" alt="SnapRooms" fetchPriority="high" className="h-14 w-14 rounded-xl object-cover shadow-card" />
-          <p className="text-lg font-medium text-foreground">{t.openingRoom}</p>
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <p className="text-lg font-medium text-[#222222]">{t.openingRoom}</p>
+          <Loader2 className="h-6 w-6 animate-spin text-[#7A746B]" />
         </div>
       </main>
     )
   }
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border bg-background/80 backdrop-blur-xl">
+    <main className="min-h-screen bg-[#F8F6F1] text-[#222222]">
+      <header className="border-b border-[#DDD7CA] bg-white/80 backdrop-blur-xl">
         <div className="container flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-2.5">
             <img src="/snaprooms-logo.svg" alt="SnapRooms" className="h-9 w-9 rounded-xl object-cover shadow-subtle" />
-            <span className="font-display text-[15px] font-bold tracking-tight text-primary">SnapRooms</span>
+            <span className="font-display text-[15px] font-bold tracking-tight text-[#222222]">SnapRooms</span>
           </div>
           <div className="flex items-center gap-3">
             <LanguageSwitcher />
-            <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
+            <Button asChild variant="ghost" size="sm" className="text-[#5B5B5B]">
               <a href="/dashboard/login">{tCommon.signIn}</a>
             </Button>
           </div>

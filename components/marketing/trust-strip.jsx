@@ -15,8 +15,8 @@ export function TrustStrip({ items = null }) {
   return (
     <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
       {displayItems.map((item, i) => (
-        <div key={i} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <item.icon className="h-3.5 w-3.5 text-primary" />
+        <div key={i} className="flex items-center gap-1.5 text-xs text-[#7A746B]">
+          <item.icon className="h-3.5 w-3.5 text-[#8A9A1B]" />
           <span>{item.text}</span>
         </div>
       ))}
