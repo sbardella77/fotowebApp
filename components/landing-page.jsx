@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import {
   Camera,
   Heart,
@@ -83,33 +83,42 @@ export function LandingPage({
 
   return (
     <div className="relative min-h-screen bg-background font-body text-foreground">
+      {/* Skip to content link for accessibility */}
+      <a
+        href="#create"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[60] focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-lg focus:font-medium"
+      >
+        Skip to create event
+      </a>
+
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-[#DDD7CA] bg-white/80 backdrop-blur-xl">
+      <nav
+        className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-card/80 backdrop-blur-xl"
+        aria-label="Main navigation"
+      >
         <div className="container flex h-16 items-center justify-between px-4">
-          <a href="/" className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#E7EF3A] text-[#1F1F1F] shadow-subtle">
-              <Camera className="h-[18px] w-[18px]" />
+          <a href="/" className="flex items-center gap-2.5" aria-label="SnapRooms home">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-subtle">
+              <Camera className="h-[18px] w-[18px]" aria-hidden="true" />
             </div>
-            <span className="font-display text-[15px] font-bold tracking-tight text-[#222222]">SnapRooms</span>
+            <span className="font-display text-[15px] font-bold tracking-tight text-foreground">SnapRooms</span>
           </a>
-          <div className="flex items-center gap-2 sm:gap-2">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={() => scrollToSection('how-it-works')}
-              className="hidden px-3 py-2 text-sm font-medium text-[#5B5B5B] transition-colors hover:text-[#222222] sm:inline"
+              className="hidden px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline"
             >
               {tNav.howItWorks}
             </button>
-            {/* Mobile Sign In — visible text link with high contrast */}
-            <a
-              href="/dashboard/login"
-              className="inline-flex items-center px-2 py-2 text-sm font-semibold text-[#222222] transition-colors hover:text-[#8A9A1B] sm:hidden"
-            >
-              {tNav.signIn}
-            </a>
-            <div className="hidden sm:flex items-center gap-2">
+            <div className="flex items-center gap-2">
               <LanguageSwitcher />
             </div>
-            <Button size="sm" variant="ghost" asChild className="hidden sm:inline-flex text-[#5B5B5B] hover:text-[#222222]">
+            <Button
+              size="sm"
+              variant="ghost"
+              asChild
+              className="hidden sm:inline-flex text-muted-foreground hover:text-foreground"
+            >
               <a href="/dashboard/login">{tNav.signIn}</a>
             </Button>
             <Button size="sm" asChild className="cta-primary font-semibold">
@@ -120,11 +129,11 @@ export function LandingPage({
       </nav>
 
       {/* Hero */}
-      <section className="relative overflow-hidden pt-32 pb-20 lg:pt-40 lg:pb-28">
+      <section className="relative overflow-hidden pt-32 pb-20 lg:pt-40 lg:pb-28" aria-label="Hero">
         <div className="absolute inset-0 bg-grid opacity-[0.06]" aria-hidden="true" />
         <div
           className="absolute inset-0"
-          style={{ background: 'radial-gradient(ellipse at 50% 0%, hsl(64 85% 58% / 0.06) 0%, transparent 55%)' }}
+          style={{ background: 'radial-gradient(ellipse at 50% 0%, hsl(var(--primary) / 0.06) 0%, transparent 55%)' }}
           aria-hidden="true"
         />
 
@@ -132,39 +141,49 @@ export function LandingPage({
           <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
             {/* Left: text + form */}
             <div className="max-w-xl">
-              <div className="animate-fade-up inline-flex items-center gap-2 rounded-full border border-[#DDD7CA] bg-[#F1EDE3] px-4 py-1.5 shadow-subtle backdrop-blur-sm">
-                <Sparkles className="h-3.5 w-3.5 text-[#8A9A1B]" />
-                <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-[#7A746B]">
+              <div className="animate-fade-up inline-flex items-center gap-2 rounded-full border border-border bg-secondary px-4 py-1.5 shadow-subtle">
+                <Sparkles className="h-3.5 w-3.5 text-accent-dark" aria-hidden="true" />
+                <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                   {t.badge}
                 </span>
               </div>
 
-              <h1 className="animate-fade-up delay-100 mt-6 font-display text-4xl font-bold leading-[1.08] tracking-[-0.03em] text-[#222222] sm:text-5xl lg:text-6xl text-balance">
+              <h1 className="animate-fade-up delay-100 mt-6 font-display text-4xl font-bold leading-[1.08] tracking-[-0.03em] text-foreground sm:text-5xl lg:text-6xl text-balance">
                 {t.headline1}
-                <span className="block text-[#8A9A1B] mt-2 sm:mt-3">{t.headline2}</span>
+                <span className="block text-accent-dark mt-2 sm:mt-3">{t.headline2}</span>
               </h1>
 
-              <p className="animate-fade-up delay-200 mt-6 text-lg sm:text-xl text-[#5B5B5B] max-w-lg leading-relaxed">
+              <p className="animate-fade-up delay-200 mt-6 text-lg sm:text-xl text-muted-foreground max-w-lg leading-relaxed">
                 {t.subheadline}
               </p>
 
               {/* CTA Form */}
               <div id="create" className="animate-fade-up delay-300 mt-10">
-                <div className="rounded-2xl border border-[#DDD7CA] bg-white p-5 sm:p-6 shadow-elevated">
+                <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-elevated">
                   <div className="flex flex-col gap-3 sm:flex-row">
-                    <Input
-                      value={eventName}
-                      onChange={(e) => setEventName(e.target.value)}
-                      placeholder={t.roomNamePlaceholder}
-                      className="h-12 flex-1 rounded-xl border-[#DDD7CA] bg-[#FAF5EC] text-base font-body text-[#222222] placeholder:text-[#A8A29E] shadow-subtle"
-                    />
-                    <Input
-                      type="email"
-                      value={ownerEmail}
-                      onChange={(e) => setOwnerEmail(e.target.value)}
-                      placeholder={t.emailPlaceholder}
-                      className="h-12 flex-1 rounded-xl border-[#DDD7CA] bg-[#FAF5EC] text-base font-body text-[#222222] placeholder:text-[#A8A29E] shadow-subtle"
-                    />
+                    <div className="flex-1">
+                      <label htmlFor="event-name" className="sr-only">{t.roomNamePlaceholder}</label>
+                      <Input
+                        id="event-name"
+                        value={eventName}
+                        onChange={(e) => setEventName(e.target.value)}
+                        placeholder={t.roomNamePlaceholder}
+                        className="h-12 rounded-xl border-border bg-secondary text-base font-body text-foreground placeholder:text-[hsl(var(--text-disabled))] shadow-subtle"
+                        aria-required="true"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label htmlFor="owner-email" className="sr-only">{t.emailPlaceholder}</label>
+                      <Input
+                        id="owner-email"
+                        type="email"
+                        value={ownerEmail}
+                        onChange={(e) => setOwnerEmail(e.target.value)}
+                        placeholder={t.emailPlaceholder}
+                        className="h-12 rounded-xl border-border bg-secondary text-base font-body text-foreground placeholder:text-[hsl(var(--text-disabled))] shadow-subtle"
+                        aria-required="true"
+                      />
+                    </div>
                   </div>
                   <Button
                     size="lg"
@@ -174,38 +193,47 @@ export function LandingPage({
                       onCreateEvent()
                     }}
                     disabled={isCreating || !eventName?.trim() || eventName.trim().length < 3 || !ownerEmail?.trim() || !ownerEmail.includes('@')}
+                    aria-label={isCreating ? 'Creating event...' : cta.hero}
                   >
                     {isCreating ? (
-                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
                     ) : (
                       <>
                         {cta.hero}
-                        <ArrowRight className="h-5 w-5" />
+                        <ArrowRight className="h-5 w-5" aria-hidden="true" />
                       </>
                     )}
                   </Button>
                 </div>
 
-                {createError?.limit === 'room_count' && (
-                  <div className="mx-auto mt-4 max-w-lg rounded-xl border border-[#DDD7CA] bg-white p-5 text-left shadow-card">
-                    <p className="text-sm font-semibold text-[#222222]">{t.errorLimitTitle}</p>
-                    <p className="mt-1 text-xs text-[#5B5B5B]">{t.errorLimitDesc}</p>
-                    <div className="mt-4 flex gap-2">
-                      <Button size="sm" className="cta-primary" asChild>
-                        <a href="/pricing">{t.viewPricing}</a>
-                      </Button>
-                      <Button size="sm" variant="outline" className="border-[#DDD7CA] bg-[#F1EDE3] text-[#222222] hover:bg-[#FAF5EC]" asChild>
-                        <a href="/dashboard/login">{t.startProfessional}</a>
-                      </Button>
+                {/* Error messages with aria-live */}
+                <div aria-live="polite" aria-atomic="true">
+                  {createError?.limit === 'room_count' && (
+                    <div className="mx-auto mt-4 max-w-lg rounded-xl border border-border bg-card p-5 text-left shadow-card">
+                      <p className="text-sm font-semibold text-foreground">{t.errorLimitTitle}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{t.errorLimitDesc}</p>
+                      <div className="mt-4 flex gap-2">
+                        <Button size="sm" className="cta-primary" asChild>
+                          <a href="/pricing">{t.viewPricing}</a>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-border bg-secondary text-foreground hover:bg-[hsl(var(--bg-elevated))]"
+                          asChild
+                        >
+                          <a href="/dashboard/login">{t.startProfessional}</a>
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {createError && createError.limit !== 'room_count' && (
-                  <div className="mx-auto mt-4 max-w-lg rounded-xl border border-red-200 bg-red-50 p-5 text-left">
-                    <p className="text-sm font-medium text-red-600">{createError.error || t.genericError}</p>
-                  </div>
-                )}
+                  {createError && createError.limit !== 'room_count' && (
+                    <div className="mx-auto mt-4 max-w-lg rounded-xl border border-destructive/20 bg-destructive/10 p-5 text-left">
+                      <p className="text-sm font-medium text-destructive">{createError.error || t.genericError}</p>
+                    </div>
+                  )}
+                </div>
 
                 <div className="mt-6">
                   <TrustStrip
@@ -217,9 +245,9 @@ export function LandingPage({
                   />
                 </div>
 
-                <p className="mt-4 text-xs font-normal text-[#7A746B]">
+                <p className="mt-4 text-xs font-normal text-muted-foreground">
                   {t.microcopy1}{' '}&middot;{' '}
-                  <a href="/dashboard/login" className="underline underline-offset-2 hover:text-[#222222] transition-colors">
+                  <a href="/dashboard/login" className="underline underline-offset-2 hover:text-foreground transition-colors">
                     {t.signInLink}
                   </a>
                 </p>
@@ -229,7 +257,7 @@ export function LandingPage({
             {/* Right: PhoneMockup */}
             <div className="relative flex justify-center lg:justify-end">
               <div className="relative w-full max-w-[320px]">
-                <div className="absolute -inset-8 rounded-full bg-[#E7EF3A]/10 blur-3xl" aria-hidden="true" />
+                <div className="absolute -inset-8 rounded-full bg-primary/10 blur-3xl" aria-hidden="true" />
                 <PhoneMockup />
               </div>
             </div>
@@ -238,7 +266,7 @@ export function LandingPage({
       </section>
 
       {/* How It Works */}
-      <section id="how-it-works" className="border-t border-[#EEE8DC] bg-white py-20 sm:py-28">
+      <section id="how-it-works" className="border-t border-border bg-card py-20 sm:py-28" aria-labelledby="how-it-works-heading">
         <div className="container px-4">
           <SectionHeader label={t.hiwLabel} title={t.hiwTitle} description={t.hiwDesc} />
           <div className="mx-auto mt-14 sm:mt-16 max-w-5xl">
@@ -248,15 +276,15 @@ export function LandingPage({
       </section>
 
       {/* Use Cases */}
-      <section className="border-t border-[#EEE8DC] py-20 sm:py-28">
+      <section className="border-t border-border py-20 sm:py-28" aria-labelledby="use-cases-heading">
         <div className="container px-4">
           <SectionHeader label={t.useCasesLabel} title={t.useCasesTitle} description={t.useCasesDesc} />
           <div className="mx-auto mt-14 sm:mt-16 max-w-5xl">
             <UseCaseCards
               cases={[
-                { icon: Heart, color: 'text-rose-400', title: t.weddings, desc: t.weddingsDesc, bullets: [t.weddingsBullet1, t.weddingsBullet2] },
-                { icon: PartyPopper, color: 'text-amber-400', title: t.birthdays, desc: t.birthdaysDesc, bullets: [t.birthdaysBullet1, t.birthdaysBullet2] },
-                { icon: Building2, color: 'text-blue-400', title: t.corporate, desc: t.corporateDesc, bullets: [t.corporateBullet1, t.corporateBullet2] },
+                { icon: Heart, color: 'text-rose-500', title: t.weddings, desc: t.weddingsDesc, bullets: [t.weddingsBullet1, t.weddingsBullet2] },
+                { icon: PartyPopper, color: 'text-amber-600', title: t.birthdays, desc: t.birthdaysDesc, bullets: [t.birthdaysBullet1, t.birthdaysBullet2] },
+                { icon: Building2, color: 'text-blue-600', title: t.corporate, desc: t.corporateDesc, bullets: [t.corporateBullet1, t.corporateBullet2] },
               ]}
             />
           </div>
@@ -264,14 +292,16 @@ export function LandingPage({
       </section>
 
       {/* Social Proof */}
-      <section className="border-t border-[#EEE8DC] bg-white py-20 sm:py-28">
+      <section className="border-t border-border bg-card py-20 sm:py-28" aria-label="Testimonial">
         <div className="container px-4">
-          <div className="reveal mx-auto max-w-3xl rounded-2xl border border-[#DDD7CA] bg-[#FAF5EC] p-8 sm:p-10 text-center shadow-card">
-            <p className="text-xl sm:text-2xl text-[#222222] font-display leading-relaxed">
-              &ldquo;{t.quote}
-              <span className="text-[#8A9A1B]">{t.quoteHighlight}</span>&rdquo;
-            </p>
-            <p className="mt-5 font-mono text-[11px] uppercase tracking-[0.08em] text-[#7A746B]">
+          <div className="reveal mx-auto max-w-3xl rounded-2xl border border-border bg-[hsl(var(--bg-elevated))] p-8 sm:p-10 text-center shadow-card">
+            <blockquote>
+              <p className="text-xl sm:text-2xl text-foreground font-display leading-relaxed">
+                &ldquo;{t.quote}
+                <span className="text-accent-dark">{t.quoteHighlight}</span>&rdquo;
+              </p>
+            </blockquote>
+            <p className="mt-5 font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               {t.quoteAttribution}
             </p>
           </div>
@@ -279,50 +309,61 @@ export function LandingPage({
       </section>
 
       {/* Final CTA */}
-      <section className="border-t border-[#EEE8DC] py-24 sm:py-32">
+      <section className="border-t border-border py-24 sm:py-32" aria-label="Get started">
         <div className="container px-4">
-          <div className="reveal mx-auto max-w-2xl rounded-2xl border border-[#DDD7CA] bg-white p-6 sm:p-8 shadow-elevated text-center">
-            <h2 className="font-display text-3xl font-extrabold tracking-[-0.02em] text-[#222222] sm:text-4xl lg:text-5xl text-balance">
+          <div className="reveal mx-auto max-w-2xl rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-elevated text-center">
+            <h2 className="font-display text-3xl font-extrabold tracking-[-0.02em] text-foreground sm:text-4xl lg:text-5xl text-balance">
               {t.finalTitle}
             </h2>
-            <p className="mt-5 text-base sm:text-lg text-[#5B5B5B] leading-relaxed">
+            <p className="mt-5 text-base sm:text-lg text-muted-foreground leading-relaxed">
               {t.finalDesc}
             </p>
 
             <div className="mt-8 mx-auto flex w-full max-w-lg flex-col gap-3">
               <div className="flex flex-col gap-3 sm:flex-row">
-                <Input
-                  value={eventName}
-                  onChange={(e) => setEventName(e.target.value)}
-                  placeholder={t.finalPlaceholder}
-                  className="h-12 flex-1 rounded-xl border-[#DDD7CA] bg-[#FAF5EC] text-base font-body text-[#222222] placeholder:text-[#A8A29E] shadow-subtle"
-                />
-                <Input
-                  type="email"
-                  value={ownerEmail}
-                  onChange={(e) => setOwnerEmail(e.target.value)}
-                  placeholder={t.finalEmailPlaceholder}
-                  className="h-12 flex-1 rounded-xl border-[#DDD7CA] bg-[#FAF5EC] text-base font-body text-[#222222] placeholder:text-[#A8A29E] shadow-subtle"
-                />
+                <div className="flex-1">
+                  <label htmlFor="final-event-name" className="sr-only">{t.finalPlaceholder}</label>
+                  <Input
+                    id="final-event-name"
+                    value={eventName}
+                    onChange={(e) => setEventName(e.target.value)}
+                    placeholder={t.finalPlaceholder}
+                    className="h-12 rounded-xl border-border bg-secondary text-base font-body text-foreground placeholder:text-[hsl(var(--text-disabled))] shadow-subtle"
+                    aria-required="true"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label htmlFor="final-owner-email" className="sr-only">{t.finalEmailPlaceholder}</label>
+                  <Input
+                    id="final-owner-email"
+                    type="email"
+                    value={ownerEmail}
+                    onChange={(e) => setOwnerEmail(e.target.value)}
+                    placeholder={t.finalEmailPlaceholder}
+                    className="h-12 rounded-xl border-border bg-secondary text-base font-body text-foreground placeholder:text-[hsl(var(--text-disabled))] shadow-subtle"
+                    aria-required="true"
+                  />
+                </div>
               </div>
               <Button
                 size="lg"
                 className="h-12 w-full gap-2 rounded-xl px-8 text-base font-body font-bold whitespace-nowrap cta-primary tracking-tight"
                 onClick={onCreateEvent}
                 disabled={isCreating || !eventName?.trim() || eventName.trim().length < 3 || !ownerEmail?.trim() || !ownerEmail.includes('@')}
+                aria-label={isCreating ? 'Creating event...' : cta.final}
               >
                 {isCreating ? (
-                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
                 ) : (
                   <>
                     {cta.final}
-                    <ArrowRight className="h-5 w-5" />
+                    <ArrowRight className="h-5 w-5" aria-hidden="true" />
                   </>
                 )}
               </Button>
             </div>
 
-            <p className="mt-6 font-mono text-[10px] uppercase tracking-[0.08em] text-[#7A746B]">
+            <p className="mt-6 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               {t.finalMicrocopy}
             </p>
           </div>
@@ -334,32 +375,32 @@ export function LandingPage({
       </div>
 
       {/* Footer */}
-      <footer className="border-t border-[#EEE8DC] bg-white py-12">
+      <footer className="border-t border-border bg-card py-12">
         <div className="container px-4">
           <div className="flex flex-col items-center justify-between gap-5 sm:flex-row">
             <div className="flex items-center gap-2.5">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#E7EF3A] text-[#1F1F1F] shadow-glow">
-                <Camera className="h-3.5 w-3.5" />
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-glow">
+                <Camera className="h-3.5 w-3.5" aria-hidden="true" />
               </div>
-              <span className="font-display text-sm font-bold tracking-tight text-[#222222]">SnapRooms</span>
+              <span className="font-display text-sm font-bold tracking-tight text-foreground">SnapRooms</span>
             </div>
-            <p className="text-xs font-medium text-[#5B5B5B] text-center sm:text-left max-w-xs">
+            <p className="text-xs font-medium text-muted-foreground text-center sm:text-left max-w-xs">
               {tFooter.tagline}
             </p>
-            <div className="flex flex-wrap items-center justify-center gap-5">
-              <a href="/pricing" className="text-xs font-medium text-[#5B5B5B] hover:text-[#222222] transition-colors">
+            <nav className="flex flex-wrap items-center justify-center gap-5" aria-label="Footer navigation">
+              <a href="/pricing" className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
                 {tFooter.pricing}
               </a>
-              <a href="/privacy" className="text-xs font-medium text-[#5B5B5B] hover:text-[#222222] transition-colors">
+              <a href="/privacy" className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
                 {tFooter.privacy}
               </a>
-              <a href="/terms" className="text-xs font-medium text-[#5B5B5B] hover:text-[#222222] transition-colors">
+              <a href="/terms" className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
                 {tFooter.terms}
               </a>
-              <a href="/dashboard/login" className="text-xs font-medium text-[#5B5B5B] hover:text-[#222222] transition-colors">
+              <a href="/dashboard/login" className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
                 {tFooter.organizerSignIn}
               </a>
-            </div>
+            </nav>
           </div>
         </div>
       </footer>

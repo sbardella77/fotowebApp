@@ -13,10 +13,19 @@ export function TrustStrip({ items = null }) {
   const displayItems = items || defaultItems
 
   return (
-    <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+    <div
+      className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2"
+      aria-label="Key benefits"
+    >
       {displayItems.map((item, i) => (
-        <div key={i} className="flex items-center gap-1.5 text-xs text-[#7A746B]">
-          <item.icon className="h-3.5 w-3.5 text-[#8A9A1B]" />
+        <div
+          key={i}
+          className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
+        >
+          <item.icon
+            className="h-3.5 w-3.5 text-accent-dark shrink-0"
+            aria-hidden="true"
+          />
           <span>{item.text}</span>
         </div>
       ))}

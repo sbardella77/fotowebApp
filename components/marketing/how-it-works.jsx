@@ -14,26 +14,26 @@ export function HowItWorks({ steps, t }) {
   return (
     <div className="grid gap-6 sm:gap-8 sm:grid-cols-3">
       {displaySteps.map((step, i) => (
-        <div
+        <article
           key={step.num}
-          className="reveal relative flex flex-col items-center text-center group rounded-2xl border border-[#DDD7CA] bg-white p-6 sm:bg-white sm:border-[#DDD7CA] sm:p-6 shadow-subtle"
+          className="reveal relative flex flex-col items-center text-center group rounded-2xl border border-border bg-card p-6 shadow-subtle transition-all duration-300 hover:-translate-y-1 hover:shadow-elevated"
           style={{ transitionDelay: `${i * 100}ms` }}
         >
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#F1EDE3] border border-[#DDD7CA] text-[#8A9A1B] shadow-subtle transition-all duration-300 group-hover:border-[#DDEB72] group-hover:shadow-glow">
-            <step.icon className="h-6 w-6" />
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary border border-border text-accent-dark shadow-subtle transition-all duration-300 group-hover:border-primary/40 group-hover:shadow-glow">
+            <step.icon className="h-6 w-6" aria-hidden="true" />
           </div>
           <div className="mt-5">
-            <div className="font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-[#8A9A1B]">
+            <span className="inline-block font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-accent-dark">
               Step {step.num}
-            </div>
-            <h3 className="mt-2 font-display text-lg font-bold tracking-tight text-[#222222]">
+            </span>
+            <h3 className="mt-2 font-display text-lg font-bold tracking-tight text-foreground">
               {step.title}
             </h3>
-            <p className="mt-2 text-sm text-[#5B5B5B] leading-relaxed">
+            <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
               {step.desc}
             </p>
           </div>
-        </div>
+        </article>
       ))}
     </div>
   )
