@@ -63,7 +63,7 @@ export default function ResetPasswordPageClient({ token }) {
         <div className="container flex h-16 items-center justify-between px-4">
           <a href="/" className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-subtle"><Camera className="h-[18px] w-[18px]" /></div>
-            <span className="font-display text-[15px] font-bold tracking-tight text-primary">SnapRooms</span>
+            <span className="font-display text-[15px] font-bold tracking-tight text-foreground">SnapRooms</span>
           </a>
         </div>
       </header>

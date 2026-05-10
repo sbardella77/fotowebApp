@@ -99,7 +99,7 @@ export function CommercialLicensePage() {
           <div className="mx-auto max-w-3xl space-y-12">
             {/* Disclaimer */}
             <div className="reveal rounded-xl border border-primary/20 bg-primary/5 p-5">
-              <p className="text-sm leading-relaxed text-primary/90">
+              <p className="text-sm leading-relaxed text-foreground">
                 <strong>{t.productReadyDraft}</strong> {t.commercialDisclaimer}
               </p>
             </div>
@@ -250,7 +250,7 @@ export function CommercialLicensePage() {
               </p>
               <p className="text-foreground">
                 <strong>{t.emailLabel}</strong>{' '}
-                <a href="mailto:hello@snaprooms.app" className="text-primary hover:underline">
+                <a href="mailto:hello@snaprooms.app" className="text-accent-dark hover:underline">
                   {t.emailAddress}
                 </a>
               </p>
@@ -262,7 +262,7 @@ export function CommercialLicensePage() {
             <div className="reveal rounded-xl border border-border bg-surface p-6 text-center">
               <p className="text-sm text-muted-foreground">
                 {t.commercialAcceptance}{' '}
-                <a href="/terms" className="text-primary hover:underline">
+                <a href="/terms" className="text-accent-dark hover:underline">
                   {t.termsTitle}
                 </a>.
               </p>

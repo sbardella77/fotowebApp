@@ -77,7 +77,7 @@ export function TermsPage({ locale = 'en' }) {
           <div className="mx-auto max-w-3xl space-y-10">
             {/* Disclaimer */}
             <div className="reveal rounded-xl border border-primary/20 bg-primary/5 p-5">
-              <p className="text-sm leading-relaxed text-primary/90">
+              <p className="text-sm leading-relaxed text-foreground">
                 <strong>{t.productReadyDraft}</strong> {t.termsDisclaimer}
               </p>
             </div>
@@ -203,7 +203,7 @@ export function TermsPage({ locale = 'en' }) {
               </p>
               <p className="text-foreground">
                 <strong>{t.emailLabel}</strong>{' '}
-                <a href="mailto:hello@snaprooms.app" className="text-primary hover:underline">
+                <a href="mailto:hello@snaprooms.app" className="text-accent-dark hover:underline">
                   {t.emailAddress}
                 </a>
               </p>

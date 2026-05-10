@@ -366,7 +366,7 @@ export default function RoomPageClient({ slug, isNew }) {
           <div className="container flex h-16 items-center justify-between px-4">
             <a href="/" className="flex items-center gap-2.5">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-subtle"><Camera className="h-[18px] w-[18px]" /></div>
-              <span className="font-display text-[15px] font-bold tracking-tight text-primary">SnapRooms</span>
+              <span className="font-display text-[15px] font-bold tracking-tight text-foreground">SnapRooms</span>
             </a>
             {ownerSession?.authenticated && (
               <a href="/dashboard" className="flex items-center gap-1.5 text-sm font-light text-muted-foreground transition-colors hover:text-foreground">
@@ -388,7 +388,7 @@ export default function RoomPageClient({ slug, isNew }) {
         <div className="container flex h-16 items-center justify-between px-4">
           <a href="/" className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-subtle"><Camera className="h-[18px] w-[18px]" /></div>
-            <span className="font-display text-[15px] font-bold tracking-tight text-primary">SnapRooms</span>
+            <span className="font-display text-[15px] font-bold tracking-tight text-foreground">SnapRooms</span>
           </a>
           <div className="flex items-center gap-3">
             <LanguageSwitcher />
@@ -415,7 +415,7 @@ export default function RoomPageClient({ slug, isNew }) {
               <div className="p-5 sm:p-6">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-primary">{t.roomLabel}</span>
+                    <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.roomLabel}</span>
                     <h1 className="mt-1.5 font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">{activeEvent.name}</h1>
                   </div>
                   <Button variant="ghost" size="sm" className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground" onClick={() => loadEvent(activeEvent.slug, { silent: true })}>
@@ -466,7 +466,7 @@ export default function RoomPageClient({ slug, isNew }) {
                 </div>
                 <h2 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">{t.addYourPhotos}</h2>
                 <p className="mt-2 text-base font-light leading-relaxed text-muted-foreground">{t.bePartOf} {activeEvent.name}</p>
-                <p className="mt-3 font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-primary">
+                <p className="mt-3 font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                   {galleryPhotos.length > 0 ? `${galleryPhotos.length} ${t.photosShared}` : t.beFirst}
                 </p>
                 <div className="mt-6 mx-auto max-w-sm">
@@ -586,7 +586,7 @@ export default function RoomPageClient({ slug, isNew }) {
             <div className="mt-8 rounded-2xl border border-border bg-surface shadow-card">
               <div className="p-5 sm:p-6">
                 <div className="flex items-center gap-3">
-                  <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-primary">{t.galleryTitle}</span>
+                  <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.galleryTitle}</span>
                   <Badge variant="secondary" className="rounded-full font-mono text-[10px] bg-raised text-muted-foreground border-border">{galleryPhotos.length}</Badge>
                 </div>
                 {unlockMessage && <p className="mt-3 text-sm font-semibold text-success">{unlockMessage}</p>}

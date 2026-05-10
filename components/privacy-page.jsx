@@ -81,7 +81,7 @@ export function PrivacyPage({ locale = 'en' }) {
         <div className="container px-4">
           <div className="mx-auto max-w-3xl space-y-10">
             <div className="reveal rounded-xl border border-primary/20 bg-primary/5 p-5">
-              <p className="text-sm leading-relaxed text-primary/90">
+              <p className="text-sm leading-relaxed text-foreground">
                 <strong>{t.productReadyDraft}</strong> {t.privacyDisclaimer}
               </p>
             </div>
@@ -158,7 +158,7 @@ export function PrivacyPage({ locale = 'en' }) {
             <Section title={t.requestDeletion}>
               <p>
                 {t.requestDeletionDesc}{' '}
-                <a href="mailto:hello@snaprooms.app" className="text-primary underline underline-offset-4 hover:text-primary/80">
+                <a href="mailto:hello@snaprooms.app" className="text-accent-dark underline underline-offset-4 hover:text-accent-dark/80">
                   {t.emailAddress}
                 </a>.
               </p>
@@ -170,7 +170,7 @@ export function PrivacyPage({ locale = 'en' }) {
             <Section title={t.contact}>
               <p>
                 {t.contactDesc}{' '}
-                <a href="mailto:hello@snaprooms.app" className="text-primary underline underline-offset-4 hover:text-primary/80">
+                <a href="mailto:hello@snaprooms.app" className="text-accent-dark underline underline-offset-4 hover:text-accent-dark/80">
                   {t.emailAddress}
                 </a>.
               </p>
@@ -179,7 +179,7 @@ export function PrivacyPage({ locale = 'en' }) {
             <div className="mt-12 border-t border-border pt-8 text-center">
               <a
                 href="/"
-                className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80"
+                className="inline-flex items-center gap-2 text-sm font-medium text-accent-dark hover:text-accent-dark/80"
               >
                 {t.backToSnapRooms}
               </a>

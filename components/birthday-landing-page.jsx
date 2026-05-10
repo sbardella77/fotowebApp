@@ -123,7 +123,7 @@ export function BirthdayLandingPage() {
         <div className="container relative px-4">
           <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-2 lg:items-center">
             <div className="animate-fade-up">
-              <span className="inline-block font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
+              <span className="inline-block font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-accent-dark">
                 {t.heroEyebrow}
               </span>
               <h1 className="mt-4 font-display text-3xl font-bold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
@@ -298,7 +298,7 @@ export function BirthdayLandingPage() {
           <div className="mx-auto max-w-5xl">
             <div className="reveal grid gap-10 sm:grid-cols-2 sm:items-center">
               <div>
-                <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
+                <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-accent-dark">
                   {t.qrBadge}
                 </span>
                 <h2 className="mt-3 font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">

@@ -116,7 +116,7 @@ export function PlannersLandingPage({ locale }) {
 
         <div className="container relative px-4">
           <div className="mx-auto max-w-3xl text-center">
-            <span className="inline-block font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary animate-fade-up">
+            <span className="inline-block font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-accent-dark animate-fade-up">
               {t.heroEyebrow}
             </span>
             <h1 className="mt-4 font-display text-3xl font-bold tracking-tight text-foreground sm:text-4xl animate-fade-up delay-100">
@@ -340,7 +340,7 @@ export function PlannersLandingPage({ locale }) {
           <div className="mx-auto mt-10 max-w-md reveal">
             <div className="rounded-2xl border border-primary/20 bg-surface p-8 shadow-elevated">
               <div className="flex items-center gap-2">
-                <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
+                <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-accent-dark">
                   {t.planLabel}
                 </span>
                 <Sparkles className="h-3 w-3 text-primary" />
@@ -378,7 +378,7 @@ export function PlannersLandingPage({ locale }) {
 
           <p className="mt-8 text-center text-sm text-muted-foreground reveal">
             {t.customTerms}{' '}
-            <a href="mailto:hello@snaprooms.app" className="text-primary hover:underline">
+            <a href="mailto:hello@snaprooms.app" className="text-accent-dark hover:underline">
               {t.contactUsLink}
             </a>
           </p>

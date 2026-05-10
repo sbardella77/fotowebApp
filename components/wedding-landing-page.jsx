@@ -159,7 +159,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Camera className="h-4 w-4" />
             </div>
-            <span className="font-display text-sm font-bold tracking-tight text-primary">SnapRooms</span>
+            <span className="font-display text-sm font-bold tracking-tight text-foreground">SnapRooms</span>
           </a>
           <div className="flex items-center gap-4">
             <button
@@ -205,7 +205,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
                 {/* Badge */}
                 <div className="animate-fade-up inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1">
                   <Heart className="h-3 w-3 text-rose-400" />
-                  <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
+                  <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-accent-dark">
                     {t.heroEyebrow}
                   </span>
                 </div>
@@ -280,7 +280,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
             <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
               {/* Left: The Problem */}
               <div className="reveal">
-                <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
+                <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-accent-dark">
                   {t.problemLabel}
                 </span>
                 <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-foreground sm:text-3xl">
@@ -388,7 +388,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
               <div className="reveal order-2 lg:order-1">
                 <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1">
                   <QrCode className="h-3 w-3 text-primary" />
-                  <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-primary">
+                  <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-accent-dark">
                     {t.qrBadge}
                   </span>
                 </div>
@@ -530,7 +530,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
           <div className="mx-auto max-w-6xl">
             <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
               <div className="reveal">
-                <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-primary">
+                <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-accent-dark">
                   {t.privacyLabel}
                 </span>
                 <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-foreground sm:text-3xl">
@@ -704,7 +704,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
               <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
                 <Camera className="h-3 w-3" />
               </div>
-              <span className="font-display text-sm font-bold tracking-tight text-primary">SnapRooms</span>
+              <span className="font-display text-sm font-bold tracking-tight text-foreground">SnapRooms</span>
             </a>
             <p className="text-xs font-light text-muted-foreground">
               {footer.tagline}

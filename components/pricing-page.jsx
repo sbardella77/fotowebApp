@@ -463,7 +463,7 @@ export function PricingPage() {
               <div className="grid grid-cols-[1.75fr_1fr_1fr_1fr_1fr_1fr] gap-4 border-b border-border bg-surface px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 <span>{t.feature}</span>
                 <span className="text-center">{t.free}</span>
-                <span className="text-center text-primary">{t.proEvent}</span>
+                <span className="text-center text-foreground font-semibold">{t.proEvent}</span>
                 <span className="text-center">{t.weddingPro}</span>
                 <span className="text-center">{t.professional}</span>
                 <span className="text-center">{t.business}</span>
