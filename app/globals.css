@@ -25,7 +25,7 @@
     /* Foreground scale */
     --text-primary: 0 0% 13%;       /* #222222 */
     --text-secondary: 0 0% 36%;     /* #5B5B5B */
-    --text-muted: 37 8% 45%;        /* #7A746B */
+    --text-muted: 37 10% 38%;       /* #6B655B — stronger muted for WCAG AA on warm bg */
     --text-disabled: 30 6% 64%;     /* #A8A29E */
 
     /* Accent (lime/yellow — bold, high-conversion) */
@@ -48,8 +48,8 @@
     --info-soft: 210 90% 58% / 0.12;
 
     /* Borders */
-    --border-subtle: 37 18% 83%;    /* #DDD7CA */
-    --border-visible: 37 15% 78%;   /* #D1CDBF */
+    --border-subtle: 37 16% 78%;    /* #D1CDBF — more visible on light */
+    --border-visible: 37 14% 72%;   /* #C9C3B3 — stronger interactive borders */
     --border-focus: 64 85% 58%;     /* accent */
 
     /* shadcn/ui semantic mappings */
@@ -557,6 +557,22 @@
 .dark input:focus, .dark textarea:focus, .dark select:focus { border-color: hsl(var(--accent)) !important; box-shadow: 0 0 0 3px hsl(var(--accent-soft)) !important; }
 .dark .rounded-2xl, .dark .rounded-xl, .dark .rounded-lg { border-radius: 12px !important; }
 .dark .shadow-card { box-shadow: 0 4px 6px -1px hsl(0 0% 4% / 0.4), 0 2px 4px -2px hsl(0 0% 4% / 0.4), 0 0 0 1px hsl(var(--border-subtle)) !important; }
+
+/* ── Light theme overrides for hardcoded dark-mode borders ─────────────── */
+:root:not(.dark) .border-white\/\[0\.06\],
+:root:not(.dark) .border-white\/\[0\.07\],
+:root:not(.dark) .border-white\/\[0\.08\] {
+  border-color: hsl(var(--border-subtle)) !important;
+}
+:root:not(.dark) .border-white\/\[0\.09\],
+:root:not(.dark) .border-white\/\[0\.10\],
+:root:not(.dark) .border-white\/\[0\.12\] {
+  border-color: hsl(var(--border-visible)) !important;
+}
+:root:not(.dark) .hover\:border-white\/\[0\.08\]:hover,
+:root:not(.dark) .hover\:border-white\/\[0\.12\]:hover {
+  border-color: hsl(var(--border-visible)) !important;
+}
 
 /* ── Print styles ─────────────────────────────────────────────────────── */
 

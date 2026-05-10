@@ -43,7 +43,7 @@ export function LanguageSwitcher({ className = '' }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        className="flex items-center gap-1.5 rounded-md h-9 px-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         aria-label="Change language"
         aria-expanded={open}
         aria-haspopup="listbox"
@@ -54,7 +54,7 @@ export function LanguageSwitcher({ className = '' }) {
 
       {open && (
         <div
-          className="absolute right-0 z-50 mt-2 w-40 rounded-lg border border-border bg-surface shadow-card"
+          className="absolute right-0 z-50 mt-2 w-44 rounded-xl border border-border bg-popover py-1 shadow-elevated"
           role="listbox"
           aria-label="Select language"
         >
@@ -65,12 +65,16 @@ export function LanguageSwitcher({ className = '' }) {
               role="option"
               aria-selected={l === locale}
               onClick={() => handleSelect(l)}
-              className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors first:rounded-t-lg last:rounded-b-lg hover:bg-white/5 ${
-                l === locale ? 'text-primary' : 'text-foreground'
+              className={`flex w-full items-center justify-between px-3 py-2.5 text-left text-sm transition-colors first:rounded-t-lg last:rounded-b-lg hover:bg-accent hover:text-accent-foreground ${
+                l === locale
+                  ? 'bg-accent text-accent-foreground font-medium'
+                  : 'text-foreground'
               }`}
             >
               <span>{LOCALE_LABELS[l]}</span>
-              {l === locale && <Check className="h-3.5 w-3.5" />}
+              {l === locale && (
+                <Check className="h-4 w-4 text-accent-dark shrink-0 ml-2" />
+              )}
             </button>
           ))}
         </div>

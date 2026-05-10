@@ -14,9 +14,9 @@ export function MarketingNav({ variant = 'fixed' }) {
       : 'relative'
 
   return (
-    <nav className={`${navClass} bg-background/70 backdrop-blur-2xl border-b border-white/[0.06]`}>
+    <nav className={`${navClass} bg-background/85 backdrop-blur-2xl border-b border-border sm:bg-background/70`}>
       <div className="container flex h-16 items-center justify-between px-4">
-        <a href="/" className="flex items-center gap-2.5 group">
+        <a href="/" className="flex items-center gap-2.5 group flex-shrink-0">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-glow transition-transform group-hover:scale-105">
             <Camera className="h-[18px] w-[18px]" />
           </div>
@@ -45,21 +45,35 @@ export function MarketingNav({ variant = 'fixed' }) {
             {t.forPlanners}
           </a>
 
-          <div className="mx-1 hidden h-4 w-px bg-white/10 sm:block" />
+          <div className="mx-1 hidden h-4 w-px bg-border sm:block" />
 
           <LanguageSwitcher />
 
-          {/* Mobile Sign In — visible, high contrast, comfortable touch target */}
-          <a
-            href="/dashboard/login"
-            className="inline-flex items-center px-3 py-2 text-sm font-semibold text-foreground transition-colors hover:text-primary sm:hidden"
+          {/* Mobile Sign In — outline button for clear visibility & touch target */}
+          <Button
+            size="sm"
+            variant="outline"
+            asChild
+            className="h-9 px-2.5 text-sm font-semibold sm:hidden flex-shrink-0"
           >
-            {t.signIn}
-          </a>
-          <Button size="sm" variant="ghost" asChild className="hidden sm:inline-flex text-muted-foreground hover:text-foreground">
             <a href="/dashboard/login">{t.signIn}</a>
           </Button>
-          <Button size="sm" asChild className="cta-primary font-semibold">
+
+          {/* Desktop Sign In — ghost button */}
+          <Button
+            size="sm"
+            variant="ghost"
+            asChild
+            className="hidden sm:inline-flex text-muted-foreground hover:text-foreground flex-shrink-0"
+          >
+            <a href="/dashboard/login">{t.signIn}</a>
+          </Button>
+
+          <Button
+            size="sm"
+            asChild
+            className="cta-primary font-semibold flex-shrink-0 whitespace-nowrap"
+          >
             <a href="/">{t.createRoom}</a>
           </Button>
         </div>

@@ -67,7 +67,9 @@ module.exports = {
     				'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
     				border: 'hsl(var(--sidebar-border))',
     				ring: 'hsl(var(--sidebar-ring))'
-    			}
+    			},
+    			surface: 'hsl(var(--bg-surface))',
+    			elevated: 'hsl(var(--bg-elevated))'
     		},
     		borderRadius: {
     			lg: 'var(--radius)',
