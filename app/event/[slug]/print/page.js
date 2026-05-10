@@ -84,7 +84,7 @@ export default function PrintEventPage() {
           <p className="text-muted-foreground mb-4">{error || 'This event does not exist or has been removed.'}</p>
           <a 
             href="/" 
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-[#E85A3D]"
+            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
             Go home
           </a>
@@ -118,7 +118,7 @@ export default function PrintEventPage() {
             
             <button
               onClick={() => window.print()}
-              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:bg-[#E85A3D]"
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
               Print
             </button>
@@ -200,7 +200,7 @@ function PrintCardContent({ event, eventUrl, baseUrl }) {
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
           <Camera className="h-5 w-5 text-primary" />
         </div>
-        <span className="text-xl font-bold tracking-tight text-primary">SnapRooms</span>
+        <span className="text-xl font-bold tracking-tight text-foreground">SnapRooms</span>
       </div>
 
       {/* Event Name */}

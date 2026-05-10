@@ -56,7 +56,7 @@ export function PrivacyPage({ locale = 'en' }) {
   }, [locale])
 
   return (
-    <div className="dark relative min-h-screen bg-background font-body text-foreground">
+    <div className="relative min-h-screen bg-background font-body text-foreground">
       <div className="noise-overlay" aria-hidden="true" />
       <MarketingNav ctaAction="link" />
 

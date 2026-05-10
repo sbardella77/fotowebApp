@@ -14,14 +14,14 @@ export default function EventError({ error, reset }: { error: Error & { digest?:
   }, [error])
 
   return (
-    <main className="dark min-h-screen bg-background font-body text-foreground">
+    <main className="min-h-screen bg-background font-body text-foreground">
       <header className="border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container flex h-14 items-center justify-between px-4">
           <a href="/" className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Camera className="h-4 w-4" />
             </div>
-            <span className="font-display text-sm font-bold tracking-tight text-primary">SnapRooms</span>
+            <span className="font-display text-sm font-bold tracking-tight text-foreground">SnapRooms</span>
           </a>
         </div>
       </header>

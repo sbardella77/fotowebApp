@@ -327,7 +327,7 @@ const PhotoLightbox = ({
     }
   })()
 
-  const themeClass = className?.includes('dark') ? 'dark' : ''
+  const themeClass = 'dark'
 
   return (
     <div

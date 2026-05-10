@@ -148,7 +148,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
   ]
 
   return (
-    <div className="dark relative min-h-screen bg-background font-body text-foreground">
+    <div className="relative min-h-screen bg-background font-body text-foreground">
       {/* Noise texture overlay */}
       <div className="noise-overlay" aria-hidden="true" />
 

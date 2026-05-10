@@ -13,13 +13,13 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
 
   return (
     <html lang="de">
-      <body className="min-h-screen bg-[#13131f] text-[#f0ede8] font-sans antialiased">
+      <body className="min-h-screen bg-background text-foreground font-sans antialiased">
         <div className="flex min-h-screen flex-col items-center justify-center gap-6 px-4 text-center">
           <div className="max-w-sm">
             <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
               Ein Fehler ist aufgetreten
             </h1>
-            <p className="mt-3 text-sm font-light text-[#9e9ba8] leading-relaxed">
+            <p className="mt-3 text-sm font-light text-muted-foreground leading-relaxed">
               Diese Galerie konnte leider nicht geladen werden. Bitte versuchen Sie es erneut.
             </p>
           </div>
@@ -27,13 +27,13 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
           <div className="flex flex-col gap-3 sm:flex-row">
             <button
               onClick={() => window.location.reload()}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#d4a853] px-6 text-sm font-medium text-[#13131f] transition-colors hover:bg-[#e0b86a]"
+              className="cta-primary inline-flex h-11 items-center justify-center gap-2 rounded-lg px-6 text-sm font-medium transition-colors"
             >
               Seite neu laden
             </button>
             <a
               href="/"
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-border bg-surface px-6 text-sm font-medium text-[#f0ede8] transition-colors hover:bg-elevated"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-border bg-surface px-6 text-sm font-medium text-foreground transition-colors hover:bg-elevated"
             >
               Zurück zur Startseite
             </a>

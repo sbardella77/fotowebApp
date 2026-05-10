@@ -182,7 +182,7 @@ export default function PhotographerUploadPageClient({ token }) {
 
   if (loading) {
     return (
-      <main className="dark relative min-h-screen bg-background font-body text-foreground">
+      <main className="relative min-h-screen bg-background font-body text-foreground">
         <div className="absolute inset-0 bg-grid opacity-[0.03] pointer-events-none" aria-hidden="true" />
         <div className="flex min-h-screen items-center justify-center">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -196,7 +196,7 @@ export default function PhotographerUploadPageClient({ token }) {
 
   if (error && !event) {
     return (
-      <main className="dark relative min-h-screen bg-background font-body text-foreground">
+      <main className="relative min-h-screen bg-background font-body text-foreground">
         <div className="absolute inset-0 bg-grid opacity-[0.03] pointer-events-none" aria-hidden="true" />
         <div className="flex min-h-screen items-center justify-center px-4">
           <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-8 text-center shadow-card">
@@ -212,7 +212,7 @@ export default function PhotographerUploadPageClient({ token }) {
   }
 
   return (
-    <main className="dark relative min-h-screen bg-background font-body text-foreground">
+    <main className="relative min-h-screen bg-background font-body text-foreground">
       <div className="absolute inset-0 bg-grid opacity-[0.03] pointer-events-none" aria-hidden="true" />
 
       <header className="sticky top-0 z-30 h-14 border-b border-border bg-background/80 backdrop-blur-md">

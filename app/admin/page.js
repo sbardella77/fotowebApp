@@ -30,7 +30,7 @@ const AdminPhotoCard = ({ photo, onApprove, onReject, onDelete, onOpenLightbox, 
           <Button disabled={isBusy || photo.status === 'VISIBLE'} size="sm" onClick={onApprove} className="bg-primary text-primary-foreground hover:bg-primary/90">
             {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
           </Button>
-          <Button disabled={isBusy || photo.status === 'HIDDEN'} size="sm" variant="secondary" onClick={onReject} className="bg-[#1E293B] text-foreground hover:bg-[#28354A]">
+          <Button disabled={isBusy || photo.status === 'HIDDEN'} size="sm" variant="secondary" onClick={onReject} className="bg-raised text-foreground hover:bg-elevated">
             <EyeOff className="h-4 w-4" />
           </Button>
           <Button disabled={isBusy} size="sm" variant="destructive" onClick={() => { if (typeof window !== 'undefined' && window.confirm('Permanently delete this photo?')) onDelete() }}>
@@ -256,7 +256,7 @@ function App() {
   }, [authState.authenticated, selectedSlug])
 
   return (
-    <main className="dark relative min-h-screen bg-background font-body text-foreground">
+    <main className="relative min-h-screen bg-background font-body text-foreground">
       <div className="absolute inset-0 bg-grid opacity-[0.03] pointer-events-none" />
 
       <header className="relative z-10 border-b border-border bg-background/80 backdrop-blur-md">
@@ -380,7 +380,7 @@ function App() {
                     events.map((event) => (
                       <button
                         key={event.id}
-                        className={`w-full rounded-xl border p-3 text-left transition ${selectedSlug === event.slug ? 'border-primary bg-primary/[0.08]' : 'border-border bg-raised hover:border-white/[0.12]'}`}
+                        className={`w-full rounded-xl border p-3 text-left transition ${selectedSlug === event.slug ? 'border-primary bg-primary/[0.08]' : 'border-border bg-raised hover:border-border'}`}
                         onClick={() => setSelectedSlug(event.slug)}
                         type="button"
                       >
@@ -413,11 +413,11 @@ function App() {
                       <div className="rounded-xl border border-border bg-raised p-4">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div>
-                            <span className="font-mono text-[0.65rem] uppercase tracking-[0.1em] text-primary">Moderating</span>
+                            <span className="font-mono text-[0.65rem] uppercase tracking-[0.1em] text-accent-dark">Moderating</span>
                             <p className="mt-0.5 font-display text-base font-bold tracking-tight text-foreground">{selectedEvent.name}</p>
                             <p className="mt-0.5 font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">Code: {selectedEvent.slug}</p>
                           </div>
-                          <Badge variant="secondary" className="rounded-full bg-[#1E293B] text-foreground font-mono text-[0.6rem]">{photos.length} total</Badge>
+                          <Badge variant="secondary" className="rounded-full bg-raised text-foreground font-mono text-[0.6rem]">{photos.length} total</Badge>
                         </div>
                       </div>
 

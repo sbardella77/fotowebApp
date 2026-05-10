@@ -1117,7 +1117,7 @@ export default function DashboardPage() {
                   className={`group relative overflow-hidden rounded-xl border bg-surface transition-all duration-200 hover:-translate-y-px cursor-pointer ${
                     selectedSlug === event.slug
                       ? 'border-primary/40 shadow-[0_0_0_1px_hsl(var(--accent)/0.15)]'
-                      : 'border-border hover:border-white/[0.08]'
+                      : 'border-border hover:border-[hsl(var(--border-visible))]'
                   }`}
                 >
                   <div className="p-5">
@@ -1388,7 +1388,7 @@ export default function DashboardPage() {
         )}
       </section>
 
-      <EventQRModal isOpen={qrOpen} onClose={() => setQrOpen(false)} event={qrEvent} className="dark" />
+      <EventQRModal isOpen={qrOpen} onClose={() => setQrOpen(false)} event={qrEvent} />
 
       <PhotoLightbox
         onOpenChange={setLightboxOpen}
@@ -1398,11 +1398,10 @@ export default function DashboardPage() {
         selectedIndex={lightboxIndex}
         event={selectedEvent ? { ...selectedEvent, ownerPlan: plan } : null}
         isOwner={true}
-        className="dark"
       />
 
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="dark rounded-xl shadow-xl border-border bg-surface">
+        <DialogContent className="rounded-xl shadow-xl border-border bg-surface">
           <DialogHeader>
             <DialogTitle className="font-display text-lg font-bold text-foreground">{t.createNewRoomDialog}</DialogTitle>
             <DialogDescription className="text-sm font-light text-muted-foreground">{t.createRoomDesc}</DialogDescription>
@@ -1444,7 +1443,7 @@ export default function DashboardPage() {
       </Dialog>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent className="dark rounded-xl shadow-xl border-border bg-surface">
+        <AlertDialogContent className="rounded-xl shadow-xl border-border bg-surface">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-display text-lg font-bold text-foreground">{t.deleteRoomTitle}</AlertDialogTitle>
             <AlertDialogDescription className="text-sm font-light text-muted-foreground">

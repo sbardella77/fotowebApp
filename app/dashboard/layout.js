@@ -6,5 +6,5 @@ export const metadata = {
 }
 
 export default function DashboardLayout({ children }) {
-  return <div className="dark min-h-screen bg-background">{children}</div>
+  return <div className="min-h-screen bg-background">{children}</div>
 }
