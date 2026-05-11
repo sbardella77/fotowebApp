@@ -1,29 +1,17 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
 import { Globe, Check } from 'lucide-react'
 import { useLocale, useSetLocale } from '@/components/i18n-provider'
 import { LOCALES, LOCALE_LABELS } from '@/lib/i18n/config'
 import { trackEvent } from '@/lib/analytics/track-client'
 import { EVENT_LANGUAGE_SWITCHED } from '@/lib/analytics/events'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 
 export function LanguageSwitcher({ className = '' }) {
   const locale = useLocale()
   const setLocale = useSetLocale()
   const [open, setOpen] = useState(false)
-  const ref = useRef(null)
-
-  useEffect(() => {
-    function onClickOutside(e) {
-      if (ref.current && !ref.current.contains(e.target)) {
-        setOpen(false)
-      }
-    }
-    if (open) {
-      document.addEventListener('mousedown', onClickOutside)
-      return () => document.removeEventListener('mousedown', onClickOutside)
-    }
-  }, [open])
 
   const handleSelect = (newLocale) => {
     if (newLocale === locale) {
@@ -39,25 +27,26 @@ export function LanguageSwitcher({ className = '' }) {
   }
 
   return (
-    <div className={`relative ${className}`} ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 rounded-md h-9 px-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-        aria-label="Change language"
-        aria-expanded={open}
-        aria-haspopup="listbox"
-      >
-        <Globe className="h-4 w-4" />
-        <span className="hidden sm:inline">{locale.toUpperCase()}</span>
-      </button>
-
-      {open && (
-        <div
-          className="absolute right-0 z-50 mt-2 w-44 rounded-xl border border-border bg-popover py-1 shadow-elevated"
-          role="listbox"
-          aria-label="Select language"
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex items-center gap-1.5 rounded-md h-9 px-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          aria-label="Change language"
         >
+          <Globe className="h-4 w-4" />
+          <span className="hidden sm:inline">{locale.toUpperCase()}</span>
+        </button>
+      </PopoverTrigger>
+
+      <PopoverContent
+        align="end"
+        side="bottom"
+        sideOffset={8}
+        className="w-44 p-0 py-1 rounded-xl border border-border bg-popover shadow-elevated"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div role="listbox" aria-label="Select language">
           {LOCALES.map((l) => (
             <button
               key={l}
@@ -78,7 +67,7 @@ export function LanguageSwitcher({ className = '' }) {
             </button>
           ))}
         </div>
-      )}
-    </div>
+      </PopoverContent>
+    </Popover>
   )
 }
