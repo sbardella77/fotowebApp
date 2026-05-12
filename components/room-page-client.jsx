@@ -215,6 +215,10 @@ export default function RoomPageClient({ slug, isNew }) {
     catch (pipelineError) { console.error('[room] photo pipeline crashed', { slug: activeEvent?.slug, error: pipelineError }); return [] }
   }, [activeEvent])
 
+  const isFreeEvent = useMemo(() => {
+    return activeEvent && !activeEvent.billingTier && activeEvent.ownerPlan !== 'professional' && activeEvent.ownerPlan !== 'business'
+  }, [activeEvent])
+
   const loadEvent = async (targetSlug, { silent = false } = {}) => {
     if (!targetSlug) return
     setGalleryError('')
@@ -350,7 +354,7 @@ export default function RoomPageClient({ slug, isNew }) {
       const response = await fetch(`/api/download/gallery?eventSlug=${encodeURIComponent(activeEvent.slug)}`)
       if (response.status === 403) {
         trackEvent(EVENT_GALLERY_DOWNLOAD_BLOCKED, { room_slug: activeEvent.slug, source: 'room_page', reason: 'free_plan' })
-        showToast('Gallery download requires Pro Event, Wedding Pro, or Professional plan.', 'error')
+        showToast(t.galleryDownloadLocked, 'error')
         setGalleryDownloadBusy(false)
         return
       }
@@ -370,10 +374,10 @@ export default function RoomPageClient({ slug, isNew }) {
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
       trackEvent(EVENT_GALLERY_DOWNLOAD_COMPLETED, { room_slug: activeEvent.slug, source: 'room_page', photo_count: galleryPhotos.length })
-      showToast('Gallery download started', 'success')
+      showToast(t.galleryDownloadStarted, 'success')
     } catch (err) {
       console.error('[room] gallery download failed:', err)
-      showToast('Unable to download gallery. Please try again later.', 'error')
+      showToast(t.galleryDownloadFailed, 'error')
     } finally {
       setGalleryDownloadBusy(false)
     }
@@ -645,7 +649,19 @@ export default function RoomPageClient({ slug, isNew }) {
                   </Button>
                 </div>
                 {unlockMessage && <p className="mt-3 text-sm font-semibold text-success">{unlockMessage}</p>}
-                <p className="mt-2 text-sm font-light text-muted-foreground">{t.downloadAvailable}</p>
+                <div className="mt-2 space-y-1">
+                  {isFreeEvent ? (
+                    <>
+                      <p className="text-xs text-muted-foreground">{t.brandingFreeLocked}</p>
+                      <p className="text-xs text-muted-foreground">{t.galleryDownloadLocked}</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-xs text-success">{t.brandingFreeAvailable}</p>
+                      <p className="text-xs text-success">{t.galleryDownloadAvailable}</p>
+                    </>
+                  )}
+                </div>
                 <div className="mt-6">
                   <PhotoGalleryGrid photos={galleryPhotos} loading={galleryLoading} error={galleryError} onRetry={() => activeEvent?.slug && loadEvent(activeEvent.slug)} onSelectPhoto={openLightbox} />
                 </div>

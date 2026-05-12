@@ -476,7 +476,7 @@ export default function DashboardPage() {
       const response = await fetch(`/api/download/gallery?eventSlug=${encodeURIComponent(event.slug)}`)
       if (response.status === 403) {
         trackEvent(EVENT_GALLERY_DOWNLOAD_BLOCKED, { room_slug: event.slug, source: 'dashboard', reason: 'free_plan' })
-        alert('Gallery download is available on Pro Event, Wedding Pro, or Professional plans. Upgrade to download the full gallery.')
+        alert(t.galleryDownloadLocked)
         setGalleryDownloadBusy(false)
         return
       }
@@ -498,7 +498,7 @@ export default function DashboardPage() {
       trackEvent(EVENT_GALLERY_DOWNLOAD_COMPLETED, { room_slug: event.slug, source: 'dashboard', photo_count: photos.length })
     } catch (err) {
       console.error('[dashboard] gallery download failed:', err)
-      alert('Unable to download gallery. Please try again later.')
+      alert(t.galleryDownloadFailed)
     } finally {
       setGalleryDownloadBusy(false)
     }
@@ -1264,6 +1264,19 @@ export default function DashboardPage() {
                           {galleryDownloadBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Archive className="mr-1.5 h-3.5 w-3.5" />}
                           {t.downloadAll || 'Download all'}
                         </Button>
+                      </div>
+                      <div className="space-y-1">
+                        {plan !== 'professional' && plan !== 'business' && !selectedEvent.billingTier ? (
+                          <>
+                            <p className="text-xs text-muted-foreground">{t.brandingFreeLocked}</p>
+                            <p className="text-xs text-muted-foreground">{t.galleryDownloadLocked}</p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-xs text-success">{t.brandingFreeAvailable}</p>
+                            <p className="text-xs text-success">{t.galleryDownloadAvailable}</p>
+                          </>
+                        )}
                       </div>
                       {plan !== 'professional' && plan !== 'business' && !selectedEvent.billingTier && (
                         <div className="flex flex-wrap gap-2">

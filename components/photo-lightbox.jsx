@@ -362,9 +362,9 @@ const PhotoLightbox = ({
           <span className="text-foreground/40">/</span>
           <span className="text-foreground/60">{safePhotos.length}</span>
         </div>
-        {isFreeRoom && isOwner && (
-          <div className="hidden sm:flex items-center gap-1.5 rounded-full bg-black/30 px-3 py-1.5 text-xs text-white/70 backdrop-blur-sm">
-            <span>Free plan — downloads include watermark</span>
+        {isOwner && (
+          <div className={`hidden sm:flex items-center gap-1.5 rounded-full bg-black/30 px-3 py-1.5 text-xs backdrop-blur-sm ${isFreeRoom ? 'text-white/70' : 'text-green-400/90'}`}>
+            <span>{isFreeRoom ? t.brandingFreeLocked : t.brandingFreeAvailable}</span>
           </div>
         )}
         <div className="flex items-center gap-1">
