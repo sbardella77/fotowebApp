@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslations } from '@/components/i18n-provider'
 import { useRouter } from 'next/navigation'
 import { upload } from '@vercel/blob/client'
-import { Camera, CheckCircle2, Copy, Download, Eye, EyeOff, FolderHeart, ImagePlus, LinkIcon, Loader2, Lock, LogOut, Pencil, Plus, QrCode, RefreshCw, Share2, Sparkles, Trash2, Upload } from 'lucide-react'
+import { Camera, CheckCircle2, Copy, Download, Eye, EyeOff, FolderHeart, ImagePlus, LinkIcon, Loader2, Lock, LogOut, Pencil, Plus, QrCode, RefreshCw, Share2, Sparkles, Trash2, Upload, Archive } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -30,6 +30,9 @@ import {
   EVENT_PHOTOGRAPHER_UPLOAD_LINK_COPIED,
   EVENT_PHOTOGRAPHER_UPLOAD_LINK_REGENERATED,
   EVENT_PHOTOGRAPHER_UPLOAD_LINK_REVOKED,
+  EVENT_GALLERY_DOWNLOAD_CLICKED,
+  EVENT_GALLERY_DOWNLOAD_COMPLETED,
+  EVENT_GALLERY_DOWNLOAD_BLOCKED,
 } from '@/lib/analytics/events'
 import {
   AlertDialog,
@@ -124,6 +127,7 @@ export default function DashboardPage() {
   const [forgotSent, setForgotSent] = useState(false)
   const [plan, setPlan] = useState('free')
   const [checkoutBusy, setCheckoutBusy] = useState(false)
+  const [galleryDownloadBusy, setGalleryDownloadBusy] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [createName, setCreateName] = useState('')
   const [createBusy, setCreateBusy] = useState(false)
@@ -462,6 +466,42 @@ export default function DashboardPage() {
     trackEvent(EVENT_ROOM_QR_OPENED_FROM_DASHBOARD, { room_slug: event.slug })
     setQrEvent(event)
     setQrOpen(true)
+  }
+
+  const handleGalleryDownload = async (event) => {
+    if (!event?.slug) return
+    setGalleryDownloadBusy(true)
+    trackEvent(EVENT_GALLERY_DOWNLOAD_CLICKED, { room_slug: event.slug, source: 'dashboard' })
+    try {
+      const response = await fetch(`/api/download/gallery?eventSlug=${encodeURIComponent(event.slug)}`)
+      if (response.status === 403) {
+        trackEvent(EVENT_GALLERY_DOWNLOAD_BLOCKED, { room_slug: event.slug, source: 'dashboard', reason: 'free_plan' })
+        alert('Gallery download is available on Pro Event, Wedding Pro, or Professional plans. Upgrade to download the full gallery.')
+        setGalleryDownloadBusy(false)
+        return
+      }
+      if (!response.ok) {
+        throw new Error(`Download failed: ${response.status}`)
+      }
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const contentDisposition = response.headers.get('content-disposition')
+      const fileNameMatch = contentDisposition?.match(/filename="([^"]+)"/)
+      const fileName = fileNameMatch ? decodeURIComponent(fileNameMatch[1]) : `${event.name || event.slug}_gallery.zip`
+      const link = document.createElement('a')
+      link.href = url
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      trackEvent(EVENT_GALLERY_DOWNLOAD_COMPLETED, { room_slug: event.slug, source: 'dashboard', photo_count: photos.length })
+    } catch (err) {
+      console.error('[dashboard] gallery download failed:', err)
+      alert('Unable to download gallery. Please try again later.')
+    } finally {
+      setGalleryDownloadBusy(false)
+    }
   }
 
   const startRename = (event) => {
@@ -1213,6 +1253,16 @@ export default function DashboardPage() {
                         <Button size="sm" variant="outline" onClick={() => openQR(selectedEvent)} className="border-border bg-raised hover:bg-elevated hover:text-foreground">
                           <QrCode className="mr-1.5 h-3.5 w-3.5" />
                           {t.qr}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={galleryDownloadBusy || photos.length === 0}
+                          onClick={() => handleGalleryDownload(selectedEvent)}
+                          className="border-border bg-raised hover:bg-elevated hover:text-foreground"
+                        >
+                          {galleryDownloadBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Archive className="mr-1.5 h-3.5 w-3.5" />}
+                          {t.downloadAll || 'Download all'}
                         </Button>
                       </div>
                       {plan !== 'professional' && plan !== 'business' && !selectedEvent.billingTier && (

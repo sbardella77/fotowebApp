@@ -23,6 +23,9 @@ import { trackEvent } from '@/lib/analytics/track-client'
 import {
   EVENT_DOWNLOAD_QUALITY_SELECTED,
   EVENT_ORIGINAL_DOWNLOAD_UNLOCK_CLICKED,
+  EVENT_BRANDED_PHOTO_DOWNLOADED,
+  EVENT_GALLERY_DOWNLOAD_CLICKED,
+  EVENT_GALLERY_DOWNLOAD_BLOCKED,
 } from '@/lib/analytics/events'
 
 const SWIPE_THRESHOLD = 50
@@ -135,29 +138,38 @@ const PhotoLightbox = ({
   }, [selectedIndex, safePhotos.length, isNavigating, onSelectIndex])
 
   const performDownload = useCallback(
-    (quality) => {
-      if (!photo?.url) return
+    async (quality) => {
+      if (!photo?.url || !event?.slug) return
       try {
+        const apiUrl = `/api/download/photo?photoUrl=${encodeURIComponent(photo.url)}&eventSlug=${encodeURIComponent(event.slug)}&type=${quality}`
+        const response = await fetch(apiUrl)
+        if (!response.ok) {
+          throw new Error(`Download failed: ${response.status}`)
+        }
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const contentDisposition = response.headers.get('content-disposition')
+        const fileNameMatch = contentDisposition?.match(/filename="([^"]+)"/)
+        const fileName = fileNameMatch ? decodeURIComponent(fileNameMatch[1]) : `photo-${photo.id || selectedIndex + 1}.jpg`
+
         const link = document.createElement('a')
-        link.href = photo.url
-        const suffix = quality === 'original' ? '-original' : ''
-        const baseName = photo.originalName || `photo-${photo.id || selectedIndex + 1}.jpg`
-        const nameParts = baseName.split('.')
-        const ext = nameParts.length > 1 ? nameParts.pop() : 'jpg'
-        const name = nameParts.join('.')
-        link.download = `${name}${suffix}.${ext}`
-        link.target = '_blank'
-        link.rel = 'noopener noreferrer'
+        link.href = url
+        link.download = fileName
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
         setDownloaded(true)
         setTimeout(() => setDownloaded(false), 2000)
+
+        if (isFreeRoom) {
+          trackEvent(EVENT_BRANDED_PHOTO_DOWNLOADED, { room_slug: event.slug, quality, photo_id: photo.id })
+        }
       } catch (e) {
         console.warn('[lightbox] download failed', e)
       }
     },
-    [photo, selectedIndex]
+    [photo, selectedIndex, event?.slug, isFreeRoom]
   )
 
   const handleDownloadStandard = useCallback(() => {
@@ -350,6 +362,11 @@ const PhotoLightbox = ({
           <span className="text-foreground/40">/</span>
           <span className="text-foreground/60">{safePhotos.length}</span>
         </div>
+        {isFreeRoom && isOwner && (
+          <div className="hidden sm:flex items-center gap-1.5 rounded-full bg-black/30 px-3 py-1.5 text-xs text-white/70 backdrop-blur-sm">
+            <span>Free plan — downloads include watermark</span>
+          </div>
+        )}
         <div className="flex items-center gap-1">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

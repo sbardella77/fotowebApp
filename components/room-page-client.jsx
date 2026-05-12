@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Clock3,
   Copy,
+  Download,
   ImagePlus,
   LayoutDashboard,
   Loader2,
@@ -38,6 +39,9 @@ import {
   EVENT_COPY_LINK_CLICKED,
   EVENT_QR_OPENED,
   EVENT_ORIGINAL_DOWNLOAD_CHECKOUT_CANCELLED,
+  EVENT_GALLERY_DOWNLOAD_CLICKED,
+  EVENT_GALLERY_DOWNLOAD_COMPLETED,
+  EVENT_GALLERY_DOWNLOAD_BLOCKED,
 } from '@/lib/analytics/events'
 import { useTranslations } from '@/components/i18n-provider'
 import { LanguageSwitcher } from '@/components/language-switcher'
@@ -336,6 +340,45 @@ export default function RoomPageClient({ slug, isNew }) {
 
   const openLightbox = (index) => { setLightboxIndex(index); setLightboxOpen(true) }
 
+  const [galleryDownloadBusy, setGalleryDownloadBusy] = useState(false)
+
+  const handleGalleryDownload = async () => {
+    if (!activeEvent?.slug) return
+    setGalleryDownloadBusy(true)
+    trackEvent(EVENT_GALLERY_DOWNLOAD_CLICKED, { room_slug: activeEvent.slug, source: 'room_page' })
+    try {
+      const response = await fetch(`/api/download/gallery?eventSlug=${encodeURIComponent(activeEvent.slug)}`)
+      if (response.status === 403) {
+        trackEvent(EVENT_GALLERY_DOWNLOAD_BLOCKED, { room_slug: activeEvent.slug, source: 'room_page', reason: 'free_plan' })
+        showToast('Gallery download requires Pro Event, Wedding Pro, or Professional plan.', 'error')
+        setGalleryDownloadBusy(false)
+        return
+      }
+      if (!response.ok) {
+        throw new Error(`Download failed: ${response.status}`)
+      }
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const contentDisposition = response.headers.get('content-disposition')
+      const fileNameMatch = contentDisposition?.match(/filename="([^"]+)"/)
+      const fileName = fileNameMatch ? decodeURIComponent(fileNameMatch[1]) : `${activeEvent.name || activeEvent.slug}_gallery.zip`
+      const link = document.createElement('a')
+      link.href = url
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      trackEvent(EVENT_GALLERY_DOWNLOAD_COMPLETED, { room_slug: activeEvent.slug, source: 'room_page', photo_count: galleryPhotos.length })
+      showToast('Gallery download started', 'success')
+    } catch (err) {
+      console.error('[room] gallery download failed:', err)
+      showToast('Unable to download gallery. Please try again later.', 'error')
+    } finally {
+      setGalleryDownloadBusy(false)
+    }
+  }
+
   useEffect(() => { loadEvent(slug); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [slug])
   useEffect(() => {
     if (!activeEvent?.slug) return undefined
@@ -585,9 +628,21 @@ export default function RoomPageClient({ slug, isNew }) {
             {/* Gallery */}
             <div className="mt-8 rounded-2xl border border-border bg-surface shadow-card">
               <div className="p-5 sm:p-6">
-                <div className="flex items-center gap-3">
-                  <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.galleryTitle}</span>
-                  <Badge variant="secondary" className="rounded-full font-mono text-[10px] bg-raised text-muted-foreground border-border">{galleryPhotos.length}</Badge>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.galleryTitle}</span>
+                    <Badge variant="secondary" className="rounded-full font-mono text-[10px] bg-raised text-muted-foreground border-border">{galleryPhotos.length}</Badge>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={galleryDownloadBusy || galleryPhotos.length === 0}
+                    onClick={handleGalleryDownload}
+                    className="border-border bg-raised hover:bg-elevated hover:text-foreground"
+                  >
+                    {galleryDownloadBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1.5 h-3.5 w-3.5" />}
+                    {t.downloadAll || 'Download all'}
+                  </Button>
                 </div>
                 {unlockMessage && <p className="mt-3 text-sm font-semibold text-success">{unlockMessage}</p>}
                 <p className="mt-2 text-sm font-light text-muted-foreground">{t.downloadAvailable}</p>
