@@ -66,7 +66,7 @@ function useCanDownloadOriginal(event) {
   if (!event) return true
   if (event.billingTier === 'pro_event' || event.billingTier === 'wedding_pro') return true
   if (event.originalDownloadUnlocked) return true
-  if (event.ownerPlan === 'professional' || event.ownerPlan === 'business') return true
+  if (event.ownerPlan === 'professional' || event.ownerPlan === 'business' || event.ownerPlan === 'pro') return true
   return false
 }
 
@@ -113,7 +113,7 @@ const PhotoLightbox = ({
   const canDownloadOriginal = useCanDownloadOriginal(event)
   const isFreeRoom =
     event && !event.billingTier && !event.originalDownloadUnlocked &&
-    event.ownerPlan !== 'professional' && event.ownerPlan !== 'business'
+    event.ownerPlan !== 'professional' && event.ownerPlan !== 'business' && event.ownerPlan !== 'pro'
 
   const handleClose = useCallback(() => {
     setIsClosing(true)

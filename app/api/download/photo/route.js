@@ -40,6 +40,7 @@ export async function GET(request) {
         id: true,
         slug: true,
         billingTier: true,
+        originalDownloadUnlocked: true,
         ownerId: true,
       },
     })
@@ -72,25 +73,9 @@ export async function GET(request) {
     const entitlement = await checkPhotoDownloadEntitlement(prisma, event)
     const branded = entitlement.branded
 
-    // For original downloads, skip watermarking entirely
-    if (type === 'original') {
-      const { buffer } = await processPhotoForDownload({
-        photoUrl: photo.url,
-        branded: false,
-      })
+    console.log(`${logPrefix} event=${event.slug} type=${type} branded=${branded} billingTier=${event.billingTier} unlock=${event.originalDownloadUnlocked}`)
 
-      const fileName = getDownloadFileName(photo)
-      return new NextResponse(buffer, {
-        status: 200,
-        headers: {
-          'Content-Type': photo.mimeType || 'image/jpeg',
-          'Content-Disposition': `attachment; filename="${encodeURIComponent(fileName)}"`,
-          'Cache-Control': 'private, max-age=300',
-        },
-      })
-    }
-
-    // Standard download: apply watermark if Free
+    // Process download: apply watermark if entitlement requires branding
     const { buffer } = await processPhotoForDownload({
       photoUrl: photo.url,
       branded,

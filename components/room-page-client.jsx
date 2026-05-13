@@ -216,7 +216,8 @@ export default function RoomPageClient({ slug, isNew }) {
   }, [activeEvent])
 
   const isFreeEvent = useMemo(() => {
-    return activeEvent && !activeEvent.billingTier && activeEvent.ownerPlan !== 'professional' && activeEvent.ownerPlan !== 'business'
+    return activeEvent && !activeEvent.billingTier && !activeEvent.originalDownloadUnlocked &&
+      activeEvent.ownerPlan !== 'professional' && activeEvent.ownerPlan !== 'business' && activeEvent.ownerPlan !== 'pro'
   }, [activeEvent])
 
   const loadEvent = async (targetSlug, { silent = false } = {}) => {

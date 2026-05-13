@@ -53,6 +53,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 
+const isPremiumPlan = (p) => p === 'professional' || p === 'business' || p === 'pro'
+
 const DashboardPhotoCard = ({ photo, onApprove, onReject, onDelete, onOpenLightbox, busyId }) => {
   const isBusy = busyId === photo.id
 
@@ -632,7 +634,7 @@ export default function DashboardPage() {
   const hasPrivateDeliveryAccess = (event) => {
     if (!event) return false
     if (event.billingTier === 'wedding_pro') return true
-    if (plan === 'professional' || plan === 'business') return true
+    if (isPremiumPlan(plan)) return true
     return false
   }
 
@@ -935,7 +937,7 @@ export default function DashboardPage() {
           </a>
           {authState.authenticated ? (
             <div className="flex items-center gap-3">
-              {(plan === 'professional' || plan === 'business') && (
+              {isPremiumPlan(plan) && (
                 <span className="hidden rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-primary sm:inline">
                   {t.proBadge}
                 </span>
@@ -1103,7 +1105,7 @@ export default function DashboardPage() {
               </Button>
             </div>
 
-            {plan !== 'professional' && plan !== 'business' && (
+            {!isPremiumPlan(plan) && (
               <div className="surface-elevated rounded-xl overflow-hidden">
                 <div className="p-5 sm:p-6">
                   <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
@@ -1266,19 +1268,18 @@ export default function DashboardPage() {
                         </Button>
                       </div>
                       <div className="space-y-1">
-                        {plan !== 'professional' && plan !== 'business' && !selectedEvent.billingTier ? (
-                          <>
-                            <p className="text-xs text-muted-foreground">{t.brandingFreeLocked}</p>
-                            <p className="text-xs text-muted-foreground">{t.galleryDownloadLocked}</p>
-                          </>
+                        {!isPremiumPlan(plan) && !selectedEvent.billingTier && !selectedEvent.originalDownloadUnlocked ? (
+                          <p className="text-xs text-muted-foreground">{t.brandingFreeLocked}</p>
                         ) : (
-                          <>
-                            <p className="text-xs text-success">{t.brandingFreeAvailable}</p>
-                            <p className="text-xs text-success">{t.galleryDownloadAvailable}</p>
-                          </>
+                          <p className="text-xs text-success">{t.brandingFreeAvailable}</p>
+                        )}
+                        {!isPremiumPlan(plan) && !selectedEvent.billingTier ? (
+                          <p className="text-xs text-muted-foreground">{t.galleryDownloadLocked}</p>
+                        ) : (
+                          <p className="text-xs text-success">{t.galleryDownloadAvailable}</p>
                         )}
                       </div>
-                      {plan !== 'professional' && plan !== 'business' && !selectedEvent.billingTier && (
+                      {!isPremiumPlan(plan) && !selectedEvent.billingTier && (
                         <div className="flex flex-wrap gap-2">
                           <Button size="sm" variant="outline" className="border-primary/20 bg-primary/5 text-primary hover:bg-primary/10" disabled={checkoutBusy} onClick={() => startCheckout('pro_event', selectedEvent.id, 'dashboard_room_detail')}>
                             {checkoutBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : `${t.proEvent} €29`}

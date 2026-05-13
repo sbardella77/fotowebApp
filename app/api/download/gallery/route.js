@@ -74,6 +74,8 @@ export async function GET(request) {
       },
     })
 
+    console.log(`${logPrefix} event=${event.slug} branded=${branded} billingTier=${event.billingTier} photos=${photos.length}`)
+
     if (photos.length === 0) {
       return NextResponse.json({ error: 'No photos available for download' }, { status: 404 })
     }
