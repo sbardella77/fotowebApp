@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import archiver from 'archiver'
+import { ZipArchive } from 'archiver'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { checkGalleryDownloadEntitlement, checkPhotoDownloadEntitlement } from '@/lib/server/entitlements'
 import { getPhotoBuffer, applyWatermark, getDownloadFileName } from '@/lib/server/download-utils'
@@ -81,7 +81,7 @@ export async function GET(request) {
     }
 
     // Set up streaming ZIP response
-    const archive = archiver('zip', { zlib: { level: 6 } })
+    const archive = new ZipArchive({ zlib: { level: 6 } })
     const safeEventName = (event.name || event.slug)
       .replace(/[^a-zA-Z0-9\-_\s]/g, '')
       .replace(/\s+/g, '_')
