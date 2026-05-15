@@ -183,6 +183,11 @@ export default function RoomPageClient({ slug, isNew }) {
   const roomViewTracked = useRef(false)
   const uploadCompletedTracked = useRef(false)
   const { showToast, ToastComponent } = useToast()
+  const fetchControllerRef = useRef(null)
+  const isFetchingRef = useRef(false)
+  const pollTimeoutRef = useRef(null)
+  const pollBackoffRef = useRef(3000)
+  const consecutiveErrorsRef = useRef(0)
 
   useEffect(() => {
     fetch('/api/owner/session', { cache: 'no-store' })
@@ -220,19 +225,33 @@ export default function RoomPageClient({ slug, isNew }) {
       activeEvent.ownerPlan !== 'professional' && activeEvent.ownerPlan !== 'business' && activeEvent.ownerPlan !== 'pro'
   }, [activeEvent])
 
-  const loadEvent = async (targetSlug, { silent = false } = {}) => {
+  const loadEvent = async (targetSlug, { silent = false, force = false } = {}) => {
     if (!targetSlug) return
+    if (!force && isFetchingRef.current) {
+      console.log(`[room:${targetSlug}] loadEvent skipped, already in flight`)
+      return
+    }
+    isFetchingRef.current = true
+
+    // Abort previous fetch to avoid race conditions
+    if (fetchControllerRef.current) {
+      fetchControllerRef.current.abort()
+    }
+    fetchControllerRef.current = new AbortController()
+
     setGalleryError('')
     if (silent) { setBusy((current) => ({ ...current, refresh: true })) }
     else { setBusy((current) => ({ ...current, join: true })); setGalleryLoading(true) }
     try {
-      const response = await fetch(`/api/events/${targetSlug}`, { cache: 'no-store' })
+      const response = await fetch(`/api/events/${targetSlug}`, { cache: 'no-store', signal: fetchControllerRef.current.signal })
       const payload = await response.json()
       if (!response.ok) {
         if (response.status === 404) { setNotFound(true) }
         throw new Error(payload.error || t.unableToOpenGallery)
       }
       setActiveEvent(payload.event)
+      consecutiveErrorsRef.current = 0
+      pollBackoffRef.current = 3000
       if (!roomViewTracked.current) {
         roomViewTracked.current = true
         trackEvent(EVENT_ROOM_VIEWED, {
@@ -240,8 +259,17 @@ export default function RoomPageClient({ slug, isNew }) {
           is_new_room: isNew, photo_count: payload.event?.photos?.length || 0,
         })
       }
-    } catch (error) { setGalleryError(error.message || t.unableToLoadGallery) }
-    finally {
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        console.log(`[room:${targetSlug}] loadEvent aborted`)
+        return
+      }
+      consecutiveErrorsRef.current += 1
+      pollBackoffRef.current = Math.min(pollBackoffRef.current * 2, 30000)
+      console.warn(`[room:${targetSlug}] loadEvent error #${consecutiveErrorsRef.current}: ${error.message}. Backoff=${pollBackoffRef.current}ms`)
+      setGalleryError(error.message || t.unableToLoadGallery)
+    } finally {
+      isFetchingRef.current = false
       if (silent) { setBusy((current) => ({ ...current, refresh: false })) }
       else { setBusy((current) => ({ ...current, join: false })); setGalleryLoading(false) }
     }
@@ -384,13 +412,47 @@ export default function RoomPageClient({ slug, isNew }) {
     }
   }
 
-  useEffect(() => { loadEvent(slug); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [slug])
   useEffect(() => {
-    if (!activeEvent?.slug) return undefined
-    const interval = window.setInterval(() => { loadEvent(activeEvent.slug, { silent: true }) }, 3000)
-    return () => window.clearInterval(interval)
+    loadEvent(slug)
+    return () => {
+      if (fetchControllerRef.current) {
+        fetchControllerRef.current.abort()
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeEvent?.slug])
+  }, [slug])
+
+  useEffect(() => {
+    if (!activeEvent?.slug || notFound) {
+      if (pollTimeoutRef.current) {
+        window.clearTimeout(pollTimeoutRef.current)
+        pollTimeoutRef.current = null
+      }
+      return undefined
+    }
+
+    const schedulePoll = () => {
+      pollTimeoutRef.current = window.setTimeout(async () => {
+        await loadEvent(activeEvent.slug, { silent: true })
+        // Schedule next poll only if still relevant
+        if (pollTimeoutRef.current !== null && !notFound) {
+          schedulePoll()
+        }
+      }, pollBackoffRef.current)
+    }
+
+    schedulePoll()
+    return () => {
+      if (pollTimeoutRef.current) {
+        window.clearTimeout(pollTimeoutRef.current)
+        pollTimeoutRef.current = null
+      }
+      if (fetchControllerRef.current) {
+        fetchControllerRef.current.abort()
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeEvent?.slug, notFound])
   useEffect(() => {
     if (isNew && typeof window !== 'undefined') {
       try { const url = new URL(window.location.href); if (url.searchParams.has('new')) { url.searchParams.delete('new'); window.history.replaceState({}, '', url.toString()) } }
@@ -466,7 +528,7 @@ export default function RoomPageClient({ slug, isNew }) {
                     <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.roomLabel}</span>
                     <h1 className="mt-1.5 font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">{activeEvent.name}</h1>
                   </div>
-                  <Button variant="ghost" size="sm" className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground" onClick={() => loadEvent(activeEvent.slug, { silent: true })}>
+                  <Button variant="ghost" size="sm" className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground" onClick={() => loadEvent(activeEvent.slug, { silent: true, force: true })}>
                     <RefreshCcw className={`h-4 w-4 ${busy.refresh ? 'animate-spin' : ''}`} />
                   </Button>
                 </div>
@@ -664,7 +726,7 @@ export default function RoomPageClient({ slug, isNew }) {
                   )}
                 </div>
                 <div className="mt-6">
-                  <PhotoGalleryGrid photos={galleryPhotos} loading={galleryLoading} error={galleryError} onRetry={() => activeEvent?.slug && loadEvent(activeEvent.slug)} onSelectPhoto={openLightbox} />
+                  <PhotoGalleryGrid photos={galleryPhotos} loading={galleryLoading} error={galleryError} onRetry={() => activeEvent?.slug && loadEvent(activeEvent.slug, { force: true })} onSelectPhoto={openLightbox} />
                 </div>
               </div>
             </div>

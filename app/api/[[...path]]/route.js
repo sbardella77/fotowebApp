@@ -279,10 +279,12 @@ const listEvents = async () => {
 }
 
 const getEvent = async (slug, options = {}) => {
+  const start = Date.now()
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlug(slug, options)
 
   if (!event) {
+    console.log(`[api/events/${slug}] 404 (took ${Date.now() - start}ms)`)
     return json({ error: 'Event not found' }, 404)
   }
 
@@ -301,6 +303,8 @@ const getEvent = async (slug, options = {}) => {
     // ignore, ownerPlan stays null
   }
 
+  const duration = Date.now() - start
+  console.log(`[api/events/${slug}] 200 (took ${duration}ms) photos=${event.photos?.length || 0} photoCount=${event.photoCount || 0}`)
   return json({ event: { ...event, ownerPlan } })
 }
 
