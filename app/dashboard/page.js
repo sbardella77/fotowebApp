@@ -981,7 +981,7 @@ export default function DashboardPage() {
       ) : !authState.authenticated ? (
         <div className="mx-auto max-w-sm py-12 px-4">
           <div className="mb-8 text-center">
-            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-xl bg-primary/10 text-accent-dark">
               <Lock className="h-8 w-8" />
             </div>
             <h1 className="font-display text-2xl font-bold tracking-[-0.02em] text-foreground">
@@ -1097,7 +1097,7 @@ export default function DashboardPage() {
         </div>
       ) : events.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center px-4">
-          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-primary/10 text-primary">
+          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-primary/10 text-accent-dark">
             <Camera className="h-10 w-10" />
           </div>
           <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">{t.noRoomsYet}</h2>
@@ -1152,14 +1152,14 @@ export default function DashboardPage() {
 
           {message && (
             <div className="rounded-xl border border-border bg-surface p-4 text-sm text-muted-foreground flex items-center gap-2.5 shadow-subtle">
-              <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+              <CheckCircle2 className="h-4 w-4 text-accent-dark shrink-0" />
               {message}
             </div>
           )}
 
           {/* Event Grid */}
           <div>
-            <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-primary">{t.roomsYouCreated}</span>
+            <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.roomsYouCreated}</span>
             <div className="mt-4 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
               {filteredEvents.map((event) => (
                 <EventCard
@@ -1199,7 +1199,8 @@ export default function DashboardPage() {
           {/* Mobile / below-xl detail panel */}
           <div className="xl:hidden">
             {selectedEvent && (
-              <EventDetailPanel
+              <div className="bg-surface border border-border rounded-xl shadow-subtle">
+                <EventDetailPanel
                 event={selectedEvent}
                 plan={plan}
                 photos={photos}
@@ -1235,6 +1236,7 @@ export default function DashboardPage() {
                 tPrivate={tPrivate}
                 tCommon={tCommon}
               />
+              </div>
             )}
           </div>
         </div>

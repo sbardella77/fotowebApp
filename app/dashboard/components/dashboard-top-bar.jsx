@@ -12,7 +12,7 @@ export function DashboardTopBar({ plan, message, onDismissMessage }) {
         <span
           className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider ${
             isPremium
-              ? 'border-primary/30 bg-primary/10 text-primary'
+              ? 'border-primary/30 bg-primary/10 text-accent-dark'
               : 'border-border bg-raised text-muted-foreground'
           }`}
         >
@@ -23,7 +23,7 @@ export function DashboardTopBar({ plan, message, onDismissMessage }) {
 
       {message && (
         <div className="hidden sm:flex items-center gap-2 rounded-lg border border-border bg-raised px-3 py-1.5 text-xs text-muted-foreground">
-          <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
+          <CheckCircle2 className="h-3.5 w-3.5 text-accent-dark shrink-0" />
           <span className="truncate max-w-[240px]">{message}</span>
           {onDismissMessage && (
             <button type="button" onClick={onDismissMessage} className="ml-1 text-muted-foreground hover:text-foreground">

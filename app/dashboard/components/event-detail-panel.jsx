@@ -68,7 +68,7 @@ export function EventDetailPanel({
           <img src={heroUrl} alt={event.name} className="h-full w-full object-cover" />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/10 to-primary/5">
-            <Camera className="h-12 w-12 text-primary/40" />
+            <Camera className="h-12 w-12 text-muted-foreground/25" />
           </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
@@ -85,14 +85,14 @@ export function EventDetailPanel({
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-xl border border-border bg-raised p-3">
             <div className="flex items-center gap-2">
-              <ImagePlus className="h-4 w-4 text-primary" />
+              <ImagePlus className="h-4 w-4 text-accent-dark" />
               <span className="text-xs font-medium text-muted-foreground">{t.photos}</span>
             </div>
             <p className="mt-1 font-display text-xl font-bold text-foreground">{photos.length}</p>
           </div>
           <div className="rounded-xl border border-border bg-raised p-3">
             <div className="flex items-center gap-2">
-              <Lock className="h-4 w-4 text-primary" />
+              <Lock className="h-4 w-4 text-accent-dark" />
               <span className="text-xs font-medium text-muted-foreground">{t.status ?? 'Status'}</span>
             </div>
             <p className="mt-1 font-display text-xl font-bold text-foreground">
@@ -134,7 +134,7 @@ export function EventDetailPanel({
 
         {/* Plan info */}
         <div className="mt-5 space-y-2 rounded-xl border border-border bg-raised p-4">
-          <p className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-primary">{t.planInfo ?? 'Plan'}</p>
+          <p className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.planInfo ?? 'Plan'}</p>
           <div className="space-y-1">
             {!isPremium && !event.billingTier && !event.originalDownloadUnlocked ? (
               <p className="text-xs text-muted-foreground">{t.brandingFreeLocked}</p>
@@ -149,17 +149,17 @@ export function EventDetailPanel({
           </div>
           {!isPremium && !event.billingTier && (
             <div className="mt-3 flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" className="border-primary/20 bg-primary/5 text-primary hover:bg-primary/10" disabled={checkoutBusy} onClick={onUpgradeProEvent}>
+              <Button size="sm" variant="outline" className="border-primary/20 bg-primary/5 text-accent-dark hover:bg-primary/10" disabled={checkoutBusy} onClick={onUpgradeProEvent}>
                 {checkoutBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : `${t.proEvent} €29`}
               </Button>
-              <Button size="sm" variant="outline" className="border-primary/20 bg-primary/5 text-primary hover:bg-primary/10" disabled={checkoutBusy} onClick={onUpgradeWeddingPro}>
+              <Button size="sm" variant="outline" className="border-primary/20 bg-primary/5 text-accent-dark hover:bg-primary/10" disabled={checkoutBusy} onClick={onUpgradeWeddingPro}>
                 {checkoutBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : `${t.weddingPro} €49`}
               </Button>
             </div>
           )}
           {event.billingTier && (
             <div className="mt-2">
-              <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+              <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-accent-dark">
                 <Sparkles className="mr-1 h-3 w-3" />
                 {event.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent}
               </span>
@@ -169,7 +169,7 @@ export function EventDetailPanel({
 
         {/* Photos */}
         <div className="mt-6">
-          <p className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-primary">{t.roomPhotos}</p>
+          <p className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.roomPhotos}</p>
           {busyDetail ? (
             <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -177,7 +177,7 @@ export function EventDetailPanel({
             </div>
           ) : photos.length === 0 ? (
             <div className="mt-3 rounded-xl border border-dashed border-border bg-raised p-8 text-center">
-              <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-accent-dark">
                 <ImagePlus className="h-5 w-5" />
               </div>
               <p className="text-sm font-semibold text-foreground">{t.noPhotosYet}</p>
@@ -205,8 +205,8 @@ export function EventDetailPanel({
           <div className="mt-6 rounded-xl border border-primary/20 bg-surface shadow-card">
             <div className="p-4">
               <div className="flex items-center gap-2">
-                <FolderHeart className="h-4 w-4 text-primary" />
-                <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-primary">{tPrivate.privateDelivery}</span>
+                <FolderHeart className="h-4 w-4 text-accent-dark" />
+                <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{tPrivate.privateDelivery}</span>
               </div>
               <h3 className="mt-2 font-display text-base font-bold tracking-tight text-foreground">{tPrivate.professionalFiles}</h3>
               <p className="mt-1 text-xs font-light leading-relaxed text-muted-foreground">{tPrivate.privateDeliveryDesc}</p>
@@ -226,7 +226,7 @@ export function EventDetailPanel({
                   </div>
                 ) : privateAssets.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-primary/10 bg-raised p-6 text-center">
-                    <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-accent-dark">
                       <FolderHeart className="h-5 w-5" />
                     </div>
                     <p className="text-sm font-semibold text-foreground">{tPrivate.noPrivateFiles}</p>
@@ -257,7 +257,7 @@ export function EventDetailPanel({
 
               {/* Photographer Link */}
               <div className="mt-5 rounded-xl border border-border bg-raised p-4">
-                <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-primary">{tPrivate.photographerLink}</span>
+                <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{tPrivate.photographerLink}</span>
                 <p className="mt-1 text-xs font-light leading-relaxed text-muted-foreground">{tPrivate.photographerLinkDesc}</p>
                 <div className="mt-3">
                   {!photographerLink && !event?.hasPhotographerUploadLink && (

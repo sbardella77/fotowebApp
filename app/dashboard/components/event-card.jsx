@@ -39,12 +39,12 @@ export function EventCard({
           <img src={coverUrl} alt={event.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/10 to-primary/5">
-            <Camera className="h-10 w-10 text-primary/40" />
+            <Camera className="h-10 w-10 text-muted-foreground/30" />
           </div>
         )}
         {event.billingTier && (
           <div className="absolute right-3 top-3">
-            <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary backdrop-blur-sm">
+            <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-accent-dark backdrop-blur-sm">
               <Sparkles className="h-2.5 w-2.5" />
               {event.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent}
             </span>
@@ -85,7 +85,7 @@ export function EventCard({
           <>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <ImagePlus className="h-3.5 w-3.5 text-primary" />
+                <ImagePlus className="h-3.5 w-3.5 text-accent-dark" />
                 <span className="font-light">{photoCount} {t.photos}</span>
               </div>
             </div>

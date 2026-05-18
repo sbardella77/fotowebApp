@@ -13,7 +13,7 @@ export function DashboardSidebar({ plan, email, onLogout, onUpgradeClick, t, tCo
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-subtle">
           <Camera className="h-[18px] w-[18px]" />
         </div>
-        <span className="font-display text-[15px] font-bold tracking-tight text-primary">{t.brand}</span>
+        <span className="font-display text-[15px] font-bold tracking-tight text-accent-dark">{t.brand}</span>
       </div>
 
       {/* Nav */}
@@ -21,7 +21,7 @@ export function DashboardSidebar({ plan, email, onLogout, onUpgradeClick, t, tCo
         <div className="space-y-1">
           <a
             href="/dashboard"
-            className="flex items-center gap-3 rounded-lg bg-primary/10 px-3 py-2.5 text-sm font-medium text-primary"
+            className="flex items-center gap-3 rounded-lg bg-primary/10 px-3 py-2.5 text-sm font-medium text-accent-dark"
           >
             <LayoutDashboard className="h-4 w-4" />
             {t.dashboard ?? 'Dashboard'}
@@ -31,8 +31,8 @@ export function DashboardSidebar({ plan, email, onLogout, onUpgradeClick, t, tCo
         {!isPremium && onUpgradeClick && (
           <div className="mt-6 rounded-xl border border-primary/20 bg-primary/5 p-4">
             <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
-              <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-primary">{t.premium}</span>
+              <Sparkles className="h-4 w-4 text-accent-dark" />
+              <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.premium}</span>
             </div>
             <p className="mt-2 text-sm font-medium text-foreground">{t.unlockPremium}</p>
             <p className="mt-1 text-xs font-light text-muted-foreground leading-relaxed">{t.upgradeDesc}</p>
@@ -46,7 +46,7 @@ export function DashboardSidebar({ plan, email, onLogout, onUpgradeClick, t, tCo
       {/* Owner / Profile */}
       <div className="border-t border-border p-3">
         <div className="flex items-center gap-3 rounded-lg bg-raised px-3 py-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-accent-dark">
             <User className="h-4 w-4" />
           </div>
           <div className="min-w-0 flex-1">
