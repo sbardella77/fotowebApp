@@ -4,8 +4,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslations } from '@/components/i18n-provider'
 import { useRouter } from 'next/navigation'
 import { upload } from '@vercel/blob/client'
-import { ArrowUpDown, Camera, CheckCircle2, Copy, Download, Eye, EyeOff, FolderHeart, ImagePlus, LinkIcon, Loader2, Lock, LogOut, Pencil, Plus, QrCode, RefreshCw, Search, Share2, Sparkles, Trash2, Upload, Archive } from 'lucide-react'
+import { Camera, CheckCircle2, Copy, Download, Eye, EyeOff, FolderHeart, ImagePlus, LinkIcon, Loader2, Lock, LogOut, Pencil, Plus, QrCode, RefreshCw, Share2, Sparkles, Trash2, Upload, Archive } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import PhotoLightbox from '@/components/photo-lightbox'
 import { EventQRModal } from '@/components/event-qr-modal'
@@ -51,16 +53,44 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 
-import { DashboardShell } from './components/dashboard-shell'
-import { DashboardSidebar } from './components/dashboard-sidebar'
-import { DashboardTopBar } from './components/dashboard-top-bar'
-import { DashboardHeader } from './components/dashboard-header'
-import { InsightCard } from './components/insight-card'
-import { EventCard } from './components/event-card'
-import { EventDetailPanel } from './components/event-detail-panel'
-import { DashboardPhotoCard } from './components/dashboard-photo-card'
-
 const isPremiumPlan = (p) => p === 'professional' || p === 'business' || p === 'pro'
+
+const DashboardPhotoCard = ({ photo, onApprove, onReject, onDelete, onOpenLightbox, busyId }) => {
+  const isBusy = busyId === photo.id
+
+  return (
+    <div className="overflow-hidden surface-elevated rounded-xl transition-transform duration-200 hover:-translate-y-px">
+      <button className="block w-full text-left" onClick={onOpenLightbox} type="button">
+        <img alt={photo.originalName} className="aspect-square w-full object-cover" src={photo.url} />
+      </button>
+      <div className="space-y-3 p-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-foreground">{photo.originalName}</p>
+            <p className="truncate text-xs font-light text-muted-foreground">{photo.uploaderName || 'Guest upload'}</p>
+          </div>
+          <Badge
+            variant={photo.status === 'VISIBLE' ? 'default' : 'secondary'}
+            className="rounded-full capitalize font-mono text-[10px]"
+          >
+            {photo.status.toLowerCase()}
+          </Badge>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <Button disabled={isBusy || photo.status === 'VISIBLE'} size="sm" onClick={onApprove} className="h-9">
+            {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
+          </Button>
+          <Button disabled={isBusy || photo.status === 'HIDDEN'} size="sm" variant="outline" onClick={onReject} className="h-9 border-border bg-raised hover:bg-elevated">
+            <EyeOff className="h-3.5 w-3.5" />
+          </Button>
+          <Button disabled={isBusy} size="sm" variant="destructive" onClick={onDelete} className="h-9">
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -112,22 +142,6 @@ export default function DashboardPage() {
   const [photographerLink, setPhotographerLink] = useState('')
   const [photographerLinkBusy, setPhotographerLinkBusy] = useState(false)
   const [photographerLinkCopied, setPhotographerLinkCopied] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [sortBy, setSortBy] = useState('newest')
-
-  const filteredEvents = useMemo(() => {
-    let result = [...events]
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      result = result.filter((e) => e.name.toLowerCase().includes(q) || e.slug.toLowerCase().includes(q))
-    }
-    if (sortBy === 'name') {
-      result.sort((a, b) => a.name.localeCompare(b.name))
-    } else if (sortBy === 'newest' && result[0]?.createdAt) {
-      result.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-    }
-    return result
-  }, [events, searchQuery, sortBy])
 
   const photos = useMemo(() => selectedEvent?.photos || [], [selectedEvent])
 
@@ -909,267 +923,232 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-
   return (
-    <DashboardShell
-      sidebar={
-        <DashboardSidebar
-          plan={plan}
-          email={authState.email}
-          onLogout={logout}
-          onUpgradeClick={
-            !isPremiumPlan(plan)
-              ? () => startCheckout('professional', null, 'dashboard_sidebar')
-              : undefined
-          }
-          t={t}
-          tCommon={tCommon}
-        />
-      }
-      topBar={
-        <DashboardTopBar
-          plan={plan}
-          message={message}
-          onDismissMessage={() => setMessage('')}
-        />
-      }
-      rightPanel={
-        selectedEvent ? (
-          <EventDetailPanel
-            event={selectedEvent}
-            plan={plan}
-            photos={photos}
-            busyDetail={busy.detail}
-            privateAssets={privateAssets}
-            privateDeliveryLoading={privateDeliveryLoading}
-            privateDeliveryUploading={privateDeliveryUploading}
-            photographerLink={photographerLink}
-            photographerLinkBusy={photographerLinkBusy}
-            photographerLinkCopied={photographerLinkCopied}
-            galleryDownloadBusy={galleryDownloadBusy}
-            checkoutBusy={checkoutBusy}
-            photoBusyId={busy.photoId}
-            onShare={shareEvent}
-            onQR={openQR}
-            onGalleryDownload={handleGalleryDownload}
-            onUpgradeProEvent={() => startCheckout('pro_event', selectedEvent.id, 'dashboard_room_detail')}
-            onUpgradeWeddingPro={() => startCheckout('wedding_pro', selectedEvent.id, 'dashboard_room_detail')}
-            onDelete={startDelete}
-            onOpenLightbox={(index) => {
-              setLightboxIndex(index)
-              setLightboxOpen(true)
-            }}
-            onModerate={moderatePhoto}
-            onPhotoDelete={deletePhoto}
-            onPrivateUploadClick={() => privateDeliveryFileInputRef.current?.click()}
-            onPrivateDownload={downloadPrivateAsset}
-            onPrivateDelete={deletePrivateAsset}
-            onGeneratePhotoLink={generatePhotographerLink}
-            onCopyPhotoLink={copyPhotographerLink}
-            onRevokePhotoLink={revokePhotographerLink}
-            t={t}
-            tPrivate={tPrivate}
-            tCommon={tCommon}
-          />
-        ) : null
-      }
-    >
-      {authState.loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-      ) : !authState.authenticated ? (
-        <div className="mx-auto max-w-sm py-12 px-4">
-          <div className="mb-8 text-center">
-            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <Lock className="h-8 w-8" />
-            </div>
-            <h1 className="font-display text-2xl font-bold tracking-[-0.02em] text-foreground">
-              {forgotMode ? t.resetYourPassword : t.signInToManage}
-            </h1>
-            <p className="mt-3 text-sm font-light leading-relaxed text-muted-foreground">
-              {forgotMode ? t.enterEmailForReset : t.accessYourRooms}
-            </p>
-          </div>
+    <main className="relative min-h-screen bg-background font-body text-foreground">
+      <div className="absolute inset-0 bg-grid opacity-[0.025] pointer-events-none" aria-hidden="true" />
 
-          {forgotMode ? (
-            <div className="surface-elevated rounded-xl p-6">
-              <div className="space-y-4">
-                {forgotSent ? (
-                  <div className="rounded-xl border border-border bg-raised p-4 text-sm text-muted-foreground text-center">
-                    {t.resetSent}
-                  </div>
-                ) : (
-                  <>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-foreground">{t.emailLabel}</label>
-                      <Input
-                        type="email"
-                        value={forgotEmail}
-                        onChange={(e) => setForgotEmail(e.target.value)}
-                        placeholder={t.emailPlaceholder}
-                        className="h-11 rounded-lg border-input bg-surface text-foreground placeholder:text-muted-foreground"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && forgotEmail.trim()) sendForgotLink()
-                        }}
-                      />
-                    </div>
-                    {message && <p className="text-sm text-destructive">{message}</p>}
-                    <Button className="w-full h-11 cta-primary" disabled={forgotBusy || !forgotEmail.trim()} onClick={sendForgotLink}>
-                      {forgotBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.sendResetLink}
-                    </Button>
-                  </>
-                )}
-                <div className="text-center pt-2">
-                  <button
-                    type="button"
-                    className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline transition-colors"
-                    onClick={() => {
-                      setForgotMode(false)
-                      setForgotEmail('')
-                      setForgotSent(false)
-                      setMessage('')
-                    }}
-                  >
-                    {t.backToSignIn}
-                  </button>
-                </div>
-              </div>
+      <header className="relative z-10 bg-background/80 backdrop-blur-xl border-b border-border">
+        <div className="container flex h-16 items-center justify-between px-4">
+          <a href="/" className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-subtle">
+              <Camera className="h-[18px] w-[18px]" />
+            </div>
+            <span className="font-display text-[15px] font-bold tracking-tight text-primary">{t.brand}</span>
+          </a>
+          {authState.authenticated ? (
+            <div className="flex items-center gap-3">
+              {isPremiumPlan(plan) && (
+                <span className="hidden rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-primary sm:inline">
+                  {t.proBadge}
+                </span>
+              )}
+              <span className="hidden font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground sm:inline">
+                {authState.email}
+              </span>
+              <Button variant="ghost" size="sm" onClick={logout} className="font-body text-muted-foreground hover:text-foreground">
+                <LogOut className="mr-2 h-4 w-4" />
+                {t.signOut}
+              </Button>
             </div>
           ) : (
-            <div className="surface-elevated rounded-xl p-6">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">{t.emailLabel}</label>
-                  <Input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder={t.emailPlaceholder}
-                    className="h-11 rounded-lg border-input bg-surface text-foreground placeholder:text-muted-foreground"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">{t.passwordLabel}</label>
-                  <div className="relative">
-                    <Input
-                      type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder={t.passwordPlaceholder}
-                      className="h-11 rounded-lg border-input bg-surface text-foreground placeholder:text-muted-foreground"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && email.trim() && password) loginWithPassword()
-                      }}
-                    />
+            <Button size="sm" variant="ghost" asChild className="font-body">
+              <a href="/">{t.createRoom}</a>
+            </Button>
+          )}
+        </div>
+      </header>
+
+      <section className="container relative z-10 px-4 py-10 sm:py-16">
+        {authState.loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : !authState.authenticated ? (
+          <div className="mx-auto max-w-sm py-12">
+            <div className="mb-8 text-center">
+              <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <Lock className="h-8 w-8" />
+              </div>
+              <h1 className="font-display text-2xl font-bold tracking-[-0.02em] text-foreground">
+                {forgotMode ? t.resetYourPassword : t.signInToManage}
+              </h1>
+              <p className="mt-3 text-sm font-light leading-relaxed text-muted-foreground">
+                {forgotMode ? t.enterEmailForReset : t.accessYourRooms}
+              </p>
+            </div>
+
+            {forgotMode ? (
+              <div className="surface-elevated rounded-xl p-6">
+                <div className="space-y-4">
+                  {forgotSent ? (
+                    <div className="rounded-xl border border-border bg-raised p-4 text-sm text-muted-foreground text-center">
+                      {t.resetSent}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-foreground">{t.emailLabel}</label>
+                        <Input
+                          type="email"
+                          value={forgotEmail}
+                          onChange={(e) => setForgotEmail(e.target.value)}
+                          placeholder={t.emailPlaceholder}
+                          className="h-11 rounded-lg border-input bg-surface text-foreground placeholder:text-muted-foreground"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && forgotEmail.trim()) sendForgotLink()
+                          }}
+                        />
+                      </div>
+                      {message && <p className="text-sm text-destructive">{message}</p>}
+                      <Button className="w-full h-11 cta-primary" disabled={forgotBusy || !forgotEmail.trim()} onClick={sendForgotLink}>
+                        {forgotBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.sendResetLink}
+                      </Button>
+                    </>
+                  )}
+                  <div className="text-center pt-2">
                     <button
                       type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline transition-colors"
+                      onClick={() => {
+                        setForgotMode(false)
+                        setForgotEmail('')
+                        setForgotSent(false)
+                        setMessage('')
+                      }}
                     >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {t.backToSignIn}
                     </button>
                   </div>
                 </div>
+              </div>
+            ) : (
+              <div className="surface-elevated rounded-xl p-6">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">{t.emailLabel}</label>
+                    <Input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder={t.emailPlaceholder}
+                      className="h-11 rounded-lg border-input bg-surface text-foreground placeholder:text-muted-foreground"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">{t.passwordLabel}</label>
+                    <div className="relative">
+                      <Input
+                        type={showPassword ? 'text' : 'password'}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder={t.passwordPlaceholder}
+                        className="h-11 rounded-lg border-input bg-surface text-foreground placeholder:text-muted-foreground"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && email.trim() && password) loginWithPassword()
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
 
-                {message && <p className="text-sm text-destructive">{message}</p>}
+                  {message && <p className="text-sm text-destructive">{message}</p>}
 
-                <Button className="w-full h-11 cta-primary" disabled={busy.auth || !email.trim() || !password} onClick={loginWithPassword}>
-                  {busy.auth ? <Loader2 className="h-4 w-4 animate-spin" /> : t.signIn}
-                </Button>
+                  <Button className="w-full h-11 cta-primary" disabled={busy.auth || !email.trim() || !password} onClick={loginWithPassword}>
+                    {busy.auth ? <Loader2 className="h-4 w-4 animate-spin" /> : t.signIn}
+                  </Button>
 
-                <div className="text-center pt-1">
-                  <button
-                    type="button"
-                    className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline transition-colors"
-                    onClick={() => {
-                      setForgotMode(true)
-                      setMessage('')
-                      if (email.trim()) setForgotEmail(email.trim())
-                    }}
-                  >
-                    {t.forgotPassword}
-                  </button>
+                  <div className="text-center pt-1">
+                    <button
+                      type="button"
+                      className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline transition-colors"
+                      onClick={() => {
+                        setForgotMode(true)
+                        setMessage('')
+                        if (email.trim()) setForgotEmail(email.trim())
+                      }}
+                    >
+                      {t.forgotPassword}
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
-      ) : events.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center px-4">
-          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-primary/10 text-primary">
-            <Camera className="h-10 w-10" />
+            )}
           </div>
-          <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">{t.noRoomsYet}</h2>
-          <p className="mt-3 max-w-sm text-sm font-light leading-relaxed text-muted-foreground">{t.noRoomsDesc}</p>
-          <Button className="mt-8 cta-primary" onClick={openCreateDialog}>
-            <Plus className="mr-2 h-4 w-4" />
-            {t.createYourRoom}
-          </Button>
-        </div>
-      ) : (
-        <div className="space-y-8 px-4 py-8 sm:px-6 lg:px-8">
-          {/* Header */}
-          <DashboardHeader
-            title={t.yourRooms}
-            description={t.yourRoomsDesc}
-            onCreateClick={openCreateDialog}
-            createLabel={t.createNewRoom}
-          />
-
-          {/* Insight / Stats */}
-          <InsightCard
-            plan={plan}
-            events={events}
-            checkoutBusy={checkoutBusy}
-            onUpgrade={() => startCheckout('professional', null, 'dashboard_banner')}
-            t={t}
-          />
-
-          {/* Controls */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative max-w-sm flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={t.searchRooms ?? 'Search rooms...'}
-                className="h-10 rounded-lg border-input bg-surface pl-9 text-foreground placeholder:text-muted-foreground"
-              />
+        ) : events.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-primary/10 text-primary">
+              <Camera className="h-10 w-10" />
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                className="border-border bg-raised hover:bg-elevated"
-                onClick={() => setSortBy((s) => (s === 'newest' ? 'name' : 'newest'))}
-              >
-                <ArrowUpDown className="mr-1.5 h-3.5 w-3.5" />
-                {sortBy === 'newest' ? (t.sortNewest ?? 'Newest') : (t.sortName ?? 'Name')}
+            <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">{t.noRoomsYet}</h2>
+            <p className="mt-3 max-w-sm text-sm font-light leading-relaxed text-muted-foreground">{t.noRoomsDesc}</p>
+            <Button className="mt-8 cta-primary" onClick={openCreateDialog}>
+              <Plus className="mr-2 h-4 w-4" />
+              {t.createYourRoom}
+            </Button>
+          </div>
+        ) : (
+          <div className="mx-auto max-w-5xl space-y-10">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h1 className="font-display text-2xl font-bold tracking-[-0.02em] text-foreground">{t.yourRooms}</h1>
+                <p className="mt-1.5 text-sm font-light text-muted-foreground">{t.yourRoomsDesc}</p>
+              </div>
+              <Button size="sm" className="mt-2 sm:mt-0 cta-primary" onClick={openCreateDialog}>
+                <Plus className="mr-2 h-4 w-4" />
+                {t.createNewRoom}
               </Button>
             </div>
-          </div>
 
-          {message && (
-            <div className="rounded-xl border border-border bg-surface p-4 text-sm text-muted-foreground flex items-center gap-2.5 shadow-subtle">
-              <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-              {message}
+            {!isPremiumPlan(plan) && (
+              <div className="surface-elevated rounded-xl overflow-hidden">
+                <div className="p-5 sm:p-6">
+                  <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-primary">{t.premium}</span>
+                        <Sparkles className="h-3 w-3 text-primary" />
+                      </div>
+                      <h2 className="mt-2 font-display text-lg font-bold tracking-tight text-foreground">{t.unlockPremium}</h2>
+                      <p className="mt-1.5 max-w-md text-sm font-light leading-relaxed text-muted-foreground">{t.upgradeDesc}</p>
+                      <p className="mt-2 text-xs font-light text-muted-foreground/70">{t.guestsAlwaysFree}</p>
+                    </div>
+                    <div className="flex flex-col items-start gap-3 sm:items-end">
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" variant="outline" asChild className="border-border bg-raised">
+                          <a href="/pricing">{t.viewPricing}</a>
+                        </Button>
+                      </div>
+                      <Button size="sm" className="cta-primary" disabled={checkoutBusy} onClick={() => startCheckout('professional', null, 'dashboard_banner')}>
+                        {checkoutBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.startProfessional}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {message ? (
+              <div className="rounded-xl border border-border bg-surface p-4 text-sm text-muted-foreground flex items-center gap-2.5 shadow-subtle">
+                <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+                {message}
+              </div>
+            ) : null}
+
+            <div>
+              <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-primary">{t.roomsYouCreated}</span>
             </div>
-          )}
 
-          {/* Event Grid */}
-          <div>
-            <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-primary">{t.roomsYouCreated}</span>
-            <div className="mt-4 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-              {filteredEvents.map((event) => (
-                <EventCard
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {events.map((event) => (
+                <div
                   key={event.id}
-                  event={event}
-                  selected={selectedSlug === event.slug}
-                  editing={editingSlug === event.slug}
-                  editName={editName}
-                  busyDetail={busy.detail}
-                  onSelect={() => {
+                  onClick={() => {
                     trackEvent(EVENT_ROOM_SELECTED_IN_DASHBOARD, {
                       room_slug: event.slug,
                       room_name: event.name,
@@ -1177,68 +1156,301 @@ export default function DashboardPage() {
                     })
                     setSelectedSlug(event.slug)
                   }}
-                  onRenameStart={startRename}
-                  onRenameSave={() => saveRename(event.slug)}
-                  onRenameCancel={cancelRename}
-                  onEditNameChange={setEditName}
-                  onShare={shareEvent}
-                  onQR={openQR}
-                  onDelete={startDelete}
-                  t={t}
-                  tCommon={tCommon}
-                />
+                  className={`group relative overflow-hidden rounded-xl border bg-surface transition-all duration-200 hover:-translate-y-px cursor-pointer ${
+                    selectedSlug === event.slug
+                      ? 'border-primary/40 shadow-[0_0_0_1px_hsl(var(--accent)/0.15)]'
+                      : 'border-border hover:border-[hsl(var(--border-visible))]'
+                  }`}
+                >
+                  <div className="p-5">
+                    {editingSlug === event.slug ? (
+                      <div className="space-y-3">
+                        <Input
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          className="h-9 rounded-lg border-input bg-surface text-foreground"
+                          disabled={busy.detail}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveRename(event.slug)
+                            if (e.key === 'Escape') cancelRename()
+                          }}
+                          autoFocus
+                        />
+                        <div className="flex gap-2">
+                          <Button size="sm" className="h-8" disabled={busy.detail} onClick={() => saveRename(event.slug)}>
+                            {busy.detail ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : tCommon.save}
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-8" onClick={cancelRename}>
+                            {tCommon.cancel}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="font-display text-base font-bold tracking-tight text-foreground truncate">{event.name}</h3>
+                          {event.billingTier && (
+                            <span className="inline-flex shrink-0 items-center rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                              <Sparkles className="mr-1 h-2.5 w-2.5" />
+                              {event.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent}
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">{t.code} {event.slug}</p>
+                        <div className="mt-4 flex items-center gap-4">
+                          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                            <ImagePlus className="h-3.5 w-3.5 text-primary" />
+                            <span className="font-light">{event.photoCount || event.photos?.length || 0} {t.photos}</span>
+                          </div>
+                        </div>
+                        <div className="mt-5 flex flex-wrap gap-2">
+                          <Button size="sm" asChild className="cta-primary" onClick={(e) => e.stopPropagation()}>
+                            <a href={`/event/${event.slug}`}>{t.openRoom}</a>
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); shareEvent(event) }} className="border-border bg-raised hover:bg-elevated hover:text-foreground">
+                            <Share2 className="mr-1.5 h-3.5 w-3.5" />
+                            {t.share}
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); openQR(event) }} className="border-border bg-raised hover:bg-elevated hover:text-foreground">
+                            <QrCode className="mr-1.5 h-3.5 w-3.5" />
+                            {t.qr}
+                          </Button>
+                        </div>
+                        <div className="mt-4 flex gap-3 pt-4 border-t border-border">
+                          <button type="button" className="inline-flex items-center gap-1.5 text-xs font-light text-muted-foreground hover:text-foreground transition-colors" onClick={(e) => { e.stopPropagation(); startRename(event) }}>
+                            <Pencil className="h-3.5 w-3.5" />
+                            {t.rename}
+                          </button>
+                          <button type="button" className="inline-flex items-center gap-1.5 text-xs font-light text-destructive hover:text-destructive/80 transition-colors" onClick={(e) => { e.stopPropagation(); startDelete(event) }}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                            {tCommon.delete}
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
               ))}
             </div>
-            {filteredEvents.length === 0 && searchQuery && (
-              <div className="mt-8 text-center text-sm text-muted-foreground">
-                {t.noSearchResults ?? 'No rooms match your search.'}
+
+            {selectedEvent && (
+              <div className="surface-elevated rounded-xl">
+                <div className="p-5 sm:p-6">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-primary">{t.roomPhotos}</span>
+                      <h3 className="mt-2 font-display text-lg font-bold tracking-tight text-foreground">{selectedEvent.name}</h3>
+                      <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">{t.code} {selectedEvent.slug}</p>
+                      <p className="mt-1.5 text-sm font-light text-muted-foreground">{photos.length} {t.totalPhotos}</p>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" asChild className="cta-primary">
+                          <a href={`/event/${selectedEvent.slug}`}>{t.openRoom}</a>
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => shareEvent(selectedEvent)} className="border-border bg-raised hover:bg-elevated hover:text-foreground">
+                          <Share2 className="mr-1.5 h-3.5 w-3.5" />
+                          {t.share}
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => openQR(selectedEvent)} className="border-border bg-raised hover:bg-elevated hover:text-foreground">
+                          <QrCode className="mr-1.5 h-3.5 w-3.5" />
+                          {t.qr}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={galleryDownloadBusy || photos.length === 0}
+                          onClick={() => handleGalleryDownload(selectedEvent)}
+                          className="border-border bg-raised hover:bg-elevated hover:text-foreground"
+                        >
+                          {galleryDownloadBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Archive className="mr-1.5 h-3.5 w-3.5" />}
+                          {t.downloadAll || 'Download all'}
+                        </Button>
+                      </div>
+                      <div className="space-y-1">
+                        {!isPremiumPlan(plan) && !selectedEvent.billingTier && !selectedEvent.originalDownloadUnlocked ? (
+                          <p className="text-xs text-muted-foreground">{t.brandingFreeLocked}</p>
+                        ) : (
+                          <p className="text-xs text-success">{t.brandingFreeAvailable}</p>
+                        )}
+                        {!isPremiumPlan(plan) && !selectedEvent.billingTier ? (
+                          <p className="text-xs text-muted-foreground">{t.galleryDownloadLocked}</p>
+                        ) : (
+                          <p className="text-xs text-success">{t.galleryDownloadAvailable}</p>
+                        )}
+                      </div>
+                      {!isPremiumPlan(plan) && !selectedEvent.billingTier && (
+                        <div className="flex flex-wrap gap-2">
+                          <Button size="sm" variant="outline" className="border-primary/20 bg-primary/5 text-primary hover:bg-primary/10" disabled={checkoutBusy} onClick={() => startCheckout('pro_event', selectedEvent.id, 'dashboard_room_detail')}>
+                            {checkoutBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : `${t.proEvent} €29`}
+                          </Button>
+                          <Button size="sm" variant="outline" className="border-primary/20 bg-primary/5 text-primary hover:bg-primary/10" disabled={checkoutBusy} onClick={() => startCheckout('wedding_pro', selectedEvent.id, 'dashboard_room_detail')}>
+                            {checkoutBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : `${t.weddingPro} €49`}
+                          </Button>
+                        </div>
+                      )}
+                      {selectedEvent.billingTier && (
+                        <div className="mt-1">
+                          <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+                            <Sparkles className="mr-1 h-3 w-3" />
+                            {selectedEvent.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-8">
+                    {busy.detail ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        {t.loadingPhotos}
+                      </div>
+                    ) : photos.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-border bg-raised p-10 text-center">
+                        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                          <ImagePlus className="h-6 w-6" />
+                        </div>
+                        <p className="text-sm font-semibold text-foreground">{t.noPhotosYet}</p>
+                        <p className="mt-1 text-xs font-light text-muted-foreground">{t.shareToStart}</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                        {photos.map((photo, index) => (
+                          <DashboardPhotoCard
+                            key={photo.id}
+                            busyId={busy.photoId}
+                            photo={photo}
+                            onApprove={() => moderatePhoto(photo.id, 'approve')}
+                            onDelete={() => deletePhoto(photo.id)}
+                            onOpenLightbox={() => {
+                              setLightboxIndex(index)
+                              setLightboxOpen(true)
+                            }}
+                            onReject={() => moderatePhoto(photo.id, 'reject')}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {selectedEvent && hasPrivateDeliveryAccess(selectedEvent) && (
+              <div className="rounded-xl border border-primary/20 bg-surface shadow-card">
+                <div className="p-5 sm:p-6">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <FolderHeart className="h-4 w-4 text-primary" />
+                        <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-primary">{tPrivate.privateDelivery}</span>
+                      </div>
+                      <h3 className="mt-2 font-display text-lg font-bold tracking-tight text-foreground">{tPrivate.professionalFiles}</h3>
+                      <p className="mt-1.5 text-sm font-light leading-relaxed text-muted-foreground">{tPrivate.privateDeliveryDesc}</p>
+                    </div>
+                    <div>
+                      <input ref={privateDeliveryFileInputRef} type="file" accept="image/jpeg,image/png" className="hidden" onChange={onPrivateDeliveryFileSelect} />
+                      <Button size="sm" className="cta-primary" disabled={privateDeliveryUploading} onClick={() => privateDeliveryFileInputRef.current?.click()}>
+                        {privateDeliveryUploading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1.5 h-3.5 w-3.5" />}
+                        {privateDeliveryUploading ? tPrivate.uploading : tPrivate.uploadFile}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="mt-8">
+                    {privateDeliveryLoading ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        {tPrivate.loadingPrivateFiles}
+                      </div>
+                    ) : privateAssets.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-primary/10 bg-raised p-10 text-center">
+                        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                          <FolderHeart className="h-6 w-6" />
+                        </div>
+                        <p className="text-sm font-semibold text-foreground">{tPrivate.noPrivateFiles}</p>
+                        <p className="mt-1 text-xs font-light text-muted-foreground">{tPrivate.uploadOriginalDesc}</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {privateAssets.map((asset) => (
+                          <div key={asset.id} className="flex items-center justify-between gap-4 rounded-xl border border-border bg-raised p-4">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium text-foreground">{asset.originalName}</p>
+                              <p className="mt-0.5 text-xs font-light text-muted-foreground">{(asset.size / (1024 * 1024)).toFixed(1)} MB · {asset.mimeType?.replace('image/', '').toUpperCase()}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button size="sm" variant="outline" className="h-9 border-border bg-surface hover:bg-elevated hover:text-foreground" onClick={() => downloadPrivateAsset(asset)}>
+                                <Download className="mr-1.5 h-3.5 w-3.5" />
+                                {tPrivate.download}
+                              </Button>
+                              <Button size="sm" variant="destructive" className="h-9" disabled={busy.detail} onClick={() => deletePrivateAsset(asset.id)}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-8 rounded-xl border border-border bg-raised p-5">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-primary">{tPrivate.photographerLink}</span>
+                        <p className="mt-1.5 text-sm font-light leading-relaxed text-muted-foreground">{tPrivate.photographerLinkDesc}</p>
+                      </div>
+                    </div>
+                    <div className="mt-4">
+                      {!photographerLink && !selectedEvent?.hasPhotographerUploadLink && (
+                        <Button size="sm" variant="outline" className="border-border bg-surface hover:bg-elevated hover:text-foreground" disabled={photographerLinkBusy} onClick={generatePhotographerLink}>
+                          {photographerLinkBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <LinkIcon className="mr-1.5 h-3.5 w-3.5" />}
+                          {tPrivate.generateLink}
+                        </Button>
+                      )}
+                      {!photographerLink && selectedEvent?.hasPhotographerUploadLink && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm text-muted-foreground">{tPrivate.linkAlreadyExists}</p>
+                          <Button size="sm" variant="outline" className="border-border bg-surface hover:bg-elevated hover:text-foreground" disabled={photographerLinkBusy} onClick={generatePhotographerLink}>
+                            {photographerLinkBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
+                            {tPrivate.regenerate}
+                          </Button>
+                          <Button size="sm" variant="destructive" className="h-9" disabled={photographerLinkBusy} onClick={revokePhotographerLink}>
+                            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                            {tPrivate.revoke}
+                          </Button>
+                        </div>
+                      )}
+                      {photographerLink && (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2">
+                            <span className="truncate text-sm text-foreground">{photographerLink}</span>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button size="sm" variant="outline" className="border-border bg-surface hover:bg-elevated hover:text-foreground" onClick={copyPhotographerLink}>
+                              {photographerLinkCopied ? <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> : <Copy className="mr-1.5 h-3.5 w-3.5" />}
+                              {photographerLinkCopied ? tPrivate.copied : tPrivate.copyLink}
+                            </Button>
+                            <Button size="sm" variant="outline" className="border-border bg-surface hover:bg-elevated hover:text-foreground" disabled={photographerLinkBusy} onClick={generatePhotographerLink}>
+                              {photographerLinkBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
+                              {tPrivate.regenerate}
+                            </Button>
+                            <Button size="sm" variant="destructive" className="h-9" disabled={photographerLinkBusy} onClick={revokePhotographerLink}>
+                              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                              {tPrivate.revoke}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
-
-          {/* Mobile / below-xl detail panel */}
-          <div className="xl:hidden">
-            {selectedEvent && (
-              <EventDetailPanel
-                event={selectedEvent}
-                plan={plan}
-                photos={photos}
-                busyDetail={busy.detail}
-                privateAssets={privateAssets}
-                privateDeliveryLoading={privateDeliveryLoading}
-                privateDeliveryUploading={privateDeliveryUploading}
-                photographerLink={photographerLink}
-                photographerLinkBusy={photographerLinkBusy}
-                photographerLinkCopied={photographerLinkCopied}
-                galleryDownloadBusy={galleryDownloadBusy}
-                checkoutBusy={checkoutBusy}
-                photoBusyId={busy.photoId}
-                onShare={shareEvent}
-                onQR={openQR}
-                onGalleryDownload={handleGalleryDownload}
-                onUpgradeProEvent={() => startCheckout('pro_event', selectedEvent.id, 'dashboard_room_detail')}
-                onUpgradeWeddingPro={() => startCheckout('wedding_pro', selectedEvent.id, 'dashboard_room_detail')}
-                onDelete={startDelete}
-                onOpenLightbox={(index) => {
-                  setLightboxIndex(index)
-                  setLightboxOpen(true)
-                }}
-                onModerate={moderatePhoto}
-                onPhotoDelete={deletePhoto}
-                onPrivateUploadClick={() => privateDeliveryFileInputRef.current?.click()}
-                onPrivateDownload={downloadPrivateAsset}
-                onPrivateDelete={deletePrivateAsset}
-                onGeneratePhotoLink={generatePhotographerLink}
-                onCopyPhotoLink={copyPhotographerLink}
-                onRevokePhotoLink={revokePhotographerLink}
-                t={t}
-                tPrivate={tPrivate}
-                tCommon={tCommon}
-              />
-            )}
-          </div>
-        </div>
-      )}
+        )}
+      </section>
 
       <EventQRModal isOpen={qrOpen} onClose={() => setQrOpen(false)} event={qrEvent} />
 
@@ -1313,8 +1525,22 @@ export default function DashboardPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Hidden file input for private delivery */}
-      <input ref={privateDeliveryFileInputRef} type="file" accept="image/jpeg,image/png" className="hidden" onChange={onPrivateDeliveryFileSelect} />
-    </DashboardShell>
+      <footer className="relative z-10 border-t border-border bg-surface py-8">
+        <div className="container px-4">
+          <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-subtle">
+                <Camera className="h-3.5 w-3.5" />
+              </div>
+              <span className="font-display text-sm font-bold tracking-tight text-primary">{t.brand}</span>
+            </div>
+            <p className="text-xs font-light text-muted-foreground">The easiest way to collect guest photos.</p>
+            <div className="flex items-center gap-4">
+              <a href="/privacy" className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">Privacy Policy</a>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </main>
   )
 }
