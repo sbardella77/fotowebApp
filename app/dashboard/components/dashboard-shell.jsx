@@ -47,7 +47,7 @@ export function DashboardShell({ sidebar, topBar, children, rightPanel }) {
           <div className="flex flex-col xl:flex-row">
             <div className="flex-1 min-w-0">{children}</div>
             {rightPanel && (
-              <div className="hidden xl:block w-[420px] border-l border-border bg-elevated sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto">
+              <div className="hidden xl:block w-[420px] border-l border-border bg-elevated sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto scrollbar-thin">
                 {rightPanel}
               </div>
             )}

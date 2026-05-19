@@ -50,6 +50,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 import { DashboardShell } from './components/dashboard-shell'
 import { DashboardSidebar } from './components/dashboard-sidebar'
@@ -1138,15 +1145,16 @@ export default function DashboardPage() {
               />
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                className="border-border bg-surface text-foreground hover:bg-elevated"
-                onClick={() => setSortBy((s) => (s === 'newest' ? 'name' : 'newest'))}
-              >
-                <ArrowUpDown className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
-                {sortBy === 'newest' ? (t.sortNewest ?? 'Newest') : (t.sortName ?? 'Name')}
-              </Button>
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="h-9 w-[150px] border-border bg-surface text-foreground text-sm focus:ring-2 focus:ring-accent-dark">
+                  <ArrowUpDown className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+                  <SelectValue placeholder={t.sortNewest ?? 'Newest'} />
+                </SelectTrigger>
+                <SelectContent className="bg-surface border-border">
+                  <SelectItem value="newest">{t.sortNewest ?? 'Newest'}</SelectItem>
+                  <SelectItem value="name">{t.sortName ?? 'Name'}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

@@ -109,11 +109,11 @@ export function EventDetailPanel({
             </Button>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={() => onShare(event)} className="flex-1 border-border bg-surface text-foreground hover:bg-elevated hover:text-foreground">
+            <Button size="sm" variant="outline" onClick={() => onShare(event)} className="flex-1 border-border bg-surface text-foreground hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent-dark">
               <Share2 className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
               {t.share}
             </Button>
-            <Button size="sm" variant="outline" onClick={() => onQR(event)} className="flex-1 border-border bg-surface text-foreground hover:bg-elevated hover:text-foreground">
+            <Button size="sm" variant="outline" onClick={() => onQR(event)} className="flex-1 border-border bg-surface text-foreground hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent-dark">
               <QrCode className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
               {t.qr}
             </Button>
@@ -124,7 +124,7 @@ export function EventDetailPanel({
               variant="outline"
               disabled={galleryDownloadBusy || photos.length === 0}
               onClick={() => onGalleryDownload(event)}
-              className="flex-1 border-border bg-surface text-foreground hover:bg-elevated hover:text-foreground"
+              className="flex-1 border-border bg-surface text-foreground hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent-dark"
             >
               {galleryDownloadBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin text-muted-foreground" /> : <Archive className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />}
               {t.downloadAll || 'Download all'}
@@ -261,7 +261,7 @@ export function EventDetailPanel({
                 <p className="mt-1 text-xs font-light leading-relaxed text-muted-foreground">{tPrivate.photographerLinkDesc}</p>
                 <div className="mt-3">
                   {!photographerLink && !event?.hasPhotographerUploadLink && (
-                    <Button size="sm" variant="outline" className="border-border bg-surface hover:bg-elevated hover:text-foreground" disabled={photographerLinkBusy} onClick={onGeneratePhotoLink}>
+                    <Button size="sm" variant="outline" className="border-border bg-surface hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent-dark" disabled={photographerLinkBusy} onClick={onGeneratePhotoLink}>
                       {photographerLinkBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <LinkIcon className="mr-1.5 h-3.5 w-3.5" />}
                       {tPrivate.generateLink}
                     </Button>
@@ -269,7 +269,7 @@ export function EventDetailPanel({
                   {!photographerLink && event?.hasPhotographerUploadLink && (
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-xs text-muted-foreground">{tPrivate.linkAlreadyExists}</p>
-                      <Button size="sm" variant="outline" className="border-border bg-surface hover:bg-elevated hover:text-foreground" disabled={photographerLinkBusy} onClick={onGeneratePhotoLink}>
+                      <Button size="sm" variant="outline" className="border-border bg-surface hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent-dark" disabled={photographerLinkBusy} onClick={onGeneratePhotoLink}>
                         {photographerLinkBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
                         {tPrivate.regenerate}
                       </Button>
@@ -285,11 +285,11 @@ export function EventDetailPanel({
                         <span className="truncate text-xs text-foreground">{photographerLink}</span>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <Button size="sm" variant="outline" className="border-border bg-surface hover:bg-elevated hover:text-foreground" onClick={onCopyPhotoLink}>
+                        <Button size="sm" variant="outline" className="border-border bg-surface hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent-dark" onClick={onCopyPhotoLink}>
                           {photographerLinkCopied ? <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> : <Copy className="mr-1.5 h-3.5 w-3.5" />}
                           {photographerLinkCopied ? tPrivate.copied : tPrivate.copyLink}
                         </Button>
-                        <Button size="sm" variant="outline" className="border-border bg-surface hover:bg-elevated hover:text-foreground" disabled={photographerLinkBusy} onClick={onGeneratePhotoLink}>
+                        <Button size="sm" variant="outline" className="border-border bg-surface hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent-dark" disabled={photographerLinkBusy} onClick={onGeneratePhotoLink}>
                           {photographerLinkBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
                           {tPrivate.regenerate}
                         </Button>

@@ -27,7 +27,7 @@ export function EventCard({
   return (
     <div
       onClick={onSelect}
-      className={`group relative overflow-hidden rounded-xl border bg-surface transition-all duration-200 hover:-translate-y-px cursor-pointer ${
+      className={`group relative overflow-hidden rounded-xl border bg-surface transition-all duration-200 hover:-translate-y-px hover:shadow-elevated cursor-pointer ${
         selected
           ? 'border-primary/40 shadow-[0_0_0_1px_hsl(var(--accent)/0.15)]'
           : 'border-border hover:border-[hsl(var(--border-visible))]'
@@ -101,7 +101,7 @@ export function EventCard({
                   e.stopPropagation()
                   onShare(event)
                 }}
-                className="border-border bg-surface text-foreground hover:bg-elevated hover:text-foreground"
+                className="border-border bg-surface text-foreground hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent-dark"
               >
                 <Share2 className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
                 {t.share}
@@ -113,7 +113,7 @@ export function EventCard({
                   e.stopPropagation()
                   onQR(event)
                 }}
-                className="border-border bg-surface text-foreground hover:bg-elevated hover:text-foreground"
+                className="border-border bg-surface text-foreground hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent-dark"
               >
                 <QrCode className="mr-1.5 h-3.5 w-3.5" />
                 {t.qr}
