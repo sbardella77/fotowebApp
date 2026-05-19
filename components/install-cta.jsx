@@ -96,7 +96,7 @@ export function InstallCta({ mode = 'landing', className = '' }) {
         </button>
 
         <div className="flex items-start gap-4 pr-8">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-105">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground transition-transform duration-300 group-hover:scale-105">
             <PlatformIcon className="h-5 w-5" />
           </div>
           <div className="min-w-0">
@@ -106,7 +106,7 @@ export function InstallCta({ mode = 'landing', className = '' }) {
               <button
                 type="button"
                 onClick={handlePrimaryAction}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground transition-all hover:bg-primary/90 active:scale-[0.98]"
+                className="cta-primary inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold transition-all active:scale-[0.98]"
               >
                 <Download className="h-3.5 w-3.5" />
                 {primaryLabel}
@@ -176,21 +176,21 @@ function InstallHelpModal({ isIOS, isDesktop, onClose }) {
         <div className="space-y-5">
           {isIOS ? (
             <div className="flex items-start gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
                 <Share2 className="h-4 w-4" />
               </div>
               <p className="text-sm leading-relaxed text-muted-foreground">{t.iOSInstructions}</p>
             </div>
           ) : isDesktop ? (
             <div className="flex items-start gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
                 <Monitor className="h-4 w-4" />
               </div>
               <p className="text-sm leading-relaxed text-muted-foreground">{t.desktopInstructions}</p>
             </div>
           ) : (
             <div className="flex items-start gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
                 <Smartphone className="h-4 w-4" />
               </div>
               <p className="text-sm leading-relaxed text-muted-foreground">{t.fallbackInstructions}</p>
@@ -201,7 +201,7 @@ function InstallHelpModal({ isIOS, isDesktop, onClose }) {
         <button
           type="button"
           onClick={onClose}
-          className="mt-7 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+          className="cta-primary mt-7 w-full rounded-xl py-3 text-sm font-semibold transition-colors"
         >
           {t.dismiss}
         </button>
