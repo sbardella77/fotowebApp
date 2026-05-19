@@ -25,8 +25,9 @@ export async function generateMetadata({ params }) {
 
 export const dynamic = 'force-dynamic'
 
-export default function Pricing({ params }) {
+export default function Pricing({ params, searchParams }) {
   const { locale } = params
   if (!LOCALES.includes(locale)) notFound()
-  return <PricingPage locale={locale} />
+  const fromDashboard = searchParams?.from === 'dashboard'
+  return <PricingPage locale={locale} fromDashboard={fromDashboard} />
 }

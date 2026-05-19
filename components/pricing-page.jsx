@@ -6,6 +6,7 @@ import {
   Minus,
   Sparkles,
   ArrowRight,
+  ArrowLeft,
   HelpCircle,
   Briefcase,
   Heart,
@@ -350,7 +351,7 @@ function TierCard({ tier, index, delayOffset = 0 }) {
   )
 }
 
-export function PricingPage() {
+export function PricingPage({ fromDashboard }) {
   const t = useTranslations('pricing')
   const tCommon = useTranslations('common')
 
@@ -367,6 +368,17 @@ export function PricingPage() {
     <div className="relative min-h-screen bg-background font-body text-foreground">
       <div className="noise-overlay" aria-hidden="true" />
       <MarketingNav ctaAction="link" />
+
+      {fromDashboard && (
+        <div className="container px-4 pt-6">
+          <Button variant="outline" size="sm" asChild className="border-border bg-surface text-foreground hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent-dark">
+            <a href="/dashboard">
+              <ArrowLeft className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
+              {t.backToDashboard}
+            </a>
+          </Button>
+        </div>
+      )}
 
       {/* Hero */}
       <section className="relative overflow-hidden pt-28 pb-16 sm:pt-36 sm:pb-24">

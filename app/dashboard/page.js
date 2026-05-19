@@ -223,6 +223,7 @@ export default function DashboardPage() {
     setEvents([])
     setAuthState({ loading: false, authenticated: false, email: '' })
     setMessage(t.signedOut)
+    router.push('/')
   }
 
   const loadPlan = async () => {
