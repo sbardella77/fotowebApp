@@ -84,6 +84,11 @@ export default function DashboardPage() {
   const [selectedSlug, setSelectedSlug] = useState('')
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [busy, setBusy] = useState({ auth: false, detail: false, photoId: '' })
+
+  const handleCoverUpdated = (updatedEvent) => {
+    setSelectedEvent(updatedEvent)
+    setEvents((prev) => prev.map((e) => (e.slug === updatedEvent.slug ? updatedEvent : e)))
+  }
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(0)
   const [isEditingName, setIsEditingName] = useState(false)
@@ -975,6 +980,7 @@ export default function DashboardPage() {
             onGeneratePhotoLink={generatePhotographerLink}
             onCopyPhotoLink={copyPhotographerLink}
             onRevokePhotoLink={revokePhotographerLink}
+            onCoverUpdated={handleCoverUpdated}
             t={t}
             tPrivate={tPrivate}
             tCommon={tCommon}
@@ -1241,6 +1247,7 @@ export default function DashboardPage() {
                 onGeneratePhotoLink={generatePhotographerLink}
                 onCopyPhotoLink={copyPhotographerLink}
                 onRevokePhotoLink={revokePhotographerLink}
+                onCoverUpdated={handleCoverUpdated}
                 t={t}
                 tPrivate={tPrivate}
                 tCommon={tCommon}

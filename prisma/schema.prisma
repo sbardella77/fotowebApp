@@ -46,6 +46,7 @@ model Event {
   originalDownloadCheckoutSessionId String?
   photographerUploadTokenHash     String?
   photographerUploadTokenExpiresAt DateTime?
+  coverUrl                        String?
   createdAt                       DateTime @default(now())
   updatedAt                       DateTime @updatedAt
   photos                          Photo[]

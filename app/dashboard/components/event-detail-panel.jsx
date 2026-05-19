@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DashboardPhotoCard } from './dashboard-photo-card'
+import { EventCoverEditor, EventCoverRemove } from './event-cover-editor'
 
 export function EventDetailPanel({
   event,
@@ -50,6 +51,7 @@ export function EventDetailPanel({
   onGeneratePhotoLink,
   onCopyPhotoLink,
   onRevokePhotoLink,
+  onCoverUpdated,
   t,
   tPrivate,
   tCommon,
@@ -58,7 +60,7 @@ export function EventDetailPanel({
 
   const isPremium = plan === 'professional' || plan === 'business' || plan === 'pro'
   const hasPrivateAccess = event.billingTier === 'wedding_pro' || isPremium
-  const heroUrl = photos?.[0]?.url
+  const heroUrl = event.coverUrl || photos?.[0]?.url
 
   return (
     <div className="flex h-full flex-col">
@@ -129,6 +131,10 @@ export function EventDetailPanel({
               {galleryDownloadBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin text-muted-foreground" /> : <Archive className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />}
               {t.downloadAll || 'Download all'}
             </Button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <EventCoverEditor event={event} onCoverUpdated={onCoverUpdated} t={t} tCommon={tCommon} />
+            <EventCoverRemove event={event} onCoverUpdated={onCoverUpdated} tCommon={tCommon} />
           </div>
         </div>
 

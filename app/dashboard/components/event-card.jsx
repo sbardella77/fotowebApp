@@ -21,7 +21,7 @@ export function EventCard({
   t,
   tCommon,
 }) {
-  const coverUrl = event.photos?.[0]?.url
+  const coverUrl = event.coverUrl || event.photos?.[0]?.url
   const photoCount = event.photoCount || event.photos?.length || 0
 
   return (

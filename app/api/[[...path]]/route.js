@@ -1245,6 +1245,57 @@ const deletePhotographerUploadLink = async (request, slug) => {
   return json({ revoked: true })
 }
 
+const uploadEventCover = async (request, slug) => {
+  const ownerEmail = await requireOwner(request)
+  if (typeof ownerEmail !== 'string') {
+    return ownerEmail
+  }
+
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  const { coverDataUrl } = body
+  if (!coverDataUrl || !coverDataUrl.startsWith('data:image/')) {
+    return json({ error: 'Invalid cover image. Must be a valid image data URL.' }, 400)
+  }
+
+  const match = coverDataUrl.match(/^data:image\/(jpeg|jpg|png|webp);base64,(.*)$/)
+  if (!match) {
+    return json({ error: 'Unsupported image format. Use JPEG, PNG, or WebP.' }, 400)
+  }
+
+  const buffer = Buffer.from(match[2], 'base64')
+  if (buffer.length > 10 * 1024 * 1024) {
+    return json({ error: 'Image too large. Max 10MB.' }, 400)
+  }
+
+  const repository = await getGalleryRepository()
+  const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
+  if (!event) {
+    return json({ error: 'Event not found' }, 404)
+  }
+
+  try {
+    const { put } = await import('@vercel/blob')
+    const ext = match[1] === 'jpg' ? 'jpeg' : match[1]
+    const pathname = `covers/${slug}/${Date.now()}-cover.${ext}`
+    const blob = await put(pathname, buffer, {
+      access: 'public',
+      contentType: `image/${ext}`,
+    })
+
+    const updatedEvent = await repository.updateEvent(slug, { coverUrl: blob.url })
+    return json({ event: updatedEvent })
+  } catch (storageError) {
+    console.error('[uploadEventCover] Storage error:', storageError)
+    return json({ error: 'Unable to save cover image. Please try again.' }, 500)
+  }
+}
+
 const getPhotographerUploadEvent = async (request, token) => {
   const event = await getPhotographerEventFromToken(token)
   if (!event) {
@@ -2422,6 +2473,10 @@ async function handleRoute(request, { params }) {
 
       if (segments.length === 4 && segments[1] === 'events' && segments[3] === 'photographer-link' && method === 'DELETE') {
         return deletePhotographerUploadLink(request, segments[2])
+      }
+
+      if (segments.length === 4 && segments[1] === 'events' && segments[3] === 'cover' && method === 'POST') {
+        return uploadEventCover(request, segments[2])
       }
     }
 
