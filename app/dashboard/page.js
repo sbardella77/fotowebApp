@@ -1180,6 +1180,7 @@ export default function DashboardPage() {
                 <EventCard
                   key={event.id}
                   event={event}
+                  plan={plan}
                   selected={selectedSlug === event.slug}
                   editing={editingSlug === event.slug}
                   editName={editName}

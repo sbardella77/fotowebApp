@@ -21,6 +21,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { DashboardPhotoCard } from './dashboard-photo-card'
 import { EventCoverEditor, EventCoverRemove } from './event-cover-editor'
+import { getEffectiveEventStatus } from '../lib/event-status'
 
 export function EventDetailPanel({
   event,
@@ -98,7 +99,7 @@ export function EventDetailPanel({
               <span className="text-xs font-medium text-muted-foreground">{t.status ?? 'Status'}</span>
             </div>
             <p className="mt-1 font-display text-xl font-bold text-foreground">
-              {event.billingTier ? (event.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent) : (t.free || 'Free')}
+              {getEffectiveEventStatus({ event, plan, t })}
             </p>
           </div>
         </div>
@@ -163,11 +164,11 @@ export function EventDetailPanel({
               </Button>
             </div>
           )}
-          {event.billingTier && (
+          {(isPremium || event.billingTier) && (
             <div className="mt-2">
               <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-accent-dark">
                 <Sparkles className="mr-1 h-3 w-3" />
-                {event.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent}
+                {isPremium ? (t.premiumActive ?? 'Premium active') : (event.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent)}
               </span>
             </div>
           )}

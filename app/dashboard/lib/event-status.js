@@ -1,0 +1,29 @@
+/**
+ * Resolve the effective status label for an event,
+ * taking into account both account-level plan and event-level billingTier.
+ */
+export function getEffectiveEventStatus({ event, plan, t }) {
+  const isAccountPremium = plan === 'professional' || plan === 'business' || plan === 'pro'
+  if (isAccountPremium) {
+    return t.premiumActive ?? 'Premium active'
+  }
+  if (event.billingTier) {
+    return event.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent
+  }
+  return t.free ?? 'Free'
+}
+
+/**
+ * Resolve the effective tier label for a premium badge/pill.
+ * Returns null when the event is effectively free and the account is not premium.
+ */
+export function getEffectiveEventTierLabel({ event, plan, t }) {
+  const isAccountPremium = plan === 'professional' || plan === 'business' || plan === 'pro'
+  if (isAccountPremium) {
+    return t.premiumActive ?? 'Premium active'
+  }
+  if (event.billingTier) {
+    return event.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent
+  }
+  return null
+}

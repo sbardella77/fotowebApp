@@ -3,9 +3,11 @@
 import { Camera, ImagePlus, Loader2, Pencil, QrCode, Share2, Sparkles, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { getEffectiveEventTierLabel } from '../lib/event-status'
 
 export function EventCard({
   event,
+  plan,
   selected,
   editing,
   editName,
@@ -42,11 +44,11 @@ export function EventCard({
             <Camera className="h-10 w-10 text-muted-foreground/30" />
           </div>
         )}
-        {event.billingTier && (
+        {getEffectiveEventTierLabel({ event, plan, t }) && (
           <div className="absolute right-3 top-3">
             <span className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-accent-dark backdrop-blur-sm">
               <Sparkles className="h-2.5 w-2.5" />
-              {event.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent}
+              {getEffectiveEventTierLabel({ event, plan, t })}
             </span>
           </div>
         )}
