@@ -177,14 +177,14 @@ export function EventCoverEditor({ event, onCoverUpdated, t, tCommon }) {
         }}
       >
         <ImagePlus className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
-        {event.coverUrl ? t.changeCover : t.uploadCover}
+        {event.coverUrl ? t.updateCoverImage : t.addCoverImage}
       </Button>
 
       <Dialog open={open} onOpenChange={(v) => { if (!v) reset(); setOpen(v) }}>
         <DialogContent className="max-w-3xl rounded-xl border-border bg-surface p-0">
           <DialogHeader className="px-6 pt-6 pb-2">
             <DialogTitle className="font-display text-lg font-bold text-foreground">
-              {event.coverUrl ? t.changeCover : t.uploadCover}
+              {event.coverUrl ? t.updateCoverImage : t.addCoverImage}
             </DialogTitle>
             <DialogDescription className="text-sm font-light text-muted-foreground">
               {t.coverEditorDesc}
@@ -343,7 +343,7 @@ export function EventCoverRemove({ event, onCoverUpdated, t, tCommon }) {
         disabled={busy}
       >
         <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-        {t.removeCover}
+        {t.removeCoverImage}
       </Button>
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -359,7 +359,7 @@ export function EventCoverRemove({ event, onCoverUpdated, t, tCommon }) {
               {tCommon.cancel}
             </AlertDialogCancel>
             <AlertDialogAction onClick={handleRemove} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.removeCover}
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.removeCoverImage}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
