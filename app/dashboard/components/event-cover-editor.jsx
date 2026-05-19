@@ -343,7 +343,7 @@ export function EventCoverRemove({ event, onCoverUpdated, t, tCommon }) {
         disabled={busy}
       >
         <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-        Remove cover
+        {t.removeCover}
       </Button>
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
