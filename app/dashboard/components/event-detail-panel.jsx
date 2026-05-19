@@ -134,7 +134,7 @@ export function EventDetailPanel({
           </div>
           <div className="flex flex-wrap gap-2">
             <EventCoverEditor event={event} onCoverUpdated={onCoverUpdated} t={t} tCommon={tCommon} />
-            <EventCoverRemove event={event} onCoverUpdated={onCoverUpdated} tCommon={tCommon} />
+            <EventCoverRemove event={event} onCoverUpdated={onCoverUpdated} t={t} tCommon={tCommon} />
           </div>
         </div>
 

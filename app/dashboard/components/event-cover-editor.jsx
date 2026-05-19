@@ -305,7 +305,7 @@ export function EventCoverEditor({ event, onCoverUpdated, t, tCommon }) {
   )
 }
 
-export function EventCoverRemove({ event, onCoverUpdated, tCommon }) {
+export function EventCoverRemove({ event, onCoverUpdated, t, tCommon }) {
   const [busy, setBusy] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
