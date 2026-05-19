@@ -109,12 +109,12 @@ export function EventDetailPanel({
             </Button>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={() => onShare(event)} className="flex-1 border-border bg-raised hover:bg-elevated hover:text-foreground">
-              <Share2 className="mr-1.5 h-3.5 w-3.5" />
+            <Button size="sm" variant="outline" onClick={() => onShare(event)} className="flex-1 border-border bg-surface text-foreground hover:bg-elevated hover:text-foreground">
+              <Share2 className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
               {t.share}
             </Button>
-            <Button size="sm" variant="outline" onClick={() => onQR(event)} className="flex-1 border-border bg-raised hover:bg-elevated hover:text-foreground">
-              <QrCode className="mr-1.5 h-3.5 w-3.5" />
+            <Button size="sm" variant="outline" onClick={() => onQR(event)} className="flex-1 border-border bg-surface text-foreground hover:bg-elevated hover:text-foreground">
+              <QrCode className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
               {t.qr}
             </Button>
           </div>
@@ -124,9 +124,9 @@ export function EventDetailPanel({
               variant="outline"
               disabled={galleryDownloadBusy || photos.length === 0}
               onClick={() => onGalleryDownload(event)}
-              className="flex-1 border-border bg-raised hover:bg-elevated hover:text-foreground"
+              className="flex-1 border-border bg-surface text-foreground hover:bg-elevated hover:text-foreground"
             >
-              {galleryDownloadBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Archive className="mr-1.5 h-3.5 w-3.5" />}
+              {galleryDownloadBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin text-muted-foreground" /> : <Archive className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />}
               {t.downloadAll || 'Download all'}
             </Button>
           </div>

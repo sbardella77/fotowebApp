@@ -1141,17 +1141,17 @@ export default function DashboardPage() {
               <Button
                 size="sm"
                 variant="outline"
-                className="border-border bg-raised hover:bg-elevated"
+                className="border-border bg-surface text-foreground hover:bg-elevated"
                 onClick={() => setSortBy((s) => (s === 'newest' ? 'name' : 'newest'))}
               >
-                <ArrowUpDown className="mr-1.5 h-3.5 w-3.5" />
+                <ArrowUpDown className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
                 {sortBy === 'newest' ? (t.sortNewest ?? 'Newest') : (t.sortName ?? 'Name')}
               </Button>
             </div>
           </div>
 
           {message && (
-            <div className="rounded-xl border border-border bg-surface p-4 text-sm text-muted-foreground flex items-center gap-2.5 shadow-subtle">
+            <div className="rounded-xl border border-border bg-surface p-4 text-sm text-foreground flex items-center gap-2.5 shadow-subtle">
               <CheckCircle2 className="h-4 w-4 text-accent-dark shrink-0" />
               {message}
             </div>

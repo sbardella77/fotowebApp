@@ -13,7 +13,7 @@ export function DashboardSidebar({ plan, email, onLogout, onUpgradeClick, t, tCo
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-subtle">
           <Camera className="h-[18px] w-[18px]" />
         </div>
-        <span className="font-display text-[15px] font-bold tracking-tight text-accent-dark">{t.brand}</span>
+        <span className="font-display text-[15px] font-bold tracking-tight text-foreground">{t.brand}</span>
       </div>
 
       {/* Nav */}
@@ -21,7 +21,7 @@ export function DashboardSidebar({ plan, email, onLogout, onUpgradeClick, t, tCo
         <div className="space-y-1">
           <a
             href="/dashboard"
-            className="flex items-center gap-3 rounded-lg bg-primary/10 px-3 py-2.5 text-sm font-medium text-accent-dark"
+            className="flex items-center gap-3 rounded-lg bg-primary/10 px-3 py-2.5 text-sm font-medium text-foreground"
           >
             <LayoutDashboard className="h-4 w-4" />
             {t.dashboard ?? 'Dashboard'}

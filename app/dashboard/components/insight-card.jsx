@@ -35,7 +35,7 @@ export function InsightCard({ plan, events, checkoutBusy, onUpgrade, t }) {
               </div>
               <p className="text-sm font-light text-muted-foreground">{t.upgradeDesc}</p>
               <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" asChild className="border-border bg-raised">
+                <Button size="sm" variant="outline" asChild className="border-border bg-surface text-foreground">
                   <a href="/pricing">{t.viewPricing}</a>
                 </Button>
                 <Button size="sm" className="cta-primary" disabled={checkoutBusy} onClick={onUpgrade}>

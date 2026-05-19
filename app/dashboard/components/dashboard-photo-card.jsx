@@ -1,7 +1,6 @@
 'use client'
 
 import { Eye, EyeOff, Loader2, Trash2 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 
 export function DashboardPhotoCard({ photo, onApprove, onReject, onDelete, onOpenLightbox, busyId }) {
@@ -18,12 +17,15 @@ export function DashboardPhotoCard({ photo, onApprove, onReject, onDelete, onOpe
             <p className="truncate text-sm font-medium text-foreground">{photo.originalName}</p>
             <p className="truncate text-xs font-light text-muted-foreground">{photo.uploaderName || 'Guest upload'}</p>
           </div>
-          <Badge
-            variant={photo.status === 'VISIBLE' ? 'default' : 'secondary'}
-            className="rounded-full capitalize font-mono text-[10px]"
+          <span
+            className={`inline-flex items-center rounded-full border px-2 py-0.5 font-mono text-[10px] font-medium capitalize ${
+              photo.status === 'VISIBLE'
+                ? 'border-primary/20 bg-primary/10 text-accent-dark'
+                : 'border-border bg-raised text-muted-foreground'
+            }`}
           >
             {photo.status.toLowerCase()}
-          </Badge>
+          </span>
         </div>
         <div className="grid grid-cols-3 gap-2">
           <Button disabled={isBusy || photo.status === 'VISIBLE'} size="sm" onClick={onApprove} className="h-9">

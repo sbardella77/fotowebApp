@@ -13,7 +13,7 @@ export function DashboardTopBar({ plan, message, onDismissMessage }) {
           className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider ${
             isPremium
               ? 'border-primary/30 bg-primary/10 text-accent-dark'
-              : 'border-border bg-raised text-muted-foreground'
+              : 'border-border bg-secondary text-foreground'
           }`}
         >
           {isPremium && <Sparkles className="h-3 w-3" />}
@@ -22,7 +22,7 @@ export function DashboardTopBar({ plan, message, onDismissMessage }) {
       </div>
 
       {message && (
-        <div className="hidden sm:flex items-center gap-2 rounded-lg border border-border bg-raised px-3 py-1.5 text-xs text-muted-foreground">
+        <div className="hidden sm:flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs text-foreground">
           <CheckCircle2 className="h-3.5 w-3.5 text-accent-dark shrink-0" />
           <span className="truncate max-w-[240px]">{message}</span>
           {onDismissMessage && (
