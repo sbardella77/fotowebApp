@@ -5,6 +5,7 @@ import { checkGalleryDownloadEntitlement, checkPhotoDownloadEntitlement } from '
 import { getPhotoBuffer, applyWatermark, getDownloadFileName } from '@/lib/server/download-utils'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 /**
  * GET /api/download/gallery?eventSlug={slug}
@@ -74,7 +75,12 @@ export async function GET(request) {
       },
     })
 
-    console.log(`${logPrefix} event=${event.slug} branded=${branded} billingTier=${event.billingTier} photos=${photos.length}`)
+    const MAX_GALLERY_PHOTOS = 200
+    const totalEligible = photos.length
+    const effectivePhotos = photos.slice(0, MAX_GALLERY_PHOTOS)
+    const skippedCount = totalEligible - effectivePhotos.length
+
+    console.log(`${logPrefix} event=${event.slug} branded=${branded} billingTier=${event.billingTier} totalEligible=${totalEligible} effective=${effectivePhotos.length} skipped=${skippedCount}`)
 
     if (photos.length === 0) {
       return NextResponse.json({ error: 'No photos available for download' }, { status: 404 })
@@ -96,11 +102,15 @@ export async function GET(request) {
       },
     })
 
+    const routeStart = Date.now()
+    let processedCount = 0
+    let failedCount = 0
+
     // Process photos one by one to keep memory low
     ;(async () => {
       try {
-        for (let i = 0; i < photos.length; i++) {
-          const photo = photos[i]
+        for (let i = 0; i < effectivePhotos.length; i++) {
+          const photo = effectivePhotos[i]
           try {
             const buffer = await getPhotoBuffer(photo.url)
             const fileName = getDownloadFileName(photo)
@@ -111,8 +121,10 @@ export async function GET(request) {
             } else {
               archive.append(buffer, { name: fileName })
             }
+            processedCount += 1
           } catch (photoError) {
             console.error(`${logPrefix} Failed to process photo ${photo.id}:`, photoError.message)
+            failedCount += 1
             // Skip failed photos, continue with the rest
           }
         }
@@ -121,6 +133,9 @@ export async function GET(request) {
       } catch (archiveError) {
         console.error(`${logPrefix} Archive error:`, archiveError)
         archive.abort()
+      } finally {
+        const duration = Date.now() - routeStart
+        console.log(`${logPrefix} finished event=${event.slug} processed=${processedCount} failed=${failedCount} skipped=${skippedCount} durationMs=${duration}`)
       }
     })()
 

@@ -53,6 +53,8 @@ import {
 import { getGalleryRepository, getGalleryRepositoryMode } from '@/lib/server/gallery-repository'
 import { createPasswordHash, verifyPassword, validatePassword } from '@/lib/server/owner-password'
 import { rateLimit, getClientIp, AUTH_LIMITS, RATE_LIMITS } from '@/lib/server/rate-limiter'
+import { withTiming } from '@/lib/server/timing'
+import { readSessionMeta, getReceivedChunkSize } from '@/lib/server/storage/local-storage'
 import { trackServerEvent } from '@/lib/analytics/track-server'
 import {
   EVENT_ROOM_CREATED,
@@ -606,7 +608,7 @@ const updateEvent = async (request, slug) => {
   return json({ event: updatedEvent })
 }
 
-const deleteEvent = async (request, slug) => {
+const deleteEvent = withTiming('deleteEvent', async (request, slug) => {
   const token = getManagementTokenFromRequest(request)
 
   const repository = await getGalleryRepository()
@@ -640,7 +642,7 @@ const deleteEvent = async (request, slug) => {
   await repository.deleteEvent(slug)
   console.log(`[audit] Management-token deletion of event ${slug} with ${event.photos?.length || 0} photos and ${privateAssets.length} private assets`)
   return json({ deleted: true })
-}
+})
 
 const initUpload = async (request) => {
   const clientIp = getClientIp(request)
@@ -800,6 +802,19 @@ const uploadChunk = async (request) => {
     return json({ error: 'Chunk exceeds server limit' }, 400)
   }
 
+  // Validate session exists and enforce cumulative size limit
+  let meta
+  try {
+    meta = await readSessionMeta(parsed.sessionId)
+  } catch {
+    return json({ error: 'Upload session not found or expired' }, 400)
+  }
+
+  const receivedSoFar = await getReceivedChunkSize(parsed.sessionId)
+  if (receivedSoFar + chunkBuffer.length > meta.fileSize) {
+    return json({ error: 'Cumulative chunk size exceeds declared file size' }, 413)
+  }
+
   await localStorageDriver.saveChunk({
     sessionId: parsed.sessionId,
     chunkIndex: parsed.chunkIndex,
@@ -809,7 +824,7 @@ const uploadChunk = async (request) => {
   return json({ uploaded: true, chunkIndex: parsed.chunkIndex, totalChunks: parsed.totalChunks })
 }
 
-const completeUpload = async (request) => {
+const completeUpload = withTiming('completeUpload', async (request) => {
   const clientIp = getClientIp(request)
   const limit = rateLimit(`upload-complete:ip:${clientIp}`, RATE_LIMITS.uploadComplete.ip.max, RATE_LIMITS.uploadComplete.ip.window)
   if (limit.limited) {
@@ -924,7 +939,7 @@ const completeUpload = async (request) => {
     photo,
     event: freshEvent,
   }, 201)
-}
+})
 
 const listPrivateDeliveryAssets = async (request, slug) => {
   const ownerEmail = await requireOwner(request)
@@ -1245,10 +1260,20 @@ const deletePhotographerUploadLink = async (request, slug) => {
   return json({ revoked: true })
 }
 
-const uploadEventCover = async (request, slug) => {
+const uploadEventCover = withTiming('uploadEventCover', async (request, slug) => {
   const ownerEmail = await requireOwner(request)
   if (typeof ownerEmail !== 'string') {
     return ownerEmail
+  }
+
+  const clientIp = getClientIp(request)
+  const ipLimit = rateLimit(`cover-upload:ip:${clientIp}`, RATE_LIMITS.coverUpload.ip.max, RATE_LIMITS.coverUpload.ip.window)
+  if (ipLimit.limited) {
+    return json({ error: 'Too many cover uploads. Please try again later.' }, 429)
+  }
+  const ownerLimit = rateLimit(`cover-upload:owner:${ownerEmail}`, RATE_LIMITS.coverUpload.owner.max, RATE_LIMITS.coverUpload.owner.window)
+  if (ownerLimit.limited) {
+    return json({ error: 'Too many cover uploads for this account. Please try again later.' }, 429)
   }
 
   let body
@@ -1294,7 +1319,7 @@ const uploadEventCover = async (request, slug) => {
     console.error('[uploadEventCover] Storage error:', storageError)
     return json({ error: 'Unable to save cover image. Please try again.' }, 500)
   }
-}
+})
 
 const getPhotographerUploadEvent = async (request, token) => {
   const event = await getPhotographerEventFromToken(token)
@@ -1665,7 +1690,7 @@ const getOwnerSession = async (request) => {
   return json({ authenticated: Boolean(email), email })
 }
 
-const loginOwner = async (request) => {
+const loginOwner = withTiming('loginOwner', async (request) => {
   let body
   try {
     body = await request.json()
@@ -1723,7 +1748,7 @@ const loginOwner = async (request) => {
 
   const response = json({ authenticated: true, email })
   return await setOwnerSessionCookie(response, email)
-}
+})
 
 const logoutOwner = () => {
   return clearOwnerSessionCookie(json({ authenticated: false, loggedOut: true }))
@@ -2252,7 +2277,7 @@ const updateOwnerEvent = async (request, slug) => {
   return json({ event: updatedEvent })
 }
 
-const deleteOwnerEvent = async (request, slug) => {
+const deleteOwnerEvent = withTiming('deleteOwnerEvent', async (request, slug) => {
   const ownerEmail = await requireOwner(request)
   if (typeof ownerEmail !== 'string') {
     return ownerEmail
@@ -2280,7 +2305,7 @@ const deleteOwnerEvent = async (request, slug) => {
 
   await repository.deleteEvent(slug)
   return json({ deleted: true })
-}
+})
 
 const moderateOwnerPhoto = async (request, photoId) => {
   const ownerEmail = await requireOwner(request)

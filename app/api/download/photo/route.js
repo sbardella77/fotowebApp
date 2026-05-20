@@ -13,6 +13,7 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET(request) {
   const logPrefix = '[download/photo]'
+  const start = Date.now()
   try {
     const { searchParams } = new URL(request.url)
     const photoUrl = searchParams.get('photoUrl')
@@ -84,6 +85,9 @@ export async function GET(request) {
     const suffix = branded ? '' : ''
     const fileName = getDownloadFileName(photo, { suffix })
 
+    const duration = Date.now() - start
+    console.log(`${logPrefix} event=${event.slug} photo=${photo.id} type=${type} branded=${branded} durationMs=${duration}`)
+
     return new NextResponse(buffer, {
       status: 200,
       headers: {
@@ -93,7 +97,8 @@ export async function GET(request) {
       },
     })
   } catch (error) {
-    console.error(`${logPrefix} Unexpected error:`, error)
+    const duration = Date.now() - start
+    console.error(`${logPrefix} Unexpected error:`, error, `durationMs=${duration}`)
     return NextResponse.json(
       { error: 'Unable to process download. Please try again later.' },
       { status: 500 }
