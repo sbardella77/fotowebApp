@@ -4,8 +4,9 @@
   "description": "Collect every guest photo in one room. No app required.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#080C14",
-  "theme_color": "#080C14",
+  "background_color": "#F8F6F1",
+  "theme_color": "#F8F6F1",
+  "scope": "/",
   "orientation": "portrait",
   "categories": ["photo", "social", "utilities"],
   "icons": [

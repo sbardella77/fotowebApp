@@ -34,13 +34,17 @@ export const metadata = {
   title: 'SnapRooms — Collect Every Guest Photo in One Event',
   description: 'Create a photo event for weddings, parties, and gatherings. Guests upload instantly by link or QR code — no app, no signup.',
   applicationName: 'SnapRooms',
+  manifest: '/manifest.webmanifest',
+  themeColor: '#F8F6F1',
   icons: {
     icon: [
+      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
       { url: '/favicon.svg', type: 'image/svg+xml' },
       { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
       { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
     ],
-    apple: '/apple-icon.png',
+    apple: { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
   },
   appleWebApp: {
     capable: true,
