@@ -1,6 +1,7 @@
 import './globals.css'
 import { Space_Grotesk, Inter, JetBrains_Mono } from 'next/font/google'
 import { cookies } from 'next/headers'
+import { Analytics } from '@vercel/analytics/next'
 import { AnalyticsProvider } from '@/components/analytics-provider'
 import { I18nProvider } from '@/components/i18n-provider'
 import { LocaleHtmlAttributes } from '@/components/locale-html-attributes'
@@ -71,6 +72,7 @@ function App({ children }) {
             {children}
           </AnalyticsProvider>
         </I18nProvider>
+        <Analytics />
       </body>
     </html>
   )
