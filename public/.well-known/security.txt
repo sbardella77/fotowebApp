@@ -1,0 +1,4 @@
+Contact: mailto:security@snaprooms.app
+Expires: 2026-12-31T23:59:00.000Z
+Preferred-Languages: en, it
+Canonical: https://snaprooms.app/.well-known/security.txt

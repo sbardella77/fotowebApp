@@ -45,6 +45,7 @@ export function middleware(request) {
       path: '/',
       maxAge: 60 * 60 * 24 * 365,
       sameSite: 'lax',
+      secure: request.nextUrl.protocol === 'https:',
     })
     return response
   }

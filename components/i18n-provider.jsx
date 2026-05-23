@@ -20,7 +20,8 @@ export function I18nProvider({ children, initialLocale = DEFAULT_LOCALE }) {
 
       // Persist preference
       try {
-        document.cookie = `${LOCALE_COOKIE_NAME}=${newLocale}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`
+        const secureFlag = typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : ''
+        document.cookie = `${LOCALE_COOKIE_NAME}=${newLocale}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax${secureFlag}`
       } catch {
         // ignore cookie errors
       }
