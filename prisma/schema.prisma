@@ -133,4 +133,5 @@ model GalleryDownloadJob {
 
   @@index([eventId, status])
   @@index([createdAt])
+  @@index([status, processedAt])
 }
