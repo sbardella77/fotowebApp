@@ -118,3 +118,18 @@ model DeletionLog {
   @@index([createdAt])
   @@index([eventSlug])
 }
+
+model GalleryDownloadJob {
+  id          String   @id @default(cuid())
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  status      String   @default("PENDING")
+  resultUrl   String?
+  error       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  processedAt DateTime?
+
+  @@index([eventId, status])
+  @@index([createdAt])
+}

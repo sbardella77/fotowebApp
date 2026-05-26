@@ -89,6 +89,9 @@ const PhotoGalleryGrid = ({
   onSelectPhoto,
   emptyTitle,
   emptyDescription,
+  hasMore = false,
+  onLoadMore,
+  loadingMore = false,
 }) => {
   const t = useTranslations('room')
   const safePhotos = getRenderablePhotos(photos)
@@ -139,23 +142,45 @@ const PhotoGalleryGrid = ({
   }
 
   return (
-    <div className="grid grid-cols-3 gap-2 sm:gap-3 md:grid-cols-4">
-      {safePhotos.map((photo, index) => (
-        <button
-          key={photo.id}
-          className="group relative aspect-square overflow-hidden rounded-xl bg-muted transition-transform duration-200 will-change-transform active:scale-95"
-          onClick={() => onSelectPhoto?.(index)}
-          type="button"
-          aria-label={`${t.photo} ${index + 1} / ${safePhotos.length}${photo.originalName ? `, ${photo.originalName}` : ''}`}
-        >
-          <ImageWithLazyLoad
-            src={photo.url}
-            alt={photo.originalName || `${t.photo} ${index + 1}`}
-            className="transition-transform duration-300 group-hover:scale-105"
+    <div>
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 md:grid-cols-4">
+        {safePhotos.map((photo, index) => (
+          <button
+            key={photo.id}
+            className="group relative aspect-square overflow-hidden rounded-xl bg-muted transition-transform duration-200 will-change-transform active:scale-95"
+            onClick={() => onSelectPhoto?.(index)}
+            type="button"
+            aria-label={`${t.photo} ${index + 1} / ${safePhotos.length}${photo.originalName ? `, ${photo.originalName}` : ''}`}
+          >
+            <ImageWithLazyLoad
+              src={photo.url}
+              alt={photo.originalName || `${t.photo} ${index + 1}`}
+              className="transition-transform duration-300 group-hover:scale-105"
+            />
+            <div className="absolute inset-0 bg-black/0 transition-colors duration-200 group-hover:bg-black/10" />
+          </button>
+        ))}
+        {loadingMore && Array.from({ length: 6 }).map((_, index) => (
+          <div
+            key={`skeleton-more-${index}`}
+            className="relative aspect-square animate-pulse rounded-xl bg-muted"
           />
-          <div className="absolute inset-0 bg-black/0 transition-colors duration-200 group-hover:bg-black/10" />
-        </button>
-      ))}
+        ))}
+      </div>
+      {hasMore && (
+        <div className="mt-4 flex justify-center">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onLoadMore}
+            disabled={loadingMore}
+            className="border-border bg-raised hover:bg-elevated hover:text-foreground"
+          >
+            {loadingMore && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {t.loadMore || 'Load more'}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

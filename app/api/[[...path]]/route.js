@@ -55,6 +55,11 @@ import { createPasswordHash, verifyPassword, validatePassword } from '@/lib/serv
 import { rateLimit, getClientIp, AUTH_LIMITS, RATE_LIMITS } from '@/lib/server/rate-limiter'
 import { withTiming } from '@/lib/server/timing'
 import { readSessionMeta, getReceivedChunkSize } from '@/lib/server/storage/local-storage'
+import {
+  createGalleryDownloadJob,
+  getLatestGalleryDownloadJob,
+  processGalleryDownloadJobIfPending,
+} from '@/lib/server/gallery-download-job'
 import { trackServerEvent } from '@/lib/analytics/track-server'
 import {
   EVENT_ROOM_CREATED,
@@ -309,6 +314,84 @@ const getEvent = async (slug, options = {}) => {
   console.log(`[api/events/${slug}] 200 (took ${duration}ms) photos=${event.photos?.length || 0} photoCount=${event.photoCount || 0}`)
   return json({ event: { ...event, ownerPlan } })
 }
+
+const getEventPhotos = withTiming('getEventPhotos', async (request, slug) => {
+  const repository = await getGalleryRepository()
+  const event = await repository.getEventBySlug(slug)
+  if (!event) {
+    return json({ error: 'Event not found' }, 404)
+  }
+
+  const { searchParams } = new URL(request.url)
+  const cursor = searchParams.get('cursor') || undefined
+  const take = Math.min(parseInt(searchParams.get('take') || '24', 10), 48)
+  const sort = searchParams.get('sort') === 'oldest' ? 'oldest' : 'recent'
+
+  const result = await repository.getEventPhotosPaginated({
+    eventId: event.id,
+    cursor,
+    take,
+    sort,
+  })
+
+  return json({
+    photos: result.photos,
+    nextCursor: result.nextCursor,
+    total: result.total,
+  })
+})
+
+const createGalleryDownload = withTiming('createGalleryDownload', async (request, slug) => {
+  const repository = await getGalleryRepository()
+  const event = await repository.getEventBySlug(slug)
+  if (!event) {
+    return json({ error: 'Event not found' }, 404)
+  }
+
+  const prisma = await getPrismaClient()
+  if (!prisma) {
+    return json({ error: 'Database unavailable' }, 503)
+  }
+
+  const entitlement = await checkGalleryDownloadEntitlement(prisma, event)
+  if (!entitlement.allowed) {
+    return json({ error: 'Gallery download is not available for this event' }, 403)
+  }
+
+  const job = await createGalleryDownloadJob(event.id)
+  return json({ job })
+})
+
+const getGalleryDownload = withTiming('getGalleryDownload', async (request, slug) => {
+  const repository = await getGalleryRepository()
+  const event = await repository.getEventBySlug(slug)
+  if (!event) {
+    return json({ error: 'Event not found' }, 404)
+  }
+
+  const job = await getLatestGalleryDownloadJob(event.id)
+  if (!job) {
+    return json({ job: null })
+  }
+
+  if (job.status === 'PENDING') {
+    const twoMinutesAgo = Date.now() - 2 * 60 * 1000
+    const processedRecently = job.processedAt && job.processedAt.getTime() > twoMinutesAgo
+    if (!processedRecently) {
+      try {
+        await processGalleryDownloadJobIfPending(job.id, event)
+        const refreshed = await getLatestGalleryDownloadJob(event.id)
+        return json({ job: refreshed })
+      } catch (processingError) {
+        console.error('[getGalleryDownload] processing failed:', processingError)
+        const refreshed = await getLatestGalleryDownloadJob(event.id)
+        return json({ job: refreshed })
+      }
+    }
+  }
+
+  return json({ job })
+})
 
 const getAppUrl = (request) => {
   const envUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL
@@ -2538,6 +2621,18 @@ async function handleRoute(request, { params }) {
 
       if (segments.length === 2 && method === 'GET') {
         return getEvent(segments[1])
+      }
+
+      if (segments.length === 3 && segments[2] === 'photos' && method === 'GET') {
+        return getEventPhotos(request, segments[1])
+      }
+
+      if (segments.length === 3 && segments[2] === 'gallery-download' && method === 'POST') {
+        return createGalleryDownload(request, segments[1])
+      }
+
+      if (segments.length === 3 && segments[2] === 'gallery-download' && method === 'GET') {
+        return getGalleryDownload(request, segments[1])
       }
 
       if (segments.length === 3 && segments[2] === 'email' && method === 'POST') {

@@ -21,7 +21,7 @@ import {
 import PhotoGalleryGrid from '@/components/photo-gallery-grid'
 import PhotoLightbox from '@/components/photo-lightbox'
 import { EventQRModal } from '@/components/event-qr-modal'
-import { getSortedRenderablePhotos } from '@/lib/photo-utils'
+import { getSortedRenderablePhotos, getRenderablePhotos } from '@/lib/photo-utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -162,6 +162,13 @@ export default function RoomPageClient({ slug, isNew }) {
   const [busy, setBusy] = useState({ join: true, refresh: false })
   const [galleryLoading, setGalleryLoading] = useState(false)
   const [galleryError, setGalleryError] = useState('')
+  const [photos, setPhotos] = useState([])
+  const [photoSort, setPhotoSort] = useState('recent')
+  const [photoCursor, setPhotoCursor] = useState(null)
+  const [hasMorePhotos, setHasMorePhotos] = useState(false)
+  const [loadingMorePhotos, setLoadingMorePhotos] = useState(false)
+  const [galleryJob, setGalleryJob] = useState(null)
+  const [galleryJobPolling, setGalleryJobPolling] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(0)
   const [copied, setCopied] = useState(false)
@@ -216,9 +223,9 @@ export default function RoomPageClient({ slug, isNew }) {
   }, [activeEvent?.slug])
 
   const galleryPhotos = useMemo(() => {
-    try { return getSortedRenderablePhotos(activeEvent?.photos) }
+    try { return getRenderablePhotos(photos) }
     catch (pipelineError) { console.error('[room] photo pipeline crashed', { slug: activeEvent?.slug, error: pipelineError }); return [] }
-  }, [activeEvent])
+  }, [photos])
 
   const isFreeEvent = useMemo(() => {
     return activeEvent && !activeEvent.billingTier && !activeEvent.originalDownloadUnlocked &&
@@ -375,39 +382,126 @@ export default function RoomPageClient({ slug, isNew }) {
 
   const [galleryDownloadBusy, setGalleryDownloadBusy] = useState(false)
 
+  const loadPhotos = async ({ reset = false, sortOverride } = {}) => {
+    if (!activeEvent?.slug) return
+    const targetSort = sortOverride || photoSort
+    const cursor = reset ? null : photoCursor
+    setLoadingMorePhotos(true)
+    setGalleryError('')
+    try {
+      const url = new URL(`/api/events/${activeEvent.slug}/photos`, window.location.origin)
+      if (cursor) url.searchParams.set('cursor', cursor)
+      url.searchParams.set('sort', targetSort)
+      const response = await fetch(url.toString(), { cache: 'no-store' })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload.error || t.unableToLoadGallery)
+      }
+      const data = await response.json()
+      if (reset) {
+        setPhotos(data.photos)
+      } else {
+        setPhotos((prev) => [...prev, ...data.photos])
+      }
+      setPhotoCursor(data.nextCursor)
+      setHasMorePhotos(Boolean(data.nextCursor))
+    } catch (error) {
+      console.error('[room] loadPhotos error:', error)
+      setGalleryError(error.message || t.unableToLoadGallery)
+    } finally {
+      setLoadingMorePhotos(false)
+    }
+  }
+
+  const handleSortChange = (newSort) => {
+    if (newSort === photoSort) return
+    setPhotoSort(newSort)
+    setPhotos([])
+    setPhotoCursor(null)
+    setHasMorePhotos(false)
+    loadPhotos({ reset: true, sortOverride: newSort })
+  }
+
   const handleGalleryDownload = async () => {
     if (!activeEvent?.slug) return
     setGalleryDownloadBusy(true)
     trackEvent(EVENT_GALLERY_DOWNLOAD_CLICKED, { room_slug: activeEvent.slug, source: 'room_page' })
-    try {
-      const response = await fetch(`/api/download/gallery?eventSlug=${encodeURIComponent(activeEvent.slug)}`)
-      if (response.status === 403) {
-        trackEvent(EVENT_GALLERY_DOWNLOAD_BLOCKED, { room_slug: activeEvent.slug, source: 'room_page', reason: 'free_plan' })
-        showToast(t.galleryDownloadLocked, 'error')
+
+    // Sync download for small galleries (immediate)
+    if ((activeEvent.photoCount || 0) <= 200) {
+      try {
+        const response = await fetch(`/api/download/gallery?eventSlug=${encodeURIComponent(activeEvent.slug)}`)
+        if (response.status === 403) {
+          trackEvent(EVENT_GALLERY_DOWNLOAD_BLOCKED, { room_slug: activeEvent.slug, source: 'room_page', reason: 'free_plan' })
+          showToast(t.galleryDownloadLocked, 'error')
+          setGalleryDownloadBusy(false)
+          return
+        }
+        if (!response.ok) {
+          throw new Error(`Download failed: ${response.status}`)
+        }
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const contentDisposition = response.headers.get('content-disposition')
+        const fileNameMatch = contentDisposition?.match(/filename="([^"]+)"/)
+        const fileName = fileNameMatch ? decodeURIComponent(fileNameMatch[1]) : `${activeEvent.name || activeEvent.slug}_gallery.zip`
+        const link = document.createElement('a')
+        link.href = url
+        link.download = fileName
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+        trackEvent(EVENT_GALLERY_DOWNLOAD_COMPLETED, { room_slug: activeEvent.slug, source: 'room_page', photo_count: galleryPhotos.length })
+        showToast(t.galleryDownloadStarted, 'success')
+      } catch (err) {
+        console.error('[room] gallery download failed:', err)
+        showToast(t.galleryDownloadFailed, 'error')
+      } finally {
         setGalleryDownloadBusy(false)
-        return
       }
-      if (!response.ok) {
-        throw new Error(`Download failed: ${response.status}`)
+      return
+    }
+
+    // Async job for large galleries
+    try {
+      const createRes = await fetch(`/api/events/${activeEvent.slug}/gallery-download`, { method: 'POST' })
+      const createData = await createRes.json()
+      if (!createRes.ok) {
+        throw new Error(createData.error || 'Failed to start gallery download')
       }
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
-      const contentDisposition = response.headers.get('content-disposition')
-      const fileNameMatch = contentDisposition?.match(/filename="([^"]+)"/)
-      const fileName = fileNameMatch ? decodeURIComponent(fileNameMatch[1]) : `${activeEvent.name || activeEvent.slug}_gallery.zip`
-      const link = document.createElement('a')
-      link.href = url
-      link.download = fileName
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
-      trackEvent(EVENT_GALLERY_DOWNLOAD_COMPLETED, { room_slug: activeEvent.slug, source: 'room_page', photo_count: galleryPhotos.length })
-      showToast(t.galleryDownloadStarted, 'success')
+      setGalleryJob(createData.job)
+      setGalleryJobPolling(true)
+
+      const poll = async () => {
+        try {
+          const statusRes = await fetch(`/api/events/${activeEvent.slug}/gallery-download`)
+          const statusData = await statusRes.json()
+          setGalleryJob(statusData.job)
+          if (statusData.job?.status === 'READY') {
+            window.location.href = `/api/gallery-downloads/${statusData.job.id}/download`
+            setGalleryJobPolling(false)
+            setGalleryDownloadBusy(false)
+            trackEvent(EVENT_GALLERY_DOWNLOAD_COMPLETED, { room_slug: activeEvent.slug, source: 'room_page_async', photo_count: activeEvent.photoCount })
+            showToast(t.galleryReady || 'Gallery ready', 'success')
+          } else if (statusData.job?.status === 'FAILED') {
+            setGalleryJobPolling(false)
+            setGalleryDownloadBusy(false)
+            showToast(t.galleryDownloadFailed, 'error')
+          } else {
+            setTimeout(poll, 3000)
+          }
+        } catch (pollErr) {
+          console.error('[room] gallery job polling error:', pollErr)
+          setGalleryJobPolling(false)
+          setGalleryDownloadBusy(false)
+          showToast(t.galleryDownloadFailed, 'error')
+        }
+      }
+      poll()
     } catch (err) {
-      console.error('[room] gallery download failed:', err)
+      console.error('[room] async gallery download failed:', err)
       showToast(t.galleryDownloadFailed, 'error')
-    } finally {
       setGalleryDownloadBusy(false)
     }
   }
@@ -453,6 +547,13 @@ export default function RoomPageClient({ slug, isNew }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeEvent?.slug, notFound])
+
+  useEffect(() => {
+    if (activeEvent?.slug) {
+      loadPhotos({ reset: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeEvent?.slug])
   useEffect(() => {
     if (isNew && typeof window !== 'undefined') {
       try { const url = new URL(window.location.href); if (url.searchParams.has('new')) { url.searchParams.delete('new'); window.history.replaceState({}, '', url.toString()) } }
@@ -698,7 +799,7 @@ export default function RoomPageClient({ slug, isNew }) {
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.galleryTitle}</span>
-                    <Badge variant="secondary" className="rounded-full font-mono text-[10px] bg-raised text-muted-foreground border-border">{galleryPhotos.length}</Badge>
+                    <Badge variant="secondary" className="rounded-full font-mono text-[10px] bg-raised text-muted-foreground border-border">{activeEvent?.photoCount || galleryPhotos.length}</Badge>
                   </div>
                   <Button
                     size="sm"
@@ -708,7 +809,25 @@ export default function RoomPageClient({ slug, isNew }) {
                     className="border-border bg-raised hover:bg-elevated hover:text-foreground"
                   >
                     {galleryDownloadBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1.5 h-3.5 w-3.5" />}
-                    {t.downloadAll || 'Download all'}
+                    {galleryJobPolling ? (t.preparingGalleryDownload || 'Preparing...') : (t.downloadAll || 'Download all')}
+                  </Button>
+                </div>
+                <div className="mt-3 flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant={photoSort === 'recent' ? 'secondary' : 'ghost'}
+                    onClick={() => handleSortChange('recent')}
+                    className="h-7 text-xs rounded-full"
+                  >
+                    {t.mostRecent || 'Most recent'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={photoSort === 'oldest' ? 'secondary' : 'ghost'}
+                    onClick={() => handleSortChange('oldest')}
+                    className="h-7 text-xs rounded-full"
+                  >
+                    {t.oldestFirst || 'Oldest first'}
                   </Button>
                 </div>
                 {unlockMessage && <p className="mt-3 text-sm font-semibold text-success">{unlockMessage}</p>}
@@ -726,7 +845,16 @@ export default function RoomPageClient({ slug, isNew }) {
                   )}
                 </div>
                 <div className="mt-6">
-                  <PhotoGalleryGrid photos={galleryPhotos} loading={galleryLoading} error={galleryError} onRetry={() => activeEvent?.slug && loadEvent(activeEvent.slug, { force: true })} onSelectPhoto={openLightbox} />
+                  <PhotoGalleryGrid
+                    photos={galleryPhotos}
+                    loading={galleryLoading}
+                    error={galleryError}
+                    onRetry={() => activeEvent?.slug && loadPhotos({ reset: true })}
+                    onSelectPhoto={openLightbox}
+                    hasMore={hasMorePhotos}
+                    onLoadMore={() => loadPhotos()}
+                    loadingMore={loadingMorePhotos}
+                  />
                 </div>
               </div>
             </div>
