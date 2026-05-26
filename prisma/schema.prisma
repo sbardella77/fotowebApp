@@ -14,43 +14,44 @@ enum PhotoStatus {
 }
 
 model Owner {
-  id                     String   @id @default(uuid())
-  email                  String   @unique
-  passwordHash           String?
-  passwordSalt           String?
-  plan                   String   @default("free")
-  stripeCustomerId       String?
-  stripeSubscriptionId   String?
+  id                      String   @id @default(uuid())
+  email                   String   @unique
+  passwordHash            String?
+  passwordSalt            String?
+  plan                    String   @default("free")
+  stripeCustomerId        String?
+  stripeSubscriptionId    String?
   stripeCheckoutSessionId String?
-  planUpdatedAt          DateTime @default(now())
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-  events                 Event[]
+  planUpdatedAt           DateTime @default(now())
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  events                  Event[]
 
   @@index([email])
 }
 
 model Event {
-  id                              String   @id @default(uuid())
-  slug                            String   @unique
-  name                            String
-  ownerEmail                      String?
-  ownerId                         String?
-  owner                           Owner?   @relation(fields: [ownerId], references: [id])
-  managementTokenHash             String?
-  coverPhotoId                    String?
-  billingTier                     String?
-  stripeCheckoutSessionId         String?
-  billingPurchasedAt              DateTime?
-  originalDownloadUnlocked        Boolean  @default(false)
+  id                                String               @id @default(uuid())
+  slug                              String               @unique
+  name                              String
+  ownerEmail                        String?
+  ownerId                           String?
+  owner                             Owner?               @relation(fields: [ownerId], references: [id])
+  managementTokenHash               String?
+  coverPhotoId                      String?
+  billingTier                       String?
+  stripeCheckoutSessionId           String?
+  billingPurchasedAt                DateTime?
+  originalDownloadUnlocked          Boolean              @default(false)
   originalDownloadCheckoutSessionId String?
-  photographerUploadTokenHash     String?
-  photographerUploadTokenExpiresAt DateTime?
-  coverUrl                        String?
-  createdAt                       DateTime @default(now())
-  updatedAt                       DateTime @updatedAt
-  photos                          Photo[]
-  privateAssets                   PrivateAsset[]
+  photographerUploadTokenHash       String?
+  photographerUploadTokenExpiresAt  DateTime?
+  coverUrl                          String?
+  createdAt                         DateTime             @default(now())
+  updatedAt                         DateTime             @updatedAt
+  photos                            Photo[]
+  privateAssets                     PrivateAsset[]
+  galleryDownloadJobs               GalleryDownloadJob[]
 
   @@index([createdAt])
   @@index([ownerId])
@@ -81,17 +82,17 @@ model Photo {
 }
 
 model PrivateAsset {
-  id           String   @id @default(uuid())
-  eventId      String
-  originalName String
-  storedName   String
-  mimeType     String
-  size         Int
-  url          String
+  id             String   @id @default(uuid())
+  eventId        String
+  originalName   String
+  storedName     String
+  mimeType       String
+  size           Int
+  url            String
   uploadedByRole String?  @default("owner")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  event        Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  event          Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@index([eventId, createdAt(sort: Desc)])
 }
@@ -120,14 +121,14 @@ model DeletionLog {
 }
 
 model GalleryDownloadJob {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   eventId     String
-  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  status      String   @default("PENDING")
+  event       Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  status      String    @default("PENDING")
   resultUrl   String?
   error       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   processedAt DateTime?
 
   @@index([eventId, status])
