@@ -478,19 +478,39 @@ export default function RoomPageClient({ slug, isNew }) {
           const statusRes = await fetch(`/api/events/${activeEvent.slug}/gallery-download`)
           const statusData = await statusRes.json()
           setGalleryJob(statusData.job)
-          if (statusData.job?.status === 'READY') {
-            window.location.href = `/api/gallery-downloads/${statusData.job.id}/download`
+
+          const job = statusData.job
+          if (!job) {
+            setGalleryJobPolling(false)
+            setGalleryDownloadBusy(false)
+            return
+          }
+
+          if (job.status === 'READY') {
+            window.location.href = `/api/gallery-downloads/${job.id}/download`
             setGalleryJobPolling(false)
             setGalleryDownloadBusy(false)
             trackEvent(EVENT_GALLERY_DOWNLOAD_COMPLETED, { room_slug: activeEvent.slug, source: 'room_page_async', photo_count: activeEvent.photoCount })
             showToast(t.galleryReady || 'Gallery ready', 'success')
-          } else if (statusData.job?.status === 'FAILED') {
+            return
+          }
+
+          if (job.status === 'FAILED') {
             setGalleryJobPolling(false)
             setGalleryDownloadBusy(false)
-            showToast(t.galleryDownloadFailed, 'error')
-          } else {
-            setTimeout(poll, 3000)
+            const errorMsg = job.error || ''
+            if (errorMsg.toLowerCase().includes('too large') || errorMsg.includes('1000')) {
+              showToast(t.galleryExportTooLarge || 'Gallery too large for immediate export', 'error')
+            } else if (errorMsg.toLowerCase().includes('maximum') || errorMsg.toLowerCase().includes('attempts')) {
+              showToast(t.galleryExportRetryLater || 'Gallery export failed after multiple attempts. Please try again later.', 'error')
+            } else {
+              showToast(t.galleryDownloadFailed, 'error')
+            }
+            return
           }
+
+          // PENDING or PROCESSING: continue polling
+          setTimeout(poll, 3000)
         } catch (pollErr) {
           console.error('[room] gallery job polling error:', pollErr)
           setGalleryJobPolling(false)
