@@ -1286,10 +1286,11 @@ export default function DashboardPage() {
               />
             </div>
             {createError?.limit === 'room_count' ? (
-              <div className="space-y-3">
-                <p className="text-sm text-destructive">{createError.error}</p>
+              <div className="space-y-3 rounded-lg border border-primary/10 bg-primary/5 p-3">
+                <p className="text-sm font-semibold text-foreground">{t.upsellRoomLimitTitle}</p>
+                <p className="text-xs text-muted-foreground">{t.upsellRoomLimitDesc}</p>
                 <Button className="w-full cta-primary" disabled={checkoutBusy} onClick={() => startCheckout('professional', null, 'dashboard_create_room_limit')}>
-                  {checkoutBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.upgradeToProfessional}
+                  {checkoutBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.upsellUpgradeToProfessional}
                 </Button>
               </div>
             ) : createError?.error ? (

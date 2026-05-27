@@ -47,6 +47,8 @@ import { useTranslations } from '@/components/i18n-provider'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { InstallCta } from '@/components/install-cta'
 import { resolveEffectiveEventAccessState } from '@/lib/event-access'
+import { resolveAllUpsells } from '@/lib/upsell-context'
+import { UpsellRow } from '@/components/upsell-row'
 
 const CHUNK_SIZE = 1024 * 1024
 
@@ -856,17 +858,12 @@ export default function RoomPageClient({ slug, isNew }) {
                   </Button>
                 </div>
                 {unlockMessage && <p className="mt-3 text-sm font-semibold text-success">{unlockMessage}</p>}
-                <div className="mt-2 space-y-1">
-                  {!eventAccess.hasUnbrandedDownloads ? (
-                    <p className="text-xs text-muted-foreground">{t.brandingFreeLocked}</p>
-                  ) : (
-                    <p className="text-xs text-success">{t.brandingFreeAvailable}</p>
-                  )}
-                  {!eventAccess.canDownloadGallery ? (
-                    <p className="text-xs text-muted-foreground">{t.galleryDownloadLocked}</p>
-                  ) : (
-                    <p className="text-xs text-success">{t.galleryDownloadAvailable}</p>
-                  )}
+                <div className="mt-2 space-y-2">
+                  {resolveAllUpsells(eventAccess)
+                    .filter((u) => ['branding', 'gallery_download'].includes(u.feature))
+                    .map((upsell) => (
+                      <UpsellRow key={upsell.feature} upsell={upsell} t={t} />
+                    ))}
                 </div>
                 <div className="mt-6">
                   <PhotoGalleryGrid
