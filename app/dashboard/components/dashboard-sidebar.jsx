@@ -1,6 +1,6 @@
 'use client'
 
-import { Camera, LayoutDashboard, LogOut, Sparkles, User } from 'lucide-react'
+import { Camera, LayoutDashboard, LogOut, Sparkles, User, BarChart3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { resolveEffectiveEventAccessState } from '@/lib/event-access'
 
@@ -26,6 +26,13 @@ export function DashboardSidebar({ plan, email, onLogout, onUpgradeClick, t, tCo
           >
             <LayoutDashboard className="h-4 w-4" />
             {t.dashboard ?? 'Dashboard'}
+          </a>
+          <a
+            href="/dashboard/analytics"
+            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-primary/5 hover:text-foreground transition-colors"
+          >
+            <BarChart3 className="h-4 w-4" />
+            {t.analyticsTitle ?? 'Analytics'}
           </a>
         </div>
 

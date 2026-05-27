@@ -96,6 +96,17 @@ export async function POST(request) {
           { distinctId: session.customer_email || session.customer || eventId }
         )
 
+        await prisma.upsellEvent.create({
+          data: {
+            eventName: EVENT_UPSELL_CONVERSION,
+            upsellType: session.metadata?.upsellType || 'original_quality_unlock',
+            source: session.metadata?.upsellSource || 'lightbox',
+            ctaPlan: 'unlock',
+            eventId: eventId || null,
+            eventSlug: session.metadata?.roomSlug || null,
+          },
+        })
+
         console.log(`[stripe/webhook] Event ${updatedEvent.slug} unlocked for original quality downloads`)
       } catch (dbError) {
         if (dbError instanceof Prisma.PrismaClientKnownRequestError && dbError.code === 'P2025') {
@@ -168,6 +179,18 @@ export async function POST(request) {
           { distinctId: session.metadata?.ownerEmail || ownerId }
         )
 
+        await prisma.upsellEvent.create({
+          data: {
+            eventName: EVENT_UPSELL_CONVERSION,
+            upsellType: session.metadata?.upsellType || intent,
+            source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
+            ctaPlan: intent,
+            ownerId: ownerId || null,
+            eventId: eventId || null,
+            eventSlug: session.metadata?.roomSlug || null,
+          },
+        })
+
         console.log(`[stripe/webhook] Event ${updatedEvent.slug} upgraded to ${intent}`)
       } catch (dbError) {
         // If event was deleted, don't retry forever
@@ -227,6 +250,16 @@ export async function POST(request) {
           },
           { distinctId: owner.email }
         )
+
+        await prisma.upsellEvent.create({
+          data: {
+            eventName: EVENT_UPSELL_CONVERSION,
+            upsellType: session.metadata?.upsellType || intent,
+            source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
+            ctaPlan: intent,
+            ownerId: owner.id,
+          },
+        })
 
         console.log('[stripe/webhook] Owner upgraded to Professional:', owner.email)
       } catch (dbError) {

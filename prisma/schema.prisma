@@ -138,3 +138,20 @@ model GalleryDownloadJob {
   @@index([status, processedAt])
   @@index([status, updatedAt])
 }
+
+model UpsellEvent {
+  id         String   @id @default(uuid())
+  eventName  String
+  upsellType String?
+  source     String?
+  location   String?
+  ctaPlan    String?
+  ownerId    String?
+  eventId    String?
+  eventSlug  String?
+  createdAt  DateTime @default(now())
+
+  @@index([eventName, upsellType])
+  @@index([source])
+  @@index([createdAt])
+}
