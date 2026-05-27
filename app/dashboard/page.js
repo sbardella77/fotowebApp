@@ -66,8 +66,7 @@ import { InsightCard } from './components/insight-card'
 import { EventCard } from './components/event-card'
 import { EventDetailPanel } from './components/event-detail-panel'
 import { DashboardPhotoCard } from './components/dashboard-photo-card'
-
-const isPremiumPlan = (p) => p === 'professional' || p === 'business' || p === 'pro'
+import { resolveEffectiveEventAccessState } from '@/lib/event-access'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -630,12 +629,7 @@ export default function DashboardPage() {
     }
   }
 
-  const hasPrivateDeliveryAccess = (event) => {
-    if (!event) return false
-    if (event.billingTier === 'wedding_pro') return true
-    if (isPremiumPlan(plan)) return true
-    return false
-  }
+  const accountPremium = resolveEffectiveEventAccessState({ ownerPlan: plan }).isPremium
 
   const loadPrivateAssets = async (slug) => {
     if (!slug) return
@@ -869,7 +863,7 @@ export default function DashboardPage() {
       setIsEditingName(false)
       setPhotographerLink('')
       setPhotographerLinkCopied(false)
-      if (hasPrivateDeliveryAccess(selectedEvent)) {
+      if (resolveEffectiveEventAccessState({ billingTier: selectedEvent?.billingTier, originalDownloadUnlocked: selectedEvent?.originalDownloadUnlocked, ownerPlan: plan }).hasPrivateDelivery) {
         loadPrivateAssets(selectedEvent.slug)
       } else {
         setPrivateAssets([])
@@ -931,7 +925,7 @@ export default function DashboardPage() {
           email={authState.email}
           onLogout={logout}
           onUpgradeClick={
-            !isPremiumPlan(plan)
+            !accountPremium
               ? () => startCheckout('professional', null, 'dashboard_sidebar')
               : undefined
           }

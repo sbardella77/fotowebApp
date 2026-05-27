@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button'
 import { DashboardPhotoCard } from './dashboard-photo-card'
 import { EventCoverEditor, EventCoverRemove } from './event-cover-editor'
 import { getEffectiveEventStatus } from '../lib/event-status'
+import { resolveEffectiveEventAccessState } from '@/lib/event-access'
 
 export function EventDetailPanel({
   event,
@@ -59,8 +60,12 @@ export function EventDetailPanel({
 }) {
   if (!event) return null
 
-  const isPremium = plan === 'professional' || plan === 'business' || plan === 'pro'
-  const hasPrivateAccess = event.billingTier === 'wedding_pro' || isPremium
+  const state = resolveEffectiveEventAccessState({
+    billingTier: event.billingTier,
+    originalDownloadUnlocked: event.originalDownloadUnlocked,
+    ownerPlan: plan,
+  })
+
   const heroUrl = event.coverUrl || photos?.[0]?.url
 
   return (
@@ -143,18 +148,18 @@ export function EventDetailPanel({
         <div className="mt-5 space-y-2 rounded-xl border border-border bg-raised p-4">
           <p className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.planInfo ?? 'Plan'}</p>
           <div className="space-y-1">
-            {!isPremium && !event.billingTier && !event.originalDownloadUnlocked ? (
+            {!state.hasUnbrandedDownloads ? (
               <p className="text-xs text-muted-foreground">{t.brandingFreeLocked}</p>
             ) : (
               <p className="text-xs text-success">{t.brandingFreeAvailable}</p>
             )}
-            {!isPremium && !event.billingTier ? (
+            {!state.canDownloadGallery ? (
               <p className="text-xs text-muted-foreground">{t.galleryDownloadLocked}</p>
             ) : (
               <p className="text-xs text-success">{t.galleryDownloadAvailable}</p>
             )}
           </div>
-          {!isPremium && !event.billingTier && (
+          {!state.accountPremium && !state.eventUpgraded && (
             <div className="mt-3 flex flex-wrap gap-2">
               <Button size="sm" variant="outline" className="border-primary/20 bg-primary/5 text-accent-dark hover:bg-primary/10" disabled={checkoutBusy} onClick={onUpgradeProEvent}>
                 {checkoutBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : `${t.proEvent} €29`}
@@ -164,11 +169,11 @@ export function EventDetailPanel({
               </Button>
             </div>
           )}
-          {(isPremium || event.billingTier) && (
+          {(state.accountPremium || state.eventUpgraded) && (
             <div className="mt-2">
               <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-accent-dark">
                 <Sparkles className="mr-1 h-3 w-3" />
-                {isPremium ? (t.premiumActive ?? 'Premium active') : (event.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent)}
+                {state.accountPremium ? (t.premiumActive ?? 'Premium active') : (event.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent)}
               </span>
             </div>
           )}
@@ -208,7 +213,7 @@ export function EventDetailPanel({
         </div>
 
         {/* Private Delivery */}
-        {hasPrivateAccess && (
+        {state.hasPrivateDelivery && (
           <div className="mt-6 rounded-xl border border-primary/20 bg-surface shadow-card">
             <div className="p-4">
               <div className="flex items-center gap-2">

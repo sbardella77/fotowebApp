@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { ZipArchive } from 'archiver'
 import { getPrismaClient } from '@/lib/server/prisma-client'
-import { checkGalleryDownloadEntitlement, checkPhotoDownloadEntitlement } from '@/lib/server/entitlements'
+import { getEffectiveEventAccessState } from '@/lib/server/event-access'
 import { getPhotoBuffer, applyWatermark, getDownloadFileName } from '@/lib/server/download-utils'
 
 export const dynamic = 'force-dynamic'
@@ -47,8 +47,8 @@ export async function GET(request) {
     }
 
     // Check gallery download entitlement
-    const galleryEntitlement = await checkGalleryDownloadEntitlement(prisma, event)
-    if (!galleryEntitlement.allowed) {
+    const access = await getEffectiveEventAccessState(prisma, event)
+    if (!access.canDownloadGallery) {
       return NextResponse.json(
         { error: 'Gallery download is not available for this event. Upgrade to download the full gallery.' },
         { status: 403 }
@@ -56,8 +56,7 @@ export async function GET(request) {
     }
 
     // Check if individual photos should be branded
-    const photoEntitlement = await checkPhotoDownloadEntitlement(prisma, event)
-    const branded = photoEntitlement.branded
+    const branded = !access.hasUnbrandedDownloads
 
     // Fetch all visible photos for this event
     const photos = await prisma.photo.findMany({

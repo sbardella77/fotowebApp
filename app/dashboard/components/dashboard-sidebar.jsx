@@ -2,9 +2,10 @@
 
 import { Camera, LayoutDashboard, LogOut, Sparkles, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { resolveEffectiveEventAccessState } from '@/lib/event-access'
 
 export function DashboardSidebar({ plan, email, onLogout, onUpgradeClick, t, tCommon }) {
-  const isPremium = plan === 'professional' || plan === 'business' || plan === 'pro'
+  const { isPremium } = resolveEffectiveEventAccessState({ ownerPlan: plan })
 
   return (
     <div className="flex h-full flex-col">

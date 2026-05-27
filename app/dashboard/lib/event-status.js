@@ -1,13 +1,20 @@
+import { resolveEffectiveEventAccessState } from '@/lib/event-access'
+
 /**
  * Resolve the effective status label for an event,
  * taking into account both account-level plan and event-level billingTier.
  */
 export function getEffectiveEventStatus({ event, plan, t }) {
-  const isAccountPremium = plan === 'professional' || plan === 'business' || plan === 'pro'
-  if (isAccountPremium) {
+  const state = resolveEffectiveEventAccessState({
+    billingTier: event?.billingTier || null,
+    originalDownloadUnlocked: event?.originalDownloadUnlocked,
+    ownerPlan: plan || null,
+  })
+
+  if (state.accountPremium) {
     return t.premiumActive ?? 'Premium active'
   }
-  if (event.billingTier) {
+  if (state.eventUpgraded) {
     return event.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent
   }
   return t.free ?? 'Free'
@@ -18,11 +25,16 @@ export function getEffectiveEventStatus({ event, plan, t }) {
  * Returns null when the event is effectively free and the account is not premium.
  */
 export function getEffectiveEventTierLabel({ event, plan, t }) {
-  const isAccountPremium = plan === 'professional' || plan === 'business' || plan === 'pro'
-  if (isAccountPremium) {
+  const state = resolveEffectiveEventAccessState({
+    billingTier: event?.billingTier || null,
+    originalDownloadUnlocked: event?.originalDownloadUnlocked,
+    ownerPlan: plan || null,
+  })
+
+  if (state.accountPremium) {
     return t.premiumActive ?? 'Premium active'
   }
-  if (event.billingTier) {
+  if (state.eventUpgraded) {
     return event.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent
   }
   return null

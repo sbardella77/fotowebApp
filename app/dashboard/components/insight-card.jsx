@@ -2,9 +2,10 @@
 
 import { ImagePlus, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { resolveEffectiveEventAccessState } from '@/lib/event-access'
 
 export function InsightCard({ plan, events, checkoutBusy, onUpgrade, t }) {
-  const isPremium = plan === 'professional' || plan === 'business' || plan === 'pro'
+  const { isPremium } = resolveEffectiveEventAccessState({ ownerPlan: plan })
   const totalPhotos = events.reduce((sum, e) => sum + (e.photoCount || e.photos?.length || 0), 0)
 
   return (

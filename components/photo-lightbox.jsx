@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useTranslations } from '@/components/i18n-provider'
 import { trackEvent } from '@/lib/analytics/track-client'
+import { resolveEffectiveEventAccessState } from '@/lib/event-access'
 import {
   EVENT_DOWNLOAD_QUALITY_SELECTED,
   EVENT_ORIGINAL_DOWNLOAD_UNLOCK_CLICKED,
@@ -62,14 +63,6 @@ const ImageWithLoading = ({ src, alt }) => {
   )
 }
 
-function useCanDownloadOriginal(event) {
-  if (!event) return true
-  if (event.billingTier === 'pro_event' || event.billingTier === 'wedding_pro') return true
-  if (event.originalDownloadUnlocked) return true
-  if (event.ownerPlan === 'professional' || event.ownerPlan === 'business' || event.ownerPlan === 'pro') return true
-  return false
-}
-
 const PhotoLightbox = ({
   open,
   onOpenChange,
@@ -110,10 +103,13 @@ const PhotoLightbox = ({
   const isSwiping = useRef(false)
   const containerRef = useRef(null)
 
-  const canDownloadOriginal = useCanDownloadOriginal(event)
-  const isFreeRoom =
-    event && !event.billingTier && !event.originalDownloadUnlocked &&
-    event.ownerPlan !== 'professional' && event.ownerPlan !== 'business' && event.ownerPlan !== 'pro'
+  const access = resolveEffectiveEventAccessState({
+    billingTier: event?.billingTier,
+    originalDownloadUnlocked: event?.originalDownloadUnlocked,
+    ownerPlan: event?.ownerPlan,
+  })
+  const canDownloadOriginal = access.canDownloadOriginal
+  const isFreeRoom = access.isFree
 
   const handleClose = useCallback(() => {
     setIsClosing(true)

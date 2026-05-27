@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getPrismaClient } from '@/lib/server/prisma-client'
-import { checkPhotoDownloadEntitlement } from '@/lib/server/entitlements'
+import { getEffectiveEventAccessState } from '@/lib/server/event-access'
 import { processPhotoForDownload, getDownloadFileName } from '@/lib/server/download-utils'
 
 export const dynamic = 'force-dynamic'
@@ -71,8 +71,8 @@ export async function GET(request) {
     }
 
     // Check entitlement
-    const entitlement = await checkPhotoDownloadEntitlement(prisma, event)
-    const branded = entitlement.branded
+    const access = await getEffectiveEventAccessState(prisma, event)
+    const branded = !access.hasUnbrandedDownloads
 
     console.log(`${logPrefix} event=${event.slug} type=${type} branded=${branded} billingTier=${event.billingTier} unlock=${event.originalDownloadUnlocked}`)
 

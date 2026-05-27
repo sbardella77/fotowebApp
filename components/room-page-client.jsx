@@ -46,6 +46,7 @@ import {
 import { useTranslations } from '@/components/i18n-provider'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { InstallCta } from '@/components/install-cta'
+import { resolveEffectiveEventAccessState } from '@/lib/event-access'
 
 const CHUNK_SIZE = 1024 * 1024
 
@@ -227,9 +228,13 @@ export default function RoomPageClient({ slug, isNew }) {
     catch (pipelineError) { console.error('[room] photo pipeline crashed', { slug: activeEvent?.slug, error: pipelineError }); return [] }
   }, [photos])
 
-  const isFreeEvent = useMemo(() => {
-    return activeEvent && !activeEvent.billingTier && !activeEvent.originalDownloadUnlocked &&
-      activeEvent.ownerPlan !== 'professional' && activeEvent.ownerPlan !== 'business' && activeEvent.ownerPlan !== 'pro'
+  const eventAccess = useMemo(() => {
+    if (!activeEvent) return { isFree: true, hasUnbrandedDownloads: false, canDownloadGallery: false }
+    return resolveEffectiveEventAccessState({
+      billingTier: activeEvent.billingTier,
+      originalDownloadUnlocked: activeEvent.originalDownloadUnlocked,
+      ownerPlan: activeEvent.ownerPlan,
+    })
   }, [activeEvent])
 
   const loadEvent = async (targetSlug, { silent = false, force = false } = {}) => {
@@ -852,7 +857,7 @@ export default function RoomPageClient({ slug, isNew }) {
                 </div>
                 {unlockMessage && <p className="mt-3 text-sm font-semibold text-success">{unlockMessage}</p>}
                 <div className="mt-2 space-y-1">
-                  {isFreeEvent ? (
+                  {eventAccess.isFree ? (
                     <>
                       <p className="text-xs text-muted-foreground">{t.brandingFreeLocked}</p>
                       <p className="text-xs text-muted-foreground">{t.galleryDownloadLocked}</p>

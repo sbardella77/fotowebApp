@@ -1,9 +1,10 @@
 'use client'
 
 import { CheckCircle2, Sparkles } from 'lucide-react'
+import { resolveEffectiveEventAccessState } from '@/lib/event-access'
 
 export function DashboardTopBar({ plan, message, onDismissMessage }) {
-  const isPremium = plan === 'professional' || plan === 'business' || plan === 'pro'
+  const { isPremium } = resolveEffectiveEventAccessState({ ownerPlan: plan })
 
   return (
     <div className="flex items-center justify-between gap-4 w-full">

@@ -92,8 +92,8 @@ import {
 import {
   checkOwnerRoomCreationEntitlement,
   checkRoomUploadEntitlement,
-  checkPrivateDeliveryEntitlement,
 } from '@/lib/server/entitlements'
+import { getEffectiveEventAccessState } from '@/lib/server/event-access'
 import { resolveCanonicalOwner } from '@/lib/server/owner-resolution'
 
 export const runtime = 'nodejs'
@@ -353,8 +353,8 @@ const createGalleryDownload = withTiming('createGalleryDownload', async (request
     return json({ error: 'Database unavailable' }, 503)
   }
 
-  const entitlement = await checkGalleryDownloadEntitlement(prisma, event)
-  if (!entitlement.allowed) {
+  const access = await getEffectiveEventAccessState(prisma, event)
+  if (!access.canDownloadGallery) {
     return json({ error: 'Gallery download is not available for this event' }, 403)
   }
 
@@ -1036,9 +1036,9 @@ const listPrivateDeliveryAssets = async (request, slug) => {
 
   const prisma = await getPrismaClient()
   if (prisma) {
-    const entitlement = await checkPrivateDeliveryEntitlement(prisma, event)
-    if (!entitlement.allowed) {
-      return json({ error: 'Private delivery is not available for this room', upgradePath: entitlement.upgradePath }, 403)
+    const access = await getEffectiveEventAccessState(prisma, event)
+    if (!access.hasPrivateDelivery) {
+      return json({ error: 'Private delivery is not available for this room', upgradePath: 'wedding_pro' }, 403)
     }
   }
 
@@ -1063,9 +1063,9 @@ const initPrivateDeliveryUpload = async (request, slug) => {
 
   const prisma = await getPrismaClient()
   if (prisma) {
-    const entitlement = await checkPrivateDeliveryEntitlement(prisma, event)
-    if (!entitlement.allowed) {
-      return json({ error: 'Private delivery is not available for this room', upgradePath: entitlement.upgradePath }, 403)
+    const access = await getEffectiveEventAccessState(prisma, event)
+    if (!access.hasPrivateDelivery) {
+      return json({ error: 'Private delivery is not available for this room', upgradePath: 'wedding_pro' }, 403)
     }
   }
 
@@ -1099,9 +1099,9 @@ const issuePrivateDeliveryBlobToken = async (request, slug) => {
 
   const prisma = await getPrismaClient()
   if (prisma) {
-    const entitlement = await checkPrivateDeliveryEntitlement(prisma, event)
-    if (!entitlement.allowed) {
-      return json({ error: 'Private delivery is not available for this room', upgradePath: entitlement.upgradePath }, 403)
+    const access = await getEffectiveEventAccessState(prisma, event)
+    if (!access.hasPrivateDelivery) {
+      return json({ error: 'Private delivery is not available for this room', upgradePath: 'wedding_pro' }, 403)
     }
   }
 
@@ -1142,8 +1142,8 @@ const issuePrivateDeliveryBlobToken = async (request, slug) => {
         }
 
         if (prisma) {
-          const targetEntitlement = await checkPrivateDeliveryEntitlement(prisma, targetEvent)
-          if (!targetEntitlement.allowed) {
+          const targetAccess = await getEffectiveEventAccessState(prisma, targetEvent)
+          if (!targetAccess.hasPrivateDelivery) {
             throw new Error('Private delivery is not available for this room')
           }
         }
@@ -1181,9 +1181,9 @@ const completePrivateDeliveryUpload = async (request, slug) => {
   }
 
   if (prisma) {
-    const entitlement = await checkPrivateDeliveryEntitlement(prisma, event)
-    if (!entitlement.allowed) {
-      return json({ error: 'Private delivery is not available for this room', upgradePath: entitlement.upgradePath }, 403)
+    const access = await getEffectiveEventAccessState(prisma, event)
+    if (!access.hasPrivateDelivery) {
+      return json({ error: 'Private delivery is not available for this room', upgradePath: 'wedding_pro' }, 403)
     }
   }
 
@@ -1301,9 +1301,9 @@ const createPhotographerUploadLink = async (request, slug) => {
 
   const prisma = await getPrismaClient()
   if (prisma) {
-    const entitlement = await checkPrivateDeliveryEntitlement(prisma, event)
-    if (!entitlement.allowed) {
-      return json({ error: 'Private delivery is not available for this room', upgradePath: entitlement.upgradePath }, 403)
+    const access = await getEffectiveEventAccessState(prisma, event)
+    if (!access.hasPrivateDelivery) {
+      return json({ error: 'Private delivery is not available for this room', upgradePath: 'wedding_pro' }, 403)
     }
   }
 
@@ -1412,8 +1412,8 @@ const getPhotographerUploadEvent = async (request, token) => {
 
   const prisma = await getPrismaClient()
   if (prisma) {
-    const entitlement = await checkPrivateDeliveryEntitlement(prisma, event)
-    if (!entitlement.allowed) {
+    const access = await getEffectiveEventAccessState(prisma, event)
+    if (!access.hasPrivateDelivery) {
       return json({ error: 'Private delivery is not available for this room' }, 403)
     }
   }
@@ -1434,8 +1434,8 @@ const initPhotographerUpload = async (request, token) => {
 
   const prisma = await getPrismaClient()
   if (prisma) {
-    const entitlement = await checkPrivateDeliveryEntitlement(prisma, event)
-    if (!entitlement.allowed) {
+    const access = await getEffectiveEventAccessState(prisma, event)
+    if (!access.hasPrivateDelivery) {
       return json({ error: 'Private delivery is not available for this room' }, 403)
     }
   }
@@ -1466,8 +1466,8 @@ const issuePhotographerBlobToken = async (request, token) => {
 
   const prisma = await getPrismaClient()
   if (prisma) {
-    const entitlement = await checkPrivateDeliveryEntitlement(prisma, event)
-    if (!entitlement.allowed) {
+    const access = await getEffectiveEventAccessState(prisma, event)
+    if (!access.hasPrivateDelivery) {
       return json({ error: 'Private delivery is not available for this room' }, 403)
     }
   }
@@ -1504,8 +1504,8 @@ const issuePhotographerBlobToken = async (request, token) => {
         }
 
         if (prisma) {
-          const targetEntitlement = await checkPrivateDeliveryEntitlement(prisma, event)
-          if (!targetEntitlement.allowed) {
+          const targetAccess = await getEffectiveEventAccessState(prisma, event)
+          if (!targetAccess.hasPrivateDelivery) {
             throw new Error('Private delivery is not available for this room')
           }
         }
@@ -1540,8 +1540,8 @@ const completePhotographerUpload = async (request, token) => {
   const prisma = await getPrismaClient()
 
   if (prisma) {
-    const entitlement = await checkPrivateDeliveryEntitlement(prisma, event)
-    if (!entitlement.allowed) {
+    const access = await getEffectiveEventAccessState(prisma, event)
+    if (!access.hasPrivateDelivery) {
       return json({ error: 'Private delivery is not available for this room' }, 403)
     }
   }
