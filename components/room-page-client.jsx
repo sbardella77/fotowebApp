@@ -857,16 +857,15 @@ export default function RoomPageClient({ slug, isNew }) {
                 </div>
                 {unlockMessage && <p className="mt-3 text-sm font-semibold text-success">{unlockMessage}</p>}
                 <div className="mt-2 space-y-1">
-                  {eventAccess.isFree ? (
-                    <>
-                      <p className="text-xs text-muted-foreground">{t.brandingFreeLocked}</p>
-                      <p className="text-xs text-muted-foreground">{t.galleryDownloadLocked}</p>
-                    </>
+                  {!eventAccess.hasUnbrandedDownloads ? (
+                    <p className="text-xs text-muted-foreground">{t.brandingFreeLocked}</p>
                   ) : (
-                    <>
-                      <p className="text-xs text-success">{t.brandingFreeAvailable}</p>
-                      <p className="text-xs text-success">{t.galleryDownloadAvailable}</p>
-                    </>
+                    <p className="text-xs text-success">{t.brandingFreeAvailable}</p>
+                  )}
+                  {!eventAccess.canDownloadGallery ? (
+                    <p className="text-xs text-muted-foreground">{t.galleryDownloadLocked}</p>
+                  ) : (
+                    <p className="text-xs text-success">{t.galleryDownloadAvailable}</p>
                   )}
                 </div>
                 <div className="mt-6">
