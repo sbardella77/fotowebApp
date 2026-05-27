@@ -862,7 +862,17 @@ export default function RoomPageClient({ slug, isNew }) {
                   {resolveAllUpsells(eventAccess)
                     .filter((u) => ['branding', 'gallery_download'].includes(u.feature))
                     .map((upsell) => (
-                      <UpsellRow key={upsell.feature} upsell={upsell} t={t} />
+                      <UpsellRow
+                        key={upsell.feature}
+                        upsell={upsell}
+                        t={t}
+                        onUpgrade={() => {
+                          if (typeof window !== 'undefined') {
+                            window.location.href = '/pricing'
+                          }
+                        }}
+                        checkoutBusy={false}
+                      />
                     ))}
                 </div>
                 <div className="mt-6">

@@ -17,17 +17,17 @@ export function UpsellRow({ upsell, t, onUpgrade, checkoutBusy, size = 'sm' }) {
   return (
     <div className="rounded-lg border border-primary/10 bg-primary/5 p-3">
       <p className="text-xs font-semibold text-foreground">
-        {t[upsell.titleKey] || upsell.titleKey}
+        {t[upsell.titleKey] || ''}
       </p>
       <p className="text-xs text-muted-foreground mt-0.5">
-        {t[upsell.descriptionKey] || upsell.descriptionKey}
+        {t[upsell.descriptionKey] || ''}
       </p>
       {upsell.benefitsKeys?.length > 0 && (
         <ul className="mt-1.5 space-y-0.5">
           {upsell.benefitsKeys.map((key) => (
             <li key={key} className="text-[11px] text-accent-dark flex items-center gap-1">
               <Sparkles className="h-2.5 w-2.5" />
-              {t[key] || key}
+              {t[key] || ''}
             </li>
           ))}
         </ul>
@@ -42,7 +42,7 @@ export function UpsellRow({ upsell, t, onUpgrade, checkoutBusy, size = 'sm' }) {
           {checkoutBusy ? (
             <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
           ) : (
-            t[upsell.ctaKey] || upsell.ctaKey
+            t[upsell.ctaKey] || ''
           )}
         </Button>
       )}

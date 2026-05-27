@@ -45,6 +45,7 @@ export function EventDetailPanel({
   onGalleryDownload,
   onUpgradeProEvent,
   onUpgradeWeddingPro,
+  onUpgradeProfessional,
   onDelete,
   onOpenLightbox,
   onModerate,
@@ -67,6 +68,8 @@ export function EventDetailPanel({
     originalDownloadUnlocked: event.originalDownloadUnlocked,
     ownerPlan: plan,
   })
+
+  const eventUpsells = resolveAllUpsells(state).filter((u) => u.feature !== 'room_limit')
 
   const heroUrl = event.coverUrl || photos?.[0]?.url
 
@@ -149,7 +152,7 @@ export function EventDetailPanel({
         {/* Plan info */}
         <div className="mt-5 space-y-3 rounded-xl border border-border bg-raised p-4">
           <p className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.planInfo ?? 'Plan'}</p>
-          {resolveAllUpsells(state).map((upsell) => (
+          {eventUpsells.map((upsell) => (
             <UpsellRow
               key={upsell.feature}
               upsell={upsell}
@@ -157,11 +160,12 @@ export function EventDetailPanel({
               onUpgrade={(plan) => {
                 if (plan === 'pro_event') onUpgradeProEvent?.()
                 if (plan === 'wedding_pro') onUpgradeWeddingPro?.()
+                if (plan === 'professional') onUpgradeProfessional?.()
               }}
               checkoutBusy={checkoutBusy}
             />
           ))}
-          {resolveAllUpsells(state).length === 0 && (
+          {eventUpsells.length === 0 && (
             <div className="mt-2">
               <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-accent-dark">
                 <Sparkles className="mr-1 h-3 w-3" />

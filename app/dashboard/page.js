@@ -961,6 +961,7 @@ export default function DashboardPage() {
             onGalleryDownload={handleGalleryDownload}
             onUpgradeProEvent={() => startCheckout('pro_event', selectedEvent.id, 'dashboard_room_detail')}
             onUpgradeWeddingPro={() => startCheckout('wedding_pro', selectedEvent.id, 'dashboard_room_detail')}
+            onUpgradeProfessional={() => startCheckout('professional', null, 'dashboard_room_detail')}
             onDelete={startDelete}
             onOpenLightbox={(index) => {
               setLightboxIndex(index)
@@ -1229,6 +1230,7 @@ export default function DashboardPage() {
                 onGalleryDownload={handleGalleryDownload}
                 onUpgradeProEvent={() => startCheckout('pro_event', selectedEvent.id, 'dashboard_room_detail')}
                 onUpgradeWeddingPro={() => startCheckout('wedding_pro', selectedEvent.id, 'dashboard_room_detail')}
+                onUpgradeProfessional={() => startCheckout('professional', null, 'dashboard_room_detail')}
                 onDelete={startDelete}
                 onOpenLightbox={(index) => {
                   setLightboxIndex(index)
