@@ -157,12 +157,18 @@ export function EventDetailPanel({
               key={upsell.feature}
               upsell={upsell}
               t={t}
-              onUpgrade={(plan) => {
-                if (plan === 'pro_event') onUpgradeProEvent?.()
-                if (plan === 'wedding_pro') onUpgradeWeddingPro?.()
-                if (plan === 'professional') onUpgradeProfessional?.()
+              onUpgrade={(plan, upsellType) => {
+                if (plan === 'pro_event') onUpgradeProEvent?.(upsellType)
+                if (plan === 'wedding_pro') onUpgradeWeddingPro?.(upsellType)
+                if (plan === 'professional') onUpgradeProfessional?.(upsellType)
               }}
               checkoutBusy={checkoutBusy}
+              source="dashboard_event_panel"
+              eventSlug={event.slug}
+              eventId={event.id}
+              ownerPlan={plan}
+              billingTier={event.billingTier}
+              effectivePlan={state.effectivePlan}
             />
           ))}
           {eventUpsells.length === 0 && (

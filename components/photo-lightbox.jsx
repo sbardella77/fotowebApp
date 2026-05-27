@@ -21,6 +21,7 @@ import {
 import { useTranslations } from '@/components/i18n-provider'
 import { trackEvent } from '@/lib/analytics/track-client'
 import { resolveEffectiveEventAccessState } from '@/lib/event-access'
+import { trackUpsellImpression, trackUpsellClick } from '@/lib/analytics/upsell'
 import {
   EVENT_DOWNLOAD_QUALITY_SELECTED,
   EVENT_ORIGINAL_DOWNLOAD_UNLOCK_CLICKED,
@@ -111,6 +112,21 @@ const PhotoLightbox = ({
   const canDownloadOriginal = access.canDownloadOriginal
   const isFreeRoom = access.isFree
 
+  useEffect(() => {
+    if (open && isOwner && !canDownloadOriginal && event?.slug) {
+      trackUpsellImpression({
+        upsellType: 'original_quality_unlock',
+        source: 'lightbox_download_menu',
+        eventSlug: event.slug,
+        eventId: event.id,
+        ownerPlan: event.ownerPlan,
+        billingTier: event.billingTier,
+        effectivePlan: access.effectivePlan,
+        ctaPlan: 'unlock',
+      })
+    }
+  }, [open, isOwner, canDownloadOriginal, event?.slug, event?.id, event?.ownerPlan, event?.billingTier, access.effectivePlan])
+
   const handleClose = useCallback(() => {
     setIsClosing(true)
     setTimeout(() => {
@@ -196,6 +212,16 @@ const PhotoLightbox = ({
         room_slug: event.slug,
         source: 'lightbox',
       })
+      trackUpsellClick({
+        upsellType: 'original_quality_unlock',
+        source: 'lightbox_download_menu',
+        eventSlug: event.slug,
+        eventId: event.id,
+        ownerPlan: event.ownerPlan,
+        billingTier: event.billingTier,
+        effectivePlan: access.effectivePlan,
+        ctaPlan: 'unlock',
+      })
       const response = await fetch('/api/stripe/unlock-download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -210,7 +236,7 @@ const PhotoLightbox = ({
       console.warn('[lightbox] unlock failed', e)
       setUnlockBusy(false)
     }
-  }, [event?.slug])
+  }, [event?.slug, event?.id, event?.ownerPlan, event?.billingTier, access.effectivePlan])
 
   // Touch event handlers for swipe
   const onTouchStart = (e) => {

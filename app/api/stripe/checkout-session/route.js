@@ -3,7 +3,7 @@ import { getStripe } from '@/lib/server/stripe'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { verifyOwnerSessionToken } from '@/lib/server/owner-auth'
 import { trackServerEvent } from '@/lib/analytics/track-server'
-import { EVENT_CHECKOUT_STARTED } from '@/lib/analytics/events'
+import { EVENT_CHECKOUT_STARTED, EVENT_UPSELL_CHECKOUT_START } from '@/lib/analytics/events'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +30,7 @@ export async function POST(request) {
     }
 
     const body = await request.json().catch(() => ({}))
-    const { intent, eventId } = body
+    const { intent, eventId, upsellType, upsellSource } = body
 
     // Validate intent
     const validIntents = ['pro_event', 'wedding_pro', 'professional']
@@ -151,6 +151,8 @@ export async function POST(request) {
         roomSlug: event?.slug || '',
         currentPlan: owner.plan || 'free',
         entryPoint: body.entryPoint || 'dashboard',
+        upsellType: upsellType || intent,
+        upsellSource: upsellSource || body.entryPoint || 'unknown',
       },
     }
 
@@ -197,6 +199,22 @@ export async function POST(request) {
       {
         owner_id: owner.id,
         billing_intent: intent,
+        entry_point: body.entryPoint || 'dashboard',
+        room_slug: event?.slug || null,
+        event_id: event?.id || null,
+        stripe_session_id: session.id,
+        stripe_mode: mode,
+      },
+      { distinctId: owner.email }
+    )
+
+    trackServerEvent(
+      EVENT_UPSELL_CHECKOUT_START,
+      {
+        owner_id: owner.id,
+        billing_intent: intent,
+        upsell_type: upsellType || intent,
+        source: upsellSource || body.entryPoint || 'unknown',
         entry_point: body.entryPoint || 'dashboard',
         room_slug: event?.slug || null,
         event_id: event?.id || null,

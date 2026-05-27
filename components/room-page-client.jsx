@@ -872,6 +872,12 @@ export default function RoomPageClient({ slug, isNew }) {
                           }
                         }}
                         checkoutBusy={false}
+                        source="room_page_gallery"
+                        eventSlug={activeEvent.slug}
+                        eventId={activeEvent.id}
+                        ownerPlan={activeEvent.ownerPlan}
+                        billingTier={activeEvent.billingTier}
+                        effectivePlan={eventAccess.effectivePlan}
                       />
                     ))}
                 </div>

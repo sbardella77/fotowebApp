@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import PhotoLightbox from '@/components/photo-lightbox'
 import { EventQRModal } from '@/components/event-qr-modal'
 import { trackEvent, identifyUser } from '@/lib/analytics/track-client'
+import { trackUpsellImpression, trackUpsellClick } from '@/lib/analytics/upsell'
 import {
   EVENT_DASHBOARD_VIEWED,
   EVENT_CREATE_ROOM_CLICKED,
@@ -125,6 +126,21 @@ export default function DashboardPage() {
   const [photographerLinkCopied, setPhotographerLinkCopied] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState('newest')
+  const roomLimitTracked = useRef(false)
+
+  useEffect(() => {
+    if (createError?.limit === 'room_count' && !roomLimitTracked.current) {
+      roomLimitTracked.current = true
+      trackUpsellImpression({
+        upsellType: 'room_limit',
+        source: 'create_room_modal',
+        location: 'dashboard',
+        ownerPlan: plan,
+        effectivePlan: plan,
+        ctaPlan: 'professional',
+      })
+    }
+  }, [createError?.limit, plan])
 
   const filteredEvents = useMemo(() => {
     let result = [...events]
@@ -241,7 +257,7 @@ export default function DashboardPage() {
     }
   }
 
-  const startCheckout = async (intent, eventId = null, entryPoint = 'dashboard') => {
+  const startCheckout = async (intent, eventId = null, entryPoint = 'dashboard', upsellType = null, upsellSource = null) => {
     if (checkoutBusy) return
     setCheckoutBusy(true)
     try {
@@ -253,11 +269,13 @@ export default function DashboardPage() {
         roomCount: events.length,
         billing_intent: intent,
         event_id: eventId,
+        upsell_type: upsellType,
+        upsell_source: upsellSource,
       })
       const response = await fetch('/api/stripe/checkout-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ intent, eventId, entryPoint }),
+        body: JSON.stringify({ intent, eventId, entryPoint, upsellType, upsellSource }),
       })
       const payload = await response.json()
       if (!response.ok || !payload.url) {
@@ -959,9 +977,9 @@ export default function DashboardPage() {
             onShare={shareEvent}
             onQR={openQR}
             onGalleryDownload={handleGalleryDownload}
-            onUpgradeProEvent={() => startCheckout('pro_event', selectedEvent.id, 'dashboard_room_detail')}
-            onUpgradeWeddingPro={() => startCheckout('wedding_pro', selectedEvent.id, 'dashboard_room_detail')}
-            onUpgradeProfessional={() => startCheckout('professional', null, 'dashboard_room_detail')}
+            onUpgradeProEvent={(upsellType) => startCheckout('pro_event', selectedEvent.id, 'dashboard_room_detail', upsellType, 'dashboard_event_panel')}
+            onUpgradeWeddingPro={(upsellType) => startCheckout('wedding_pro', selectedEvent.id, 'dashboard_room_detail', upsellType, 'dashboard_event_panel')}
+            onUpgradeProfessional={(upsellType) => startCheckout('professional', null, 'dashboard_room_detail', upsellType, 'dashboard_event_panel')}
             onDelete={startDelete}
             onOpenLightbox={(index) => {
               setLightboxIndex(index)
@@ -1131,7 +1149,7 @@ export default function DashboardPage() {
             plan={plan}
             events={events}
             checkoutBusy={checkoutBusy}
-            onUpgrade={() => startCheckout('professional', null, 'dashboard_banner')}
+            onUpgrade={() => startCheckout('professional', null, 'dashboard_banner', 'professional_account', 'dashboard_insight_card')}
             t={t}
           />
 
@@ -1228,9 +1246,9 @@ export default function DashboardPage() {
                 onShare={shareEvent}
                 onQR={openQR}
                 onGalleryDownload={handleGalleryDownload}
-                onUpgradeProEvent={() => startCheckout('pro_event', selectedEvent.id, 'dashboard_room_detail')}
-                onUpgradeWeddingPro={() => startCheckout('wedding_pro', selectedEvent.id, 'dashboard_room_detail')}
-                onUpgradeProfessional={() => startCheckout('professional', null, 'dashboard_room_detail')}
+                onUpgradeProEvent={(upsellType) => startCheckout('pro_event', selectedEvent.id, 'dashboard_room_detail', upsellType, 'dashboard_event_panel')}
+                onUpgradeWeddingPro={(upsellType) => startCheckout('wedding_pro', selectedEvent.id, 'dashboard_room_detail', upsellType, 'dashboard_event_panel')}
+                onUpgradeProfessional={(upsellType) => startCheckout('professional', null, 'dashboard_room_detail', upsellType, 'dashboard_event_panel')}
                 onDelete={startDelete}
                 onOpenLightbox={(index) => {
                   setLightboxIndex(index)
@@ -1291,7 +1309,17 @@ export default function DashboardPage() {
               <div className="space-y-3 rounded-lg border border-primary/10 bg-primary/5 p-3">
                 <p className="text-sm font-semibold text-foreground">{t.upsellRoomLimitTitle}</p>
                 <p className="text-xs text-muted-foreground">{t.upsellRoomLimitDesc}</p>
-                <Button className="w-full cta-primary" disabled={checkoutBusy} onClick={() => startCheckout('professional', null, 'dashboard_create_room_limit')}>
+                <Button className="w-full cta-primary" disabled={checkoutBusy} onClick={() => {
+                  trackUpsellClick({
+                    upsellType: 'room_limit',
+                    source: 'create_room_modal',
+                    location: 'dashboard',
+                    ownerPlan: plan,
+                    effectivePlan: plan,
+                    ctaPlan: 'professional',
+                  })
+                  startCheckout('professional', null, 'dashboard_create_room_limit', 'room_limit', 'create_room_modal')
+                }}>
                   {checkoutBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.upsellUpgradeToProfessional}
                 </Button>
               </div>

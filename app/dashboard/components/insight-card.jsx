@@ -1,12 +1,41 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import { ImagePlus, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { resolveEffectiveEventAccessState } from '@/lib/event-access'
+import { trackUpsellImpression, trackUpsellClick } from '@/lib/analytics/upsell'
 
 export function InsightCard({ plan, events, checkoutBusy, onUpgrade, t }) {
-  const { isPremium } = resolveEffectiveEventAccessState({ ownerPlan: plan })
+  const { isPremium, effectivePlan } = resolveEffectiveEventAccessState({ ownerPlan: plan })
   const totalPhotos = events.reduce((sum, e) => sum + (e.photoCount || e.photos?.length || 0), 0)
+  const tracked = useRef(false)
+
+  useEffect(() => {
+    if (!isPremium && !tracked.current) {
+      tracked.current = true
+      trackUpsellImpression({
+        upsellType: 'professional_account',
+        source: 'dashboard_insight_card',
+        location: 'dashboard',
+        ownerPlan: plan,
+        effectivePlan,
+        ctaPlan: 'professional',
+      })
+    }
+  }, [isPremium, plan, effectivePlan])
+
+  const handleUpgrade = () => {
+    trackUpsellClick({
+      upsellType: 'professional_account',
+      source: 'dashboard_insight_card',
+      location: 'dashboard',
+      ownerPlan: plan,
+      effectivePlan,
+      ctaPlan: 'professional',
+    })
+    onUpgrade?.()
+  }
 
   return (
     <div className="bg-surface border border-border rounded-xl overflow-hidden shadow-subtle">
@@ -39,7 +68,7 @@ export function InsightCard({ plan, events, checkoutBusy, onUpgrade, t }) {
                 <Button size="sm" variant="outline" asChild className="border-border bg-surface text-foreground">
                   <a href="/pricing?from=dashboard">{t.viewPricing}</a>
                 </Button>
-                <Button size="sm" className="cta-primary" disabled={checkoutBusy} onClick={onUpgrade}>
+                <Button size="sm" className="cta-primary" disabled={checkoutBusy} onClick={handleUpgrade}>
                   {checkoutBusy ? <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" /> : t.startProfessional}
                 </Button>
               </div>

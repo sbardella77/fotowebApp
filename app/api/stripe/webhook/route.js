@@ -6,6 +6,7 @@ import { trackServerEvent } from '@/lib/analytics/track-server'
 import {
   EVENT_CHECKOUT_COMPLETED,
   EVENT_ORIGINAL_DOWNLOAD_CHECKOUT_COMPLETED,
+  EVENT_UPSELL_CONVERSION,
 } from '@/lib/analytics/events'
 
 export const dynamic = 'force-dynamic'
@@ -81,6 +82,20 @@ export async function POST(request) {
           { distinctId: session.customer_email || session.customer || eventId }
         )
 
+        trackServerEvent(
+          EVENT_UPSELL_CONVERSION,
+          {
+            billing_intent: intent,
+            upsell_type: session.metadata?.upsellType || 'original_quality_unlock',
+            source: session.metadata?.upsellSource || 'lightbox',
+            event_id: eventId,
+            room_slug: session.metadata?.roomSlug || null,
+            stripe_session_id: session.id,
+            stripe_customer_id: session.customer,
+          },
+          { distinctId: session.customer_email || session.customer || eventId }
+        )
+
         console.log(`[stripe/webhook] Event ${updatedEvent.slug} unlocked for original quality downloads`)
       } catch (dbError) {
         if (dbError instanceof Prisma.PrismaClientKnownRequestError && dbError.code === 'P2025') {
@@ -138,6 +153,21 @@ export async function POST(request) {
           { distinctId: session.metadata?.ownerEmail || ownerId }
         )
 
+        trackServerEvent(
+          EVENT_UPSELL_CONVERSION,
+          {
+            owner_id: ownerId,
+            billing_intent: intent,
+            upsell_type: session.metadata?.upsellType || intent,
+            source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
+            event_id: eventId,
+            room_slug: session.metadata?.roomSlug || null,
+            stripe_session_id: session.id,
+            stripe_customer_id: session.customer,
+          },
+          { distinctId: session.metadata?.ownerEmail || ownerId }
+        )
+
         console.log(`[stripe/webhook] Event ${updatedEvent.slug} upgraded to ${intent}`)
       } catch (dbError) {
         // If event was deleted, don't retry forever
@@ -177,6 +207,20 @@ export async function POST(request) {
           {
             owner_id: owner.id,
             billing_intent: intent,
+            stripe_session_id: session.id,
+            stripe_subscription_id: session.subscription,
+            stripe_customer_id: session.customer,
+          },
+          { distinctId: owner.email }
+        )
+
+        trackServerEvent(
+          EVENT_UPSELL_CONVERSION,
+          {
+            owner_id: owner.id,
+            billing_intent: intent,
+            upsell_type: session.metadata?.upsellType || intent,
+            source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
             stripe_session_id: session.id,
             stripe_subscription_id: session.subscription,
             stripe_customer_id: session.customer,
