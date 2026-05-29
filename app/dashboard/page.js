@@ -159,7 +159,13 @@ export default function DashboardPage() {
 
   const photos = useMemo(() => selectedEvent?.photos || [], [selectedEvent])
 
-  const experience = useMemo(() => resolveDashboardExperience({ plan, events }), [plan, events])
+  const metrics = useMemo(() => {
+    const eventsCount = events.length
+    const totalPhotos = events.reduce((sum, e) => sum + (e.photoCount || e.photos?.length || 0), 0)
+    return { eventsCount, totalPhotos }
+  }, [events])
+
+  const experience = useMemo(() => resolveDashboardExperience({ plan, events, metrics }), [plan, events, metrics])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -1144,7 +1150,11 @@ export default function DashboardPage() {
             experience={experience}
             t={t}
             onCreateClick={openCreateDialog}
-            onAnalyticsClick={() => router.push('/dashboard/analytics')}
+            onSecondaryAction={
+              experience?.secondaryCta === 'view_analytics'
+                ? () => router.push('/dashboard/analytics')
+                : undefined
+            }
           />
 
           {/* Insight / Stats */}

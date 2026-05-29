@@ -67,9 +67,16 @@ export function InsightCard({ experience, events, checkoutBusy, onUpgrade, t }) 
                   </div>
                   <p className="text-sm font-light text-muted-foreground">{t.upgradeDesc}</p>
                   <div className="flex flex-wrap gap-2">
-                    <span className="inline-flex items-center rounded-full border border-primary/10 bg-primary/5 px-2 py-0.5 text-[11px] text-accent-dark">{t.upsellBenefitUnlimitedRooms}</span>
-                    <span className="inline-flex items-center rounded-full border border-primary/10 bg-primary/5 px-2 py-0.5 text-[11px] text-accent-dark">{t.upsellBenefitZipDownload}</span>
-                    <span className="inline-flex items-center rounded-full border border-primary/10 bg-primary/5 px-2 py-0.5 text-[11px] text-accent-dark">{t.upsellBenefitPrivateDelivery}</span>
+                    {(experience?.insight?.benefitsHighlight || ['zip_download', 'no_watermark']).map((benefit) => (
+                      <span key={benefit} className="inline-flex items-center rounded-full border border-primary/10 bg-primary/5 px-2 py-0.5 text-[11px] text-accent-dark">
+                        {benefit === 'zip_download' && (t.upsellBenefitZipDownload || 'ZIP download')}
+                        {benefit === 'no_watermark' && (t.upsellBenefitNoWatermark || 'No watermark')}
+                        {benefit === 'private_delivery' && (t.upsellBenefitPrivateDelivery || 'Private delivery')}
+                        {benefit === 'photographer_upload' && (t.upsellBenefitPhotographerUpload || 'Photographer upload')}
+                        {benefit === 'original_quality' && (t.upsellBenefitOriginalQuality || 'Original quality')}
+                        {benefit === 'unlimited_rooms' && (t.upsellBenefitUnlimitedRooms || 'Unlimited events')}
+                      </span>
+                    ))}
                   </div>
                 </>
               ) : (
