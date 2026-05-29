@@ -3,35 +3,35 @@
 import { useEffect, useRef } from 'react'
 import { ImagePlus, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { resolveEffectiveEventAccessState } from '@/lib/event-access'
 import { trackUpsellImpression, trackUpsellClick } from '@/lib/analytics/upsell'
 
-export function InsightCard({ plan, events, checkoutBusy, onUpgrade, t }) {
-  const { isPremium, effectivePlan } = resolveEffectiveEventAccessState({ ownerPlan: plan })
+export function InsightCard({ experience, events, checkoutBusy, onUpgrade, t }) {
+  const upsellStrategy = experience?.upsellStrategy || 'light'
+  const showUpgradeBanner = experience?.insight?.showUpgradeBanner ?? true
   const totalPhotos = events.reduce((sum, e) => sum + (e.photoCount || e.photos?.length || 0), 0)
   const tracked = useRef(false)
 
   useEffect(() => {
-    if (!isPremium && !tracked.current) {
+    if (showUpgradeBanner && !tracked.current) {
       tracked.current = true
       trackUpsellImpression({
         upsellType: 'professional_account',
         source: 'dashboard_insight_card',
         location: 'dashboard',
-        ownerPlan: plan,
-        effectivePlan,
+        ownerPlan: experience?.audience,
+        effectivePlan: experience?.audience,
         ctaPlan: 'professional',
       })
     }
-  }, [isPremium, plan, effectivePlan])
+  }, [showUpgradeBanner, experience?.audience])
 
   const handleUpgrade = () => {
     trackUpsellClick({
       upsellType: 'professional_account',
       source: 'dashboard_insight_card',
       location: 'dashboard',
-      ownerPlan: plan,
-      effectivePlan,
+      ownerPlan: experience?.audience,
+      effectivePlan: experience?.audience,
       ctaPlan: 'professional',
     })
     onUpgrade?.()
@@ -57,13 +57,30 @@ export function InsightCard({ plan, events, checkoutBusy, onUpgrade, t }) {
             </div>
           </div>
 
-          {!isPremium ? (
+          {showUpgradeBanner ? (
             <div className="flex flex-col items-start gap-3 sm:items-end">
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.premium}</span>
-                <Sparkles className="h-3 w-3 text-accent-dark" />
-              </div>
-              <p className="text-sm font-light text-muted-foreground">{t.upgradeDesc}</p>
+              {upsellStrategy === 'feature_oriented' ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.premium}</span>
+                    <Sparkles className="h-3 w-3 text-accent-dark" />
+                  </div>
+                  <p className="text-sm font-light text-muted-foreground">{t.upgradeDesc}</p>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="inline-flex items-center rounded-full border border-primary/10 bg-primary/5 px-2 py-0.5 text-[11px] text-accent-dark">{t.upsellBenefitUnlimitedRooms}</span>
+                    <span className="inline-flex items-center rounded-full border border-primary/10 bg-primary/5 px-2 py-0.5 text-[11px] text-accent-dark">{t.upsellBenefitZipDownload}</span>
+                    <span className="inline-flex items-center rounded-full border border-primary/10 bg-primary/5 px-2 py-0.5 text-[11px] text-accent-dark">{t.upsellBenefitPrivateDelivery}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.premium}</span>
+                    <Sparkles className="h-3 w-3 text-accent-dark" />
+                  </div>
+                  <p className="text-sm font-light text-muted-foreground">{t.upgradeDesc}</p>
+                </>
+              )}
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="outline" asChild className="border-border bg-surface text-foreground">
                   <a href="/pricing?from=dashboard">{t.viewPricing}</a>

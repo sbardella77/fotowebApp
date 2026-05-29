@@ -68,6 +68,7 @@ import { EventCard } from './components/event-card'
 import { EventDetailPanel } from './components/event-detail-panel'
 import { DashboardPhotoCard } from './components/dashboard-photo-card'
 import { resolveEffectiveEventAccessState } from '@/lib/event-access'
+import { resolveDashboardExperience } from '@/lib/dashboard-experience'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -157,6 +158,8 @@ export default function DashboardPage() {
   }, [events, searchQuery, sortBy])
 
   const photos = useMemo(() => selectedEvent?.photos || [], [selectedEvent])
+
+  const experience = useMemo(() => resolveDashboardExperience({ plan, events }), [plan, events])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -939,11 +942,11 @@ export default function DashboardPage() {
     <DashboardShell
       sidebar={
         <DashboardSidebar
-          plan={plan}
+          experience={experience}
           email={authState.email}
           onLogout={logout}
           onUpgradeClick={
-            !accountPremium
+            experience.showSidebarUpsell
               ? () => startCheckout('professional', null, 'dashboard_sidebar')
               : undefined
           }
@@ -953,7 +956,7 @@ export default function DashboardPage() {
       }
       topBar={
         <DashboardTopBar
-          plan={plan}
+          experience={experience}
           message={message}
           onDismissMessage={() => setMessage('')}
         />
@@ -1138,15 +1141,15 @@ export default function DashboardPage() {
         <div className="space-y-8 px-4 py-8 sm:px-6 lg:px-8">
           {/* Header */}
           <DashboardHeader
-            title={t.yourRooms}
-            description={t.yourRoomsDesc}
+            experience={experience}
+            t={t}
             onCreateClick={openCreateDialog}
-            createLabel={t.createNewRoom}
+            onAnalyticsClick={() => router.push('/dashboard/analytics')}
           />
 
           {/* Insight / Stats */}
           <InsightCard
-            plan={plan}
+            experience={experience}
             events={events}
             checkoutBusy={checkoutBusy}
             onUpgrade={() => startCheckout('professional', null, 'dashboard_banner', 'professional_account', 'dashboard_insight_card')}

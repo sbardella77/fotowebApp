@@ -1,10 +1,10 @@
 'use client'
 
 import { CheckCircle2, Sparkles } from 'lucide-react'
-import { resolveEffectiveEventAccessState } from '@/lib/event-access'
 
-export function DashboardTopBar({ plan, message, onDismissMessage }) {
-  const { isPremium } = resolveEffectiveEventAccessState({ ownerPlan: plan })
+export function DashboardTopBar({ experience, message, onDismissMessage }) {
+  const badge = experience?.planBadge
+  const isPremium = badge?.variant === 'premium' || badge?.variant === 'pro'
 
   return (
     <div className="flex items-center justify-between gap-4 w-full">
@@ -18,7 +18,7 @@ export function DashboardTopBar({ plan, message, onDismissMessage }) {
           }`}
         >
           {isPremium && <Sparkles className="h-3 w-3" />}
-          {isPremium ? 'Pro' : 'Free'}
+          {badge?.label || 'Free'}
         </span>
       </div>
 

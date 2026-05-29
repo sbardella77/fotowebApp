@@ -1,11 +1,12 @@
 'use client'
 
-import { Camera, LayoutDashboard, LogOut, Sparkles, User, BarChart3 } from 'lucide-react'
+import { Camera, LayoutDashboard, LogOut, Sparkles, User, BarChart3, Tag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { resolveEffectiveEventAccessState } from '@/lib/event-access'
 
-export function DashboardSidebar({ plan, email, onLogout, onUpgradeClick, t, tCommon }) {
-  const { isPremium } = resolveEffectiveEventAccessState({ ownerPlan: plan })
+export function DashboardSidebar({ experience, email, onLogout, onUpgradeClick, t, tCommon }) {
+  const showAnalytics = experience?.sidebarItems?.includes('analytics')
+  const showPricing = experience?.sidebarItems?.includes('pricing')
+  const showSidebarUpsell = experience?.showSidebarUpsell && onUpgradeClick
 
   return (
     <div className="flex h-full flex-col">
@@ -27,16 +28,27 @@ export function DashboardSidebar({ plan, email, onLogout, onUpgradeClick, t, tCo
             <LayoutDashboard className="h-4 w-4" />
             {t.dashboard ?? 'Dashboard'}
           </a>
-          <a
-            href="/dashboard/analytics"
-            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-primary/5 hover:text-foreground transition-colors"
-          >
-            <BarChart3 className="h-4 w-4" />
-            {t.analyticsTitle ?? 'Analytics'}
-          </a>
+          {showAnalytics && (
+            <a
+              href="/dashboard/analytics"
+              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-primary/5 hover:text-foreground transition-colors"
+            >
+              <BarChart3 className="h-4 w-4" />
+              {t.analyticsTitle ?? 'Analytics'}
+            </a>
+          )}
+          {showPricing && (
+            <a
+              href="/pricing?from=dashboard"
+              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-primary/5 hover:text-foreground transition-colors"
+            >
+              <Tag className="h-4 w-4" />
+              {tCommon.viewPricing ?? 'Pricing'}
+            </a>
+          )}
         </div>
 
-        {!isPremium && onUpgradeClick && (
+        {showSidebarUpsell && (
           <div className="mt-6 rounded-xl border border-primary/20 bg-primary/5 p-4">
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-accent-dark" />
@@ -60,7 +72,7 @@ export function DashboardSidebar({ plan, email, onLogout, onUpgradeClick, t, tCo
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-foreground">{email || 'Owner'}</p>
             <p className="truncate text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-              {isPremium ? (t.proBadge || 'Pro') : (t.freePlan || 'Free')}
+              {experience?.planBadge?.label || (t.freePlan || 'Free')}
             </p>
           </div>
         </div>
