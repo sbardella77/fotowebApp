@@ -11,9 +11,15 @@ import {
   CheckCircle2,
   TrendingUp,
   AlertCircle,
+  Camera,
+  ImagePlus,
+  FolderOpen,
+  BarChart4,
+  QrCode,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTranslations } from '@/components/i18n-provider'
+import { resolveDashboardExperience } from '@/lib/dashboard-experience'
 
 function mapEventName(name) {
   if (name === 'upsell_impression') return 'impressions'
@@ -23,18 +29,23 @@ function mapEventName(name) {
   return name
 }
 
-function useAnalyticsData(days) {
+function useAnalyticsData(days, enabled) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
+    if (!enabled) {
+      setData(null)
+      setLoading(false)
+      return
+    }
     setLoading(true)
     fetch(`/api/owner/analytics/upsells?days=${days}`, { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => setData(d))
       .catch(() => setData(null))
       .finally(() => setLoading(false))
-  }, [days])
+  }, [days, enabled])
 
   return { data, loading }
 }
@@ -75,7 +86,10 @@ export default function AnalyticsPage() {
   const t = useTranslations('dashboard')
   const [auth, setAuth] = useState({ loading: true, ok: false })
   const [days, setDays] = useState(30)
-  const { data, loading } = useAnalyticsData(days)
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(false)
+  const { data, loading } = useAnalyticsData(days, analyticsEnabled)
+  const [overview, setOverview] = useState(null)
+  const [overviewLoading, setOverviewLoading] = useState(true)
 
   useEffect(() => {
     fetch('/api/owner/session', { cache: 'no-store' })
@@ -86,6 +100,15 @@ export default function AnalyticsPage() {
       })
       .catch(() => router.push('/dashboard'))
   }, [router])
+
+  useEffect(() => {
+    setOverviewLoading(true)
+    fetch('/api/owner/analytics/overview', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setOverview(d))
+      .catch(() => setOverview(null))
+      .finally(() => setOverviewLoading(false))
+  }, [])
 
   const totals = useMemo(() => {
     if (!data?.byEventName) return { impressions: 0, clicks: 0, checkoutStarts: 0, conversions: 0 }
@@ -156,7 +179,28 @@ export default function AnalyticsPage() {
       .sort((a, b) => b.conversions - a.conversions)
   }, [data])
 
-  if (auth.loading) {
+  const experience = useMemo(() => {
+    if (!overview) return null
+    return resolveDashboardExperience({
+      plan: overview.plan || 'free',
+      events: [],
+      metrics: {
+        eventsCount: overview.eventsCount || 0,
+        totalPhotos: overview.totalPhotos || 0,
+        hasPremiumEvents: overview.hasPremiumEvents,
+        hasWeddingPro: overview.hasWeddingPro,
+        hasProEvent: overview.hasProEvent,
+      },
+    })
+  }, [overview])
+
+  const analyticsLevel = experience?.analyticsLevel || 'lite'
+
+  useEffect(() => {
+    setAnalyticsEnabled(analyticsLevel === 'complete')
+  }, [analyticsLevel])
+
+  if (auth.loading || overviewLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -177,166 +221,241 @@ export default function AnalyticsPage() {
             </Button>
             <div className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-accent-dark" />
-              <h1 className="font-display text-base font-bold tracking-tight text-foreground">{t.analyticsTitle}</h1>
+              <h1 className="font-display text-base font-bold tracking-tight text-foreground">
+                {analyticsLevel === 'lite' ? (t.eventInsightsTitle || 'Event Insights') : t.analyticsTitle}
+              </h1>
             </div>
           </div>
         </div>
       </header>
 
       <main className="container mx-auto max-w-5xl px-4 py-8">
-        <p className="text-sm font-light text-muted-foreground">{t.analyticsSubtitle}</p>
+        <p className="text-sm font-light text-muted-foreground">
+          {analyticsLevel === 'lite' ? (t.eventInsightsSubtitle || 'Track how your events are growing.') : t.analyticsSubtitle}
+        </p>
 
-        {/* Filters */}
-        <div className="mt-6 flex items-center gap-2">
-          {[7, 30, 9999].map((d) => (
-            <Button
-              key={d}
-              size="sm"
-              variant={days === d ? 'secondary' : 'ghost'}
-              onClick={() => setDays(d)}
-              className="text-xs"
-            >
-              {d === 9999 ? t.analyticsFilterAll : d === 7 ? t.analyticsFilter7d : t.analyticsFilter30d}
-            </Button>
-          ))}
-        </div>
-
-        {loading && (
-          <div className="mt-8 flex items-center gap-2 text-sm text-muted-foreground">
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            {t.loading || 'Loading...'}
-          </div>
-        )}
-
-        {!loading && !hasData && (
-          <div className="mt-8">
-            <EmptyState title={t.analyticsNoData} description={t.analyticsNoDataDesc} />
-          </div>
-        )}
-
-        {!loading && hasData && (
-          <div className="mt-8 space-y-8">
-            {/* KPI Cards */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <KpiCard icon={Eye} label={t.analyticsKpiImpressions} value={totals.impressions.toLocaleString()} />
-              <KpiCard icon={MousePointer} label={t.analyticsKpiClicks} value={totals.clicks.toLocaleString()} />
-              <KpiCard icon={CheckCircle2} label={t.analyticsKpiConversions} value={totals.conversions.toLocaleString()} />
-              <KpiCard
-                icon={TrendingUp}
-                label={t.analyticsKpiCtr}
-                value={`${ctr}%`}
-                sub={`${convRate}% ${t.analyticsKpiConvRate?.toLowerCase() || 'conv. rate'}`}
-              />
-            </div>
-
-            {/* Funnel */}
-            <div>
-              <SectionTitle>{t.analyticsFunnel}</SectionTitle>
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {[
-                  { label: t.analyticsImpressions, value: totals.impressions, color: 'bg-primary/10 text-primary' },
-                  { label: t.analyticsClicks, value: totals.clicks, color: 'bg-accent-dark/10 text-accent-dark' },
-                  { label: t.analyticsCheckoutStarts, value: totals.checkoutStarts, color: 'bg-warning/10 text-warning' },
-                  { label: t.analyticsConversions, value: totals.conversions, color: 'bg-success/10 text-success' },
-                ].map((step, i) => (
-                  <div key={i} className="relative rounded-xl border border-border bg-surface p-4 text-center shadow-subtle">
-                    <p className="font-mono text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{step.label}</p>
-                    <p className="mt-2 font-display text-2xl font-bold text-foreground">{step.value.toLocaleString()}</p>
-                    {i > 0 && (
-                      <p className="mt-1 text-xs font-medium text-muted-foreground">
-                        {(() => {
-                          const prev = [totals.impressions, totals.clicks, totals.checkoutStarts, totals.conversions][i === 3 ? 2 : i - 1]
-                          return prev > 0 ? `${((step.value / prev) * 100).toFixed(1)}%` : '0.0%'
-                        })()}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Top Upsells */}
-            <div>
-              <SectionTitle>{t.analyticsTopUpsells}</SectionTitle>
-              <div className="mt-4 overflow-hidden rounded-xl border border-border bg-surface shadow-subtle">
-                <div className="grid grid-cols-12 gap-2 border-b border-border bg-raised px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  <div className="col-span-3">{t.analyticsUpsell}</div>
-                  <div className="col-span-2 text-right">{t.analyticsImpressions}</div>
-                  <div className="col-span-2 text-right">{t.analyticsClicks}</div>
-                  <div className="col-span-2 text-right">CTR</div>
-                  <div className="col-span-2 text-right">{t.analyticsConversions}</div>
-                  <div className="col-span-1 text-right">Rate</div>
-                </div>
-                <div className="divide-y divide-border">
-                  {upsellRows.map((row) => (
-                    <div key={row.type} className="grid grid-cols-12 gap-2 px-4 py-3 text-sm">
-                      <div className="col-span-3 font-medium text-foreground">{row.type}</div>
-                      <div className="col-span-2 text-right text-muted-foreground">{row.impressions.toLocaleString()}</div>
-                      <div className="col-span-2 text-right text-muted-foreground">{row.clicks.toLocaleString()}</div>
-                      <div className="col-span-2 text-right font-medium text-accent-dark">{row.ctr}%</div>
-                      <div className="col-span-2 text-right font-medium text-success">{row.conversions.toLocaleString()}</div>
-                      <div className="col-span-1 text-right text-muted-foreground">{row.convRate}%</div>
-                    </div>
-                  ))}
-                  {upsellRows.length === 0 && (
-                    <div className="px-4 py-6 text-center text-xs text-muted-foreground">{t.analyticsNoData}</div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Top Surfaces */}
-            <div>
-              <SectionTitle>{t.analyticsTopSurfaces}</SectionTitle>
-              <div className="mt-4 overflow-hidden rounded-xl border border-border bg-surface shadow-subtle">
-                <div className="grid grid-cols-10 gap-2 border-b border-border bg-raised px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  <div className="col-span-4">{t.analyticsSurface}</div>
-                  <div className="col-span-2 text-right">{t.analyticsImpressions}</div>
-                  <div className="col-span-2 text-right">{t.analyticsClicks}</div>
-                  <div className="col-span-2 text-right">{t.analyticsConversions}</div>
-                </div>
-                <div className="divide-y divide-border">
-                  {surfaceRows.map((row) => (
-                    <div key={row.source} className="grid grid-cols-10 gap-2 px-4 py-3 text-sm">
-                      <div className="col-span-4 font-medium text-foreground">{row.source}</div>
-                      <div className="col-span-2 text-right text-muted-foreground">{row.impressions.toLocaleString()}</div>
-                      <div className="col-span-2 text-right text-muted-foreground">{row.clicks.toLocaleString()}</div>
-                      <div className="col-span-2 text-right font-medium text-success">{row.conversions.toLocaleString()}</div>
-                    </div>
-                  ))}
-                  {surfaceRows.length === 0 && (
-                    <div className="px-4 py-6 text-center text-xs text-muted-foreground">{t.analyticsNoData}</div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Plan Conversions */}
-            <div>
-              <SectionTitle>{t.analyticsPlanConversions}</SectionTitle>
-              <div className="mt-4 overflow-hidden rounded-xl border border-border bg-surface shadow-subtle">
-                <div className="grid grid-cols-6 gap-2 border-b border-border bg-raised px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  <div className="col-span-2">{t.analyticsPlan}</div>
-                  <div className="col-span-2 text-right">{t.analyticsClicks}</div>
-                  <div className="col-span-2 text-right">{t.analyticsConversions}</div>
-                </div>
-                <div className="divide-y divide-border">
-                  {planRows.map((row) => (
-                    <div key={row.plan} className="grid grid-cols-6 gap-2 px-4 py-3 text-sm">
-                      <div className="col-span-2 font-medium text-foreground">{row.plan}</div>
-                      <div className="col-span-2 text-right text-muted-foreground">{row.clicks.toLocaleString()}</div>
-                      <div className="col-span-2 text-right font-medium text-success">{row.conversions.toLocaleString()} ({row.convRate}%)</div>
-                    </div>
-                  ))}
-                  {planRows.length === 0 && (
-                    <div className="px-4 py-6 text-center text-xs text-muted-foreground">{t.analyticsNoData}</div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
+        {analyticsLevel === 'lite' ? (
+          <LiteAnalyticsContent overview={overview} t={t} router={router} />
+        ) : (
+          <CompleteAnalyticsContent
+            days={days}
+            setDays={setDays}
+            loading={loading}
+            hasData={hasData}
+            totals={totals}
+            ctr={ctr}
+            convRate={convRate}
+            abandonment={abandonment}
+            upsellRows={upsellRows}
+            surfaceRows={surfaceRows}
+            planRows={planRows}
+            t={t}
+          />
         )}
       </main>
     </div>
+  )
+}
+
+function LiteAnalyticsContent({ overview, t, router }) {
+  const eventsCount = overview?.eventsCount || 0
+  const totalPhotos = overview?.totalPhotos || 0
+  const avgPhotos = eventsCount > 0 ? Math.round(totalPhotos / eventsCount) : 0
+
+  if (eventsCount === 0) {
+    return (
+      <div className="mt-8">
+        <EmptyState
+          title={t.eventInsightsTitle || 'Event Insights'}
+          description={t.createFirstEventInsights || 'Create your first event to start seeing insights.'}
+        />
+        <div className="mt-6 flex justify-center">
+          <Button size="sm" className="cta-primary" onClick={() => router.push('/dashboard')}>
+            {t.createRoom || 'Create event'}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-8 space-y-8">
+      {/* KPI Cards */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard icon={Camera} label={t.totalEvents || 'Total events'} value={eventsCount.toLocaleString()} />
+        <KpiCard icon={ImagePlus} label={t.totalPhotosReceived || 'Photos received'} value={totalPhotos.toLocaleString()} />
+        <KpiCard icon={FolderOpen} label={t.activeEvents || 'Active events'} value={eventsCount.toLocaleString()} />
+        <KpiCard icon={BarChart4} label={t.avgPhotosPerEvent || 'Avg photos per event'} value={avgPhotos.toLocaleString()} />
+      </div>
+
+      {totalPhotos < 10 && (
+        <div className="rounded-xl border border-border bg-surface p-5 shadow-subtle">
+          <div className="flex items-start gap-3">
+            <QrCode className="h-5 w-5 text-accent-dark shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-foreground">{t.shareQrForMorePhotos || 'Share your QR code to collect more guest photos.'}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t.shareToStart || 'Share the event link so guests can start adding photos.'}</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CompleteAnalyticsContent({ days, setDays, loading, hasData, totals, ctr, convRate, abandonment, upsellRows, surfaceRows, planRows, t }) {
+  return (
+    <>
+      {/* Filters */}
+      <div className="mt-6 flex items-center gap-2">
+        {[7, 30, 9999].map((d) => (
+          <Button
+            key={d}
+            size="sm"
+            variant={days === d ? 'secondary' : 'ghost'}
+            onClick={() => setDays(d)}
+            className="text-xs"
+          >
+            {d === 9999 ? t.analyticsFilterAll : d === 7 ? t.analyticsFilter7d : t.analyticsFilter30d}
+          </Button>
+        ))}
+      </div>
+
+      {loading && (
+        <div className="mt-8 flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          {t.loading || 'Loading...'}
+        </div>
+      )}
+
+      {!loading && !hasData && (
+        <div className="mt-8">
+          <EmptyState title={t.analyticsNoData} description={t.analyticsNoDataDesc} />
+        </div>
+      )}
+
+      {!loading && hasData && (
+        <div className="mt-8 space-y-8">
+          {/* KPI Cards */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <KpiCard icon={Eye} label={t.analyticsKpiImpressions} value={totals.impressions.toLocaleString()} />
+            <KpiCard icon={MousePointer} label={t.analyticsKpiClicks} value={totals.clicks.toLocaleString()} />
+            <KpiCard icon={CheckCircle2} label={t.analyticsKpiConversions} value={totals.conversions.toLocaleString()} />
+            <KpiCard
+              icon={TrendingUp}
+              label={t.analyticsKpiCtr}
+              value={`${ctr}%`}
+              sub={`${convRate}% ${t.analyticsKpiConvRate?.toLowerCase() || 'conv. rate'}`}
+            />
+          </div>
+
+          {/* Funnel */}
+          <div>
+            <SectionTitle>{t.analyticsFunnel}</SectionTitle>
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                { label: t.analyticsImpressions, value: totals.impressions, color: 'bg-primary/10 text-primary' },
+                { label: t.analyticsClicks, value: totals.clicks, color: 'bg-accent-dark/10 text-accent-dark' },
+                { label: t.analyticsCheckoutStarts, value: totals.checkoutStarts, color: 'bg-warning/10 text-warning' },
+                { label: t.analyticsConversions, value: totals.conversions, color: 'bg-success/10 text-success' },
+              ].map((step, i) => (
+                <div key={i} className="relative rounded-xl border border-border bg-surface p-4 text-center shadow-subtle">
+                  <p className="font-mono text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{step.label}</p>
+                  <p className="mt-2 font-display text-2xl font-bold text-foreground">{step.value.toLocaleString()}</p>
+                  {i > 0 && (
+                    <p className="mt-1 text-xs font-medium text-muted-foreground">
+                      {(() => {
+                        const prev = [totals.impressions, totals.clicks, totals.checkoutStarts, totals.conversions][i === 3 ? 2 : i - 1]
+                        return prev > 0 ? `${((step.value / prev) * 100).toFixed(1)}%` : '0.0%'
+                      })()}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Top Upsells */}
+          <div>
+            <SectionTitle>{t.analyticsTopUpsells}</SectionTitle>
+            <div className="mt-4 overflow-hidden rounded-xl border border-border bg-surface shadow-subtle">
+              <div className="grid grid-cols-12 gap-2 border-b border-border bg-raised px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                <div className="col-span-3">{t.analyticsUpsell}</div>
+                <div className="col-span-2 text-right">{t.analyticsImpressions}</div>
+                <div className="col-span-2 text-right">{t.analyticsClicks}</div>
+                <div className="col-span-2 text-right">CTR</div>
+                <div className="col-span-2 text-right">{t.analyticsConversions}</div>
+                <div className="col-span-1 text-right">Rate</div>
+              </div>
+              <div className="divide-y divide-border">
+                {upsellRows.map((row) => (
+                  <div key={row.type} className="grid grid-cols-12 gap-2 px-4 py-3 text-sm">
+                    <div className="col-span-3 font-medium text-foreground">{row.type}</div>
+                    <div className="col-span-2 text-right text-muted-foreground">{row.impressions.toLocaleString()}</div>
+                    <div className="col-span-2 text-right text-muted-foreground">{row.clicks.toLocaleString()}</div>
+                    <div className="col-span-2 text-right font-medium text-accent-dark">{row.ctr}%</div>
+                    <div className="col-span-2 text-right font-medium text-success">{row.conversions.toLocaleString()}</div>
+                    <div className="col-span-1 text-right text-muted-foreground">{row.convRate}%</div>
+                  </div>
+                ))}
+                {upsellRows.length === 0 && (
+                  <div className="px-4 py-6 text-center text-xs text-muted-foreground">{t.analyticsNoData}</div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Top Surfaces */}
+          <div>
+            <SectionTitle>{t.analyticsTopSurfaces}</SectionTitle>
+            <div className="mt-4 overflow-hidden rounded-xl border border-border bg-surface shadow-subtle">
+              <div className="grid grid-cols-10 gap-2 border-b border-border bg-raised px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                <div className="col-span-4">{t.analyticsSurface}</div>
+                <div className="col-span-2 text-right">{t.analyticsImpressions}</div>
+                <div className="col-span-2 text-right">{t.analyticsClicks}</div>
+                <div className="col-span-2 text-right">{t.analyticsConversions}</div>
+              </div>
+              <div className="divide-y divide-border">
+                {surfaceRows.map((row) => (
+                  <div key={row.source} className="grid grid-cols-10 gap-2 px-4 py-3 text-sm">
+                    <div className="col-span-4 font-medium text-foreground">{row.source}</div>
+                    <div className="col-span-2 text-right text-muted-foreground">{row.impressions.toLocaleString()}</div>
+                    <div className="col-span-2 text-right text-muted-foreground">{row.clicks.toLocaleString()}</div>
+                    <div className="col-span-2 text-right font-medium text-success">{row.conversions.toLocaleString()}</div>
+                  </div>
+                ))}
+                {surfaceRows.length === 0 && (
+                  <div className="px-4 py-6 text-center text-xs text-muted-foreground">{t.analyticsNoData}</div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Plan Conversions */}
+          <div>
+            <SectionTitle>{t.analyticsPlanConversions}</SectionTitle>
+            <div className="mt-4 overflow-hidden rounded-xl border border-border bg-surface shadow-subtle">
+              <div className="grid grid-cols-6 gap-2 border-b border-border bg-raised px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                <div className="col-span-2">{t.analyticsPlan}</div>
+                <div className="col-span-2 text-right">{t.analyticsClicks}</div>
+                <div className="col-span-2 text-right">{t.analyticsConversions}</div>
+              </div>
+              <div className="divide-y divide-border">
+                {planRows.map((row) => (
+                  <div key={row.plan} className="grid grid-cols-6 gap-2 px-4 py-3 text-sm">
+                    <div className="col-span-2 font-medium text-foreground">{row.plan}</div>
+                    <div className="col-span-2 text-right text-muted-foreground">{row.clicks.toLocaleString()}</div>
+                    <div className="col-span-2 text-right font-medium text-success">{row.conversions.toLocaleString()} ({row.convRate}%)</div>
+                  </div>
+                ))}
+                {planRows.length === 0 && (
+                  <div className="px-4 py-6 text-center text-xs text-muted-foreground">{t.analyticsNoData}</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
