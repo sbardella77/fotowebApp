@@ -16,7 +16,7 @@ function generateStrongPassword() {
 
 export default function SetupPasswordPageClient({ token }) {
   const router = useRouter()
-  const t = useTranslations('dashboard')
+  const t = useTranslations('auth')
   const tCommon = useTranslations('common')
   const [checking, setChecking] = useState(true)
   const [email, setEmail] = useState('')
@@ -131,7 +131,7 @@ export default function SetupPasswordPageClient({ token }) {
                 </div>
                 {message && <p className="text-sm text-destructive">{message}</p>}
                 <Button className="w-full h-11 cta-primary" disabled={busy || !strengthOk || !matches} onClick={submit}>
-                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.createPassword}
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : (t.createPassword || 'Create password')}
                 </Button>
                 <Button variant="ghost" size="sm" className="w-full text-muted-foreground hover:text-foreground" onClick={() => { const pwd = generateStrongPassword(); setPassword(pwd); setConfirm(pwd) }}>
                   {t.generateStrongPassword}

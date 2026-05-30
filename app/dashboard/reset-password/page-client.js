@@ -9,7 +9,7 @@ import { useTranslations } from '@/components/i18n-provider'
 
 export default function ResetPasswordPageClient({ token }) {
   const router = useRouter()
-  const t = useTranslations('dashboard')
+  const t = useTranslations('auth')
   const tCommon = useTranslations('common')
   const [validating, setValidating] = useState(true)
   const [valid, setValid] = useState(false)
@@ -118,7 +118,7 @@ export default function ResetPasswordPageClient({ token }) {
                 </div>
                 {message && <p className="text-sm text-destructive">{message}</p>}
                 <Button className="w-full h-11 cta-primary" disabled={busy || !strengthOk || !matches} onClick={submit}>
-                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.updatePassword}
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : (t.updatePassword || 'Update password')}
                 </Button>
               </div>
             </>
