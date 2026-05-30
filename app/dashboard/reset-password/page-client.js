@@ -110,11 +110,11 @@ export default function ResetPasswordPageClient({ token }) {
                   <Input type={showPassword ? 'text' : 'password'} value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={t.confirmPasswordPlaceholder} className="h-11 rounded-xl border-border bg-raised text-foreground placeholder:text-muted-foreground" />
                 </div>
                 <div className="space-y-1.5 text-xs text-muted-foreground">
-                  <div className={`flex items-center gap-1.5 ${isLongEnough ? 'text-success' : ''}`}><CheckCircle2 className={`h-3 w-3 ${isLongEnough ? 'opacity-100' : 'opacity-40'}`} /> {t.min12Chars}</div>
-                  <div className={`flex items-center gap-1.5 ${hasUpper ? 'text-success' : ''}`}><CheckCircle2 className={`h-3 w-3 ${hasUpper ? 'opacity-100' : 'opacity-40'}`} /> {t.uppercaseLetter}</div>
-                  <div className={`flex items-center gap-1.5 ${hasLower ? 'text-success' : ''}`}><CheckCircle2 className={`h-3 w-3 ${hasLower ? 'opacity-100' : 'opacity-40'}`} /> {t.lowercaseLetter}</div>
-                  <div className={`flex items-center gap-1.5 ${hasNumber ? 'text-success' : ''}`}><CheckCircle2 className={`h-3 w-3 ${hasNumber ? 'opacity-100' : 'opacity-40'}`} /> {t.number}</div>
-                  <div className={`flex items-center gap-1.5 ${hasSymbol ? 'text-success' : ''}`}><CheckCircle2 className={`h-3 w-3 ${hasSymbol ? 'opacity-100' : 'opacity-40'}`} /> {t.specialCharacter}</div>
+                  <div className={`flex items-center gap-1.5 ${isLongEnough ? 'text-accent-dark' : ''}`}><CheckCircle2 className={`h-3 w-3 ${isLongEnough ? 'text-accent-dark opacity-100' : 'text-muted-foreground opacity-40'}`} /> {t.min12Chars}</div>
+                  <div className={`flex items-center gap-1.5 ${hasUpper ? 'text-accent-dark' : ''}`}><CheckCircle2 className={`h-3 w-3 ${hasUpper ? 'text-accent-dark opacity-100' : 'text-muted-foreground opacity-40'}`} /> {t.uppercaseLetter}</div>
+                  <div className={`flex items-center gap-1.5 ${hasLower ? 'text-accent-dark' : ''}`}><CheckCircle2 className={`h-3 w-3 ${hasLower ? 'text-accent-dark opacity-100' : 'text-muted-foreground opacity-40'}`} /> {t.lowercaseLetter}</div>
+                  <div className={`flex items-center gap-1.5 ${hasNumber ? 'text-accent-dark' : ''}`}><CheckCircle2 className={`h-3 w-3 ${hasNumber ? 'text-accent-dark opacity-100' : 'text-muted-foreground opacity-40'}`} /> {t.number}</div>
+                  <div className={`flex items-center gap-1.5 ${hasSymbol ? 'text-accent-dark' : ''}`}><CheckCircle2 className={`h-3 w-3 ${hasSymbol ? 'text-accent-dark opacity-100' : 'text-muted-foreground opacity-40'}`} /> {t.specialCharacter}</div>
                 </div>
                 {message && <p className="text-sm text-destructive">{message}</p>}
                 <Button className="w-full h-11 cta-primary" disabled={busy || !strengthOk || !matches} onClick={submit}>
