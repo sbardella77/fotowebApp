@@ -71,7 +71,8 @@ export function EventDetailPanel({
 
   const eventUpsells = resolveAllUpsells(state).filter((u) => u.feature !== 'room_limit')
 
-  const heroUrl = event.coverUrl || photos?.[0]?.url
+  const firstVisiblePhoto = photos.find((p) => p.status === 'VISIBLE')
+  const heroUrl = event.coverUrl || firstVisiblePhoto?.url
 
   return (
     <div className="flex h-full flex-col">

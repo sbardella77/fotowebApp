@@ -1343,6 +1343,20 @@ const deletePhotographerUploadLink = async (request, slug) => {
   return json({ revoked: true })
 }
 
+const isSnapRoomsCoverUrl = (url, slug) => {
+  if (!url) return false
+  return url.includes(`/covers/${slug}/`)
+}
+
+const deleteEventCoverFile = async (url, slug, context) => {
+  if (!isSnapRoomsCoverUrl(url, slug)) return
+  try {
+    await deleteStoredFile(url)
+  } catch (err) {
+    console.error(`[${context}] Storage cleanup failed for cover:`, url, err)
+  }
+}
+
 const uploadEventCover = withTiming('uploadEventCover', async (request, slug) => {
   const ownerEmail = await requireOwner(request)
   if (typeof ownerEmail !== 'string') {
@@ -1396,13 +1410,39 @@ const uploadEventCover = withTiming('uploadEventCover', async (request, slug) =>
       contentType: `image/${ext}`,
     })
 
+    const oldCoverUrl = event.coverUrl
     const updatedEvent = await repository.updateEvent(slug, { coverUrl: blob.url })
+
+    if (oldCoverUrl) {
+      await deleteEventCoverFile(oldCoverUrl, slug, 'uploadEventCover')
+    }
+
     return json({ event: updatedEvent })
   } catch (storageError) {
     console.error('[uploadEventCover] Storage error:', storageError)
     return json({ error: 'Unable to save cover image. Please try again.' }, 500)
   }
 })
+
+const deleteEventCover = async (request, slug) => {
+  const ownerEmail = await requireOwner(request)
+  if (typeof ownerEmail !== 'string') {
+    return ownerEmail
+  }
+
+  const repository = await getGalleryRepository()
+  const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
+  if (!event) {
+    return json({ error: 'Event not found' }, 404)
+  }
+
+  if (event.coverUrl) {
+    await deleteEventCoverFile(event.coverUrl, slug, 'deleteEventCover')
+  }
+
+  const updatedEvent = await repository.updateEvent(slug, { coverUrl: null })
+  return json({ event: updatedEvent })
+}
 
 const getPhotographerUploadEvent = async (request, token) => {
   const event = await getPhotographerEventFromToken(token)
@@ -2356,6 +2396,10 @@ const updateOwnerEvent = async (request, slug) => {
     return json({ error: 'Event not found' }, 404)
   }
 
+  if (payload.coverUrl === null && event.coverUrl) {
+    await deleteEventCoverFile(event.coverUrl, slug, 'updateOwnerEvent')
+  }
+
   const updatedEvent = await repository.updateEvent(slug, payload)
   return json({ event: updatedEvent })
 }
@@ -2375,6 +2419,10 @@ const deleteOwnerEvent = withTiming('deleteOwnerEvent', async (request, slug) =>
 
   for (const photo of event.photos || []) {
     await deleteStoredFile(photo.url)
+  }
+
+  if (event.coverUrl) {
+    await deleteEventCoverFile(event.coverUrl, slug, 'deleteOwnerEvent')
   }
 
   const privateAssets = await repository.listPrivateAssetsByEventId(event.id)
@@ -2585,6 +2633,10 @@ async function handleRoute(request, { params }) {
 
       if (segments.length === 4 && segments[1] === 'events' && segments[3] === 'cover' && method === 'POST') {
         return uploadEventCover(request, segments[2])
+      }
+
+      if (segments.length === 4 && segments[1] === 'events' && segments[3] === 'cover' && method === 'DELETE') {
+        return deleteEventCover(request, segments[2])
       }
     }
 

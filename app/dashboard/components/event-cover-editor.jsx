@@ -313,10 +313,8 @@ export function EventCoverRemove({ event, onCoverUpdated, t, tCommon }) {
     if (!event?.slug) return
     setBusy(true)
     try {
-      const response = await fetch(`/api/owner/events/${event.slug}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ coverUrl: null }),
+      const response = await fetch(`/api/owner/events/${event.slug}/cover`, {
+        method: 'DELETE',
       })
       const payload = await response.json()
       if (!response.ok) {
