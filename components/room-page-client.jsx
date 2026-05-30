@@ -9,13 +9,18 @@ import {
   Copy,
   Download,
   ImagePlus,
+  Images,
   LayoutDashboard,
   Loader2,
+  PartyPopper,
   QrCode,
   RefreshCcw,
   Share2,
   Upload,
   Users,
+  WifiOff,
+  FileWarning,
+  ArrowDown,
   X,
 } from 'lucide-react'
 import PhotoGalleryGrid from '@/components/photo-gallery-grid'
@@ -190,6 +195,7 @@ export default function RoomPageClient({ slug, isNew }) {
   const heroFileInputRef = useRef(null)
   const cameraFileInputRef = useRef(null)
   const heroRef = useRef(null)
+  const galleryRef = useRef(null)
   const roomViewTracked = useRef(false)
   const uploadCompletedTracked = useRef(false)
   const { showToast, ToastComponent } = useToast()
@@ -357,17 +363,27 @@ export default function RoomPageClient({ slug, isNew }) {
     }
   }
 
+  const MAX_FILE_SIZE = 25 * 1024 * 1024
+
   const onFilesSelected = async (event) => {
     const fileList = Array.from(event.target.files || [])
     const input = event.target
     if (fileList.length === 0) return
     input.value = ''
     setUploadSuccess(false); setUploadFormatError(''); setShowViralSection(false); setPhotoLimitError(null)
-    const supportedFiles = []; const unsupportedFiles = []
-    for (const file of fileList) { if (isSupportedImageFile(file)) { supportedFiles.push(file) } else { unsupportedFiles.push(file) } }
+    const supportedFiles = []; const unsupportedFiles = []; const oversizedFiles = []
+    for (const file of fileList) {
+      if (!isSupportedImageFile(file)) { unsupportedFiles.push(file) }
+      else if (file.size > MAX_FILE_SIZE) { oversizedFiles.push(file) }
+      else { supportedFiles.push(file) }
+    }
     if (unsupportedFiles.length > 0) {
       setUploadFormatError(unsupportedFiles.length === 1 ? t.unsupportedFormatSingular : t.unsupportedFormatPlural)
       trackEvent(EVENT_UPLOAD_FILE_REJECTED, { room_slug: activeEvent?.slug, rejected_count: unsupportedFiles.length })
+    }
+    if (oversizedFiles.length > 0) {
+      setUploadFormatError(t.fileTooLarge)
+      trackEvent(EVENT_UPLOAD_FILE_REJECTED, { room_slug: activeEvent?.slug, rejected_count: oversizedFiles.length, reason: 'file_too_large' })
     }
     if (supportedFiles.length === 0) return
     setIsUploading(true); setLastUploadCount(supportedFiles.length)
@@ -380,6 +396,8 @@ export default function RoomPageClient({ slug, isNew }) {
       setShowViralSection(true); showToast(t.uploadSuccess)
       if (uploadCompletedTracked.current) { trackEvent(EVENT_SECOND_UPLOAD_COMPLETED, { room_slug: activeEvent?.slug, batch_size: supportedFiles.length }) }
       else { uploadCompletedTracked.current = true; trackEvent(EVENT_UPLOAD_COMPLETED, { room_slug: activeEvent?.slug, batch_size: supportedFiles.length }) }
+    } else {
+      setUploadFormatError(t.uploadFailedTryAgain)
     }
     if (heroFileInputRef.current) heroFileInputRef.current.value = ''
     if (cameraFileInputRef.current) cameraFileInputRef.current.value = ''
@@ -646,52 +664,65 @@ export default function RoomPageClient({ slug, isNew }) {
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <section className="container relative z-10 px-4 py-8 pb-20">
+        <section className="container relative z-10 px-4 py-8 pb-28 sm:pb-20">
           <div className="mx-auto max-w-3xl space-y-6">
-            {/* Room info card */}
-            <div className="rounded-2xl border border-border bg-surface shadow-card">
-              <div className="p-5 sm:p-6">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.roomLabel}</span>
-                    <h1 className="mt-1.5 font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">{activeEvent.name}</h1>
+            {/* Room info header */}
+            <div className="rounded-2xl border border-border bg-surface shadow-card overflow-hidden">
+              {activeEvent.coverUrl ? (
+                <div className="relative h-40 sm:h-56 w-full overflow-hidden">
+                  <img
+                    src={activeEvent.coverUrl}
+                    alt={activeEvent.name}
+                    className="h-full w-full object-cover"
+                    loading="eager"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+                  <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-6">
+                    <span className="inline-block rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-medium text-white/90 backdrop-blur-md">{t.roomLabel}</span>
+                    <h1 className="mt-1.5 font-display text-xl font-bold tracking-tight text-white sm:text-2xl">{activeEvent.name}</h1>
                   </div>
-                  <Button variant="ghost" size="sm" className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground" onClick={() => loadEvent(activeEvent.slug, { silent: true, force: true })}>
-                    <RefreshCcw className={`h-4 w-4 ${busy.refresh ? 'animate-spin' : ''}`} />
-                  </Button>
                 </div>
-                <div className="mt-5 flex flex-wrap items-center gap-5 text-sm font-light text-muted-foreground">
+              ) : (
+                <div className="p-5 sm:p-6">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.roomLabel}</span>
+                      <h1 className="mt-1.5 font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">{activeEvent.name}</h1>
+                    </div>
+                    <Button variant="ghost" size="sm" className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground" onClick={() => loadEvent(activeEvent.slug, { silent: true, force: true })} aria-label={t.retry}>
+                      <RefreshCcw className={`h-4 w-4 ${busy.refresh ? 'animate-spin' : ''}`} />
+                    </Button>
+                  </div>
+                </div>
+              )}
+              <div className="px-5 pb-5 sm:px-6 sm:pb-6">
+                <div className="flex flex-wrap items-center gap-4 text-sm font-light text-muted-foreground">
                   <span className="flex items-center gap-1.5"><Users className="h-4 w-4 text-primary" />{t.openForUploads}</span>
-                  <span className="flex items-center gap-1.5"><ImagePlus className="h-4 w-4 text-primary" />{galleryPhotos.length} {t.photosLabel}</span>
+                  <span className="flex items-center gap-1.5"><ImagePlus className="h-4 w-4 text-primary" />{activeEvent?.photoCount || galleryPhotos.length} {t.photosLabel}</span>
                 </div>
-                <div className="mt-6 rounded-xl border border-border bg-raised p-5 text-center">
-                  <p className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">{t.roomCode}</p>
-                  <p className="mt-2 font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">{activeEvent.slug}</p>
-                  <p className="mt-1 text-xs font-light text-muted-foreground">{t.shareCodeHint}</p>
-                  <div className="mt-4 flex flex-wrap justify-center gap-2">
-                    <Button size="sm" variant="outline" className="gap-1.5 border-border bg-elevated hover:bg-surface hover:text-foreground" onClick={async () => {
-                      trackEvent(EVENT_COPY_LINK_CLICKED, { room_slug: activeEvent?.slug, source: 'room_info_card' })
-                      try {
-                        if (navigator.clipboard && navigator.clipboard.writeText) {
-                          await navigator.clipboard.writeText(activeEvent.slug); setCopied(true); showToast(t.codeCopied); setTimeout(() => setCopied(false), 2000)
-                        } else { showToast(t.copyNotSupported, 'error') }
-                      } catch { showToast(t.failedToCopy, 'error') }
-                    }}>
-                      {copied ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                      {copied ? tCommon.copied : tCommon.copy}
-                    </Button>
-                    <Button size="sm" variant="outline" className="gap-1.5 border-border bg-elevated hover:bg-surface hover:text-foreground" onClick={async () => {
-                      trackEvent(EVENT_NATIVE_SHARE_CLICKED, { room_slug: activeEvent?.slug, source: 'room_info_card' })
-                      const shareData = { title: t.joinRoomOnSnapRooms.replace('{name}', activeEvent.name), text: t.uploadYourPhotosTo.replace('{name}', activeEvent.name) + ' ' + t.useCode + ': ' + activeEvent.slug }
-                      if (typeof navigator !== 'undefined' && navigator.share) { try { await navigator.share(shareData); showToast(t.shared) } catch {} }
-                      else { try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(t.uploadYourPhotosTo.replace('{name}', activeEvent.name) + ' ' + t.useCode + ': ' + activeEvent.slug); showToast(t.inviteCopied) } else { showToast(t.shareNotSupported, 'error') } } catch { showToast(t.failedToCopy, 'error') } }
-                    }}>
-                      <Share2 className="h-3.5 w-3.5" />{t.nativeShare}
-                    </Button>
-                    <Button size="sm" variant="outline" className="gap-1.5 border-border bg-elevated hover:bg-surface hover:text-foreground" onClick={() => { trackEvent(EVENT_QR_OPENED, { room_slug: activeEvent?.slug, source: 'room_info_card' }); setQrModalOpen(true) }}>
-                      <QrCode className="h-3.5 w-3.5" />{t.showQR}
-                    </Button>
-                  </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" className="gap-1.5 border-border bg-elevated hover:bg-surface hover:text-foreground" onClick={async () => {
+                    trackEvent(EVENT_COPY_LINK_CLICKED, { room_slug: activeEvent?.slug, source: 'room_info_card' })
+                    try {
+                      if (navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(`${baseUrl}/event/${activeEvent.slug}`); setCopied(true); showToast(t.linkCopied); setTimeout(() => setCopied(false), 2000)
+                      } else { showToast(t.copyNotSupported, 'error') }
+                    } catch { showToast(t.failedToCopy, 'error') }
+                  }}>
+                    {copied ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copied ? tCommon.copied : tCommon.copy}
+                  </Button>
+                  <Button size="sm" variant="outline" className="gap-1.5 border-border bg-elevated hover:bg-surface hover:text-foreground" onClick={async () => {
+                    trackEvent(EVENT_NATIVE_SHARE_CLICKED, { room_slug: activeEvent?.slug, source: 'room_info_card' })
+                    const shareData = { title: t.joinRoomOnSnapRooms.replace('{name}', activeEvent.name), text: t.uploadYourPhotosTo.replace('{name}', activeEvent.name) + ' ' + t.useCode + ': ' + activeEvent.slug }
+                    if (typeof navigator !== 'undefined' && navigator.share) { try { await navigator.share(shareData); showToast(t.shared) } catch {} }
+                    else { try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(t.uploadYourPhotosTo.replace('{name}', activeEvent.name) + ' ' + t.useCode + ': ' + activeEvent.slug); showToast(t.inviteCopied) } else { showToast(t.shareNotSupported, 'error') } } catch { showToast(t.failedToCopy, 'error') } }
+                  }}>
+                    <Share2 className="h-3.5 w-3.5" />{t.nativeShare}
+                  </Button>
+                  <Button size="sm" variant="outline" className="gap-1.5 border-border bg-elevated hover:bg-surface hover:text-foreground" onClick={() => { trackEvent(EVENT_QR_OPENED, { room_slug: activeEvent?.slug, source: 'room_info_card' }); setQrModalOpen(true) }}>
+                    <QrCode className="h-3.5 w-3.5" />{t.showQR}
+                  </Button>
                 </div>
               </div>
             </div>
@@ -700,30 +731,55 @@ export default function RoomPageClient({ slug, isNew }) {
             <div ref={heroRef} className="rounded-2xl border border-border bg-surface shadow-card overflow-hidden">
               <div className="p-6 text-center sm:p-8">
                 <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                  <Camera className="h-7 w-7" />
+                  <Images className="h-7 w-7" />
                 </div>
                 <h2 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">{t.addYourPhotos}</h2>
-                <p className="mt-2 text-base font-light leading-relaxed text-muted-foreground">{t.bePartOf} {activeEvent.name}</p>
-                <p className="mt-3 font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                  {galleryPhotos.length > 0 ? `${galleryPhotos.length} ${t.photosShared}` : t.beFirst}
+                <p className="mt-2 text-base font-light leading-relaxed text-muted-foreground max-w-md mx-auto">
+                  {galleryPhotos.length === 0 ? t.shareYourMoments : t.heroSubtitle}
                 </p>
+
+                {/* Guest onboarding — visible when gallery is empty */}
+                {galleryPhotos.length === 0 && !isUploading && !uploadSuccess && (
+                  <div className="mt-5 inline-flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 rounded-xl bg-raised px-4 py-3 text-left sm:text-center">
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-foreground"><span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">1</span>{t.step1ChoosePhotos}</span>
+                    <span className="hidden sm:block h-px w-4 bg-border" />
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-foreground"><span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">2</span>{t.step2Upload}</span>
+                    <span className="hidden sm:block h-px w-4 bg-border" />
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-foreground"><span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">3</span>{t.step3Enjoy}</span>
+                  </div>
+                )}
+
                 <div className="mt-6 mx-auto max-w-sm">
                   <div className="space-y-2 text-left">
-                    <label className="text-sm font-medium text-foreground">{t.guestNamePlaceholder}</label>
-                    <Input value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder={t.yourName} className="h-11 rounded-xl border-border bg-raised text-foreground placeholder:text-muted-foreground" />
+                    <label htmlFor="guest-name" className="text-sm font-medium text-foreground">{t.guestNamePlaceholder}</label>
+                    <Input id="guest-name" value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder={t.yourName} className="h-11 rounded-xl border-border bg-raised text-foreground placeholder:text-muted-foreground" />
                   </div>
                 </div>
 
+                {/* Post-upload success */}
                 {uploadSuccess && (
-                  <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-success/20 bg-success/10 px-5 py-3 text-sm font-medium text-success">
-                    <CheckCircle2 className="h-4 w-4" />
-                    {lastUploadCount === 1 ? t.yourPhotoIsInRoom : t.yourPhotosAreInRoom}
+                  <div className="mt-6 rounded-2xl border border-success/20 bg-success/5 px-5 py-5 text-center">
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-success/10">
+                      <PartyPopper className="h-6 w-6 text-success" />
+                    </div>
+                    <p className="mt-3 font-display text-lg font-bold text-foreground">{t.photosUploadedSuccessfully}</p>
+                    <p className="mt-1 text-sm font-light text-muted-foreground">{t.thanksForSharing}</p>
+                    <div className="mt-4 flex flex-col sm:flex-row gap-2 justify-center">
+                      <Button size="sm" className="cta-primary" onClick={() => { heroFileInputRef.current?.click() }}>
+                        <Upload className="h-4 w-4 mr-1.5" />{t.uploadMore}
+                      </Button>
+                      <Button size="sm" variant="outline" className="border-border bg-raised hover:bg-elevated" onClick={() => galleryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+                        <ArrowDown className="h-4 w-4 mr-1.5" />{t.viewGallery}
+                      </Button>
+                    </div>
                   </div>
                 )}
+
+                {/* Errors */}
                 {uploadFormatError && (
-                  <div className="mt-6 inline-flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/10 px-5 py-3 text-sm font-medium text-destructive">
-                    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                    {uploadFormatError}
+                  <div className="mt-6 inline-flex items-start gap-2 rounded-xl border border-destructive/20 bg-destructive/10 px-5 py-3 text-sm font-medium text-destructive text-left">
+                    <FileWarning className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span>{uploadFormatError}</span>
                   </div>
                 )}
                 {photoLimitError && (
@@ -746,17 +802,31 @@ export default function RoomPageClient({ slug, isNew }) {
                   </div>
                 )}
 
+                {/* Upload progress */}
                 {isUploading ? (
-                  <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-border bg-raised px-5 py-3 text-sm font-medium text-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                    {`${t.uploading} ${uploads.filter((u) => u.progress < 100).length} ${t.photosLabel}...`}
+                  <div className="mt-6 mx-auto max-w-md rounded-2xl border border-border bg-raised p-5 text-left">
+                    <div className="flex items-center gap-3">
+                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-foreground">{t.uploadingPhotos}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {uploads.filter((u) => u.progress === 100).length} / {uploads.length} {t.photosLabel}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-border">
+                      <div
+                        className="h-full rounded-full bg-primary transition-all duration-300"
+                        style={{ width: `${Math.round((uploads.filter((u) => u.progress === 100).length / uploads.length) * 100)}%` }}
+                      />
+                    </div>
                   </div>
                 ) : (
                   <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
-                    <Button size="lg" className="h-14 gap-2 rounded-xl px-8 text-base font-body font-semibold cta-primary touch-target" disabled={Boolean(photoLimitError)} onClick={() => { setUploadSuccess(false); setUploadFormatError(''); trackEvent(EVENT_SNAP_CTA_CLICKED, { room_slug: activeEvent?.slug }); cameraFileInputRef.current?.click() }}>
+                    <Button size="lg" className="h-14 gap-2 rounded-xl px-8 text-base font-body font-semibold cta-primary touch-target" disabled={Boolean(photoLimitError)} aria-label={t.snapPhoto} onClick={() => { setUploadSuccess(false); setUploadFormatError(''); trackEvent(EVENT_SNAP_CTA_CLICKED, { room_slug: activeEvent?.slug }); cameraFileInputRef.current?.click() }}>
                       <Camera className="h-5 w-5" />{t.snapPhoto}
                     </Button>
-                    <Button size="lg" variant="outline" className="h-14 gap-2 rounded-xl px-8 text-base font-body font-semibold border-border bg-raised hover:bg-elevated hover:text-foreground touch-target" disabled={Boolean(photoLimitError)} onClick={() => { setUploadSuccess(false); setUploadFormatError(''); trackEvent(EVENT_UPLOAD_CTA_CLICKED, { room_slug: activeEvent?.slug }); heroFileInputRef.current?.click() }}>
+                    <Button size="lg" variant="outline" className="h-14 gap-2 rounded-xl px-8 text-base font-body font-semibold border-border bg-raised hover:bg-elevated hover:text-foreground touch-target" disabled={Boolean(photoLimitError)} aria-label={t.uploadPhoto} onClick={() => { setUploadSuccess(false); setUploadFormatError(''); trackEvent(EVENT_UPLOAD_CTA_CLICKED, { room_slug: activeEvent?.slug }); heroFileInputRef.current?.click() }}>
                       <Upload className="h-5 w-5" />{t.uploadPhoto}
                     </Button>
                   </div>
@@ -765,8 +835,8 @@ export default function RoomPageClient({ slug, isNew }) {
               </div>
             </div>
 
-            <input ref={heroFileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={onFilesSelected} />
-            <input ref={cameraFileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" capture="environment" className="hidden" onChange={onFilesSelected} />
+            <input ref={heroFileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={onFilesSelected} aria-label={t.uploadPhoto} />
+            <input ref={cameraFileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" capture="environment" className="hidden" onChange={onFilesSelected} aria-label={t.snapPhoto} />
 
             {/* Viral share */}
             {showViralSection && (
@@ -807,21 +877,29 @@ export default function RoomPageClient({ slug, isNew }) {
             <InstallCta mode="room" className="mt-2" />
 
             {uploads.length > 0 && (
-              <div className="mt-4 space-y-2">
+              <div className="mt-4 space-y-3" role="region" aria-label={t.uploadingPhotos} aria-live="polite">
                 {uploads.map((upload) => (
-                  <div key={upload.id} className="flex items-center gap-3 rounded-xl border border-border bg-surface p-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">{upload.name}</p>
-                      <p className="text-xs font-light text-muted-foreground">{upload.status}</p>
+                  <div key={upload.id} className="rounded-xl border border-border bg-surface p-3">
+                    <div className="flex items-center gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-foreground">{upload.name}</p>
+                        <p className="text-xs font-light text-muted-foreground">{upload.status}</p>
+                      </div>
+                      {upload.progress === 100 ? <CheckCircle2 className="h-4 w-4 text-success shrink-0" /> : <Clock3 className="h-4 w-4 text-muted-foreground shrink-0" />}
                     </div>
-                    {upload.progress === 100 ? <CheckCircle2 className="h-4 w-4 text-success" /> : <Clock3 className="h-4 w-4 text-muted-foreground" />}
+                    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-border">
+                      <div
+                        className={`h-full rounded-full transition-all duration-300 ${upload.progress === 100 ? 'bg-success' : 'bg-primary'}`}
+                        style={{ width: `${upload.progress}%` }}
+                      />
+                    </div>
                   </div>
                 ))}
               </div>
             )}
 
             {/* Gallery */}
-            <div className="mt-8 rounded-2xl border border-border bg-surface shadow-card">
+            <div ref={galleryRef} className="mt-8 rounded-2xl border border-border bg-surface shadow-card">
               <div className="p-5 sm:p-6">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
@@ -888,6 +966,7 @@ export default function RoomPageClient({ slug, isNew }) {
                     error={galleryError}
                     onRetry={() => activeEvent?.slug && loadPhotos({ reset: true })}
                     onSelectPhoto={openLightbox}
+                    onUploadClick={() => { heroFileInputRef.current?.click() }}
                     hasMore={hasMorePhotos}
                     onLoadMore={() => loadPhotos()}
                     loadingMore={loadingMorePhotos}
@@ -900,9 +979,9 @@ export default function RoomPageClient({ slug, isNew }) {
       )}
 
       {/* Sticky mobile CTA */}
-      <div className={`fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] left-1/2 z-40 -translate-x-1/2 transition-opacity duration-200 sm:hidden ${showStickyCta ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-        <Button size="sm" className="h-12 gap-2 rounded-full px-7 text-sm font-body font-semibold cta-primary" onClick={() => { setUploadSuccess(false); setUploadFormatError(''); trackEvent(EVENT_SNAP_CTA_CLICKED, { room_slug: activeEvent?.slug, position: 'sticky_mobile' }); cameraFileInputRef.current?.click() }}>
-          <Camera className="h-4 w-4" />{t.snapPhotoShort}
+      <div className={`fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-0 right-0 z-40 px-4 transition-opacity duration-200 sm:hidden ${showStickyCta ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+        <Button size="lg" className="h-14 w-full gap-2 rounded-xl text-base font-body font-semibold cta-primary shadow-lg" aria-label={t.uploadToEvent} onClick={() => { setUploadSuccess(false); setUploadFormatError(''); trackEvent(EVENT_SNAP_CTA_CLICKED, { room_slug: activeEvent?.slug, position: 'sticky_mobile' }); cameraFileInputRef.current?.click() }}>
+          <Camera className="h-5 w-5" />{t.addPhotos}
         </Button>
       </div>
 

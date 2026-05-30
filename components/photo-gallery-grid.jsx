@@ -1,6 +1,6 @@
 'use client'
 
-import { AlertCircle, ImageIcon, ImageOff, Loader2, RefreshCcw } from 'lucide-react'
+import { AlertCircle, ImageIcon, ImageOff, Loader2, RefreshCcw, Upload } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { useTranslations } from '@/components/i18n-provider'
@@ -87,6 +87,7 @@ const PhotoGalleryGrid = ({
   error = '',
   onRetry,
   onSelectPhoto,
+  onUploadClick,
   emptyTitle,
   emptyDescription,
   hasMore = false,
@@ -129,14 +130,20 @@ const PhotoGalleryGrid = ({
 
   if (safePhotos.length === 0) {
     return (
-      <div className="flex min-h-[220px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border bg-muted/30 p-8 text-center">
-        <div className="rounded-2xl bg-primary/10 p-3">
-          <ImageIcon className="h-6 w-6 text-primary/60" />
+      <div className="flex min-h-[260px] flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-border bg-muted/30 p-8 text-center">
+        <div className="rounded-2xl bg-primary/10 p-4">
+          <ImageIcon className="h-8 w-8 text-primary/70" />
         </div>
         <div>
-          <p className="text-sm font-medium">{emptyTitle || t.noPhotosYet}</p>
-          <p className="text-xs text-muted-foreground">{emptyDescription || t.beFirst}</p>
+          <p className="text-base font-semibold text-foreground">{emptyTitle || t.beFirstToUpload}</p>
+          <p className="mt-1 text-sm font-light text-muted-foreground max-w-xs mx-auto">{emptyDescription || t.photosWillAppearHere}</p>
         </div>
+        {onUploadClick && (
+          <Button size="sm" className="cta-primary gap-1.5 mt-1" onClick={onUploadClick}>
+            <Upload className="h-4 w-4" />
+            {t.uploadToEvent}
+          </Button>
+        )}
       </div>
     )
   }
