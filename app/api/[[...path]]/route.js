@@ -95,6 +95,11 @@ import {
 } from '@/lib/server/entitlements'
 import { getEffectiveEventAccessState } from '@/lib/server/event-access'
 import { resolveCanonicalOwner } from '@/lib/server/owner-resolution'
+import {
+  deleteManagedEventCover,
+  getCoverStoragePath,
+  optimizeCoverBuffer,
+} from '@/lib/server/event-cover-storage'
 
 export const runtime = 'nodejs'
 
@@ -710,6 +715,14 @@ const deleteEvent = withTiming('deleteEvent', async (request, slug) => {
       await deleteStoredFile(photo.url)
     } catch (storageError) {
       console.error('[deleteEvent] Storage cleanup failed for photo:', photo.id, storageError)
+    }
+  }
+
+  if (event.coverUrl) {
+    try {
+      await deleteManagedEventCover(event.coverUrl, slug)
+    } catch (storageError) {
+      console.error('[deleteEvent] Storage cleanup failed for cover:', event.coverUrl, storageError)
     }
   }
 
@@ -1343,20 +1356,6 @@ const deletePhotographerUploadLink = async (request, slug) => {
   return json({ revoked: true })
 }
 
-const isSnapRoomsCoverUrl = (url, slug) => {
-  if (!url) return false
-  return url.includes(`/covers/${slug}/`)
-}
-
-const deleteEventCoverFile = async (url, slug, context) => {
-  if (!isSnapRoomsCoverUrl(url, slug)) return
-  try {
-    await deleteStoredFile(url)
-  } catch (err) {
-    console.error(`[${context}] Storage cleanup failed for cover:`, url, err)
-  }
-}
-
 const uploadEventCover = withTiming('uploadEventCover', async (request, slug) => {
   const ownerEmail = await requireOwner(request)
   if (typeof ownerEmail !== 'string') {
@@ -1403,19 +1402,31 @@ const uploadEventCover = withTiming('uploadEventCover', async (request, slug) =>
 
   try {
     const { put } = await import('@vercel/blob')
-    const ext = match[1] === 'jpg' ? 'jpeg' : match[1]
-    const pathname = `covers/${slug}/${Date.now()}-cover.${ext}`
-    const blob = await put(pathname, buffer, {
+
+    // Optimize for dashboard/card usage (1200×675 WebP q80).
+    // Falls back to original buffer if sharp is unavailable or fails.
+    const optimized = await optimizeCoverBuffer(buffer, { width: 1200, height: 675, quality: 80 })
+
+    const ext = optimized ? 'webp' : (match[1] === 'jpg' ? 'jpeg' : match[1])
+    const contentType = optimized ? 'image/webp' : `image/${ext}`
+    const uploadBuffer = optimized ? optimized.buffer : buffer
+    const pathname = getCoverStoragePath(slug, `${Date.now()}-cover.${ext}`)
+
+    const blob = await put(pathname, uploadBuffer, {
       access: 'public',
-      contentType: `image/${ext}`,
+      contentType,
     })
 
     const oldCoverUrl = event.coverUrl
     const updatedEvent = await repository.updateEvent(slug, { coverUrl: blob.url })
 
     if (oldCoverUrl) {
-      await deleteEventCoverFile(oldCoverUrl, slug, 'uploadEventCover')
+      await deleteManagedEventCover(oldCoverUrl, slug)
     }
+
+    console.log(
+      `[uploadEventCover] slug=${slug} input=${buffer.length} output=${uploadBuffer.length} format=${ext}`
+    )
 
     return json({ event: updatedEvent })
   } catch (storageError) {
@@ -1437,7 +1448,7 @@ const deleteEventCover = async (request, slug) => {
   }
 
   if (event.coverUrl) {
-    await deleteEventCoverFile(event.coverUrl, slug, 'deleteEventCover')
+    await deleteManagedEventCover(event.coverUrl, slug)
   }
 
   const updatedEvent = await repository.updateEvent(slug, { coverUrl: null })
@@ -2397,7 +2408,7 @@ const updateOwnerEvent = async (request, slug) => {
   }
 
   if (payload.coverUrl === null && event.coverUrl) {
-    await deleteEventCoverFile(event.coverUrl, slug, 'updateOwnerEvent')
+    await deleteManagedEventCover(event.coverUrl, slug)
   }
 
   const updatedEvent = await repository.updateEvent(slug, payload)
@@ -2422,7 +2433,7 @@ const deleteOwnerEvent = withTiming('deleteOwnerEvent', async (request, slug) =>
   }
 
   if (event.coverUrl) {
-    await deleteEventCoverFile(event.coverUrl, slug, 'deleteOwnerEvent')
+    await deleteManagedEventCover(event.coverUrl, slug)
   }
 
   const privateAssets = await repository.listPrivateAssetsByEventId(event.id)
