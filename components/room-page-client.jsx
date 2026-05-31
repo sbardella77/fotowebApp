@@ -223,6 +223,8 @@ export default function RoomPageClient({ slug, isNew }) {
   const [ownerSession, setOwnerSession] = useState({ authenticated: false, email: null })
   const [unlockMessage, setUnlockMessage] = useState('')
   const [photoLimitError, setPhotoLimitError] = useState(null)
+  const [newPhotosAvailable, setNewPhotosAvailable] = useState(false)
+  const [newPhotosCount, setNewPhotosCount] = useState(0)
   const heroFileInputRef = useRef(null)
   const cameraFileInputRef = useRef(null)
   const heroRef = useRef(null)
@@ -235,6 +237,10 @@ export default function RoomPageClient({ slug, isNew }) {
   const pollTimeoutRef = useRef(null)
   const pollBackoffRef = useRef(3000)
   const consecutiveErrorsRef = useRef(0)
+  const previousPhotoCountRef = useRef(0)
+  const hasPhotoCountHydratedRef = useRef(false)
+  const lastLocalUploadAt = useRef(null)
+  const ignoreNextPhotoCountChangeRef = useRef(false)
 
   useEffect(() => {
     fetch('/api/owner/session', { cache: 'no-store' })
@@ -430,6 +436,7 @@ export default function RoomPageClient({ slug, isNew }) {
       if (uploadCompletedTracked.current) { trackEvent(EVENT_SECOND_UPLOAD_COMPLETED, { room_slug: activeEvent?.slug, batch_size: supportedFiles.length }) }
       else { uploadCompletedTracked.current = true; trackEvent(EVENT_UPLOAD_COMPLETED, { room_slug: activeEvent?.slug, batch_size: supportedFiles.length }) }
       await refreshGalleryAfterUpload()
+      lastLocalUploadAt.current = Date.now()
     } else {
       const someSucceeded = results.some(Boolean)
       setUploadSuccess(false)
@@ -510,6 +517,7 @@ export default function RoomPageClient({ slug, isNew }) {
       if (typeof data.total === 'number') {
         setActiveEvent((prev) => (prev ? { ...prev, photoCount: data.total } : prev))
       }
+      return data.total
     } catch (error) {
       console.error('[room] refreshGalleryAfterUpload error:', error)
       // Non sovrascrivere uploadSuccess; mostriamo solo un toast leggero
@@ -524,6 +532,13 @@ export default function RoomPageClient({ slug, isNew }) {
     setPhotoCursor(null)
     setHasMorePhotos(false)
     loadPhotos({ reset: true, sortOverride: newSort })
+  }
+
+  const handleRefreshNewPhotos = async () => {
+    ignoreNextPhotoCountChangeRef.current = true
+    setNewPhotosAvailable(false)
+    setNewPhotosCount(0)
+    await refreshGalleryAfterUpload()
   }
 
   const handleGalleryDownload = async () => {
@@ -671,6 +686,29 @@ export default function RoomPageClient({ slug, isNew }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeEvent?.slug, notFound])
+
+  useEffect(() => {
+    if (typeof activeEvent?.photoCount !== 'number') return
+    const currentCount = activeEvent.photoCount
+    const previousCount = previousPhotoCountRef.current
+
+    if (ignoreNextPhotoCountChangeRef.current) {
+      ignoreNextPhotoCountChangeRef.current = false
+      previousPhotoCountRef.current = currentCount
+      return
+    }
+
+    if (hasPhotoCountHydratedRef.current && currentCount > previousCount) {
+      if (!lastLocalUploadAt.current || Date.now() - lastLocalUploadAt.current > 8000) {
+        setNewPhotosAvailable(true)
+        setNewPhotosCount((prev) => prev + (currentCount - previousCount))
+      }
+    } else {
+      hasPhotoCountHydratedRef.current = true
+    }
+
+    previousPhotoCountRef.current = currentCount
+  }, [activeEvent?.photoCount])
 
   useEffect(() => {
     if (activeEvent?.slug) {
@@ -984,6 +1022,17 @@ export default function RoomPageClient({ slug, isNew }) {
             {/* Gallery */}
             <div ref={galleryRef} className="mt-8 rounded-2xl border border-border bg-surface shadow-card">
               <div className="p-5 sm:p-6">
+                {newPhotosAvailable && (
+                  <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+                    <p className="text-sm font-medium text-foreground">
+                      {newPhotosCount === 1 ? t.newPhotoAvailable : t.newPhotosAvailable.replace('{count}', newPhotosCount)}
+                    </p>
+                    <Button size="sm" className="gap-1.5 cta-primary" onClick={handleRefreshNewPhotos}>
+                      <RefreshCcw className="h-3.5 w-3.5" />
+                      {t.refreshGallery}
+                    </Button>
+                  </div>
+                )}
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.galleryTitle}</span>
