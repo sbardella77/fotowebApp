@@ -68,6 +68,15 @@ function isSupportedImageFile(file) {
   return SUPPORTED_EXTENSIONS.some((ext) => name.endsWith(ext))
 }
 
+function dedupePhotosById(photos) {
+  const seen = new Set()
+  return photos.filter((p) => {
+    if (!p?.id || seen.has(p.id)) return false
+    seen.add(p.id)
+    return true
+  })
+}
+
 const useToast = () => {
   const [toast, setToast] = useState(null)
   const showToast = (message, type = 'success') => {
@@ -396,6 +405,7 @@ export default function RoomPageClient({ slug, isNew }) {
       setShowViralSection(true); showToast(t.uploadSuccess)
       if (uploadCompletedTracked.current) { trackEvent(EVENT_SECOND_UPLOAD_COMPLETED, { room_slug: activeEvent?.slug, batch_size: supportedFiles.length }) }
       else { uploadCompletedTracked.current = true; trackEvent(EVENT_UPLOAD_COMPLETED, { room_slug: activeEvent?.slug, batch_size: supportedFiles.length }) }
+      await refreshGalleryAfterUpload()
     } else {
       setUploadFormatError(t.uploadFailedTryAgain)
     }
@@ -424,9 +434,9 @@ export default function RoomPageClient({ slug, isNew }) {
       }
       const data = await response.json()
       if (reset) {
-        setPhotos(data.photos)
+        setPhotos(dedupePhotosById(data.photos || []))
       } else {
-        setPhotos((prev) => [...prev, ...data.photos])
+        setPhotos((prev) => dedupePhotosById([...prev, ...(data.photos || [])]))
       }
       setPhotoCursor(data.nextCursor)
       setHasMorePhotos(Boolean(data.nextCursor))
@@ -435,6 +445,41 @@ export default function RoomPageClient({ slug, isNew }) {
       setGalleryError(error.message || t.unableToLoadGallery)
     } finally {
       setLoadingMorePhotos(false)
+    }
+  }
+
+  const refreshGalleryAfterUpload = async () => {
+    if (!activeEvent?.slug) return
+    try {
+      // 1. Forza sort su recent
+      setPhotoSort('recent')
+      // 2. Resetta paginazione
+      setPhotos([])
+      setPhotoCursor(null)
+      setHasMorePhotos(false)
+      setGalleryError('')
+      // 3. Fetch primo batch
+      const url = new URL(`/api/events/${activeEvent.slug}/photos`, window.location.origin)
+      url.searchParams.set('take', '24')
+      url.searchParams.set('sort', 'recent')
+      const response = await fetch(url.toString(), { cache: 'no-store' })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload.error || t.unableToLoadGallery)
+      }
+      const data = await response.json()
+      // 4. Aggiorna gallery con dedup
+      setPhotos(dedupePhotosById(data.photos || []))
+      setPhotoCursor(data.nextCursor)
+      setHasMorePhotos(Boolean(data.nextCursor))
+      // 5. Aggiorna photoCount dalla source of truth
+      if (typeof data.total === 'number') {
+        setActiveEvent((prev) => (prev ? { ...prev, photoCount: data.total } : prev))
+      }
+    } catch (error) {
+      console.error('[room] refreshGalleryAfterUpload error:', error)
+      // Non sovrascrivere uploadSuccess; mostriamo solo un toast leggero
+      showToast(t.unableToLoadGallery, 'error')
     }
   }
 
