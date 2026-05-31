@@ -395,19 +395,31 @@ export default function RoomPageClient({ slug, isNew }) {
       trackEvent(EVENT_UPLOAD_FILE_REJECTED, { room_slug: activeEvent?.slug, rejected_count: oversizedFiles.length, reason: 'file_too_large' })
     }
     if (supportedFiles.length === 0) return
-    setIsUploading(true); setLastUploadCount(supportedFiles.length)
+    setIsUploading(true); setLastUploadCount(supportedFiles.length); setUploads([])
     trackEvent(EVENT_UPLOAD_STARTED, { room_slug: activeEvent?.slug, batch_size: supportedFiles.length, is_second_upload: uploadCompletedTracked.current })
     const results = []
     for (const file of supportedFiles) { results.push(await uploadSingleFile(file)) }
     const allSucceeded = results.every(Boolean)
-    setIsUploading(false); setUploadSuccess(allSucceeded)
+    setIsUploading(false)
     if (allSucceeded) {
+      setUploadSuccess(true)
+      setUploads([])
       setShowViralSection(true); showToast(t.uploadSuccess)
       if (uploadCompletedTracked.current) { trackEvent(EVENT_SECOND_UPLOAD_COMPLETED, { room_slug: activeEvent?.slug, batch_size: supportedFiles.length }) }
       else { uploadCompletedTracked.current = true; trackEvent(EVENT_UPLOAD_COMPLETED, { room_slug: activeEvent?.slug, batch_size: supportedFiles.length }) }
       await refreshGalleryAfterUpload()
     } else {
-      setUploadFormatError(t.uploadFailedTryAgain)
+      const someSucceeded = results.some(Boolean)
+      setUploadSuccess(false)
+      if (someSucceeded) {
+        setUploadFormatError(t.somePhotosFailed || t.uploadFailedTryAgain)
+      } else {
+        setUploadFormatError(t.uploadFailedTryAgain)
+      }
+      setUploads((prev) => prev.filter((u) => u.status !== tCommon.done))
+      if (someSucceeded) {
+        await refreshGalleryAfterUpload()
+      }
     }
     if (heroFileInputRef.current) heroFileInputRef.current.value = ''
     if (cameraFileInputRef.current) cameraFileInputRef.current.value = ''
