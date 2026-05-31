@@ -57,6 +57,28 @@ import { UpsellRow } from '@/components/upsell-row'
 
 const CHUNK_SIZE = 1024 * 1024
 
+const UPLOAD_STATUS = {
+  QUEUED: 'queued',
+  UPLOADING: 'uploading',
+  DONE: 'done',
+  ERROR: 'error',
+}
+
+function getUploadStatusLabel(upload, t, tCommon) {
+  switch (upload.status) {
+    case UPLOAD_STATUS.QUEUED:
+      return upload.detail || t.preparingUpload
+    case UPLOAD_STATUS.UPLOADING:
+      return upload.detail || t.uploadingPhotos
+    case UPLOAD_STATUS.DONE:
+      return tCommon.done
+    case UPLOAD_STATUS.ERROR:
+      return upload.errorMessage || t.uploadFailedTryAgain
+    default:
+      return ''
+  }
+}
+
 const SUPPORTED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
 const SUPPORTED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif']
 
@@ -307,7 +329,7 @@ export default function RoomPageClient({ slug, isNew }) {
   const uploadSingleFile = async (file) => {
     if (!activeEvent?.slug) return false
     const localId = `${file.name}-${file.lastModified}`
-    setUploads((current) => [{ id: localId, name: file.name, size: file.size, progress: 2, status: t.preparingUpload }, ...current])
+    setUploads((current) => [{ id: localId, name: file.name, size: file.size, progress: 2, status: UPLOAD_STATUS.QUEUED, detail: t.preparingUpload, errorMessage: '' }, ...current])
     const updateUpload = (next) => { setUploads((current) => current.map((item) => item.id === localId ? { ...item, ...next } : item)) }
     try {
       const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
@@ -317,31 +339,31 @@ export default function RoomPageClient({ slug, isNew }) {
       })
       const initPayload = await initResponse.json()
       if (!initResponse.ok) {
-        if (initPayload.limit === 'photo_count') { setPhotoLimitError(initPayload); updateUpload({ status: t.roomPhotoLimitReached }); return false }
+        if (initPayload.limit === 'photo_count') { setPhotoLimitError(initPayload); updateUpload({ status: UPLOAD_STATUS.ERROR, errorMessage: t.roomPhotoLimitReached }); return false }
         throw new Error(initPayload.error || t.uploadError)
       }
       if (initPayload.session?.uploadStrategy === 'vercel-blob-client') {
-        updateUpload({ progress: 8, status: t.uploading + ' ' + t.galleryTitle })
+        updateUpload({ progress: 8, status: UPLOAD_STATUS.UPLOADING, detail: t.uploading + ' ' + t.galleryTitle })
         const blob = await upload(initPayload.session.pathname || file.name, file, {
           access: 'public', handleUploadUrl: initPayload.session.handleUploadUrl || '/api/uploads/blob',
           clientPayload: JSON.stringify({ eventSlug: activeEvent.slug, fileName: file.name, fileSize: file.size, mimeType: file.type || 'image/jpeg' }),
           multipart: file.size > 5 * 1024 * 1024,
-          onUploadProgress: ({ percentage }) => { updateUpload({ progress: 10 + Math.round((percentage / 100) * 75), status: `${t.uploadedPercent} ${Math.round(percentage)}%` }) },
+          onUploadProgress: ({ percentage }) => { updateUpload({ progress: 10 + Math.round((percentage / 100) * 75), status: UPLOAD_STATUS.UPLOADING, detail: `${t.uploadedPercent} ${Math.round(percentage)}%` }) },
         })
-        updateUpload({ progress: 90, status: t.finalizingGallery })
+        updateUpload({ progress: 90, status: UPLOAD_STATUS.UPLOADING, detail: t.finalizingGallery })
         const completeResponse = await fetch('/api/uploads/complete', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ eventSlug: activeEvent.slug, blobUrl: blob.url, blobPathname: blob.pathname, originalName: file.name, mimeType: file.type || 'image/jpeg', size: file.size, uploaderName: guestName, caption: '' }),
         })
         const completePayload = await completeResponse.json()
         if (!completeResponse.ok) {
-          if (completePayload.limit === 'photo_count') { setPhotoLimitError(completePayload); updateUpload({ status: t.roomPhotoLimitReached }); return false }
+          if (completePayload.limit === 'photo_count') { setPhotoLimitError(completePayload); updateUpload({ status: UPLOAD_STATUS.ERROR, errorMessage: t.roomPhotoLimitReached }); return false }
           throw new Error(completePayload.error || t.uploadError)
         }
-        updateUpload({ progress: 100, status: tCommon.done })
+        updateUpload({ progress: 100, status: UPLOAD_STATUS.DONE })
         setActiveEvent(completePayload.event); setGalleryError(''); return true
       }
-      updateUpload({ progress: 8, status: t.uploading })
+      updateUpload({ progress: 8, status: UPLOAD_STATUS.UPLOADING })
       for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex += 1) {
         const start = chunkIndex * CHUNK_SIZE; const end = Math.min(start + CHUNK_SIZE, file.size); const chunkBlob = file.slice(start, end)
         const formData = new FormData()
@@ -352,7 +374,7 @@ export default function RoomPageClient({ slug, isNew }) {
         const chunkResponse = await fetch('/api/uploads/chunk', { method: 'POST', body: formData })
         const chunkPayload = await chunkResponse.json()
         if (!chunkResponse.ok) { throw new Error(chunkPayload.error || t.chunkFailed) }
-        updateUpload({ progress: 10 + Math.round(((chunkIndex + 1) / totalChunks) * 75), status: `${t.uploadedChunks} ${chunkIndex + 1}/${totalChunks}` })
+        updateUpload({ progress: 10 + Math.round(((chunkIndex + 1) / totalChunks) * 75), status: UPLOAD_STATUS.UPLOADING, detail: `${t.uploadedChunks} ${chunkIndex + 1}/${totalChunks}` })
       }
       const completeResponse = await fetch('/api/uploads/complete', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -360,14 +382,14 @@ export default function RoomPageClient({ slug, isNew }) {
       })
       const completePayload = await completeResponse.json()
       if (!completeResponse.ok) {
-        if (completePayload.limit === 'photo_count') { setPhotoLimitError(completePayload); updateUpload({ status: t.roomPhotoLimitReached }); return false }
+        if (completePayload.limit === 'photo_count') { setPhotoLimitError(completePayload); updateUpload({ status: UPLOAD_STATUS.ERROR, errorMessage: t.roomPhotoLimitReached }); return false }
         throw new Error(completePayload.error || t.uploadError)
       }
-      updateUpload({ progress: 100, status: tCommon.done })
+      updateUpload({ progress: 100, status: UPLOAD_STATUS.DONE })
       setActiveEvent(completePayload.event); setGalleryError(''); return true
     } catch (error) {
       console.error('Upload failed', error)
-      updateUpload({ status: tCommon.failed })
+      updateUpload({ status: UPLOAD_STATUS.ERROR, errorMessage: tCommon.failed })
       return false
     }
   }
@@ -416,7 +438,7 @@ export default function RoomPageClient({ slug, isNew }) {
       } else {
         setUploadFormatError(t.uploadFailedTryAgain)
       }
-      setUploads((prev) => prev.filter((u) => u.status !== tCommon.done))
+      setUploads((prev) => prev.filter((u) => u.status !== UPLOAD_STATUS.DONE))
       if (someSucceeded) {
         await refreshGalleryAfterUpload()
       }
@@ -867,14 +889,14 @@ export default function RoomPageClient({ slug, isNew }) {
                       <div className="flex-1">
                         <p className="text-sm font-medium text-foreground">{t.uploadingPhotos}</p>
                         <p className="text-xs text-muted-foreground">
-                          {uploads.filter((u) => u.progress === 100).length} / {uploads.length} {t.photosLabel}
+                          {uploads.filter((u) => u.status === UPLOAD_STATUS.DONE).length} / {uploads.length} {t.photosLabel}
                         </p>
                       </div>
                     </div>
                     <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-border">
                       <div
                         className="h-full rounded-full bg-primary transition-all duration-300"
-                        style={{ width: `${Math.round((uploads.filter((u) => u.progress === 100).length / uploads.length) * 100)}%` }}
+                        style={{ width: `${Math.round((uploads.filter((u) => u.status === UPLOAD_STATUS.DONE).length / uploads.length) * 100)}%` }}
                       />
                     </div>
                   </div>
@@ -940,13 +962,17 @@ export default function RoomPageClient({ slug, isNew }) {
                     <div className="flex items-center gap-3">
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-foreground">{upload.name}</p>
-                        <p className="text-xs font-light text-muted-foreground">{upload.status}</p>
+                        <p className="text-xs font-light text-muted-foreground">{getUploadStatusLabel(upload, t, tCommon)}</p>
                       </div>
-                      {upload.progress === 100 ? <CheckCircle2 className="h-4 w-4 text-success shrink-0" /> : <Clock3 className="h-4 w-4 text-muted-foreground shrink-0" />}
+                      {upload.status === UPLOAD_STATUS.DONE && <CheckCircle2 className="h-4 w-4 text-success shrink-0" />}
+                      {upload.status === UPLOAD_STATUS.ERROR && <FileWarning className="h-4 w-4 text-destructive shrink-0" />}
+                      {upload.status !== UPLOAD_STATUS.DONE && upload.status !== UPLOAD_STATUS.ERROR && <Clock3 className="h-4 w-4 text-muted-foreground shrink-0" />}
                     </div>
                     <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-border">
                       <div
-                        className={`h-full rounded-full transition-all duration-300 ${upload.progress === 100 ? 'bg-success' : 'bg-primary'}`}
+                        className={`h-full rounded-full transition-all duration-300 ${
+                          upload.status === UPLOAD_STATUS.DONE ? 'bg-success' : upload.status === UPLOAD_STATUS.ERROR ? 'bg-destructive' : 'bg-primary'
+                        }`}
                         style={{ width: `${upload.progress}%` }}
                       />
                     </div>
