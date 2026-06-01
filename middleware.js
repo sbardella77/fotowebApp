@@ -62,8 +62,9 @@ export function middleware(request) {
   // Detect best locale
   const locale = detectLocale(request)
 
-  // Redirect to locale-prefixed path
-  const newUrl = new URL(`/${locale}${pathname}`, request.url)
+  // Redirect to locale-prefixed path, preserving query params
+  const newUrl = request.nextUrl.clone()
+  newUrl.pathname = `/${locale}${pathname}`
   return NextResponse.redirect(newUrl)
 }
 
@@ -74,7 +75,13 @@ function detectLocale(request) {
     return cookie.value
   }
 
-  // 2. Accept-Language header
+  // 2. Geo-location (country-based)
+  const countryLocale = detectLocaleFromCountry(request)
+  if (countryLocale) {
+    return countryLocale
+  }
+
+  // 3. Accept-Language header
   const acceptLanguage = request.headers.get('accept-language')
   if (acceptLanguage) {
     const languages = acceptLanguage
@@ -94,8 +101,31 @@ function detectLocale(request) {
     }
   }
 
-  // 3. Default fallback
+  // 4. Default fallback
   return DEFAULT_LOCALE
+}
+
+function detectLocaleFromCountry(request) {
+  const country =
+    request.headers.get('x-vercel-ip-country') ||
+    request.headers.get('cf-ipcountry') ||
+    ''
+
+  const countryToLocale = {
+    IT: 'it',
+    DE: 'de',
+    AT: 'de',
+    CH: 'de',
+    FR: 'fr',
+    ES: 'es',
+    US: 'en',
+    GB: 'en',
+    IE: 'en',
+    AU: 'en',
+    CA: 'en',
+  }
+
+  return countryToLocale[country.toUpperCase()] || null
 }
 
 export const config = {
