@@ -14,18 +14,18 @@ enum PhotoStatus {
 }
 
 model Owner {
-  id                      String   @id @default(uuid())
-  email                   String   @unique
+  id                      String    @id @default(uuid())
+  email                   String    @unique
   passwordHash            String?
   passwordSalt            String?
-  plan                    String   @default("free")
+  plan                    String    @default("free")
   stripeCustomerId        String?
   stripeSubscriptionId    String?
   stripeCheckoutSessionId String?
-  planUpdatedAt           DateTime @default(now())
+  planUpdatedAt           DateTime  @default(now())
   subscriptionCanceledAt  DateTime?
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
   events                  Event[]
 
   @@index([email])

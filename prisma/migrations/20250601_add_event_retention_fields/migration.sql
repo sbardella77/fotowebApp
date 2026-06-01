@@ -1,0 +1,11 @@
+-- AlterTable
+ALTER TABLE "Event"
+ADD COLUMN IF NOT EXISTS "archiveLocked" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN IF NOT EXISTS "gracePeriodUntil" TIMESTAMP(3),
+ADD COLUMN IF NOT EXISTS "retentionPolicy" TEXT,
+ADD COLUMN IF NOT EXISTS "retentionUntil" TIMESTAMP(3),
+ADD COLUMN IF NOT EXISTS "vaultExtendedUntil" TIMESTAMP(3);
+
+-- AlterTable
+ALTER TABLE "Owner"
+ADD COLUMN IF NOT EXISTS "subscriptionCanceledAt" TIMESTAMP(3);
