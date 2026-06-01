@@ -31,6 +31,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { trackEvent } from '@/lib/analytics/track-client'
+import { trackUpsellImpression, trackUpsellClick } from '@/lib/analytics/upsell'
 import {
   EVENT_ROOM_VIEWED,
   EVENT_SNAP_CTA_CLICKED,
@@ -225,6 +226,7 @@ export default function RoomPageClient({ slug, isNew }) {
   const [photoLimitError, setPhotoLimitError] = useState(null)
   const [newPhotosAvailable, setNewPhotosAvailable] = useState(false)
   const [newPhotosCount, setNewPhotosCount] = useState(0)
+  const [galleryBlockedModalOpen, setGalleryBlockedModalOpen] = useState(false)
   const heroFileInputRef = useRef(null)
   const cameraFileInputRef = useRef(null)
   const heroRef = useRef(null)
@@ -543,6 +545,10 @@ export default function RoomPageClient({ slug, isNew }) {
 
   const handleGalleryDownload = async () => {
     if (!activeEvent?.slug) return
+    if (!eventAccess.canDownloadGallery) {
+      setGalleryBlockedModalOpen(true)
+      return
+    }
     setGalleryDownloadBusy(true)
     trackEvent(EVENT_GALLERY_DOWNLOAD_CLICKED, { room_slug: activeEvent.slug, source: 'room_page' })
 
@@ -645,6 +651,23 @@ export default function RoomPageClient({ slug, isNew }) {
     }
   }
 
+  const handleUnlockGalleryFromModal = () => {
+    trackUpsellClick({
+      upsellType: 'gallery_zip',
+      source: 'room_page_gallery_blocked',
+      location: 'room_page',
+      eventSlug: activeEvent?.slug,
+      eventId: activeEvent?.id,
+      ownerPlan: ownerSession?.authenticated ? eventAccess.effectivePlan : 'guest',
+      billingTier: activeEvent?.billingTier,
+      effectivePlan: eventAccess.effectivePlan,
+      ctaPlan: 'pro_event',
+    })
+    if (typeof window !== 'undefined') {
+      window.location.href = '/pricing'
+    }
+  }
+
   useEffect(() => {
     loadEvent(slug)
     return () => {
@@ -709,6 +732,22 @@ export default function RoomPageClient({ slug, isNew }) {
 
     previousPhotoCountRef.current = currentCount
   }, [activeEvent?.photoCount])
+
+  useEffect(() => {
+    if (galleryBlockedModalOpen && activeEvent?.slug) {
+      trackUpsellImpression({
+        upsellType: 'gallery_zip',
+        source: 'room_page_gallery_blocked',
+        location: 'room_page',
+        eventSlug: activeEvent.slug,
+        eventId: activeEvent.id,
+        ownerPlan: ownerSession?.authenticated ? eventAccess.effectivePlan : 'guest',
+        billingTier: activeEvent.billingTier,
+        effectivePlan: eventAccess.effectivePlan,
+        ctaPlan: 'pro_event',
+      })
+    }
+  }, [galleryBlockedModalOpen, activeEvent?.slug, activeEvent?.id, activeEvent?.billingTier, eventAccess.effectivePlan, ownerSession?.authenticated])
 
   useEffect(() => {
     if (activeEvent?.slug) {
@@ -1116,6 +1155,23 @@ export default function RoomPageClient({ slug, isNew }) {
           <Camera className="h-5 w-5" />{t.addPhotos}
         </Button>
       </div>
+
+      {galleryBlockedModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-xl">
+            <p className="font-display text-lg font-bold tracking-tight text-foreground">{t.unlockGalleryDownload}</p>
+            <p className="mt-2 text-sm text-muted-foreground">{t.galleryBlockedDesc}</p>
+            <div className="mt-5 flex flex-col gap-2">
+              <Button size="sm" className="w-full cta-primary" onClick={handleUnlockGalleryFromModal}>
+                {t.unlockGalleryDownload}
+              </Button>
+              <Button size="sm" variant="ghost" className="w-full" onClick={() => setGalleryBlockedModalOpen(false)}>
+                {tCommon.cancel}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <EventQRModal isOpen={qrModalOpen} onClose={() => setQrModalOpen(false)} event={activeEvent} baseUrl={baseUrl} />
       <PhotoLightbox onOpenChange={setLightboxOpen} onSelectIndex={setLightboxIndex} open={lightboxOpen} photos={galleryPhotos} selectedIndex={lightboxIndex} event={activeEvent} isOwner={ownerSession?.authenticated && ownerSession?.email?.toLowerCase() === activeEvent?.ownerEmail?.toLowerCase()} />

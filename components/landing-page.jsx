@@ -18,6 +18,7 @@ import { InstallCta } from '@/components/install-cta'
 import { useTranslations } from '@/components/i18n-provider'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { trackEvent } from '@/lib/analytics/track-client'
+import { trackUpsellImpression, trackUpsellClick } from '@/lib/analytics/upsell'
 import { EVENT_HERO_CTA_CLICKED } from '@/lib/analytics/events'
 import { PhoneMockup } from '@/components/marketing/phone-mockup'
 import { TrustStrip } from '@/components/marketing/trust-strip'
@@ -80,6 +81,17 @@ export function LandingPage({
   const tFooter = useTranslations('footer')
   const cta = getCtaCopy(t, CTA_VARIANT)
   useScrollReveal()
+
+  useEffect(() => {
+    if (createError?.limit === 'room_count') {
+      trackUpsellImpression({
+        upsellType: 'room_limit',
+        source: 'landing_room_limit',
+        location: 'landing',
+        ctaPlan: 'professional',
+      })
+    }
+  }, [createError?.limit])
 
   return (
     <div className="relative min-h-screen bg-background font-body text-foreground">
@@ -225,7 +237,14 @@ export function LandingPage({
                       <p className="mt-1 text-xs text-muted-foreground">{t.errorLimitDesc}</p>
                       <div className="mt-4 flex gap-2">
                         <Button size="sm" className="cta-primary" asChild>
-                          <a href="/dashboard/login">{t.startProfessional}</a>
+                          <a
+                            href="/dashboard/login"
+                            onClick={() => {
+                              trackUpsellClick({ upsellType: 'room_limit', source: 'landing_room_limit', location: 'landing', ctaPlan: 'professional' })
+                            }}
+                          >
+                            {t.startProfessional}
+                          </a>
                         </Button>
                         <Button
                           size="sm"
@@ -233,7 +252,14 @@ export function LandingPage({
                           className="border-border bg-secondary text-foreground hover:bg-[hsl(var(--bg-elevated))]"
                           asChild
                         >
-                          <a href="/pricing">{t.viewPricing}</a>
+                          <a
+                            href="/pricing"
+                            onClick={() => {
+                              trackUpsellClick({ upsellType: 'room_limit', source: 'landing_room_limit', location: 'landing', ctaPlan: 'professional' })
+                            }}
+                          >
+                            {t.viewPricing}
+                          </a>
                         </Button>
                       </div>
                     </div>

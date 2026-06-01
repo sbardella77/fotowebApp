@@ -37,6 +37,10 @@ export function InsightCard({ experience, events, checkoutBusy, onUpgrade, t }) 
     onUpgrade?.()
   }
 
+  const isProAudience = experience?.audience === 'event_pro' || experience?.audience === 'wedding_pro'
+  const insightCopy = isProAudience ? (t.insightCardCopyPro || t.upgradeDesc) : t.upgradeDesc
+  const ctaLabel = isProAudience ? (t.createMoreEvents || t.startProfessional) : t.startProfessional
+
   return (
     <div className="bg-surface border border-border rounded-xl overflow-hidden shadow-subtle">
       <div className="p-5 sm:p-6">
@@ -65,7 +69,7 @@ export function InsightCard({ experience, events, checkoutBusy, onUpgrade, t }) 
                     <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.premium}</span>
                     <Sparkles className="h-3 w-3 text-accent-dark" />
                   </div>
-                  <p className="text-sm font-light text-muted-foreground">{t.upgradeDesc}</p>
+                  <p className="text-sm font-light text-muted-foreground">{insightCopy}</p>
                   <div className="flex flex-wrap gap-2">
                     {(experience?.insight?.benefitsHighlight || ['zip_download', 'no_watermark']).map((benefit) => (
                       <span key={benefit} className="inline-flex items-center rounded-full border border-primary/10 bg-primary/5 px-2 py-0.5 text-[11px] text-accent-dark">
@@ -85,7 +89,7 @@ export function InsightCard({ experience, events, checkoutBusy, onUpgrade, t }) 
                     <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.premium}</span>
                     <Sparkles className="h-3 w-3 text-accent-dark" />
                   </div>
-                  <p className="text-sm font-light text-muted-foreground">{t.upgradeDesc}</p>
+                  <p className="text-sm font-light text-muted-foreground">{insightCopy}</p>
                 </>
               )}
               <div className="flex items-center gap-2">
@@ -93,7 +97,7 @@ export function InsightCard({ experience, events, checkoutBusy, onUpgrade, t }) 
                   <a href="/pricing?from=dashboard">{t.viewPricing}</a>
                 </Button>
                 <Button size="sm" className="cta-primary" disabled={checkoutBusy} onClick={handleUpgrade}>
-                  {checkoutBusy ? <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" /> : t.startProfessional}
+                  {checkoutBusy ? <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" /> : ctaLabel}
                 </Button>
               </div>
             </div>

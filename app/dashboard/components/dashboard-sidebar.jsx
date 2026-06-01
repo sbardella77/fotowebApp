@@ -1,12 +1,50 @@
 'use client'
 
+import { useEffect } from 'react'
 import { Camera, LayoutDashboard, LogOut, Sparkles, User, BarChart3, Tag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { trackUpsellImpression, trackUpsellClick } from '@/lib/analytics/upsell'
 
 export function DashboardSidebar({ experience, email, onLogout, onUpgradeClick, t, tCommon }) {
   const showAnalytics = experience?.sidebarItems?.includes('analytics')
   const showPricing = experience?.sidebarItems?.includes('pricing')
   const showSidebarUpsell = experience?.showSidebarUpsell && onUpgradeClick
+
+  useEffect(() => {
+    if (showSidebarUpsell && experience?.audience) {
+      trackUpsellImpression({
+        upsellType: 'professional_account',
+        source: 'dashboard_sidebar',
+        location: 'dashboard',
+        ownerPlan: experience?.audience,
+        effectivePlan: experience?.audience,
+        ctaPlan: 'professional',
+      })
+    }
+  }, [showSidebarUpsell, experience?.audience])
+
+  const handleUpgradeClick = () => {
+    trackUpsellClick({
+      upsellType: 'professional_account',
+      source: 'dashboard_sidebar',
+      location: 'dashboard',
+      ownerPlan: experience?.audience,
+      effectivePlan: experience?.audience,
+      ctaPlan: 'professional',
+    })
+    onUpgradeClick?.()
+  }
+
+  const getSidebarUpsellCopy = () => {
+    switch (experience?.audience) {
+      case 'event_pro':
+      case 'wedding_pro':
+        return { title: t.createMoreEvents, description: t.sidebarUpsellProDesc }
+      case 'consumer':
+      default:
+        return { title: t.unlockPremium, description: t.upgradeDesc }
+    }
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -54,9 +92,16 @@ export function DashboardSidebar({ experience, email, onLogout, onUpgradeClick, 
               <Sparkles className="h-4 w-4 text-accent-dark" />
               <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.premium}</span>
             </div>
-            <p className="mt-2 text-sm font-medium text-foreground">{t.unlockPremium}</p>
-            <p className="mt-1 text-xs font-light text-muted-foreground leading-relaxed">{t.upgradeDesc}</p>
-            <Button size="sm" className="mt-3 w-full cta-primary" onClick={onUpgradeClick}>
+            {(() => {
+              const copy = getSidebarUpsellCopy()
+              return (
+                <>
+                  <p className="mt-2 text-sm font-medium text-foreground">{copy.title}</p>
+                  <p className="mt-1 text-xs font-light text-muted-foreground leading-relaxed">{copy.description}</p>
+                </>
+              )
+            })()}
+            <Button size="sm" className="mt-3 w-full cta-primary" onClick={handleUpgradeClick}>
               {t.startProfessional}
             </Button>
           </div>
