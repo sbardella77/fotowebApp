@@ -13,6 +13,8 @@
         "prisma:migrate:dev": "prisma migrate dev",
         "prisma:migrate:deploy": "prisma migrate deploy",
         "prisma:push": "prisma db push",
+        "db:migrate:deploy": "prisma migrate deploy",
+        "db:health": "node scripts/check-db-connection.js",
         "migrate:local-to-prisma:dry-run": "node scripts/migrate-local-json-to-prisma.js",
         "migrate:local-to-prisma": "node scripts/migrate-local-json-to-prisma.js --execute"
     },
