@@ -61,6 +61,7 @@ const eventTiers = [
       { name: 'Commercial use', value: false },
       { name: 'Priority support', value: false },
       { name: 'Custom setup', value: false },
+      { name: 'Storage duration', value: '90 days' },
     ],
   },
   {
@@ -83,6 +84,7 @@ const eventTiers = [
       { name: 'Commercial use', value: false },
       { name: 'Priority support', value: true },
       { name: 'Custom setup', value: false },
+      { name: 'Storage duration', value: '12 months' },
     ],
   },
   {
@@ -105,6 +107,7 @@ const eventTiers = [
       { name: 'Commercial use', value: false },
       { name: 'Priority support', value: true },
       { name: 'Custom setup', value: false },
+      { name: 'Storage duration', value: '24 months' },
     ],
   },
 ]
@@ -130,6 +133,7 @@ const recurringTiers = [
       { name: 'Commercial use', value: true },
       { name: 'Priority support', value: true },
       { name: 'Custom setup', value: false },
+      { name: 'Storage duration', value: 'While active' },
     ],
   },
   {
@@ -241,6 +245,7 @@ function translateFeatureName(t, name) {
     'Commercial use': t.commercialUse,
     'Priority support': t.prioritySupport,
     'Custom setup': t.customSetup,
+    'Storage duration': t.storageDuration,
   }
   return map[name] || name
 }
@@ -248,6 +253,10 @@ function translateFeatureName(t, name) {
 function translateFeatureValue(t, value) {
   if (value === 'Multiple') return t.multiple
   if (value === 'Dedicated') return t.dedicated
+  if (value === '90 days') return t.ninetyDays
+  if (value === '12 months') return t.twelveMonths
+  if (value === '24 months') return t.twentyFourMonths
+  if (value === 'While active') return t.whileSubscriptionActive
   return value
 }
 

@@ -25,10 +25,12 @@ import { getEffectiveEventStatus } from '../lib/event-status'
 import { resolveEffectiveEventAccessState } from '@/lib/event-access'
 import { resolveAllUpsells } from '@/lib/upsell-context'
 import { UpsellRow } from '@/components/upsell-row'
+import { resolveEventRetentionState } from '@/lib/event-retention'
 
 export function EventDetailPanel({
   event,
   plan,
+  subscriptionCanceledAt,
   photos,
   busyDetail,
   privateAssets,
@@ -67,6 +69,12 @@ export function EventDetailPanel({
     billingTier: event.billingTier,
     originalDownloadUnlocked: event.originalDownloadUnlocked,
     ownerPlan: plan,
+  })
+
+  const retentionState = resolveEventRetentionState({
+    event,
+    ownerPlan: plan,
+    ownerSubscriptionCanceledAt: subscriptionCanceledAt,
   })
 
   const eventUpsells = resolveAllUpsells(state).filter((u) => u.feature !== 'room_limit')
@@ -178,6 +186,35 @@ export function EventDetailPanel({
                 <Sparkles className="mr-1 h-3 w-3" />
                 {state.accountPremium ? (t.premiumActive ?? 'Premium active') : (event.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent)}
               </span>
+            </div>
+          )}
+        </div>
+
+        {/* Storage duration */}
+        <div className="mt-3 rounded-xl border border-border bg-raised p-4">
+          <p className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.storageDuration ?? 'Storage duration'}</p>
+          <div className="mt-2 text-sm text-muted-foreground">
+            {retentionState.policy === 'professional_active' ? (
+              <span>{t.storedWhileSubscriptionActive ?? 'Stored while your subscription is active.'}</span>
+            ) : retentionState.retentionUntil ? (
+              <span>
+                {t.storedUntil ?? 'Photos stored until'}:{' '}
+                <span className="font-medium text-foreground">
+                  {new Date(retentionState.retentionUntil).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                </span>
+              </span>
+            ) : (
+              <span>{t.storedWhileSubscriptionActive ?? 'Stored while your subscription is active.'}</span>
+            )}
+          </div>
+          {retentionState.isExpiringSoon && !retentionState.coveredByVault && (
+            <div className="mt-2 text-xs text-amber-500">
+              {t.storageExpiresSoon ?? 'Storage expires soon'}
+            </div>
+          )}
+          {retentionState.canExtend && !retentionState.coveredByVault && (
+            <div className="mt-2 text-xs text-muted-foreground">
+              {t.snaproomsVault ?? 'SnapRooms Vault'} — {t.comingSoon ?? 'Coming soon'}
             </div>
           )}
         </div>

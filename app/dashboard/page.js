@@ -111,6 +111,7 @@ export default function DashboardPage() {
   const [forgotBusy, setForgotBusy] = useState(false)
   const [forgotSent, setForgotSent] = useState(false)
   const [plan, setPlan] = useState('free')
+  const [subscriptionCanceledAt, setSubscriptionCanceledAt] = useState(null)
   const [checkoutBusy, setCheckoutBusy] = useState(false)
   const [galleryDownloadBusy, setGalleryDownloadBusy] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
@@ -261,6 +262,7 @@ export default function DashboardPage() {
       if (!response.ok) return
       const payload = await response.json()
       setPlan(payload.plan || 'free')
+      setSubscriptionCanceledAt(payload.subscriptionCanceledAt || null)
     } catch {
       // ignore plan load errors
     }
@@ -972,6 +974,7 @@ export default function DashboardPage() {
           <EventDetailPanel
             event={selectedEvent}
             plan={plan}
+            subscriptionCanceledAt={subscriptionCanceledAt}
             photos={photos}
             busyDetail={busy.detail}
             privateAssets={privateAssets}
@@ -1245,6 +1248,7 @@ export default function DashboardPage() {
                 <EventDetailPanel
                 event={selectedEvent}
                 plan={plan}
+                subscriptionCanceledAt={subscriptionCanceledAt}
                 photos={photos}
                 busyDetail={busy.detail}
                 privateAssets={privateAssets}

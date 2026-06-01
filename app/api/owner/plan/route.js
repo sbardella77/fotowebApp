@@ -28,6 +28,7 @@ export async function GET(request) {
       stripeCustomerId: owner.stripeCustomerId,
       stripeSubscriptionId: owner.stripeSubscriptionId,
       planUpdatedAt: owner.planUpdatedAt,
+      subscriptionCanceledAt: owner.subscriptionCanceledAt,
     })
   } catch (error) {
     console.error('[owner/plan]', error)

@@ -141,6 +141,7 @@ export function PrivacyPage({ locale = 'en' }) {
                 <Bullet>{t.retentionDesc4}</Bullet>
                 <Bullet>{t.retentionDesc5}</Bullet>
                 <Bullet>{t.retentionDesc6}</Bullet>
+                <Bullet>{t.retentionDesc7}</Bullet>
               </ul>
             </Section>
 

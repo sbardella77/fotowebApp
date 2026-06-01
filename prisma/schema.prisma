@@ -23,6 +23,7 @@ model Owner {
   stripeSubscriptionId    String?
   stripeCheckoutSessionId String?
   planUpdatedAt           DateTime @default(now())
+  subscriptionCanceledAt  DateTime?
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
   events                  Event[]
@@ -46,6 +47,11 @@ model Event {
   originalDownloadCheckoutSessionId String?
   photographerUploadTokenHash       String?
   photographerUploadTokenExpiresAt  DateTime?
+  retentionUntil                    DateTime?
+  vaultExtendedUntil                DateTime?
+  retentionPolicy                   String?
+  archiveLocked                     Boolean              @default(false)
+  gracePeriodUntil                  DateTime?
   coverUrl                          String?
   createdAt                         DateTime             @default(now())
   updatedAt                         DateTime             @updatedAt

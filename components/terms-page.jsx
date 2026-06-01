@@ -126,6 +126,9 @@ export function TermsPage({ locale = 'en' }) {
               <p>
                 {t.contentDesc3}
               </p>
+              <p>
+                {t.contentRetentionDesc}
+              </p>
             </Section>
 
             <Section number="5" title={t.intellectualProperty}>
