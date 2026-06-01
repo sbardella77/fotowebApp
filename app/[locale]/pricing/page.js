@@ -29,5 +29,7 @@ export default function Pricing({ params, searchParams }) {
   const { locale } = params
   if (!LOCALES.includes(locale)) notFound()
   const fromDashboard = searchParams?.from === 'dashboard'
-  return <PricingPage locale={locale} fromDashboard={fromDashboard} />
+  const highlightPlan = searchParams?.plan || null
+  const eventSlug = searchParams?.eventSlug || null
+  return <PricingPage locale={locale} fromDashboard={fromDashboard} highlightPlan={highlightPlan} eventSlug={eventSlug} />
 }

@@ -252,7 +252,7 @@ function translateFeatureValue(t, value) {
   return value
 }
 
-function TierCard({ tier, index, delayOffset = 0 }) {
+function TierCard({ tier, index, delayOffset = 0, isHighlighted = false }) {
   const t = useTranslations('pricing')
 
   const displayName = translateTierName(t, tier)
@@ -267,9 +267,11 @@ function TierCard({ tier, index, delayOffset = 0 }) {
   return (
     <div
       className={`reveal relative flex flex-col rounded-2xl border bg-surface p-6 sm:p-8 ${
-        isPopular
-          ? 'border-primary/30'
-          : 'border-white/[0.08]'
+        isHighlighted
+          ? 'ring-2 ring-primary border-primary/40'
+          : isPopular
+            ? 'border-primary/30'
+            : 'border-white/[0.08]'
       }`}
       style={{ transitionDelay: `${(index + delayOffset) * 60}ms` }}
     >
@@ -351,7 +353,7 @@ function TierCard({ tier, index, delayOffset = 0 }) {
   )
 }
 
-export function PricingPage({ fromDashboard }) {
+export function PricingPage({ fromDashboard, highlightPlan, eventSlug }) {
   const t = useTranslations('pricing')
   const tCommon = useTranslations('common')
 
@@ -363,6 +365,18 @@ export function PricingPage({ fromDashboard }) {
     trackPageView('landing', { variant: 'pricing' })
     trackEvent(EVENT_LANDING_VIEW, { variant: 'pricing' })
   }, [])
+
+  // Scroll to highlighted tier section if plan is specified via query params
+  useEffect(() => {
+    if (!highlightPlan) return
+    const isEventPlan = eventTiers.some((t) => t.id === highlightPlan)
+    const section = isEventPlan
+      ? document.querySelector('[data-pricing-section="event"]')
+      : document.querySelector('[data-pricing-section="recurring"]')
+    if (section) {
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [highlightPlan])
 
   return (
     <div className="relative min-h-screen bg-background font-body text-foreground">
@@ -413,7 +427,7 @@ export function PricingPage({ fromDashboard }) {
       </section>
 
       {/* Event-based Tiers */}
-      <section className="relative pb-10">
+      <section className="relative pb-10" data-pricing-section="event">
         <div className="container px-4">
           <div className="mx-auto max-w-5xl">
             <div className="reveal flex items-center gap-3 mb-8">
@@ -428,7 +442,7 @@ export function PricingPage({ fromDashboard }) {
 
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {eventTiers.map((tier, i) => (
-                <TierCard key={tier.id} tier={tier} index={i} />
+                <TierCard key={tier.id} tier={tier} index={i} isHighlighted={tier.id === highlightPlan} />
               ))}
             </div>
           </div>
@@ -436,7 +450,7 @@ export function PricingPage({ fromDashboard }) {
       </section>
 
       {/* Recurring Tiers */}
-      <section className="relative pb-16 sm:pb-24">
+      <section className="relative pb-16 sm:pb-24" data-pricing-section="recurring">
         <div className="container px-4">
           <div className="mx-auto max-w-5xl">
             <div className="reveal flex items-center gap-3 mb-8 mt-10 pt-10 border-t border-border">
@@ -451,7 +465,7 @@ export function PricingPage({ fromDashboard }) {
 
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {recurringTiers.map((tier, i) => (
-                <TierCard key={tier.id} tier={tier} index={i} delayOffset={eventTiers.length} />
+                <TierCard key={tier.id} tier={tier} index={i} delayOffset={eventTiers.length} isHighlighted={tier.id === highlightPlan} />
               ))}
               {/* Spacer for alignment on desktop */}
               <div className="hidden lg:block" />

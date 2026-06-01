@@ -284,6 +284,11 @@ export default function RoomPageClient({ slug, isNew }) {
     })
   }, [activeEvent])
 
+  const isEventOwner = useMemo(() => {
+    if (!ownerSession?.authenticated || !activeEvent?.ownerEmail) return false
+    return ownerSession.email.toLowerCase() === activeEvent.ownerEmail.toLowerCase()
+  }, [ownerSession, activeEvent?.ownerEmail])
+
   const loadEvent = async (targetSlug, { silent = false, force = false } = {}) => {
     if (!targetSlug) return
     if (!force && isFetchingRef.current) {
@@ -652,6 +657,7 @@ export default function RoomPageClient({ slug, isNew }) {
   }
 
   const handleUnlockGalleryFromModal = () => {
+    const actorType = isEventOwner ? 'owner' : ownerSession?.authenticated ? 'unknown' : 'guest'
     trackUpsellClick({
       upsellType: 'gallery_zip',
       source: 'room_page_gallery_blocked',
@@ -661,10 +667,20 @@ export default function RoomPageClient({ slug, isNew }) {
       ownerPlan: ownerSession?.authenticated ? eventAccess.effectivePlan : 'guest',
       billingTier: activeEvent?.billingTier,
       effectivePlan: eventAccess.effectivePlan,
-      ctaPlan: 'pro_event',
+      ctaPlan: isEventOwner ? 'pro_event' : 'none',
+      actorType,
     })
     if (typeof window !== 'undefined') {
-      window.location.href = '/pricing'
+      if (isEventOwner && activeEvent?.slug) {
+        const params = new URLSearchParams({
+          plan: 'pro_event',
+          from: 'gallery_blocked',
+          eventSlug: activeEvent.slug,
+        })
+        window.location.href = `/pricing?${params.toString()}`
+      } else {
+        window.location.href = '/?from=gallery_blocked_guest'
+      }
     }
   }
 
@@ -735,6 +751,7 @@ export default function RoomPageClient({ slug, isNew }) {
 
   useEffect(() => {
     if (galleryBlockedModalOpen && activeEvent?.slug) {
+      const actorType = isEventOwner ? 'owner' : ownerSession?.authenticated ? 'unknown' : 'guest'
       trackUpsellImpression({
         upsellType: 'gallery_zip',
         source: 'room_page_gallery_blocked',
@@ -744,10 +761,11 @@ export default function RoomPageClient({ slug, isNew }) {
         ownerPlan: ownerSession?.authenticated ? eventAccess.effectivePlan : 'guest',
         billingTier: activeEvent.billingTier,
         effectivePlan: eventAccess.effectivePlan,
-        ctaPlan: 'pro_event',
+        ctaPlan: isEventOwner ? 'pro_event' : 'none',
+        actorType,
       })
     }
-  }, [galleryBlockedModalOpen, activeEvent?.slug, activeEvent?.id, activeEvent?.billingTier, eventAccess.effectivePlan, ownerSession?.authenticated])
+  }, [galleryBlockedModalOpen, activeEvent?.slug, activeEvent?.id, activeEvent?.billingTier, eventAccess.effectivePlan, ownerSession?.authenticated, isEventOwner])
 
   useEffect(() => {
     if (activeEvent?.slug) {
@@ -940,7 +958,7 @@ export default function RoomPageClient({ slug, isNew }) {
                 )}
                 {photoLimitError && (
                   <div className="mt-6 rounded-xl border border-warning/20 bg-warning/10 px-5 py-4 text-left">
-                    {ownerSession?.authenticated && ownerSession?.email?.toLowerCase() === activeEvent?.ownerEmail?.toLowerCase() ? (
+                    {isEventOwner ? (
                       <>
                         <p className="text-sm font-semibold text-warning">{t.freeLimitReached}</p>
                         <p className="mt-1 text-xs font-light text-muted-foreground">{t.upgradeToContinueOwner}</p>
@@ -1159,14 +1177,18 @@ export default function RoomPageClient({ slug, isNew }) {
       {galleryBlockedModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-xl">
-            <p className="font-display text-lg font-bold tracking-tight text-foreground">{t.unlockGalleryDownload}</p>
-            <p className="mt-2 text-sm text-muted-foreground">{t.galleryBlockedDesc}</p>
+            <p className="font-display text-lg font-bold tracking-tight text-foreground">
+              {isEventOwner ? t.downloadFullGalleryZip : t.fullGalleryDownloadLocked}
+            </p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {isEventOwner ? t.saveAllOriginalsWithProEvent : t.hostCanUnlockGalleryDownload}
+            </p>
             <div className="mt-5 flex flex-col gap-2">
               <Button size="sm" className="w-full cta-primary" onClick={handleUnlockGalleryFromModal}>
-                {t.unlockGalleryDownload}
+                {isEventOwner ? t.unlockGalleryDownload : t.createYourOwnRoom}
               </Button>
               <Button size="sm" variant="ghost" className="w-full" onClick={() => setGalleryBlockedModalOpen(false)}>
-                {tCommon.cancel}
+                {tCommon.maybeLater}
               </Button>
             </div>
           </div>
@@ -1174,7 +1196,7 @@ export default function RoomPageClient({ slug, isNew }) {
       )}
 
       <EventQRModal isOpen={qrModalOpen} onClose={() => setQrModalOpen(false)} event={activeEvent} baseUrl={baseUrl} />
-      <PhotoLightbox onOpenChange={setLightboxOpen} onSelectIndex={setLightboxIndex} open={lightboxOpen} photos={galleryPhotos} selectedIndex={lightboxIndex} event={activeEvent} isOwner={ownerSession?.authenticated && ownerSession?.email?.toLowerCase() === activeEvent?.ownerEmail?.toLowerCase()} />
+      <PhotoLightbox onOpenChange={setLightboxOpen} onSelectIndex={setLightboxIndex} open={lightboxOpen} photos={galleryPhotos} selectedIndex={lightboxIndex} event={activeEvent} isOwner={isEventOwner} />
       <ToastComponent />
     </main>
   )
