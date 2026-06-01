@@ -1333,7 +1333,7 @@ export default function DashboardPage() {
                   })
                   startCheckout('professional', null, 'dashboard_create_room_limit', 'room_limit', 'create_room_modal')
                 }}>
-                  {checkoutBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.upsellUpgradeToProfessional}
+                  {checkoutBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.createMoreEvents}
                 </Button>
               </div>
             ) : createError?.error ? (

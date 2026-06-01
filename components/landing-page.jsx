@@ -225,7 +225,7 @@ export function LandingPage({
                       <p className="mt-1 text-xs text-muted-foreground">{t.errorLimitDesc}</p>
                       <div className="mt-4 flex gap-2">
                         <Button size="sm" className="cta-primary" asChild>
-                          <a href="/pricing">{t.viewPricing}</a>
+                          <a href="/dashboard/login">{t.startProfessional}</a>
                         </Button>
                         <Button
                           size="sm"
@@ -233,7 +233,7 @@ export function LandingPage({
                           className="border-border bg-secondary text-foreground hover:bg-[hsl(var(--bg-elevated))]"
                           asChild
                         >
-                          <a href="/dashboard/login">{t.startProfessional}</a>
+                          <a href="/pricing">{t.viewPricing}</a>
                         </Button>
                       </div>
                     </div>
