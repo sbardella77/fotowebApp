@@ -916,11 +916,11 @@ export default function RoomPageClient({ slug, isNew }) {
                 {/* Guest onboarding — visible when gallery is empty */}
                 {galleryPhotos.length === 0 && !isUploading && !uploadSuccess && (
                   <div className="mt-5 inline-flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 rounded-xl bg-raised px-4 py-3 text-left sm:text-center">
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-foreground"><span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">1</span>{t.step1ChoosePhotos}</span>
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-foreground"><span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/15 text-[10px] font-bold text-foreground">1</span>{t.step1ChoosePhotos}</span>
                     <span className="hidden sm:block h-px w-4 bg-border" />
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-foreground"><span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">2</span>{t.step2Upload}</span>
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-foreground"><span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/15 text-[10px] font-bold text-foreground">2</span>{t.step2Upload}</span>
                     <span className="hidden sm:block h-px w-4 bg-border" />
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-foreground"><span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">3</span>{t.step3Enjoy}</span>
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-foreground"><span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/15 text-[10px] font-bold text-foreground">3</span>{t.step3Enjoy}</span>
                   </div>
                 )}
 
