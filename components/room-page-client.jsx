@@ -2,6 +2,7 @@
 
 import { upload } from '@vercel/blob/client'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import {
   Camera,
   CheckCircle2,
@@ -794,14 +795,14 @@ export default function RoomPageClient({ slug, isNew }) {
       <main className="min-h-screen bg-background font-body text-foreground">
         <header className="border-b border-border bg-background/70 backdrop-blur-xl">
           <div className="container flex h-16 items-center justify-between px-4">
-            <a href="/" className="flex items-center gap-2.5">
+            <Link href={ownerSession?.authenticated ? '/dashboard' : '/'} className="flex items-center gap-2.5">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-subtle"><Camera className="h-[18px] w-[18px]" /></div>
               <span className="font-display text-[15px] font-bold tracking-tight text-foreground">SnapRooms</span>
-            </a>
+            </Link>
             {ownerSession?.authenticated && (
-              <a href="/dashboard" className="flex items-center gap-1.5 text-sm font-light text-muted-foreground transition-colors hover:text-foreground">
+              <Link href="/dashboard" className="flex items-center gap-1.5 text-sm font-light text-muted-foreground transition-colors hover:text-foreground">
                 <LayoutDashboard className="h-3.5 w-3.5" />Dashboard
-              </a>
+              </Link>
             )}
           </div>
         </header>
@@ -816,16 +817,16 @@ export default function RoomPageClient({ slug, isNew }) {
 
       <header className="relative z-10 border-b border-border bg-background/70 backdrop-blur-xl">
         <div className="container flex h-16 items-center justify-between px-4">
-          <a href="/" className="flex items-center gap-2.5">
+          <Link href={ownerSession?.authenticated ? '/dashboard' : '/'} className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-subtle"><Camera className="h-[18px] w-[18px]" /></div>
             <span className="font-display text-[15px] font-bold tracking-tight text-foreground">SnapRooms</span>
-          </a>
+          </Link>
           <div className="flex items-center gap-3">
             <LanguageSwitcher />
             {ownerSession?.authenticated && (
-              <a href="/dashboard" className="flex items-center gap-1.5 text-sm font-light text-muted-foreground transition-colors hover:text-foreground">
+              <Link href="/dashboard" className="flex items-center gap-1.5 text-sm font-light text-muted-foreground transition-colors hover:text-foreground">
                 <LayoutDashboard className="h-3.5 w-3.5" />Dashboard
-              </a>
+              </Link>
             )}
           </div>
         </div>
