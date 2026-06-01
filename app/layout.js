@@ -35,7 +35,6 @@ export const metadata = {
   description: 'Create a photo event for weddings, parties, and gatherings. Guests upload instantly by link or QR code — no app, no signup.',
   applicationName: 'SnapRooms',
   manifest: '/manifest.webmanifest',
-  themeColor: '#F8F6F1',
   icons: {
     icon: [
       { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
@@ -50,6 +49,10 @@ export const metadata = {
     capable: true,
     title: 'SnapRooms',
   },
+}
+
+export const viewport = {
+  themeColor: '#F8F6F1',
 }
 
 function App({ children }) {

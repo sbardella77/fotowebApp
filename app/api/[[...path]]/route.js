@@ -117,6 +117,30 @@ const formatZodError = (error) => {
   return error.issues?.map((issue) => issue.message).join(', ') || 'Invalid request payload'
 }
 
+const isDatabaseUnavailableError = (error) => {
+  return error?.code === 'P1001' || error?.code === 'P1002' || error?.code === 'P1008'
+}
+
+const getSafeDbErrorMessage = (error, route) => {
+  if (isDatabaseUnavailableError(error)) {
+    const isLoginRoute = route === '/owner/login' || route === '/owner/session'
+    return isLoginRoute
+      ? 'Login temporarily unavailable. Please try again shortly.'
+      : 'Service temporarily unavailable'
+  }
+  return 'Internal server error'
+}
+
+const logDbError = (error, route, startTime) => {
+  const durationMs = startTime ? Date.now() - startTime : null
+  const safeMessage = error?.message
+    ? String(error.message).replace(/\b\w+:\/\/[^\s]+/g, '[REDACTED]').substring(0, 200)
+    : 'unknown'
+  console.error(
+    `[db-unavailable] route=${route} code=${error?.code || 'unknown'} name=${error?.name || 'unknown'} durationMs=${durationMs ?? 'unknown'} message=${safeMessage}`
+  )
+}
+
 const getSegments = (params) => params?.path || []
 
 const getAdminAuthentication = async (request) => {
@@ -2497,6 +2521,8 @@ export async function OPTIONS() {
 async function handleRoute(request, { params }) {
   const segments = getSegments(params)
   const method = request.method
+  const route = `/${segments.join('/')}`
+  const startTime = Date.now()
 
   try {
     if (segments.length === 0 && method === 'GET') {
@@ -2735,13 +2761,18 @@ async function handleRoute(request, { params }) {
 
     return json({ error: `Route /${segments.join('/')} not found` }, 404)
   } catch (error) {
+    if (isDatabaseUnavailableError(error)) {
+      logDbError(error, route, startTime)
+      return json({ error: getSafeDbErrorMessage(error, route) }, 503)
+    }
+
     console.error('[API Route] Error:', error?.message || error)
 
     if (error?.issues) {
       return json({ error: formatZodError(error) }, 400)
     }
 
-    return json({ error: error?.message || 'Internal server error' }, 500)
+    return json({ error: 'Internal server error' }, 500)
   }
 }
 
