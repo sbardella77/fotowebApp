@@ -116,7 +116,6 @@ const recurringTiers = [
     badge: null,
     price: '€79',
     interval: '/ month',
-    secondaryPrice: '€790 / year',
     target: 'Photographers, planners, venues',
     description: 'Run multiple events for multiple clients. Commercial use included. Built for professionals who rely on SnapRooms every week.',
     cta: { label: 'Start Professional', href: '/dashboard/login', variant: 'outline' },
