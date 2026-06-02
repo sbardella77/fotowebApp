@@ -211,6 +211,8 @@ export default function RoomPageClient({ slug, isNew }) {
   const [photoCursor, setPhotoCursor] = useState(null)
   const [hasMorePhotos, setHasMorePhotos] = useState(false)
   const [loadingMorePhotos, setLoadingMorePhotos] = useState(false)
+  const [selectedMomentSlug, setSelectedMomentSlug] = useState('all')
+  const [uploadMomentId, setUploadMomentId] = useState('')
   const [galleryJob, setGalleryJob] = useState(null)
   const [galleryJobPolling, setGalleryJobPolling] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
@@ -343,7 +345,7 @@ export default function RoomPageClient({ slug, isNew }) {
     }
   }
 
-  const uploadSingleFile = async (file, optimizedFile) => {
+  const uploadSingleFile = async (file, optimizedFile, momentId) => {
     if (!activeEvent?.slug) return false
     const localId = `${file.name}-${file.lastModified}`
     const fileToUpload = optimizedFile || file
@@ -444,6 +446,7 @@ export default function RoomPageClient({ slug, isNew }) {
               size: fileToUpload.size,
               uploaderName: guestName,
               caption: '',
+              momentId: momentId || undefined,
             }),
           })
           const completePayload = await completeResponse.json()
@@ -487,7 +490,7 @@ export default function RoomPageClient({ slug, isNew }) {
         const completeResponse = await fetch('/api/uploads/complete', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId: initPayload.session.sessionId, uploaderName: guestName, caption: '' }),
+          body: JSON.stringify({ sessionId: initPayload.session.sessionId, uploaderName: guestName, caption: '', momentId: momentId || undefined }),
         })
         const completePayload = await completeResponse.json()
         if (!completeResponse.ok) {
@@ -612,7 +615,7 @@ export default function RoomPageClient({ slug, isNew }) {
     const tasks = supportedFiles.map((file) => async () => {
       const localId = `${file.name}-${file.lastModified}`
       const optimized = optimizedMap.get(localId)
-      return uploadSingleFile(file, optimized)
+      return uploadSingleFile(file, optimized, uploadMomentId)
     })
     const results = await runWithConcurrency(tasks, 3)
 
@@ -647,9 +650,10 @@ export default function RoomPageClient({ slug, isNew }) {
 
   const [galleryDownloadBusy, setGalleryDownloadBusy] = useState(false)
 
-  const loadPhotos = async ({ reset = false, sortOverride } = {}) => {
+  const loadPhotos = async ({ reset = false, sortOverride, momentOverride } = {}) => {
     if (!activeEvent?.slug) return
     const targetSort = sortOverride || photoSort
+    const targetMoment = momentOverride !== undefined ? momentOverride : selectedMomentSlug
     const cursor = reset ? null : photoCursor
     setLoadingMorePhotos(true)
     setGalleryError('')
@@ -657,6 +661,7 @@ export default function RoomPageClient({ slug, isNew }) {
       const url = new URL(`/api/events/${activeEvent.slug}/photos`, window.location.origin)
       if (cursor) url.searchParams.set('cursor', cursor)
       url.searchParams.set('sort', targetSort)
+      if (targetMoment && targetMoment !== 'all') url.searchParams.set('moment', targetMoment)
       const response = await fetch(url.toString(), { cache: 'no-store' })
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}))
@@ -692,6 +697,7 @@ export default function RoomPageClient({ slug, isNew }) {
       const url = new URL(`/api/events/${activeEvent.slug}/photos`, window.location.origin)
       url.searchParams.set('take', '24')
       url.searchParams.set('sort', 'recent')
+      if (selectedMomentSlug && selectedMomentSlug !== 'all') url.searchParams.set('moment', selectedMomentSlug)
       const response = await fetch(url.toString(), { cache: 'no-store' })
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}))
@@ -721,6 +727,15 @@ export default function RoomPageClient({ slug, isNew }) {
     setPhotoCursor(null)
     setHasMorePhotos(false)
     loadPhotos({ reset: true, sortOverride: newSort })
+  }
+
+  const handleMomentChange = (newMoment) => {
+    if (newMoment === selectedMomentSlug) return
+    setSelectedMomentSlug(newMoment)
+    setPhotos([])
+    setPhotoCursor(null)
+    setHasMorePhotos(false)
+    loadPhotos({ reset: true, momentOverride: newMoment })
   }
 
   const handleRefreshNewPhotos = async () => {
@@ -1178,13 +1193,49 @@ export default function RoomPageClient({ slug, isNew }) {
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
-                    <Button size="lg" className="h-14 gap-2 rounded-xl px-8 text-base font-body font-semibold cta-primary touch-target" disabled={Boolean(photoLimitError)} aria-label={t.snapPhoto} onClick={() => { setUploadSuccess(false); setUploadFormatError(''); trackEvent(EVENT_SNAP_CTA_CLICKED, { room_slug: activeEvent?.slug }); cameraFileInputRef.current?.click() }}>
-                      <Camera className="h-5 w-5" />{t.snapPhoto}
-                    </Button>
-                    <Button size="lg" variant="outline" className="h-14 gap-2 rounded-xl px-8 text-base font-body font-semibold border-border bg-raised hover:bg-elevated hover:text-foreground touch-target" disabled={Boolean(photoLimitError)} aria-label={t.uploadPhoto} onClick={() => { setUploadSuccess(false); setUploadFormatError(''); trackEvent(EVENT_UPLOAD_CTA_CLICKED, { room_slug: activeEvent?.slug }); heroFileInputRef.current?.click() }}>
-                      <Upload className="h-5 w-5" />{t.uploadPhoto}
-                    </Button>
+                  <div className="mt-6 flex flex-col gap-3">
+                    {activeEvent?.moments && activeEvent.moments.length > 0 && (
+                      <div className="flex flex-col items-center gap-2">
+                        <span className="text-xs font-light text-muted-foreground">{t.whereDoThesePhotosBelong || 'Where do these photos belong?'}</span>
+                        <div className="flex flex-wrap justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setUploadMomentId('')}
+                            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                              !uploadMomentId
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-raised text-muted-foreground hover:bg-elevated hover:text-foreground'
+                            }`}
+                            aria-pressed={!uploadMomentId}
+                          >
+                            {t.noMoment || 'No moment'}
+                          </button>
+                          {activeEvent.moments.map((m) => (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() => setUploadMomentId(m.id)}
+                              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                                uploadMomentId === m.id
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'bg-raised text-muted-foreground hover:bg-elevated hover:text-foreground'
+                              }`}
+                              aria-pressed={uploadMomentId === m.id}
+                            >
+                              {m.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+                      <Button size="lg" className="h-14 gap-2 rounded-xl px-8 text-base font-body font-semibold cta-primary touch-target" disabled={Boolean(photoLimitError)} aria-label={t.snapPhoto} onClick={() => { setUploadSuccess(false); setUploadFormatError(''); trackEvent(EVENT_SNAP_CTA_CLICKED, { room_slug: activeEvent?.slug }); cameraFileInputRef.current?.click() }}>
+                        <Camera className="h-5 w-5" />{t.snapPhoto}
+                      </Button>
+                      <Button size="lg" variant="outline" className="h-14 gap-2 rounded-xl px-8 text-base font-body font-semibold border-border bg-raised hover:bg-elevated hover:text-foreground touch-target" disabled={Boolean(photoLimitError)} aria-label={t.uploadPhoto} onClick={() => { setUploadSuccess(false); setUploadFormatError(''); trackEvent(EVENT_UPLOAD_CTA_CLICKED, { room_slug: activeEvent?.slug }); heroFileInputRef.current?.click() }}>
+                        <Upload className="h-5 w-5" />{t.uploadPhoto}
+                      </Button>
+                    </div>
                   </div>
                 )}
                 <p className="mt-5 text-xs font-light text-muted-foreground">{t.noAppNeeded}</p>
@@ -1306,6 +1357,50 @@ export default function RoomPageClient({ slug, isNew }) {
                     {t.oldestFirst || 'Oldest first'}
                   </Button>
                 </div>
+                {activeEvent?.moments && activeEvent.moments.length > 0 && (
+                  <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleMomentChange('all')}
+                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                        selectedMomentSlug === 'all'
+                          ? 'bg-secondary text-secondary-foreground'
+                          : 'bg-raised text-muted-foreground hover:bg-elevated hover:text-foreground'
+                      }`}
+                      aria-pressed={selectedMomentSlug === 'all'}
+                    >
+                      {t.allPhotos || 'All'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleMomentChange('unassigned')}
+                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                        selectedMomentSlug === 'unassigned'
+                          ? 'bg-secondary text-secondary-foreground'
+                          : 'bg-raised text-muted-foreground hover:bg-elevated hover:text-foreground'
+                      }`}
+                      aria-pressed={selectedMomentSlug === 'unassigned'}
+                    >
+                      {t.unassignedPhotos || 'Unassigned'}
+                    </button>
+                    {activeEvent.moments.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => handleMomentChange(m.slug)}
+                        className={`rounded-full px-3 py-1 text-xs font-medium transition-colors truncate max-w-[140px] ${
+                          selectedMomentSlug === m.slug
+                            ? 'bg-secondary text-secondary-foreground'
+                            : 'bg-raised text-muted-foreground hover:bg-elevated hover:text-foreground'
+                        }`}
+                        aria-pressed={selectedMomentSlug === m.slug}
+                        title={m.name}
+                      >
+                        {m.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 {unlockMessage && <p className="mt-3 text-sm font-semibold text-success">{unlockMessage}</p>}
                 <div className="mt-2 space-y-2">
                   {resolveAllUpsells(eventAccess)

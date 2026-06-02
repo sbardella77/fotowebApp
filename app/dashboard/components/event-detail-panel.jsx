@@ -21,6 +21,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { DashboardPhotoCard } from './dashboard-photo-card'
 import { EventCoverEditor, EventCoverRemove } from './event-cover-editor'
+import { EventMomentsManager } from './event-moments-manager'
 import { getEffectiveEventStatus } from '../lib/event-status'
 import { resolveEffectiveEventAccessState } from '@/lib/event-access'
 import { resolveAllUpsells } from '@/lib/upsell-context'
@@ -218,6 +219,9 @@ export function EventDetailPanel({
             </div>
           )}
         </div>
+
+        {/* Moments */}
+        <EventMomentsManager event={event} t={t} />
 
         {/* Photos */}
         <div className="mt-6">

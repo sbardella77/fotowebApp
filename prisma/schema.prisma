@@ -58,6 +58,7 @@ model Event {
   photos                            Photo[]
   privateAssets                     PrivateAsset[]
   galleryDownloadJobs               GalleryDownloadJob[]
+  moments                           EventMoment[]
 
   @@index([createdAt])
   @@index([ownerId])
@@ -65,8 +66,23 @@ model Event {
   @@index([photographerUploadTokenHash])
 }
 
+model EventMoment {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name      String
+  slug      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  photos    Photo[]
+
+  @@unique([eventId, slug])
+  @@index([eventId, sortOrder])
+}
+
 model Photo {
-  id           String      @id @default(uuid())
+  id           String       @id @default(uuid())
   eventId      String
   originalName String
   storedName   String
@@ -75,16 +91,19 @@ model Photo {
   url          String
   uploaderName String?
   caption      String?
-  status       PhotoStatus @default(VISIBLE)
-  uploadSource String      @default("mobile")
+  status       PhotoStatus  @default(VISIBLE)
+  uploadSource String       @default("mobile")
   width        Int?
   height       Int?
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-  event        Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  momentId     String?
+  moment       EventMoment? @relation(fields: [momentId], references: [id], onDelete: SetNull)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  event        Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@index([eventId, createdAt(sort: Desc)])
   @@index([status, createdAt(sort: Desc)])
+  @@index([momentId, createdAt(sort: Desc)])
 }
 
 model PrivateAsset {

@@ -27,6 +27,7 @@ import {
   privateDeliveryLocalUploadCompleteSchema,
   privateDeliveryUploadInitSchema,
   saveOwnerEmailSchema,
+  slugify,
   updateEventSchema,
   uploadChunkSchema,
   uploadInitSchema,
@@ -355,12 +356,15 @@ const getEventPhotos = withTiming('getEventPhotos', async (request, slug) => {
   const cursor = searchParams.get('cursor') || undefined
   const take = Math.min(parseInt(searchParams.get('take') || '24', 10), 48)
   const sort = searchParams.get('sort') === 'oldest' ? 'oldest' : 'recent'
+  const momentParam = searchParams.get('moment') || undefined
+  const momentSlug = momentParam && momentParam !== 'all' ? momentParam : undefined
 
   const result = await repository.getEventPhotosPaginated({
     eventId: event.id,
     cursor,
     take,
     sort,
+    momentSlug,
   })
 
   return json({
@@ -996,6 +1000,7 @@ const completeUpload = withTiming('completeUpload', async (request) => {
       url: payload.blobUrl,
       uploaderName: payload.uploaderName,
       caption: payload.caption,
+      momentId: payload.momentId || undefined,
     })
 
     const freshEvent = await repository.getEventBySlug(event.slug)
@@ -1051,6 +1056,7 @@ const completeUpload = withTiming('completeUpload', async (request) => {
     url: fileResult.url,
     uploaderName: payload.uploaderName,
     caption: payload.caption,
+    momentId: payload.momentId || undefined,
   })
 
   const freshEvent = await repository.getEventBySlug(event.slug)
@@ -1477,6 +1483,111 @@ const deleteEventCover = async (request, slug) => {
 
   const updatedEvent = await repository.updateEvent(slug, { coverUrl: null })
   return json({ event: updatedEvent })
+}
+
+const MAX_MOMENTS_PER_EVENT = 12
+
+const listOwnerEventMoments = async (request, slug) => {
+  const ownerEmail = await requireOwner(request)
+  if (typeof ownerEmail !== 'string') {
+    return ownerEmail
+  }
+
+  const repository = await getGalleryRepository()
+  const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
+  if (!event) {
+    return json({ error: 'Event not found' }, 404)
+  }
+
+  const moments = await repository.listEventMoments(event.id)
+  return json({ moments })
+}
+
+const createOwnerEventMoment = async (request, slug) => {
+  const ownerEmail = await requireOwner(request)
+  if (typeof ownerEmail !== 'string') {
+    return ownerEmail
+  }
+
+  const repository = await getGalleryRepository()
+  const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
+  if (!event) {
+    return json({ error: 'Event not found' }, 404)
+  }
+
+  const count = await repository.countEventMoments(event.id)
+  if (count >= MAX_MOMENTS_PER_EVENT) {
+    return json({ error: `Maximum ${MAX_MOMENTS_PER_EVENT} moments allowed` }, 400)
+  }
+
+  const body = await request.json()
+  const name = String(body.name || '').trim()
+  if (!name || name.length > 40) {
+    return json({ error: 'Moment name must be between 1 and 40 characters' }, 400)
+  }
+
+  const slugBase = slugify(name)
+  const existing = await repository.listEventMoments(event.id)
+  let momentSlug = slugBase
+  let suffix = 2
+  while (existing.some((m) => m.slug === momentSlug)) {
+    momentSlug = `${slugBase}-${suffix}`
+    suffix += 1
+  }
+
+  const sortOrder = existing.length
+  const moment = await repository.createEventMoment(event.id, {
+    name,
+    slug: momentSlug,
+    sortOrder,
+  })
+
+  return json({ moment }, 201)
+}
+
+const updateOwnerEventMoment = async (request, slug, momentId) => {
+  const ownerEmail = await requireOwner(request)
+  if (typeof ownerEmail !== 'string') {
+    return ownerEmail
+  }
+
+  const repository = await getGalleryRepository()
+  const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
+  if (!event) {
+    return json({ error: 'Event not found' }, 404)
+  }
+
+  const body = await request.json()
+  const updates = {}
+  if (body.name !== undefined) {
+    const name = String(body.name || '').trim()
+    if (!name || name.length > 40) {
+      return json({ error: 'Moment name must be between 1 and 40 characters' }, 400)
+    }
+    updates.name = name
+  }
+  if (body.sortOrder !== undefined) {
+    updates.sortOrder = parseInt(body.sortOrder, 10)
+  }
+
+  const moment = await repository.updateEventMoment(momentId, updates)
+  return json({ moment })
+}
+
+const deleteOwnerEventMoment = async (request, slug, momentId) => {
+  const ownerEmail = await requireOwner(request)
+  if (typeof ownerEmail !== 'string') {
+    return ownerEmail
+  }
+
+  const repository = await getGalleryRepository()
+  const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
+  if (!event) {
+    return json({ error: 'Event not found' }, 404)
+  }
+
+  await repository.deleteEventMoment(momentId)
+  return json({ success: true })
 }
 
 const getPhotographerUploadEvent = async (request, token) => {
@@ -2674,6 +2785,22 @@ async function handleRoute(request, { params }) {
 
       if (segments.length === 4 && segments[1] === 'events' && segments[3] === 'cover' && method === 'DELETE') {
         return deleteEventCover(request, segments[2])
+      }
+
+      if (segments.length === 4 && segments[1] === 'events' && segments[3] === 'moments' && method === 'GET') {
+        return listOwnerEventMoments(request, segments[2])
+      }
+
+      if (segments.length === 4 && segments[1] === 'events' && segments[3] === 'moments' && method === 'POST') {
+        return createOwnerEventMoment(request, segments[2])
+      }
+
+      if (segments.length === 5 && segments[1] === 'events' && segments[3] === 'moments' && method === 'PATCH') {
+        return updateOwnerEventMoment(request, segments[2], segments[4])
+      }
+
+      if (segments.length === 5 && segments[1] === 'events' && segments[3] === 'moments' && method === 'DELETE') {
+        return deleteOwnerEventMoment(request, segments[2], segments[4])
       }
     }
 
