@@ -19,7 +19,7 @@ import { useTranslations } from '@/components/i18n-provider'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { trackEvent } from '@/lib/analytics/track-client'
 import { trackUpsellImpression, trackUpsellClick } from '@/lib/analytics/upsell'
-import { EVENT_HERO_CTA_CLICKED } from '@/lib/analytics/events'
+import { EVENT_HERO_CTA_CLICKED, EVENT_PRICING_LINK_CLICKED } from '@/lib/analytics/events'
 import { PhoneMockup } from '@/components/marketing/phone-mockup'
 import { TrustStrip } from '@/components/marketing/trust-strip'
 import { HowItWorks } from '@/components/marketing/how-it-works'
@@ -122,6 +122,15 @@ export function LandingPage({
             >
               {tNav.howItWorks}
             </button>
+            <a
+              href="/pricing"
+              className="hidden px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline"
+              onClick={() => {
+                trackEvent(EVENT_PRICING_LINK_CLICKED, { source: 'landing_nav', locale, location: 'landing_inline_nav' })
+              }}
+            >
+              {tNav.pricing}
+            </a>
             <div className="flex items-center gap-2">
               <LanguageSwitcher />
             </div>
@@ -283,10 +292,24 @@ export function LandingPage({
                 </div>
 
                 <p className="mt-4 text-xs font-normal text-muted-foreground">
-                  {t.microcopy1}{' '}&middot;{' '}
-                  <a href="/dashboard/login" className="underline underline-offset-2 hover:text-foreground transition-colors">
-                    {t.signInLink}
-                  </a>
+                  <span className="sm:hidden">
+                    {t.microcopy1}{' '}&middot;{' '}
+                    <a
+                      href="/pricing"
+                      className="underline underline-offset-2 hover:text-foreground transition-colors"
+                      onClick={() => {
+                        trackEvent(EVENT_PRICING_LINK_CLICKED, { source: 'landing_hero_mobile', locale, location: 'landing_hero_microcopy' })
+                      }}
+                    >
+                      {t.viewPricing}
+                    </a>
+                  </span>
+                  <span className="hidden sm:inline">
+                    {t.microcopy1}{' '}&middot;{' '}
+                    <a href="/dashboard/login" className="underline underline-offset-2 hover:text-foreground transition-colors">
+                      {t.signInLink}
+                    </a>
+                  </span>
                 </p>
               </div>
             </div>

@@ -3,10 +3,13 @@
 import { Camera } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { LanguageSwitcher } from '@/components/language-switcher'
-import { useTranslations } from '@/components/i18n-provider'
+import { useTranslations, useLocale } from '@/components/i18n-provider'
+import { trackEvent } from '@/lib/analytics/track-client'
+import { EVENT_PRICING_LINK_CLICKED } from '@/lib/analytics/events'
 
 export function MarketingNav({ variant = 'fixed' }) {
   const t = useTranslations('nav')
+  const locale = useLocale()
 
   const navClass =
     variant === 'fixed'
@@ -29,6 +32,9 @@ export function MarketingNav({ variant = 'fixed' }) {
           <a
             href="/pricing"
             className="hidden px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline"
+            onClick={() => {
+              trackEvent(EVENT_PRICING_LINK_CLICKED, { source: 'landing_nav', locale, location: 'marketing_nav' })
+            }}
           >
             {t.pricing}
           </a>
