@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Loader2, Plus, Trash2, Pencil, Check, X, Clock } from 'lucide-react'
+import { Loader2, Plus, Trash2, Pencil, Check, X, Clock, Image } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export function EventMomentsManager({ event, t }) {
@@ -20,22 +20,38 @@ export function EventMomentsManager({ event, t }) {
     setError('')
     try {
       const res = await fetch(`/api/owner/events/${event.slug}/moments`, { cache: 'no-store' })
-      if (!res.ok) throw new Error('Failed to load moments')
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        // If table doesn't exist, surface a clearer message in dev
+        if (res.status === 500 && errData.error?.toLowerCase().includes('table') && errData.error?.toLowerCase().includes('not found')) {
+          throw new Error('Moment table missing. Migration may not be applied.')
+        }
+        throw new Error(errData.error || 'Failed to load moments')
+      }
       const data = await res.json()
       setMoments(data.moments || [])
     } catch (e) {
       setError(e.message)
+      // eslint-disable-next-line no-console
+      if (process.env.NODE_ENV !== 'production') console.error('[EventMomentsManager] fetchMoments error:', e)
     } finally {
       setLoading(false)
     }
   }, [event?.slug])
 
+  // Reset local state when event changes
   useEffect(() => {
-    // Sync with event prop if available
-    if (event?.moments) {
-      setMoments(event.moments)
-    }
-  }, [event?.moments])
+    setMoments(event?.moments || [])
+    setNewName('')
+    setEditingId(null)
+    setEditName('')
+    setError('')
+  }, [event?.slug])
+
+  // Fetch moments on mount and whenever the event slug changes
+  useEffect(() => {
+    fetchMoments()
+  }, [fetchMoments])
 
   const handleCreate = async () => {
     const name = newName.trim()
@@ -125,7 +141,11 @@ export function EventMomentsManager({ event, t }) {
         {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
       </div>
 
-      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+      {error && (
+        <div className="mt-2 rounded-lg border border-destructive/20 bg-destructive/5 p-2.5">
+          <p className="text-xs text-destructive">{error}</p>
+        </div>
+      )}
 
       <div className="mt-3 space-y-2">
         {moments.map((moment) => (
@@ -169,28 +189,34 @@ export function EventMomentsManager({ event, t }) {
 
         {moments.length === 0 && !loading && (
           <div className="rounded-lg border border-dashed border-border bg-background p-4 text-center">
-            <p className="text-xs text-muted-foreground">{t.noMomentsYet || 'No moments yet. Add your first moment to organize photos.'}</p>
+            <div className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-accent-dark">
+              <Image className="h-4 w-4" />
+            </div>
+            <p className="text-xs font-medium text-muted-foreground">{t.noMomentsYet || 'No moments yet.'}</p>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{t.momentsHelpText || 'Moments help organize photos by preparation, ceremony, party or backstage.'}</p>
           </div>
         )}
       </div>
 
-      <div className="mt-3 flex items-center gap-2">
-        <input
-          type="text"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          placeholder={t.momentNamePlaceholder || 'Moment name'}
-          maxLength={40}
-          className="h-9 flex-1 rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-accent-dark"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') handleCreate()
-          }}
-        />
-        <Button size="sm" className="h-9 gap-1 cta-primary" onClick={handleCreate} disabled={creating || !newName.trim()}>
-          {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-          {t.addMoment || 'Add'}
-        </Button>
-      </div>
+      {moments.length < 12 && (
+        <div className="mt-3 flex items-center gap-2">
+          <input
+            type="text"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder={t.momentNamePlaceholder || 'Moment name'}
+            maxLength={40}
+            className="h-9 flex-1 rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-accent-dark"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleCreate()
+            }}
+          />
+          <Button size="sm" className="h-9 gap-1 cta-primary" onClick={handleCreate} disabled={creating || !newName.trim()}>
+            {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+            {t.addMoment || 'Add'}
+          </Button>
+        </div>
+      )}
 
       {moments.length >= 12 && (
         <p className="mt-2 text-xs text-muted-foreground">{t.maxMomentsReached || 'Maximum 12 moments reached.'}</p>
