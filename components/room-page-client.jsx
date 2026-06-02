@@ -28,6 +28,8 @@ import PhotoGalleryGrid from '@/components/photo-gallery-grid'
 import PhotoLightbox from '@/components/photo-lightbox'
 import { EventQRModal } from '@/components/event-qr-modal'
 import { getSortedRenderablePhotos, getRenderablePhotos } from '@/lib/photo-utils'
+import { optimizeImage } from '@/lib/client-image-optimizer'
+import { runWithConcurrency } from '@/lib/upload-utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -340,72 +342,176 @@ export default function RoomPageClient({ slug, isNew }) {
     }
   }
 
-  const uploadSingleFile = async (file) => {
+  const uploadSingleFile = async (file, optimizedFile) => {
     if (!activeEvent?.slug) return false
     const localId = `${file.name}-${file.lastModified}`
-    setUploads((current) => [{ id: localId, name: file.name, size: file.size, progress: 2, status: UPLOAD_STATUS.QUEUED, detail: t.preparingUpload, errorMessage: '' }, ...current])
-    const updateUpload = (next) => { setUploads((current) => current.map((item) => item.id === localId ? { ...item, ...next } : item)) }
-    try {
-      const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
-      const initResponse = await fetch('/api/uploads/init', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventSlug: activeEvent.slug, fileName: file.name, fileSize: file.size, mimeType: file.type || 'image/jpeg', totalChunks }),
-      })
-      const initPayload = await initResponse.json()
-      if (!initResponse.ok) {
-        if (initPayload.limit === 'photo_count') { setPhotoLimitError(initPayload); updateUpload({ status: UPLOAD_STATUS.ERROR, errorMessage: t.roomPhotoLimitReached }); return false }
-        throw new Error(initPayload.error || t.uploadError)
+    const fileToUpload = optimizedFile || file
+
+    setUploads((current) => {
+      if (current.some((u) => u.id === localId)) {
+        return current.map((u) =>
+          u.id === localId
+            ? { ...u, size: fileToUpload.size, status: UPLOAD_STATUS.QUEUED, detail: t.preparingUpload, errorMessage: '' }
+            : u
+        )
       }
-      if (initPayload.session?.uploadStrategy === 'vercel-blob-client') {
-        updateUpload({ progress: 8, status: UPLOAD_STATUS.UPLOADING, detail: t.uploading + ' ' + t.galleryTitle })
-        const blob = await upload(initPayload.session.pathname || file.name, file, {
-          access: 'public', handleUploadUrl: initPayload.session.handleUploadUrl || '/api/uploads/blob',
-          clientPayload: JSON.stringify({ eventSlug: activeEvent.slug, fileName: file.name, fileSize: file.size, mimeType: file.type || 'image/jpeg' }),
-          multipart: file.size > 5 * 1024 * 1024,
-          onUploadProgress: ({ percentage }) => { updateUpload({ progress: 10 + Math.round((percentage / 100) * 75), status: UPLOAD_STATUS.UPLOADING, detail: `${t.uploadedPercent} ${Math.round(percentage)}%` }) },
+      return [
+        { id: localId, name: file.name, size: fileToUpload.size, progress: 2, status: UPLOAD_STATUS.QUEUED, detail: t.preparingUpload, errorMessage: '' },
+        ...current,
+      ]
+    })
+
+    const updateUpload = (next) => {
+      setUploads((current) => current.map((item) => (item.id === localId ? { ...item, ...next } : item)))
+    }
+
+    const isRetryable = (error) => {
+      if (error.nonRetryable) return false
+      return true
+    }
+
+    let lastError
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        if (attempt > 0) {
+          updateUpload({
+            progress: 5,
+            status: UPLOAD_STATUS.UPLOADING,
+            detail: `${t.uploadingPhotos} (${tCommon.retry} ${attempt}/2)`,
+          })
+          await new Promise((r) => setTimeout(r, 800 * attempt))
+        }
+
+        const totalChunks = Math.ceil(fileToUpload.size / CHUNK_SIZE)
+        const initResponse = await fetch('/api/uploads/init', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            eventSlug: activeEvent.slug,
+            fileName: fileToUpload.name,
+            fileSize: fileToUpload.size,
+            mimeType: fileToUpload.type || 'image/jpeg',
+            totalChunks,
+          }),
         })
-        updateUpload({ progress: 90, status: UPLOAD_STATUS.UPLOADING, detail: t.finalizingGallery })
+        const initPayload = await initResponse.json()
+        if (!initResponse.ok) {
+          if (initPayload.limit === 'photo_count') {
+            setPhotoLimitError(initPayload)
+            updateUpload({ status: UPLOAD_STATUS.ERROR, errorMessage: t.roomPhotoLimitReached })
+            const err = new Error('photo_limit')
+            err.nonRetryable = true
+            throw err
+          }
+          throw new Error(initPayload.error || t.uploadError)
+        }
+
+        if (initPayload.session?.uploadStrategy === 'vercel-blob-client') {
+          updateUpload({ progress: 8, status: UPLOAD_STATUS.UPLOADING, detail: t.uploading + ' ' + t.galleryTitle })
+          const blob = await upload(
+            initPayload.session.pathname || fileToUpload.name,
+            fileToUpload,
+            {
+              access: 'public',
+              handleUploadUrl: initPayload.session.handleUploadUrl || '/api/uploads/blob',
+              clientPayload: JSON.stringify({
+                eventSlug: activeEvent.slug,
+                fileName: fileToUpload.name,
+                fileSize: fileToUpload.size,
+                mimeType: fileToUpload.type || 'image/jpeg',
+              }),
+              multipart: fileToUpload.size > 5 * 1024 * 1024,
+              onUploadProgress: ({ percentage }) => {
+                updateUpload({
+                  progress: 10 + Math.round((percentage / 100) * 75),
+                  status: UPLOAD_STATUS.UPLOADING,
+                  detail: `${t.uploadedPercent} ${Math.round(percentage)}%`,
+                })
+              },
+            }
+          )
+          updateUpload({ progress: 90, status: UPLOAD_STATUS.UPLOADING, detail: t.finalizingGallery })
+          const completeResponse = await fetch('/api/uploads/complete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              eventSlug: activeEvent.slug,
+              blobUrl: blob.url,
+              blobPathname: blob.pathname,
+              originalName: fileToUpload.name,
+              mimeType: fileToUpload.type || 'image/jpeg',
+              size: fileToUpload.size,
+              uploaderName: guestName,
+              caption: '',
+            }),
+          })
+          const completePayload = await completeResponse.json()
+          if (!completeResponse.ok) {
+            if (completePayload.limit === 'photo_count') {
+              setPhotoLimitError(completePayload)
+              updateUpload({ status: UPLOAD_STATUS.ERROR, errorMessage: t.roomPhotoLimitReached })
+              const err = new Error('photo_limit')
+              err.nonRetryable = true
+              throw err
+            }
+            throw new Error(completePayload.error || t.uploadError)
+          }
+          updateUpload({ progress: 100, status: UPLOAD_STATUS.DONE })
+          setActiveEvent(completePayload.event)
+          setGalleryError('')
+          return true
+        }
+
+        updateUpload({ progress: 8, status: UPLOAD_STATUS.UPLOADING })
+        for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex += 1) {
+          const start = chunkIndex * CHUNK_SIZE
+          const end = Math.min(start + CHUNK_SIZE, fileToUpload.size)
+          const chunkBlob = fileToUpload.slice(start, end)
+          const formData = new FormData()
+          formData.append('sessionId', initPayload.session.sessionId)
+          formData.append('chunkIndex', String(chunkIndex))
+          formData.append('totalChunks', String(totalChunks))
+          formData.append('chunk', chunkBlob, `${fileToUpload.name}.part-${chunkIndex}`)
+          const chunkResponse = await fetch('/api/uploads/chunk', { method: 'POST', body: formData })
+          const chunkPayload = await chunkResponse.json()
+          if (!chunkResponse.ok) {
+            throw new Error(chunkPayload.error || t.chunkFailed)
+          }
+          updateUpload({
+            progress: 10 + Math.round(((chunkIndex + 1) / totalChunks) * 75),
+            status: UPLOAD_STATUS.UPLOADING,
+            detail: `${t.uploadedChunks} ${chunkIndex + 1}/${totalChunks}`,
+          })
+        }
         const completeResponse = await fetch('/api/uploads/complete', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ eventSlug: activeEvent.slug, blobUrl: blob.url, blobPathname: blob.pathname, originalName: file.name, mimeType: file.type || 'image/jpeg', size: file.size, uploaderName: guestName, caption: '' }),
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId: initPayload.session.sessionId, uploaderName: guestName, caption: '' }),
         })
         const completePayload = await completeResponse.json()
         if (!completeResponse.ok) {
-          if (completePayload.limit === 'photo_count') { setPhotoLimitError(completePayload); updateUpload({ status: UPLOAD_STATUS.ERROR, errorMessage: t.roomPhotoLimitReached }); return false }
+          if (completePayload.limit === 'photo_count') {
+            setPhotoLimitError(completePayload)
+            updateUpload({ status: UPLOAD_STATUS.ERROR, errorMessage: t.roomPhotoLimitReached })
+            const err = new Error('photo_limit')
+            err.nonRetryable = true
+            throw err
+          }
           throw new Error(completePayload.error || t.uploadError)
         }
         updateUpload({ progress: 100, status: UPLOAD_STATUS.DONE })
-        setActiveEvent(completePayload.event); setGalleryError(''); return true
+        setActiveEvent(completePayload.event)
+        setGalleryError('')
+        return true
+      } catch (error) {
+        lastError = error
+        if (!isRetryable(error)) break
       }
-      updateUpload({ progress: 8, status: UPLOAD_STATUS.UPLOADING })
-      for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex += 1) {
-        const start = chunkIndex * CHUNK_SIZE; const end = Math.min(start + CHUNK_SIZE, file.size); const chunkBlob = file.slice(start, end)
-        const formData = new FormData()
-        formData.append('sessionId', initPayload.session.sessionId)
-        formData.append('chunkIndex', String(chunkIndex))
-        formData.append('totalChunks', String(totalChunks))
-        formData.append('chunk', chunkBlob, `${file.name}.part-${chunkIndex}`)
-        const chunkResponse = await fetch('/api/uploads/chunk', { method: 'POST', body: formData })
-        const chunkPayload = await chunkResponse.json()
-        if (!chunkResponse.ok) { throw new Error(chunkPayload.error || t.chunkFailed) }
-        updateUpload({ progress: 10 + Math.round(((chunkIndex + 1) / totalChunks) * 75), status: UPLOAD_STATUS.UPLOADING, detail: `${t.uploadedChunks} ${chunkIndex + 1}/${totalChunks}` })
-      }
-      const completeResponse = await fetch('/api/uploads/complete', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: initPayload.session.sessionId, uploaderName: guestName, caption: '' }),
-      })
-      const completePayload = await completeResponse.json()
-      if (!completeResponse.ok) {
-        if (completePayload.limit === 'photo_count') { setPhotoLimitError(completePayload); updateUpload({ status: UPLOAD_STATUS.ERROR, errorMessage: t.roomPhotoLimitReached }); return false }
-        throw new Error(completePayload.error || t.uploadError)
-      }
-      updateUpload({ progress: 100, status: UPLOAD_STATUS.DONE })
-      setActiveEvent(completePayload.event); setGalleryError(''); return true
-    } catch (error) {
-      console.error('Upload failed', error)
-      updateUpload({ status: UPLOAD_STATUS.ERROR, errorMessage: tCommon.failed })
-      return false
     }
+
+    console.error('Upload failed after retries', lastError)
+    updateUpload({ status: UPLOAD_STATUS.ERROR, errorMessage: tCommon.failed })
+    return false
   }
 
   const MAX_FILE_SIZE = 25 * 1024 * 1024
@@ -431,10 +537,45 @@ export default function RoomPageClient({ slug, isNew }) {
       trackEvent(EVENT_UPLOAD_FILE_REJECTED, { room_slug: activeEvent?.slug, rejected_count: oversizedFiles.length, reason: 'file_too_large' })
     }
     if (supportedFiles.length === 0) return
-    setIsUploading(true); setLastUploadCount(supportedFiles.length); setUploads([])
+    setIsUploading(true); setLastUploadCount(supportedFiles.length)
     trackEvent(EVENT_UPLOAD_STARTED, { room_slug: activeEvent?.slug, batch_size: supportedFiles.length, is_second_upload: uploadCompletedTracked.current })
-    const results = []
-    for (const file of supportedFiles) { results.push(await uploadSingleFile(file)) }
+
+    // Pre-register upload entries with optimizing status
+    setUploads(
+      supportedFiles.map((file) => ({
+        id: `${file.name}-${file.lastModified}`,
+        name: file.name,
+        size: file.size,
+        progress: 2,
+        status: UPLOAD_STATUS.QUEUED,
+        detail: t.optimizingPhotos,
+        errorMessage: '',
+      }))
+    )
+
+    // Optimize all files concurrently
+    const optimizedMap = new Map()
+    await Promise.all(
+      supportedFiles.map(async (file) => {
+        const optimized = await optimizeImage(file)
+        const localId = `${file.name}-${file.lastModified}`
+        optimizedMap.set(localId, optimized)
+        setUploads((current) =>
+          current.map((u) =>
+            u.id === localId ? { ...u, size: optimized.size, detail: t.preparingUpload } : u
+          )
+        )
+      })
+    )
+
+    // Upload with controlled concurrency (max 3)
+    const tasks = supportedFiles.map((file) => async () => {
+      const localId = `${file.name}-${file.lastModified}`
+      const optimized = optimizedMap.get(localId)
+      return uploadSingleFile(file, optimized)
+    })
+    const results = await runWithConcurrency(tasks, 3)
+
     const allSucceeded = results.every(Boolean)
     setIsUploading(false)
     if (allSucceeded) {
