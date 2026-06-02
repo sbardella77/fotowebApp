@@ -104,8 +104,14 @@ export function EventDetailPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto p-5">
+        {/* Cover actions */}
+        <div className="flex flex-wrap gap-2">
+          <EventCoverEditor event={event} onCoverUpdated={onCoverUpdated} t={t} tCommon={tCommon} />
+          <EventCoverRemove event={event} onCoverUpdated={onCoverUpdated} t={t} tCommon={tCommon} />
+        </div>
+
         {/* Stats */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="mt-5 grid grid-cols-2 gap-3">
           <div className="rounded-xl border border-border bg-raised p-3">
             <div className="flex items-center gap-2">
               <ImagePlus className="h-4 w-4 text-accent-dark" />
@@ -153,10 +159,11 @@ export function EventDetailPanel({
               {t.downloadAll || 'Download all'}
             </Button>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <EventCoverEditor event={event} onCoverUpdated={onCoverUpdated} t={t} tCommon={tCommon} />
-            <EventCoverRemove event={event} onCoverUpdated={onCoverUpdated} t={t} tCommon={tCommon} />
-          </div>
+        </div>
+
+        {/* Moments */}
+        <div className="mt-5">
+          <EventMomentsManager event={event} t={t} />
         </div>
 
         {/* Plan info */}
@@ -219,9 +226,6 @@ export function EventDetailPanel({
             </div>
           )}
         </div>
-
-        {/* Moments */}
-        <EventMomentsManager event={event} t={t} />
 
         {/* Photos */}
         <div className="mt-6">
