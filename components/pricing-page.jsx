@@ -12,6 +12,12 @@ import {
   Heart,
   Calendar,
   Users,
+  Clock,
+  Camera,
+  Building2,
+  PartyPopper,
+  Zap,
+  QrCode,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { MarketingNav } from '@/components/marketing-nav'
@@ -50,17 +56,19 @@ const eventTiers = [
     target: 'Trial users & small personal events',
     description: 'One room for a casual get-together. See how SnapRooms works before you upgrade.',
     cta: { label: 'Create free room', href: '/', variant: 'outline' },
+    benefits: ['freeBenefit1', 'freeBenefit2', 'freeBenefit3', 'freeBenefit4'],
+    storageKey: 'freeBenefit5',
     features: [
-      { name: 'Active rooms', value: '1' },
-      { name: 'Photo limit', value: '50 photos' },
-      { name: 'Guest uploads', value: true },
-      { name: 'QR code sharing', value: true },
-      { name: 'Full gallery downloads', value: false },
-      { name: 'SnapRooms branding removed', value: false },
-      { name: 'Wedding-focused premium experience', value: false },
-      { name: 'Commercial use', value: false },
-      { name: 'Priority support', value: false },
-      { name: 'Custom setup', value: false },
+      { name: 'Active events', value: '1' },
+      { name: 'Guest upload', value: true },
+      { name: 'QR / public event link', value: true },
+      { name: 'SnapRooms branding', value: 'On downloads' },
+      { name: 'Single photo download', value: true },
+      { name: 'Full gallery ZIP download', value: false },
+      { name: 'Private delivery', value: false },
+      { name: 'Photographer upload link', value: false },
+      { name: 'Analytics', value: false },
+      { name: 'Professional workspace', value: false },
       { name: 'Storage duration', value: '90 days' },
     ],
   },
@@ -73,17 +81,19 @@ const eventTiers = [
     target: 'Private hosts, birthdays, parties',
     description: 'Unlock unlimited photos, full gallery downloads, and a premium experience for one special event.',
     cta: { label: 'Upgrade this event', href: '/dashboard/login', variant: 'primary' },
+    benefits: ['proEventBenefit1', 'proEventBenefit2', 'proEventBenefit3'],
+    storageKey: 'proEventBenefit4',
     features: [
-      { name: 'Active rooms', value: '1 premium' },
-      { name: 'Photo limit', value: 'Unlimited' },
-      { name: 'Guest uploads', value: true },
-      { name: 'QR code sharing', value: true },
-      { name: 'Full gallery downloads', value: true },
-      { name: 'SnapRooms branding removed', value: true },
-      { name: 'Wedding-focused premium experience', value: false },
-      { name: 'Commercial use', value: false },
-      { name: 'Priority support', value: true },
-      { name: 'Custom setup', value: false },
+      { name: 'Active events', value: '1 premium' },
+      { name: 'Guest upload', value: true },
+      { name: 'QR / public event link', value: true },
+      { name: 'SnapRooms branding', value: 'Removed' },
+      { name: 'Single photo download', value: true },
+      { name: 'Full gallery ZIP download', value: true },
+      { name: 'Private delivery', value: false },
+      { name: 'Photographer upload link', value: false },
+      { name: 'Analytics', value: false },
+      { name: 'Professional workspace', value: false },
       { name: 'Storage duration', value: '12 months' },
     ],
   },
@@ -96,17 +106,19 @@ const eventTiers = [
     target: 'Couples & wedding hosts',
     description: 'Everything in Pro Event, with wedding-specific QR assets, longer access, and a premium experience designed for your big day.',
     cta: { label: 'Create your wedding room', href: '/dashboard/login', variant: 'outline' },
+    benefits: ['weddingProBenefit1', 'weddingProBenefit2', 'weddingProBenefit3', 'weddingProBenefit4'],
+    storageKey: 'weddingProBenefit5',
     features: [
-      { name: 'Active rooms', value: '1 premium' },
-      { name: 'Photo limit', value: 'Unlimited' },
-      { name: 'Guest uploads', value: true },
-      { name: 'QR code sharing', value: true },
-      { name: 'Full gallery downloads', value: true },
-      { name: 'SnapRooms branding removed', value: true },
-      { name: 'Wedding-focused premium experience', value: true },
-      { name: 'Commercial use', value: false },
-      { name: 'Priority support', value: true },
-      { name: 'Custom setup', value: false },
+      { name: 'Active events', value: '1 premium' },
+      { name: 'Guest upload', value: true },
+      { name: 'QR / public event link', value: true },
+      { name: 'SnapRooms branding', value: 'Removed' },
+      { name: 'Single photo download', value: true },
+      { name: 'Full gallery ZIP download', value: true },
+      { name: 'Private delivery', value: true },
+      { name: 'Photographer upload link', value: true },
+      { name: 'Analytics', value: false },
+      { name: 'Professional workspace', value: false },
       { name: 'Storage duration', value: '24 months' },
     ],
   },
@@ -122,17 +134,19 @@ const recurringTiers = [
     target: 'Photographers, planners, venues',
     description: 'Run multiple events for multiple clients. Commercial use included. Built for professionals who rely on SnapRooms every week.',
     cta: { label: 'Start Professional', href: '/dashboard/login', variant: 'outline' },
+    benefits: ['professionalBenefit1', 'professionalBenefit2', 'professionalBenefit3', 'professionalBenefit4'],
+    storageKey: 'professionalBenefit5',
     features: [
-      { name: 'Active rooms', value: 'Multiple' },
-      { name: 'Photo limit', value: 'Unlimited' },
-      { name: 'Guest uploads', value: true },
-      { name: 'QR code sharing', value: true },
-      { name: 'Full gallery downloads', value: true },
-      { name: 'SnapRooms branding removed', value: true },
-      { name: 'Wedding-focused premium experience', value: true },
-      { name: 'Commercial use', value: true },
-      { name: 'Priority support', value: true },
-      { name: 'Custom setup', value: false },
+      { name: 'Active events', value: 'Multiple' },
+      { name: 'Guest upload', value: true },
+      { name: 'QR / public event link', value: true },
+      { name: 'SnapRooms branding', value: 'Removed' },
+      { name: 'Single photo download', value: true },
+      { name: 'Full gallery ZIP download', value: true },
+      { name: 'Private delivery', value: true },
+      { name: 'Photographer upload link', value: true },
+      { name: 'Analytics', value: true },
+      { name: 'Professional workspace', value: true },
       { name: 'Storage duration', value: 'While active' },
     ],
   },
@@ -145,17 +159,20 @@ const recurringTiers = [
     target: 'Agencies, corporate teams, enterprise',
     description: 'Tailored volume pricing, custom commercial terms, and dedicated support for larger event operations.',
     cta: { label: 'Contact sales', href: 'mailto:hello@snaprooms.app', variant: 'outline' },
+    benefits: [],
+    storageKey: null,
     features: [
-      { name: 'Active rooms', value: 'Unlimited' },
-      { name: 'Photo limit', value: 'Unlimited' },
-      { name: 'Guest uploads', value: true },
-      { name: 'QR code sharing', value: true },
-      { name: 'Full gallery downloads', value: true },
-      { name: 'SnapRooms branding removed', value: true },
-      { name: 'Wedding-focused premium experience', value: true },
-      { name: 'Commercial use', value: true },
-      { name: 'Priority support', value: 'Dedicated' },
-      { name: 'Custom setup', value: true },
+      { name: 'Active events', value: 'Unlimited' },
+      { name: 'Guest upload', value: true },
+      { name: 'QR / public event link', value: true },
+      { name: 'SnapRooms branding', value: 'Removed' },
+      { name: 'Single photo download', value: true },
+      { name: 'Full gallery ZIP download', value: true },
+      { name: 'Private delivery', value: true },
+      { name: 'Photographer upload link', value: true },
+      { name: 'Analytics', value: true },
+      { name: 'Professional workspace', value: true },
+      { name: 'Storage duration', value: 'Custom' },
     ],
   },
 ]
@@ -170,17 +187,20 @@ function getFaqs(t) {
     { q: t.pricingFaq4Question, a: t.pricingFaq4Answer },
     { q: t.pricingFaq5Question, a: t.pricingFaq5Answer },
     { q: t.pricingFaq6Question, a: t.pricingFaq6Answer },
+    { q: t.pricingFaq7Question, a: t.pricingFaq7Answer },
+    { q: t.pricingFaq8Question, a: t.pricingFaq8Answer },
   ]
 }
 
 function FeatureValue({ value }) {
+  const t = useTranslations('pricing')
   if (value === true) {
     return <Check className="h-4 w-4 text-primary mx-auto" />
   }
   if (value === false) {
     return <Minus className="h-4 w-4 text-muted-foreground/40 mx-auto" />
   }
-  return <span className="text-sm text-muted-foreground">{value}</span>
+  return <span className="text-sm text-muted-foreground">{translateFeatureValue(t, value)}</span>
 }
 
 function translateTierName(t, tier) {
@@ -235,17 +255,18 @@ function translateInterval(t, interval) {
 
 function translateFeatureName(t, name) {
   const map = {
-    'Active rooms': t.activeRooms,
-    'Photo limit': t.photoLimit,
-    'Guest uploads': t.guestUploads,
-    'QR code sharing': t.qrCodeSharing,
-    'Full gallery downloads': t.fullGalleryDownloads,
-    'SnapRooms branding removed': t.brandingRemoved,
-    'Wedding-focused premium experience': t.weddingPremium,
-    'Commercial use': t.commercialUse,
-    'Priority support': t.prioritySupport,
-    'Custom setup': t.customSetup,
+    'Active events': t.activeRooms,
+    'Guest upload': t.guestUploads,
+    'QR / public event link': t.qrPublicEventLink,
+    'SnapRooms branding': t.snaproomsBranding,
+    'Single photo download': t.singlePhotoDownload,
+    'Full gallery ZIP download': t.fullGalleryDownloads,
+    'Private delivery': t.privateDelivery,
+    'Photographer upload link': t.photographerUploadLink,
+    'Analytics': t.analytics,
+    'Professional workspace': t.professionalWorkspace,
     'Storage duration': t.storageDuration,
+    'Best for': t.bestFor,
   }
   return map[name] || name
 }
@@ -257,6 +278,9 @@ function translateFeatureValue(t, value) {
   if (value === '12 months') return t.twelveMonths
   if (value === '24 months') return t.twentyFourMonths
   if (value === 'While active') return t.whileSubscriptionActive
+  if (value === 'On downloads') return t.brandingOnDownloads
+  if (value === 'Removed') return t.brandingRemovedValue
+  if (value === 'Custom') return t.businessPrice
   return value
 }
 
@@ -338,25 +362,25 @@ function TierCard({ tier, index, delayOffset = 0, isHighlighted = false }) {
         )}
       </div>
 
-      <ul className="mt-6 space-y-2.5">
-        {tier.features.map((f) => (
-          <li key={f.name} className="flex items-start gap-2.5 text-sm">
-            {f.value === true ? (
+      {tier.benefits.length > 0 && (
+        <ul className="mt-6 space-y-2.5">
+          {tier.benefits.map((b) => (
+            <li key={b} className="flex items-start gap-2.5 text-sm">
               <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-            ) : f.value === false ? (
-              <Minus className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/40" />
-            ) : (
-              <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-            )}
-            <span className="text-muted-foreground">
-              {translateFeatureName(t, f.name)}
-              {typeof f.value === 'string' && (
-                <span className="text-foreground">: {translateFeatureValue(t, f.value)}</span>
-              )}
-            </span>
-          </li>
-        ))}
-      </ul>
+              <span className="text-muted-foreground">{t[b]}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {tier.storageKey && (
+        <div className="mt-auto pt-5">
+          <div className="flex items-center gap-2 border-t border-border pt-4 text-sm text-muted-foreground">
+            <Clock className="h-4 w-4 shrink-0 text-primary" />
+            <span>{t[tier.storageKey]}</span>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -364,6 +388,8 @@ function TierCard({ tier, index, delayOffset = 0, isHighlighted = false }) {
 export function PricingPage({ fromDashboard, highlightPlan, eventSlug }) {
   const t = useTranslations('pricing')
   const tCommon = useTranslations('common')
+  const tLanding = useTranslations('landing')
+  const tMeta = useTranslations('meta')
 
   useScrollReveal()
 
@@ -396,7 +422,7 @@ export function PricingPage({ fromDashboard, highlightPlan, eventSlug }) {
           <Button variant="outline" size="sm" asChild className="border-border bg-surface text-foreground hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent-dark">
             <a href="/dashboard">
               <ArrowLeft className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
-              {t.backToDashboard}
+              {tMeta.backToDashboard}
             </a>
           </Button>
         </div>
@@ -420,13 +446,22 @@ export function PricingPage({ fromDashboard, highlightPlan, eventSlug }) {
               }
               description={t.heroSubtitle}
             />
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3 text-sm text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1">
+                <Calendar className="h-3.5 w-3.5 text-primary" />
+                {t.forOneEvent}
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1">
+                <Briefcase className="h-3.5 w-3.5 text-primary" />
+                {t.forManyEvents}
+              </span>
+            </div>
             <div className="mt-8">
               <TrustStrip
                 items={[
-                  { icon: Check, text: tCommon.noAppRequired },
-                  { icon: Sparkles, text: tCommon.instantSetup },
-                  { icon: Users, text: tCommon.unlimitedGuests },
-                  { icon: Heart, text: tCommon.freeForever },
+                  { icon: Sparkles, text: tLanding.instantGallery },
+                  { icon: Users, text: tLanding.unlimitedGuests },
+                  { icon: Heart, text: tLanding.freeForever },
                 ]}
               />
             </div>
@@ -482,8 +517,46 @@ export function PricingPage({ fromDashboard, highlightPlan, eventSlug }) {
         </div>
       </section>
 
-      {/* Feature Comparison Table */}
+      {/* Which plan is right for you? */}
       <section className="relative border-t border-border bg-surface py-16 sm:py-24">
+        <div className="container px-4">
+          <div className="mx-auto max-w-3xl reveal text-center">
+            <SectionHeader
+              title={t.whichPlanTitle}
+              description={t.whichPlanSubtitle}
+            />
+          </div>
+
+          <div className="mx-auto mt-10 grid max-w-4xl gap-4 sm:grid-cols-2">
+            {[
+              { title: t.useCaseSmallPartyTitle, plan: t.useCaseSmallPartyPlan, copy: t.useCaseSmallPartyCopy, icon: PartyPopper },
+              { title: t.useCaseWeddingTitle, plan: t.useCaseWeddingPlan, copy: t.useCaseWeddingCopy, icon: Heart },
+              { title: t.useCasePhotographerTitle, plan: t.useCasePhotographerPlan, copy: t.useCasePhotographerCopy, icon: Camera },
+              { title: t.useCaseCorporateTitle, plan: t.useCaseCorporatePlan, copy: t.useCaseCorporateCopy, icon: Building2 },
+            ].map((item, i) => (
+              <div
+                key={i}
+                className="reveal rounded-xl border border-white/[0.08] bg-surface p-5 sm:p-6"
+                style={{ transitionDelay: `${i * 60}ms` }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <item.icon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-display text-sm font-semibold text-foreground">{item.title}</h3>
+                    <p className="text-xs font-medium text-primary">{item.plan}</p>
+                  </div>
+                </div>
+                <p className="mt-3 text-sm text-muted-foreground">{item.copy}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Feature Comparison Table */}
+      <section className="relative border-t border-border py-16 sm:py-24">
         <div className="container px-4">
           <div className="mx-auto max-w-3xl reveal">
             <SectionHeader
@@ -492,8 +565,9 @@ export function PricingPage({ fromDashboard, highlightPlan, eventSlug }) {
             />
           </div>
 
-          <div className="mx-auto mt-12 max-w-4xl reveal overflow-x-auto">
-            <div className="min-w-[700px] overflow-hidden rounded-xl border border-border bg-background">
+          {/* Desktop Table */}
+          <div className="hidden md:block mx-auto mt-12 max-w-5xl reveal overflow-x-auto">
+            <div className="min-w-[800px] overflow-hidden rounded-xl border border-border bg-surface">
               <div className="grid grid-cols-[1.75fr_1fr_1fr_1fr_1fr_1fr] gap-4 border-b border-border bg-surface px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 <span>{t.feature}</span>
                 <span className="text-center">{t.free}</span>
@@ -520,6 +594,69 @@ export function PricingPage({ fromDashboard, highlightPlan, eventSlug }) {
               ))}
             </div>
           </div>
+
+          {/* Mobile Comparison Cards */}
+          <div className="md:hidden mx-auto mt-10 max-w-md space-y-6">
+            {allTiers.map((tier) => (
+              <div
+                key={tier.id}
+                className={`reveal rounded-xl border bg-surface p-5 ${
+                  tier.id === highlightPlan ? 'ring-2 ring-primary border-primary/40' : 'border-border'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <h3 className="font-display text-base font-bold text-foreground">{translateTierName(t, tier)}</h3>
+                  <div className="text-right">
+                    <span className="font-display text-lg font-bold text-foreground">{tier.price}</span>
+                    {tier.interval && (
+                      <span className="block text-xs text-muted-foreground">{translateInterval(t, tier.interval)}</span>
+                    )}
+                  </div>
+                </div>
+                <ul className="mt-4 space-y-2.5">
+                  {tier.features.map((f) => (
+                    <li key={f.name} className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">{translateFeatureName(t, f.name)}</span>
+                      {f.value === true ? (
+                        <Check className="h-4 w-4 text-primary" />
+                      ) : f.value === false ? (
+                        <Minus className="h-4 w-4 text-muted-foreground/40" />
+                      ) : (
+                        <span className="text-sm text-muted-foreground">{translateFeatureValue(t, f.value)}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Soft Social Proof */}
+      <section className="relative border-t border-border bg-surface py-16 sm:py-24">
+        <div className="container px-4">
+          <div className="mx-auto max-w-5xl reveal">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                { icon: Zap, text: t.softProofLine1 },
+                { icon: Users, text: t.softProofLine2 },
+                { icon: QrCode, text: t.softProofLine3 },
+                { icon: Briefcase, text: t.softProofLine4 },
+              ].map((item, i) => (
+                <div
+                  key={i}
+                  className="reveal flex flex-col items-center text-center rounded-xl border border-white/[0.08] bg-surface p-5"
+                  style={{ transitionDelay: `${i * 60}ms` }}
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <item.icon className="h-5 w-5" />
+                  </div>
+                  <p className="mt-3 text-sm text-muted-foreground">{item.text}</p>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
@@ -540,41 +677,8 @@ export function PricingPage({ fromDashboard, highlightPlan, eventSlug }) {
         </div>
       </section>
 
-      {/* Target Landing Page Links */}
-      <section className="relative border-t border-border bg-surface py-16 sm:py-24">
-        <div className="container px-4">
-          <div className="mx-auto max-w-3xl reveal">
-            <SectionHeader
-              title={t.findRightPlan}
-              description={t.exploreGuides}
-            />
-          </div>
-
-          <div className="mx-auto mt-10 grid max-w-4xl gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              { href: '/wedding-photo-sharing', label: t.weddings, icon: Heart },
-              { href: '/birthday-photo-sharing', label: t.birthdays, icon: Sparkles },
-              { href: '/private-party-photo-sharing', label: t.privateParties, icon: Calendar },
-              { href: '/corporate-event-photo-sharing', label: t.corporateEvents, icon: Briefcase },
-            ].map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                className="reveal group flex items-center gap-3 rounded-xl border border-white/[0.08] bg-surface p-4 hover:border-primary/20 transition-all duration-200"
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors">
-                  <link.icon className="h-5 w-5" />
-                </div>
-                <span className="font-display text-sm font-semibold text-foreground">{link.label}</span>
-                <ArrowRight className="ml-auto h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-              </a>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* Professional CTA Band */}
-      <section className="relative py-16 sm:py-24">
+      <section className="relative border-t border-border bg-surface py-16 sm:py-24">
         <div className="container px-4">
           <div className="mx-auto max-w-3xl reveal surface-elevated rounded-2xl p-8 sm:p-10 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 border border-primary/20 text-primary mx-auto">
@@ -605,7 +709,7 @@ export function PricingPage({ fromDashboard, highlightPlan, eventSlug }) {
       </section>
 
       {/* FAQ */}
-      <section className="relative border-t border-border bg-surface py-16 sm:py-24">
+      <section className="relative border-t border-border py-16 sm:py-24">
         <div className="container px-4">
           <div className="mx-auto max-w-3xl">
             <div className="text-center reveal">
@@ -629,6 +733,15 @@ export function PricingPage({ fromDashboard, highlightPlan, eventSlug }) {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Vault Future Note */}
+      <section className="relative pb-8 sm:pb-12">
+        <div className="container px-4">
+          <div className="mx-auto max-w-3xl reveal rounded-xl border border-dashed border-border bg-surface p-5 text-center">
+            <p className="text-sm text-muted-foreground">{t.vaultFutureNote}</p>
           </div>
         </div>
       </section>
