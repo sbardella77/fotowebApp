@@ -43,6 +43,7 @@ import {
   EVENT_UPLOAD_COMPLETED,
   EVENT_SECOND_UPLOAD_COMPLETED,
   EVENT_UPLOAD_FILE_REJECTED,
+  EVENT_GUEST_UPLOAD_OPTIMIZED,
   EVENT_WHATSAPP_SHARE_CLICKED,
   EVENT_NATIVE_SHARE_CLICKED,
   EVENT_COPY_LINK_CLICKED,
@@ -554,19 +555,58 @@ export default function RoomPageClient({ slug, isNew }) {
     )
 
     // Optimize all files concurrently
+    const optimizeStart = performance.now()
     const optimizedMap = new Map()
+    const optimizationResults = []
     await Promise.all(
       supportedFiles.map(async (file) => {
-        const optimized = await optimizeImage(file)
+        const result = await optimizeImage(file)
         const localId = `${file.name}-${file.lastModified}`
-        optimizedMap.set(localId, optimized)
+        optimizedMap.set(localId, result.file)
+        optimizationResults.push(result)
         setUploads((current) =>
           current.map((u) =>
-            u.id === localId ? { ...u, size: optimized.size, detail: t.preparingUpload } : u
+            u.id === localId ? { ...u, size: result.file.size, detail: t.preparingUpload } : u
           )
         )
       })
     )
+    const optimizeEnd = performance.now()
+    const durationMs = Math.round(optimizeEnd - optimizeStart)
+
+    let originalBytes = 0
+    let optimizedBytes = 0
+    let optimizedFiles = 0
+    let skippedFiles = 0
+
+    for (const r of optimizationResults) {
+      originalBytes += r.originalBytes
+      optimizedBytes += r.optimizedBytes
+      if (r.optimized) optimizedFiles++
+      else skippedFiles++
+    }
+
+    const savedBytes = originalBytes - optimizedBytes
+    const savedPercent = originalBytes > 0 ? Math.round((savedBytes / originalBytes) * 100) : 0
+
+    try {
+      trackEvent(EVENT_GUEST_UPLOAD_OPTIMIZED, {
+        files: supportedFiles.length,
+        optimized_files: optimizedFiles,
+        skipped_files: skippedFiles,
+        original_bytes: originalBytes,
+        optimized_bytes: optimizedBytes,
+        saved_bytes: savedBytes,
+        saved_percent: savedPercent,
+        duration_ms: durationMs,
+        room_slug: activeEvent?.slug,
+        locale: typeof navigator !== 'undefined' ? navigator.language : undefined,
+        connection_type: typeof navigator !== 'undefined' && navigator.connection?.effectiveType ? navigator.connection.effectiveType : undefined,
+        is_mobile_viewport: typeof window !== 'undefined' ? window.innerWidth < 640 : undefined,
+      })
+    } catch {
+      // silently ignore
+    }
 
     // Upload with controlled concurrency (max 3)
     const tasks = supportedFiles.map((file) => async () => {
