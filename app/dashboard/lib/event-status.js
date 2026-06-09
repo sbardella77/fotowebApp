@@ -12,7 +12,7 @@ export function getEffectiveEventStatus({ event, plan, t }) {
   })
 
   if (state.accountPremium) {
-    return t.premiumActive ?? 'Premium active'
+    return plan === 'business' ? (t.business ?? 'Business') : (t.professional ?? 'Professional')
   }
   if (state.eventUpgraded) {
     return event.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent
@@ -32,7 +32,7 @@ export function getEffectiveEventTierLabel({ event, plan, t }) {
   })
 
   if (state.accountPremium) {
-    return t.premiumActive ?? 'Premium active'
+    return plan === 'business' ? (t.business ?? 'Business') : (t.professional ?? 'Professional')
   }
   if (state.eventUpgraded) {
     return event.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent

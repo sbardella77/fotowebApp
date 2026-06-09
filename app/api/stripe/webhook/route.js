@@ -333,6 +333,7 @@ export async function POST(request) {
         data: {
           plan: 'free',
           stripeSubscriptionId: null,
+          subscriptionCanceledAt: new Date(),
           planUpdatedAt: new Date(),
         },
       })

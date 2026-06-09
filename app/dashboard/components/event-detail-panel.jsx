@@ -192,7 +192,7 @@ export function EventDetailPanel({
             <div className="mt-2">
               <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-accent-dark">
                 <Sparkles className="mr-1 h-3 w-3" />
-                {state.accountPremium ? (t.premiumActive ?? 'Premium active') : (event.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent)}
+                {state.accountPremium ? (plan === 'business' ? (t.business ?? 'Business') : (t.professional ?? 'Professional')) : (event.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent)}
               </span>
             </div>
           )}
