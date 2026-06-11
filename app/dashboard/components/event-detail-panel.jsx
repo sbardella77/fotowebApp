@@ -80,6 +80,10 @@ export function EventDetailPanel({
 
   const eventUpsells = resolveAllUpsells(state).filter((u) => u.feature !== 'room_limit')
 
+  // Source of truth for the total event photo count (visible photos only).
+  // photos.length may include hidden/moderated photos, so it must not be used for the main stats count.
+  const totalPhotoCount = Number.isFinite(event.photoCount) ? event.photoCount : photos.length
+
   const firstVisiblePhoto = photos.find((p) => p.status === 'VISIBLE')
   const heroUrl = event.coverUrl || firstVisiblePhoto?.url
 
@@ -117,7 +121,7 @@ export function EventDetailPanel({
               <ImagePlus className="h-4 w-4 text-accent-dark" />
               <span className="text-xs font-medium text-muted-foreground">{t.photos}</span>
             </div>
-            <p className="mt-1 font-display text-xl font-bold text-foreground">{photos.length}</p>
+            <p className="mt-1 font-display text-xl font-bold text-foreground">{totalPhotoCount}</p>
           </div>
           <div className="rounded-xl border border-border bg-raised p-3">
             <div className="flex items-center gap-2">
@@ -151,7 +155,7 @@ export function EventDetailPanel({
             <Button
               size="sm"
               variant="outline"
-              disabled={galleryDownloadBusy || photos.length === 0}
+              disabled={galleryDownloadBusy || totalPhotoCount === 0}
               onClick={() => onGalleryDownload(event)}
               className="flex-1 border-border bg-surface text-foreground hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent-dark"
             >

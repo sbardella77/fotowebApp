@@ -524,7 +524,7 @@ export default function DashboardPage() {
       link.click()
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
-      trackEvent(EVENT_GALLERY_DOWNLOAD_COMPLETED, { room_slug: event.slug, source: 'dashboard', photo_count: photos.length })
+      trackEvent(EVENT_GALLERY_DOWNLOAD_COMPLETED, { room_slug: event.slug, source: 'dashboard', photo_count: selectedEvent?.photoCount ?? photos.length })
     } catch (err) {
       console.error('[dashboard] gallery download failed:', err)
       alert(t.galleryDownloadFailed)
@@ -1360,7 +1360,7 @@ export default function DashboardPage() {
           <AlertDialogHeader>
             <AlertDialogTitle className="font-display text-lg font-bold text-foreground">{t.deleteRoomTitle}</AlertDialogTitle>
             <AlertDialogDescription className="text-sm font-light text-muted-foreground">
-              {t.deleteRoomWarning} <strong className="text-foreground">{selectedEvent?.name}</strong> {t.deleteRoomAnd} {selectedEvent?.photos?.length || 0} {t.deleteRoomPhotos}
+              {t.deleteRoomWarning} <strong className="text-foreground">{selectedEvent?.name}</strong> {t.deleteRoomAnd} {selectedEvent?.photoCount ?? selectedEvent?.photos?.length ?? 0} {t.deleteRoomPhotos}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
