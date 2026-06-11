@@ -10,12 +10,9 @@ export const dynamic = 'force-dynamic'
 export async function POST(request) {
   const logPrefix = '[stripe/unlock-download]'
   try {
-    // Authenticate owner
+    // Try to authenticate owner (optional — guests can also unlock)
     const token = request.cookies.get('snaprooms_owner_session')?.value
-    const ownerEmail = await verifyOwnerSessionToken(token)
-    if (!ownerEmail) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
+    const ownerEmail = token ? await verifyOwnerSessionToken(token) : null
 
     const body = await request.json().catch(() => ({}))
     const { eventSlug } = body
@@ -30,10 +27,11 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Database unavailable' }, { status: 503 })
     }
 
-    const { resolveCanonicalOwner } = await import('@/lib/server/owner-resolution')
-    const owner = await resolveCanonicalOwner(ownerEmail)
-    if (!owner) {
-      return NextResponse.json({ error: 'Owner not found' }, { status: 404 })
+    // Look up owner if authenticated
+    let owner = null
+    if (ownerEmail) {
+      const { resolveCanonicalOwner } = await import('@/lib/server/owner-resolution')
+      owner = await resolveCanonicalOwner(ownerEmail)
     }
 
     const event = await prisma.event.findUnique({ where: { slug: eventSlug } })
@@ -41,15 +39,17 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Room not found' }, { status: 404 })
     }
 
-    // Verify ownership
-    const isOwner =
-      event.ownerId === owner.id ||
-      event.ownerEmail?.toLowerCase() === ownerEmail.toLowerCase()
-    if (!isOwner) {
-      return NextResponse.json(
-        { error: 'You do not own this room' },
-        { status: 403 }
-      )
+    // If authenticated, verify ownership
+    if (owner) {
+      const isOwner =
+        event.ownerId === owner.id ||
+        event.ownerEmail?.toLowerCase() === ownerEmail.toLowerCase()
+      if (!isOwner) {
+        return NextResponse.json(
+          { error: 'You do not own this room' },
+          { status: 403 }
+        )
+      }
     }
 
     if (event.originalDownloadUnlocked) {
@@ -79,18 +79,23 @@ export async function POST(request) {
     const stripe = getStripe()
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://snaprooms.app'
 
+    const metadata = {
+      intent: 'high_quality_download',
+      eventId: event.id,
+      roomSlug: event.slug,
+      source: owner ? 'lightbox_owner' : 'lightbox_guest',
+    }
+    if (owner) {
+      metadata.ownerId = owner.id
+      metadata.ownerEmail = owner.email
+    }
+
     const sessionConfig = {
       line_items: [{ price: priceId, quantity: 1 }],
       mode: 'payment',
-      success_url: `${baseUrl}/dashboard?upgrade=success&intent=high_quality_download`,
-      cancel_url: `${baseUrl}/dashboard?upgrade=cancelled&intent=high_quality_download`,
-      metadata: {
-        intent: 'high_quality_download',
-        eventId: event.id,
-        roomSlug: event.slug,
-        ownerId: owner.id,
-        ownerEmail: owner.email,
-      },
+      success_url: `${baseUrl}/event/${eventSlug}?unlock=success`,
+      cancel_url: `${baseUrl}/event/${eventSlug}?unlock=cancelled`,
+      metadata,
     }
 
     let session
@@ -125,8 +130,9 @@ export async function POST(request) {
         room_slug: event.slug,
         stripe_session_id: session.id,
         stripe_mode: 'payment',
+        source: metadata.source,
       },
-      { distinctId: owner.email }
+      { distinctId: owner?.email || session.customer_email || event.id }
     )
 
     return NextResponse.json({ url: session.url })

@@ -10,6 +10,13 @@ import {
   Lock,
   Check,
 } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import {
@@ -28,6 +35,8 @@ import {
   EVENT_BRANDED_PHOTO_DOWNLOADED,
   EVENT_GALLERY_DOWNLOAD_CLICKED,
   EVENT_GALLERY_DOWNLOAD_BLOCKED,
+  EVENT_ORIGINAL_QUALITY_PAYWALL_VIEWED,
+  EVENT_ORIGINAL_QUALITY_UNLOCK_CLICKED,
 } from '@/lib/analytics/events'
 
 const SWIPE_THRESHOLD = 50
@@ -97,6 +106,7 @@ const PhotoLightbox = ({
   const [isNavigating, setIsNavigating] = useState(false)
   const [downloaded, setDownloaded] = useState(false)
   const [unlockBusy, setUnlockBusy] = useState(false)
+  const [unlockModalOpen, setUnlockModalOpen] = useState(false)
 
   // Touch handling refs
   const touchStart = useRef({ x: 0, y: 0, time: 0 })
@@ -126,6 +136,17 @@ const PhotoLightbox = ({
       })
     }
   }, [open, isOwner, canDownloadOriginal, event?.slug, event?.id, event?.ownerPlan, event?.billingTier, access.effectivePlan])
+
+  useEffect(() => {
+    if (unlockModalOpen && event?.slug) {
+      trackEvent(EVENT_ORIGINAL_QUALITY_PAYWALL_VIEWED, {
+        room_slug: event.slug,
+        event_id: event.id,
+        source: 'lightbox',
+        actor_type: isOwner ? 'owner' : 'guest',
+      })
+    }
+  }, [unlockModalOpen, event?.slug, event?.id, isOwner])
 
   const handleClose = useCallback(() => {
     setIsClosing(true)
@@ -237,6 +258,16 @@ const PhotoLightbox = ({
       setUnlockBusy(false)
     }
   }, [event?.slug, event?.id, event?.ownerPlan, event?.billingTier, access.effectivePlan])
+
+  const handleGuestUnlockClick = useCallback(() => {
+    trackEvent(EVENT_ORIGINAL_QUALITY_UNLOCK_CLICKED, {
+      room_slug: event?.slug,
+      event_id: event?.id,
+      source: 'lightbox',
+      actor_type: 'guest',
+    })
+    handleUnlock()
+  }, [event?.slug, event?.id, handleUnlock])
 
   // Touch event handlers for swipe
   const onTouchStart = (e) => {
@@ -460,16 +491,19 @@ const PhotoLightbox = ({
                 </DropdownMenuItem>
               ) : (
                 <DropdownMenuItem
-                  className="cursor-default focus:bg-transparent"
-                  disabled
+                  className="cursor-pointer focus:bg-white/5 focus:text-foreground"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    setUnlockModalOpen(true)
+                  }}
                 >
                   <div className="flex flex-col py-1">
-                    <span className="text-sm font-medium text-muted-foreground">{t.originalQuality}</span>
+                    <span className="text-sm font-medium">{t.originalQualityLockedGuest}</span>
                     <span className="text-xs text-muted-foreground">
-                      {t.askOwnerToUnlock}
+                      {t.unlockOriginalForEvent}
                     </span>
                   </div>
-                  <Lock className="ml-auto h-4 w-4 text-muted-foreground shrink-0" />
+                  <Lock className="ml-auto h-4 w-4 text-primary shrink-0" />
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>
@@ -488,6 +522,41 @@ const PhotoLightbox = ({
           </Button>
         </div>
       </div>
+
+      {/* Guest unlock modal */}
+      <Dialog open={unlockModalOpen} onOpenChange={setUnlockModalOpen}>
+        <DialogContent className="border-border bg-surface text-foreground dark sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t.unlockOriginalTitle}</DialogTitle>
+            <DialogDescription>{t.unlockOriginalDesc}</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 pt-2">
+            <div className="rounded-lg bg-muted/50 px-4 py-3 text-center">
+              <span className="text-2xl font-bold text-foreground">€1,99</span>
+              <p className="mt-1 text-xs text-muted-foreground">{t.unlockOriginalForEvent}</p>
+            </div>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setUnlockModalOpen(false)}
+                className="w-full sm:w-auto"
+              >
+                {t.maybeLater}
+              </Button>
+              <Button
+                onClick={handleGuestUnlockClick}
+                disabled={unlockBusy}
+                className="w-full sm:w-auto"
+              >
+                {unlockBusy ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                {t.unlockOriginalCta}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Main image area */}
       <div
