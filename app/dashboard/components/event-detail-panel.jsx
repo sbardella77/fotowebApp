@@ -78,7 +78,10 @@ export function EventDetailPanel({
     ownerSubscriptionCanceledAt: subscriptionCanceledAt,
   })
 
-  const eventUpsells = resolveAllUpsells(state).filter((u) => u.feature !== 'room_limit')
+  const allEventUpsells = resolveAllUpsells(state)
+  const eventUpgradeFeatures = new Set(['pro_event_upgrade', 'wedding_pro_upgrade'])
+  const eventUpgradeUpsells = allEventUpsells.filter((u) => eventUpgradeFeatures.has(u.feature))
+  const otherUpsells = allEventUpsells.filter((u) => !eventUpgradeFeatures.has(u.feature) && u.feature !== 'room_limit')
 
   // Source of truth for the total event photo count (visible photos only).
   // photos.length may include hidden/moderated photos, so it must not be used for the main stats count.
@@ -170,17 +173,57 @@ export function EventDetailPanel({
           <EventMomentsManager event={event} t={t} />
         </div>
 
-        {/* Plan info */}
+        {/* Event-level upgrades */}
         <div className="mt-5 space-y-3 rounded-xl border border-border bg-raised p-4">
+          <p className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.eventUpgradeTitle ?? 'Event upgrades'}</p>
+          {state.accountPremium ? (
+            <div className="mt-2">
+              <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-accent-dark">
+                <Sparkles className="mr-1 h-3 w-3" />
+                {t.coveredByProfessional ?? 'Covered by Professional'}
+              </span>
+            </div>
+          ) : (
+            <>
+              {eventUpgradeUpsells.map((upsell) => (
+                <UpsellRow
+                  key={upsell.feature}
+                  upsell={upsell}
+                  t={t}
+                  onUpgrade={(plan, upsellType) => {
+                    if (plan === 'pro_event') onUpgradeProEvent?.(upsellType)
+                    if (plan === 'wedding_pro') onUpgradeWeddingPro?.(upsellType)
+                  }}
+                  checkoutBusy={checkoutBusy}
+                  source="dashboard_event_panel"
+                  eventSlug={event.slug}
+                  eventId={event.id}
+                  ownerPlan={plan}
+                  billingTier={event.billingTier}
+                  effectivePlan={state.effectivePlan}
+                />
+              ))}
+              {eventUpgradeUpsells.length === 0 && (
+                <div className="mt-2">
+                  <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-accent-dark">
+                    <Sparkles className="mr-1 h-3 w-3" />
+                    {event.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent}
+                  </span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Plan info */}
+        <div className="mt-3 space-y-3 rounded-xl border border-border bg-raised p-4">
           <p className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.planInfo ?? 'Plan'}</p>
-          {eventUpsells.map((upsell) => (
+          {otherUpsells.map((upsell) => (
             <UpsellRow
               key={upsell.feature}
               upsell={upsell}
               t={t}
               onUpgrade={(plan, upsellType) => {
-                if (plan === 'pro_event') onUpgradeProEvent?.(upsellType)
-                if (plan === 'wedding_pro') onUpgradeWeddingPro?.(upsellType)
                 if (plan === 'professional') onUpgradeProfessional?.(upsellType)
               }}
               checkoutBusy={checkoutBusy}
@@ -192,7 +235,7 @@ export function EventDetailPanel({
               effectivePlan={state.effectivePlan}
             />
           ))}
-          {eventUpsells.length === 0 && (
+          {otherUpsells.length === 0 && (
             <div className="mt-2">
               <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-accent-dark">
                 <Sparkles className="mr-1 h-3 w-3" />

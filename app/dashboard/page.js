@@ -921,6 +921,9 @@ export default function DashboardPage() {
       }
       loadPlan()
       loadEvents()
+      if (selectedSlug) {
+        loadEventDetail(selectedSlug)
+      }
       router.replace('/dashboard', { scroll: false })
     } else if (upgrade === 'cancelled') {
       const intent = params.get('intent')
