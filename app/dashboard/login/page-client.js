@@ -22,6 +22,24 @@ export default function LoginPageClient({ redirect = '/dashboard' }) {
   const [forgotBusy, setForgotBusy] = useState(false)
   const [forgotSent, setForgotSent] = useState(false)
 
+  const safeReadJson = async (response) => {
+    const text = await response.text()
+    if (!text) return {}
+    try {
+      return JSON.parse(text)
+    } catch {
+      return {}
+    }
+  }
+
+  const getLoginErrorMessage = (response, payload) => {
+    if (payload?.error) return payload.error
+    if (response.status === 401) return t.invalidCredentials || t.signInFailed
+    if (response.status === 429) return t.tooManyAttempts || t.somethingWentWrong
+    if (response.status >= 500 || response.status === 503) return t.loginTemporarilyUnavailable || t.somethingWentWrong
+    return t.signInFailed
+  }
+
   const login = async () => {
     setBusy(true)
     setMessage('')
@@ -31,12 +49,24 @@ export default function LoginPageClient({ redirect = '/dashboard' }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), password }),
       })
-      const payload = await response.json()
-      if (!response.ok) throw new Error(payload.error || t.signInFailed)
+
+      const payload = await safeReadJson(response)
+
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[login] response', { status: response.status, statusText: response.statusText, ok: response.ok })
+      }
+
+      if (!response.ok) {
+        throw new Error(getLoginErrorMessage(response, payload))
+      }
+
       identifyUser(payload.email)
       router.push(redirect)
     } catch (error) {
-      setMessage(error.message || t.signInFailed)
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[login] error', error.message)
+      }
+      setMessage(error.message || t.loginFailed || t.signInFailed)
     } finally {
       setBusy(false)
     }

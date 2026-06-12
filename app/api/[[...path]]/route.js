@@ -2276,19 +2276,34 @@ const loginOwnerWithPassword = async (request) => {
     return json({ error: 'Too many attempts. Please try again later.' }, 429)
   }
 
-  const { findOwnerByEmailWithPassword } = await import('@/lib/server/owner-resolution')
-  const owner = await findOwnerByEmailWithPassword(email, (candidate) =>
-    verifyPassword(password, candidate.passwordSalt, candidate.passwordHash)
-  )
-
-  if (!owner) {
-    return json({ error: 'Invalid email or password' }, 401)
+  const prisma = await getPrismaClient()
+  if (!prisma) {
+    console.error('[api/owner/login] Database unavailable')
+    return json({ error: 'Login temporarily unavailable. Please try again shortly.' }, 503)
   }
 
-  trackServerEvent(EVENT_OWNER_LOGGED_IN, { method: 'password_api' }, { distinctId: email })
+  try {
+    const { findOwnerByEmailWithPassword } = await import('@/lib/server/owner-resolution')
+    const owner = await findOwnerByEmailWithPassword(email, (candidate) =>
+      verifyPassword(password, candidate.passwordSalt, candidate.passwordHash)
+    )
 
-  const response = json({ authenticated: true, email })
-  return await setOwnerSessionCookie(response, email)
+    if (!owner) {
+      return json({ error: 'Invalid email or password' }, 401)
+    }
+
+    trackServerEvent(EVENT_OWNER_LOGGED_IN, { method: 'password_api' }, { distinctId: email })
+
+    const response = json({ authenticated: true, email })
+    return await setOwnerSessionCookie(response, email)
+  } catch (error) {
+    if (isDatabaseUnavailableError(error)) {
+      logDbError(error, '/api/owner/login', Date.now())
+      return json({ error: getSafeDbErrorMessage(error, '/api/owner/login') }, 503)
+    }
+    console.error('[api/owner/login] Unexpected error:', error)
+    return json({ error: 'Login temporarily unavailable. Please try again shortly.' }, 500)
+  }
 }
 
 const forgotOwnerPassword = async (request) => {
