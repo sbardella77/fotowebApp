@@ -19,6 +19,8 @@ model Owner {
   passwordHash            String?
   passwordSalt            String?
   plan                    String    @default("free")
+  extraEventCredits       Int       @default(0)
+  extraEventCheckoutSessionId String?
   stripeCustomerId        String?
   stripeSubscriptionId    String?
   stripeCheckoutSessionId String?

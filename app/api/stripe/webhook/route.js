@@ -125,6 +125,76 @@ export async function POST(request) {
       return NextResponse.json({ received: true })
     }
 
+    // ── Extra Event one-time credit ──
+    if (intent === 'extra_event') {
+      try {
+        // Idempotency: skip if this exact session already fulfilled
+        const existing = await prisma.owner.findFirst({
+          where: { id: ownerId, extraEventCheckoutSessionId: session.id },
+        })
+        if (existing) {
+          console.log(`[stripe/webhook] Owner ${existing.email} already fulfilled for extra event session ${session.id}`)
+          return NextResponse.json({ received: true })
+        }
+
+        const updatedOwner = await prisma.owner.update({
+          where: { id: ownerId },
+          data: {
+            extraEventCredits: { increment: 1 },
+            extraEventCheckoutSessionId: session.id,
+            updatedAt: new Date(),
+          },
+        })
+
+        trackServerEvent(
+          EVENT_CHECKOUT_COMPLETED,
+          {
+            owner_id: ownerId,
+            billing_intent: intent,
+            stripe_session_id: session.id,
+            stripe_customer_id: session.customer,
+            extra_event_credits: updatedOwner.extraEventCredits,
+          },
+          { distinctId: session.metadata?.ownerEmail || ownerId }
+        )
+
+        trackServerEvent(
+          EVENT_UPSELL_CONVERSION,
+          {
+            owner_id: ownerId,
+            billing_intent: intent,
+            upsell_type: session.metadata?.upsellType || 'extra_event',
+            source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
+            stripe_session_id: session.id,
+            stripe_customer_id: session.customer,
+            extra_event_credits: updatedOwner.extraEventCredits,
+          },
+          { distinctId: session.metadata?.ownerEmail || ownerId }
+        )
+
+        await prisma.upsellEvent.create({
+          data: {
+            eventName: EVENT_UPSELL_CONVERSION,
+            upsellType: session.metadata?.upsellType || 'extra_event',
+            source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
+            ctaPlan: 'extra_event',
+            ownerId: ownerId || null,
+          },
+        })
+
+        console.log(`[stripe/webhook] Owner ${updatedOwner.email} granted extra event credit. Total credits: ${updatedOwner.extraEventCredits}`)
+      } catch (dbError) {
+        if (dbError instanceof Prisma.PrismaClientKnownRequestError && dbError.code === 'P2025') {
+          console.warn('[stripe/webhook] Owner not found for extra event fulfillment, skipping:', ownerId)
+          return NextResponse.json({ received: true })
+        }
+        console.error('[stripe/webhook] Failed to grant extra event credit:', dbError)
+        return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
+      }
+
+      return NextResponse.json({ received: true })
+    }
+
     // ── Event-based one-time purchase ──
     if (intent === 'pro_event' || intent === 'wedding_pro') {
       if (!eventId) {

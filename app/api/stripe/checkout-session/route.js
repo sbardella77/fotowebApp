@@ -11,12 +11,14 @@ const PRICE_ENV_MAP = {
   pro_event: 'STRIPE_PRICE_ID_PRO_EVENT',
   wedding_pro: 'STRIPE_PRICE_ID_WEDDING_PRO',
   professional: 'STRIPE_PRICE_ID_PROFESSIONAL',
+  extra_event: 'STRIPE_PRICE_ID_EXTRA_EVENT',
 }
 
 const MODE_MAP = {
   pro_event: 'payment',
   wedding_pro: 'payment',
   professional: 'subscription',
+  extra_event: 'payment',
 }
 
 export async function POST(request) {
@@ -33,7 +35,7 @@ export async function POST(request) {
     const { intent, eventId, upsellType, upsellSource } = body
 
     // Validate intent
-    const validIntents = ['pro_event', 'wedding_pro', 'professional']
+    const validIntents = ['pro_event', 'wedding_pro', 'professional', 'extra_event']
     if (!intent || !validIntents.includes(intent)) {
       return NextResponse.json({ error: 'Invalid or missing purchase intent' }, { status: 400 })
     }
@@ -54,6 +56,11 @@ export async function POST(request) {
     // For event-based purchases, eventId is required
     if ((intent === 'pro_event' || intent === 'wedding_pro') && !eventId) {
       return NextResponse.json({ error: 'eventId is required for event-based purchases' }, { status: 400 })
+    }
+
+    // Extra Event is a one-time account-level credit, no eventId needed
+    if (intent === 'extra_event' && eventId) {
+      return NextResponse.json({ error: 'eventId must not be provided for extra_event purchases' }, { status: 400 })
     }
 
     // Prevent duplicate Professional subscription

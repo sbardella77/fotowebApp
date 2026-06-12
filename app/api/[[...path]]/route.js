@@ -253,6 +253,9 @@ const createEvent = async (request) => {
 
   const repository = await getGalleryRepository()
 
+  let event = null
+  let extraEventCreditConsumed = false
+
   // If owner email provided, enforce Free plan room limit before creating
   if (payload.ownerEmail) {
     const prisma = await getPrismaClient()
@@ -266,27 +269,58 @@ const createEvent = async (request) => {
             owner_id: owner.id,
             current_rooms: entitlement.current,
             limit: entitlement.max,
+            extra_event_credits: entitlement.extraEventCredits,
           },
           { distinctId: payload.ownerEmail }
         )
         return json({
-          error: `Free plan limit reached: you can only have ${entitlement.max} active room.`,
+          error: `Free plan limit reached: you can only have ${entitlement.max} active room plus any Extra Events purchased.`,
           limit: 'room_count',
           current: entitlement.current,
           max: entitlement.max,
+          extraEventCredits: entitlement.extraEventCredits,
           upgradePath: entitlement.upgradePath,
+          oneTimePath: entitlement.oneTimePath,
         }, 403)
+      }
+
+      // If the owner is past the included free limit, consume an Extra Event credit atomically
+      if (entitlement.current >= entitlement.max && entitlement.extraEventCredits > 0) {
+        try {
+          event = await prisma.$transaction(async (tx) => {
+            await tx.owner.update({
+              where: { id: owner.id, extraEventCredits: { gt: 0 } },
+              data: { extraEventCredits: { decrement: 1 } },
+            })
+            return await repository.createEvent({ name: payload.name, prismaClient: tx })
+          })
+          extraEventCreditConsumed = true
+        } catch (txError) {
+          console.error('[api/events] Extra event credit transaction failed:', txError)
+          return json({
+            error: 'Extra Event credit no longer available. Please try again or upgrade to Professional.',
+            limit: 'room_count',
+            current: entitlement.current,
+            max: entitlement.max,
+            extraEventCredits: 0,
+            upgradePath: 'professional',
+            oneTimePath: 'extra_event',
+          }, 403)
+        }
       }
     }
   }
 
-  const event = await repository.createEvent({ name: payload.name })
+  if (!event) {
+    event = await repository.createEvent({ name: payload.name })
+  }
 
   trackServerEvent(
     EVENT_ROOM_CREATED,
     {
       room_slug: event.slug,
       has_owner_email: Boolean(payload.ownerEmail),
+      extra_event_credit_used: extraEventCreditConsumed,
     },
     { distinctId: payload.ownerEmail || 'anonymous' }
   )

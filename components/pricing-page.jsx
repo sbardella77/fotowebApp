@@ -746,6 +746,15 @@ export function PricingPage({ fromDashboard, highlightPlan, eventSlug }) {
         </div>
       </section>
 
+      {/* Extra Event Note */}
+      <section className="relative pb-8 sm:pb-12">
+        <div className="container px-4">
+          <div className="mx-auto max-w-3xl reveal rounded-xl border border-dashed border-border bg-surface p-5 text-center">
+            <p className="text-sm text-muted-foreground">{t.pricingExtraEventNote}</p>
+          </div>
+        </div>
+      </section>
+
       {/* Final CTA */}
       <section className="relative pb-16 sm:pb-24">
         <div className="container px-4">
