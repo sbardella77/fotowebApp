@@ -69,6 +69,7 @@ import { EventDetailPanel } from './components/event-detail-panel'
 import { DashboardPhotoCard } from './components/dashboard-photo-card'
 import { resolveEffectiveEventAccessState } from '@/lib/event-access'
 import { resolveDashboardExperience } from '@/lib/dashboard-experience'
+import { EXTRA_EVENT_PRICE_LABEL } from '@/lib/pricing-config'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -118,6 +119,7 @@ export default function DashboardPage() {
   const [createName, setCreateName] = useState('')
   const [createBusy, setCreateBusy] = useState(false)
   const [createError, setCreateError] = useState(null)
+  const [extraEventCredits, setExtraEventCredits] = useState(0)
   const [privateAssets, setPrivateAssets] = useState([])
   const [privateDeliveryLoading, setPrivateDeliveryLoading] = useState(false)
   const [privateDeliveryUploading, setPrivateDeliveryUploading] = useState(false)
@@ -167,6 +169,14 @@ export default function DashboardPage() {
   }, [events])
 
   const experience = useMemo(() => resolveDashboardExperience({ plan, events, metrics }), [plan, events, metrics])
+
+  const canCreateRoom = useMemo(() => {
+    if (!authState.authenticated) return false
+    const roomCreationState = resolveEffectiveEventAccessState({ ownerPlan: plan })
+    if (roomCreationState.canCreateUnlimitedRooms) return true
+    const FREE_ROOM_LIMIT = 1
+    return events.length < FREE_ROOM_LIMIT + extraEventCredits
+  }, [authState.authenticated, plan, events.length, extraEventCredits])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -263,6 +273,7 @@ export default function DashboardPage() {
       const payload = await response.json()
       setPlan(payload.plan || 'free')
       setSubscriptionCanceledAt(payload.subscriptionCanceledAt || null)
+      setExtraEventCredits(payload.extraEventCredits || 0)
     } catch {
       // ignore plan load errors
     }
@@ -645,6 +656,7 @@ export default function DashboardPage() {
         setCreateName('')
         setCreateError(null)
         await loadEvents()
+        await loadPlan()
         setSelectedSlug(payload.event.slug)
         setMessage(t.roomCreated.replace('{name}', payload.event.name))
       } else {
@@ -1340,7 +1352,7 @@ export default function DashboardPage() {
                 <div className="space-y-2 rounded-lg border border-primary/10 bg-primary/5 p-3">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-semibold text-foreground">{t.extraEvent}</p>
-                    <p className="text-xs font-medium text-accent-dark">{t.extraEventOneTime}</p>
+                    <p className="text-xs font-medium text-accent-dark">{EXTRA_EVENT_PRICE_LABEL}</p>
                   </div>
                   <p className="text-xs text-muted-foreground">{t.oneMoreFreeEvent}</p>
                   <Button
@@ -1354,6 +1366,7 @@ export default function DashboardPage() {
                         ownerPlan: plan,
                         effectivePlan: plan,
                         ctaPlan: 'extra_event',
+                        priceLabel: EXTRA_EVENT_PRICE_LABEL,
                       })
                       startCheckout('extra_event', null, 'dashboard_create_room_limit', 'extra_event', 'create_room_modal')
                     }}
@@ -1397,9 +1410,18 @@ export default function DashboardPage() {
             <Button variant="ghost" onClick={() => setCreateDialogOpen(false)} className="text-muted-foreground hover:text-foreground">
               {tCommon.cancel}
             </Button>
-            <Button className="cta-primary" disabled={createBusy || !createName.trim() || createName.trim().length < 3} onClick={createRoom}>
-              {createBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.createRoomBtn}
-            </Button>
+            <div className="flex flex-col items-end gap-1">
+              <Button
+                className="cta-primary"
+                disabled={createBusy || !createName.trim() || createName.trim().length < 3 || !canCreateRoom}
+                onClick={createRoom}
+              >
+                {createBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.createRoomBtn}
+              </Button>
+              {createError?.limit === 'room_count' && !canCreateRoom && (
+                <p className="text-xs text-muted-foreground">{t.buyExtraEventOrStartProfessional}</p>
+              )}
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
