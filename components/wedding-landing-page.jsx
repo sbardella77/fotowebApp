@@ -29,6 +29,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { LanguageSwitcher } from '@/components/language-switcher'
+import { AuthAwareNavActions } from '@/components/auth-aware-nav-actions'
 import { InstallCta } from '@/components/install-cta'
 import {
   Accordion,
@@ -175,12 +176,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
               {nav.faq}
             </button>
             <LanguageSwitcher />
-            <Button size="sm" variant="ghost" asChild className="font-body">
-              <a href="/dashboard/login">{nav.signIn}</a>
-            </Button>
-            <Button size="sm" onClick={() => scrollToSection('create')} className="font-body">
-              {nav.createRoom}
-            </Button>
+            <AuthAwareNavActions t={nav} anonymousCreateHref="#create" />
           </div>
         </div>
       </nav>

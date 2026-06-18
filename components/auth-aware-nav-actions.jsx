@@ -1,72 +1,49 @@
 'use client'
 
-import { Button } from '@/components/ui/button'
-import { useTranslations } from '@/components/i18n-provider'
 import { useOwnerSession } from '@/lib/use-owner-session'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
+import { resolveCreateEventCtaState } from '@/lib/create-event-cta-state'
 
-/**
- * Auth-aware actions for the public marketing navigation.
- *
- * On mount, it checks the owner session and renders:
- *  - "Dashboard" button when the owner is authenticated
- *  - "Sign in" button(s) when anonymous or the check fails
- *
- * While the check is running, a neutral skeleton is shown to avoid
- * a Login → Dashboard flicker for authenticated users.
- */
-export function AuthAwareNavActions() {
-  const t = useTranslations('nav')
-  const { loading, authenticated } = useOwnerSession()
+export function AuthAwareNavActions({ t, anonymousCreateHref = '/' }) {
+  const { authenticated, loading } = useOwnerSession()
 
   if (loading) {
     return (
       <div className="flex items-center gap-2">
-        <div className="hidden h-9 w-20 animate-pulse rounded-md bg-muted sm:block" />
+        <Skeleton className="h-9 w-20" />
+        <Skeleton className="h-9 w-24" />
       </div>
     )
   }
 
-  if (authenticated) {
-    return (
-      <>
-        <Button
-          size="sm"
-          variant="outline"
-          asChild
-          className="h-9 px-2.5 text-sm font-semibold sm:hidden flex-shrink-0"
-        >
-          <a href="/dashboard">{t.dashboard}</a>
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          asChild
-          className="hidden sm:inline-flex text-muted-foreground hover:text-foreground flex-shrink-0"
-        >
-          <a href="/dashboard">{t.dashboard}</a>
-        </Button>
-      </>
-    )
-  }
+  const { href: authenticatedCreateHref } = resolveCreateEventCtaState({ authenticated: true })
+  const createEventHref = authenticated ? authenticatedCreateHref : anonymousCreateHref
 
   return (
-    <>
+    <div className="flex items-center gap-2">
+      {authenticated ? (
+        <Button variant="outline" size="sm" asChild>
+          <a href="/dashboard">{t.dashboard}</a>
+        </Button>
+      ) : (
+        <>
+          <Button variant="outline" size="sm" asChild className="sm:hidden">
+            <a href="/dashboard/login">{t.signIn}</a>
+          </Button>
+          <Button variant="ghost" size="sm" asChild className="hidden sm:inline-flex">
+            <a href="/dashboard/login">{t.signIn}</a>
+          </Button>
+        </>
+      )}
+
       <Button
         size="sm"
-        variant="outline"
         asChild
-        className="h-9 px-2.5 text-sm font-semibold sm:hidden flex-shrink-0"
+        className="cta-primary font-semibold flex-shrink-0 whitespace-nowrap"
       >
-        <a href="/dashboard/login">{t.signIn}</a>
+        <a href={createEventHref}>{t.createRoom}</a>
       </Button>
-      <Button
-        size="sm"
-        variant="ghost"
-        asChild
-        className="hidden sm:inline-flex text-muted-foreground hover:text-foreground flex-shrink-0"
-      >
-        <a href="/dashboard/login">{t.signIn}</a>
-      </Button>
-    </>
+    </div>
   )
 }

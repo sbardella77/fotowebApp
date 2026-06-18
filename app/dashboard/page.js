@@ -130,6 +130,7 @@ export default function DashboardPage() {
   const [sortBy, setSortBy] = useState('newest')
   const roomLimitTracked = useRef(false)
   const [createEventIntent, setCreateEventIntent] = useState(false)
+  const [dataLoaded, setDataLoaded] = useState({ plan: false, events: false })
 
   // Safe derived values used throughout the dashboard.
   // These are computed early so every useMemo/useEffect below can depend on
@@ -296,6 +297,8 @@ export default function DashboardPage() {
       setExtraEventCredits(typeof payload.extraEventCredits === 'number' ? payload.extraEventCredits : 0)
     } catch {
       // ignore plan load errors
+    } finally {
+      setDataLoaded((current) => ({ ...current, plan: true }))
     }
   }
 
@@ -348,6 +351,8 @@ export default function DashboardPage() {
         await loadSession()
       }
       setMessage(error.message)
+    } finally {
+      setDataLoaded((current) => ({ ...current, events: true }))
     }
   }
 
@@ -917,6 +922,11 @@ export default function DashboardPage() {
   }, [authState.authenticated])
 
   useEffect(() => {
+    if (authState.authenticated) return
+    setDataLoaded({ plan: false, events: false })
+  }, [authState.authenticated])
+
+  useEffect(() => {
     if (!authState.authenticated || !selectedSlug) return
     loadEventDetail(selectedSlug)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1025,15 +1035,17 @@ export default function DashboardPage() {
 
   // Auto-open the create-event modal when an authenticated owner lands on the
   // dashboard via the public "Create event" CTA (/dashboard?createEvent=1).
+  // Wait for plan and events so resolveCreateRoomState works with real data.
   useEffect(() => {
     if (!createEventIntent || authState.loading || !authState.authenticated) return
+    if (!dataLoaded.plan || !dataLoaded.events) return
     setCreateEventIntent(false)
     setCreateName('')
     setCreateError(null)
     setCreateDialogOpen(true)
     router.replace('/dashboard', { scroll: false })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [createEventIntent, authState.loading, authState.authenticated])
+  }, [createEventIntent, authState.loading, authState.authenticated, dataLoaded.plan, dataLoaded.events])
 
 
   return (

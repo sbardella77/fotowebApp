@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input'
 import { InstallCta } from '@/components/install-cta'
 import { useTranslations } from '@/components/i18n-provider'
 import { LanguageSwitcher } from '@/components/language-switcher'
+import { AuthAwareNavActions } from '@/components/auth-aware-nav-actions'
 import { trackEvent } from '@/lib/analytics/track-client'
 import { trackUpsellImpression, trackUpsellClick } from '@/lib/analytics/upsell'
 import { EVENT_HERO_CTA_CLICKED, EVENT_PRICING_LINK_CLICKED } from '@/lib/analytics/events'
@@ -131,31 +132,8 @@ export function LandingPage({
             >
               {tNav.pricing}
             </a>
-            <div className="flex items-center gap-2">
-              <LanguageSwitcher />
-            </div>
-            {/* Mobile Sign In — outline button for clear visibility & touch target */}
-            <Button
-              size="sm"
-              variant="outline"
-              asChild
-              className="h-9 px-2.5 text-sm font-semibold sm:hidden flex-shrink-0"
-            >
-              <a href="/dashboard/login">{tNav.signIn}</a>
-            </Button>
-
-            {/* Desktop Sign In — ghost button */}
-            <Button
-              size="sm"
-              variant="ghost"
-              asChild
-              className="hidden sm:inline-flex text-muted-foreground hover:text-foreground flex-shrink-0"
-            >
-              <a href="/dashboard/login">{tNav.signIn}</a>
-            </Button>
-            <Button size="sm" asChild className="cta-primary font-semibold flex-shrink-0">
-              <a href="/">{tNav.createRoom}</a>
-            </Button>
+            <LanguageSwitcher />
+            <AuthAwareNavActions t={tNav} />
           </div>
         </div>
       </nav>
