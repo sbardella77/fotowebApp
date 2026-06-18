@@ -6,6 +6,7 @@ import { LanguageSwitcher } from '@/components/language-switcher'
 import { useTranslations, useLocale } from '@/components/i18n-provider'
 import { trackEvent } from '@/lib/analytics/track-client'
 import { EVENT_PRICING_LINK_CLICKED } from '@/lib/analytics/events'
+import { AuthAwareNavActions } from '@/components/auth-aware-nav-actions'
 
 export function MarketingNav({ variant = 'fixed' }) {
   const t = useTranslations('nav')
@@ -55,25 +56,7 @@ export function MarketingNav({ variant = 'fixed' }) {
 
           <LanguageSwitcher />
 
-          {/* Mobile Sign In — outline button for clear visibility & touch target */}
-          <Button
-            size="sm"
-            variant="outline"
-            asChild
-            className="h-9 px-2.5 text-sm font-semibold sm:hidden flex-shrink-0"
-          >
-            <a href="/dashboard/login">{t.signIn}</a>
-          </Button>
-
-          {/* Desktop Sign In — ghost button */}
-          <Button
-            size="sm"
-            variant="ghost"
-            asChild
-            className="hidden sm:inline-flex text-muted-foreground hover:text-foreground flex-shrink-0"
-          >
-            <a href="/dashboard/login">{t.signIn}</a>
-          </Button>
+          <AuthAwareNavActions />
 
           <Button
             size="sm"
