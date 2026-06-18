@@ -17,7 +17,18 @@ export default function DashboardError({ error, reset }) {
     // in production without breaking the error boundary itself.
     if (process.env.NODE_ENV === 'development') {
       // eslint-disable-next-line no-console
-      console.error('[dashboard/error] caught error:', error)
+      console.error('[dashboard/error] caught error:', error?.message, error)
+      if (error?.stack) {
+        // eslint-disable-next-line no-console
+        console.error('[dashboard/error] stack:', error.stack)
+      }
+    } else if (typeof window !== 'undefined' && window.__next_log_error) {
+      // Optional production error reporter hook (no-op if absent).
+      try {
+        window.__next_log_error(error)
+      } catch {
+        // ignore reporter errors
+      }
     }
   }, [error])
 

@@ -89,10 +89,6 @@ export default function DashboardPage() {
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [busy, setBusy] = useState({ auth: false, detail: false, photoId: '' })
 
-  const handleCoverUpdated = (updatedEvent) => {
-    setSelectedEvent(updatedEvent)
-    setEvents((prev) => prev.map((e) => (e.slug === updatedEvent.slug ? updatedEvent : e)))
-  }
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(0)
   const [isEditingName, setIsEditingName] = useState(false)
@@ -134,6 +130,50 @@ export default function DashboardPage() {
   const [sortBy, setSortBy] = useState('newest')
   const roomLimitTracked = useRef(false)
 
+  // Safe derived values used throughout the dashboard.
+  // These are computed early so every useMemo/useEffect below can depend on
+  // them without hitting a temporal dead zone in production builds.
+  const safePlan = plan || 'free'
+  const safeEvents = Array.isArray(events) ? events : []
+  const safeExtraEventCredits = Number(extraEventCredits || 0)
+
+  const filteredEvents = useMemo(() => {
+    let result = [...safeEvents]
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      result = result.filter((e) => e.name.toLowerCase().includes(q) || e.slug.toLowerCase().includes(q))
+    }
+    if (sortBy === 'name') {
+      result.sort((a, b) => a.name.localeCompare(b.name))
+    } else if (sortBy === 'newest' && result[0]?.createdAt) {
+      result.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    }
+    return result
+  }, [safeEvents, searchQuery, sortBy])
+
+  const photos = useMemo(() => selectedEvent?.photos || [], [selectedEvent])
+
+  const metrics = useMemo(() => {
+    const eventsCount = safeEvents.length
+    const totalPhotos = safeEvents.reduce((sum, e) => sum + (e.photoCount || e.photos?.length || 0), 0)
+    return { eventsCount, totalPhotos }
+  }, [safeEvents])
+
+  const experience = useMemo(() => resolveDashboardExperience({ plan, events: safeEvents, metrics }), [plan, safeEvents, metrics])
+
+  const roomState = useMemo(() => {
+    if (!authState.authenticated) {
+      return resolveCreateRoomState({ ownerPlan: 'free', currentRooms: safeEvents.length, extraEventCredits: safeExtraEventCredits })
+    }
+    return resolveCreateRoomState({ ownerPlan: safePlan, currentRooms: safeEvents.length, extraEventCredits: safeExtraEventCredits })
+  }, [authState.authenticated, safePlan, safeEvents.length, safeExtraEventCredits])
+
+  const { isAccountUnlimited, hasExtraEventCredits, freeLimitReached, canCreateRoom, showCreateEventUpsell } = roomState
+
+  // Track upsell impression once when the free room limit is reached.
+  // This effect is intentionally placed AFTER roomState is computed and
+  // destructured to avoid a temporal dead zone (TDZ) ReferenceError in
+  // production builds, where the dependency array is evaluated during render.
   useEffect(() => {
     if (showCreateEventUpsell && !roomLimitTracked.current) {
       roomLimitTracked.current = true
@@ -147,39 +187,6 @@ export default function DashboardPage() {
       })
     }
   }, [showCreateEventUpsell, plan])
-
-  const filteredEvents = useMemo(() => {
-    let result = [...events]
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      result = result.filter((e) => e.name.toLowerCase().includes(q) || e.slug.toLowerCase().includes(q))
-    }
-    if (sortBy === 'name') {
-      result.sort((a, b) => a.name.localeCompare(b.name))
-    } else if (sortBy === 'newest' && result[0]?.createdAt) {
-      result.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-    }
-    return result
-  }, [events, searchQuery, sortBy])
-
-  const photos = useMemo(() => selectedEvent?.photos || [], [selectedEvent])
-
-  const metrics = useMemo(() => {
-    const eventsCount = events.length
-    const totalPhotos = events.reduce((sum, e) => sum + (e.photoCount || e.photos?.length || 0), 0)
-    return { eventsCount, totalPhotos }
-  }, [events])
-
-  const experience = useMemo(() => resolveDashboardExperience({ plan, events, metrics }), [plan, events, metrics])
-
-  const roomState = useMemo(() => {
-    if (!authState.authenticated) {
-      return resolveCreateRoomState({ ownerPlan: 'free', currentRooms: events.length, extraEventCredits })
-    }
-    return resolveCreateRoomState({ ownerPlan: plan, currentRooms: events.length, extraEventCredits })
-  }, [authState.authenticated, plan, events.length, extraEventCredits])
-
-  const { isAccountUnlimited, hasExtraEventCredits, freeLimitReached, canCreateRoom, showCreateEventUpsell } = roomState
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -215,6 +222,11 @@ export default function DashboardPage() {
       }
     }
   }, [])
+
+  const handleCoverUpdated = (updatedEvent) => {
+    setSelectedEvent(updatedEvent)
+    setEvents((prev) => prev.map((e) => (e.slug === updatedEvent.slug ? updatedEvent : e)))
+  }
 
   const loadSession = async () => {
     setAuthState((c) => ({ ...c, loading: true }))
