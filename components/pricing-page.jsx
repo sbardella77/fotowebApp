@@ -27,6 +27,8 @@ import { EVENT_LANDING_VIEW } from '@/lib/analytics/events'
 import { useTranslations } from '@/components/i18n-provider'
 import { SectionHeader } from '@/components/marketing/section-header'
 import { TrustStrip } from '@/components/marketing/trust-strip'
+import { AuthAwarePricingCta } from '@/components/auth-aware-pricing-cta'
+import { AuthAwareFinalCta } from '@/components/auth-aware-final-cta'
 
 function useScrollReveal() {
   useEffect(() => {
@@ -236,17 +238,6 @@ function translateTierDescription(t, tier) {
   }
 }
 
-function translateTierCta(t, tier) {
-  switch (tier.id) {
-    case 'free': return t.createFreeRoomBtn
-    case 'pro-event': return t.upgradeThisEvent
-    case 'wedding-pro': return t.createWeddingRoom
-    case 'professional': return t.startProfessional
-    case 'business': return t.contactSales
-    default: return tier.cta.label
-  }
-}
-
 function translateInterval(t, interval) {
   if (interval === '/ event') return t.perEvent
   if (interval === '/ month') return t.perMonth
@@ -290,7 +281,6 @@ function TierCard({ tier, index, delayOffset = 0, isHighlighted = false }) {
   const displayName = translateTierName(t, tier)
   const displayTarget = translateTierTarget(t, tier)
   const displayDescription = translateTierDescription(t, tier)
-  const displayCta = translateTierCta(t, tier)
   const displayInterval = translateInterval(t, tier.interval)
   const displayBadge = tier.badge === 'Most popular' ? t.mostPopular : tier.badge === 'Custom' ? t.businessPrice : tier.badge
 
@@ -343,23 +333,13 @@ function TierCard({ tier, index, delayOffset = 0, isHighlighted = false }) {
       <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{displayDescription}</p>
 
       <div className="mt-5">
-        {tier.cta.variant === 'primary' ? (
-          <Button className="w-full cta-primary" size="sm" asChild>
-            <a href={tier.cta.href}>
-              {displayCta}
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </a>
-          </Button>
-        ) : (
-          <Button
-            variant="outline"
-            className="w-full border-border bg-transparent hover:bg-surface"
-            size="sm"
-            asChild
-          >
-            <a href={tier.cta.href}>{displayCta}</a>
-          </Button>
-        )}
+        <AuthAwarePricingCta
+          intent={tier.id}
+          variant={tier.cta.variant === 'primary' ? 'primary' : 'outline'}
+          size="sm"
+          className="w-full"
+          showHelper
+        />
       </div>
 
       {tier.benefits.length > 0 && (
@@ -765,14 +745,7 @@ export function PricingPage({ fromDashboard, highlightPlan, eventSlug }) {
             <p className="mt-3 text-muted-foreground">
               {t.createFirstRoomCta}
             </p>
-            <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Button size="lg" className="cta-primary" asChild>
-                <a href="/">{t.createFreeRoom}</a>
-              </Button>
-              <Button size="lg" variant="outline" className="border-border bg-transparent hover:bg-surface" asChild>
-                <a href="/dashboard/login">{t.signInToUpgrade}</a>
-              </Button>
-            </div>
+            <AuthAwareFinalCta />
           </div>
         </div>
       </section>

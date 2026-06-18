@@ -1,15 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useTranslations } from '@/components/i18n-provider'
-import { safeReadJson } from '@/lib/nav-session-helpers'
+import { useOwnerSession } from '@/lib/use-owner-session'
 
 /**
  * Auth-aware actions for the public marketing navigation.
  *
- * On mount, it checks the owner session via a lightweight GET to
- * /api/owner/session and renders:
+ * On mount, it checks the owner session and renders:
  *  - "Dashboard" button when the owner is authenticated
  *  - "Sign in" button(s) when anonymous or the check fails
  *
@@ -18,32 +16,9 @@ import { safeReadJson } from '@/lib/nav-session-helpers'
  */
 export function AuthAwareNavActions() {
   const t = useTranslations('nav')
-  const [state, setState] = useState({ loading: true, authenticated: false })
+  const { loading, authenticated } = useOwnerSession()
 
-  useEffect(() => {
-    let cancelled = false
-
-    fetch('/api/owner/session', { cache: 'no-store' })
-      .then(safeReadJson)
-      .then((payload) => {
-        if (cancelled) return
-        setState({ loading: false, authenticated: !!payload?.authenticated })
-      })
-      .catch((error) => {
-        if (cancelled) return
-        if (process.env.NODE_ENV === 'development') {
-          // eslint-disable-next-line no-console
-          console.warn('[auth-aware-nav] session check failed:', error)
-        }
-        setState({ loading: false, authenticated: false })
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  if (state.loading) {
+  if (loading) {
     return (
       <div className="flex items-center gap-2">
         <div className="hidden h-9 w-20 animate-pulse rounded-md bg-muted sm:block" />
@@ -51,7 +26,7 @@ export function AuthAwareNavActions() {
     )
   }
 
-  if (state.authenticated) {
+  if (authenticated) {
     return (
       <>
         <Button
