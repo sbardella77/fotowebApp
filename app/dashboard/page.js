@@ -70,6 +70,7 @@ import { DashboardPhotoCard } from './components/dashboard-photo-card'
 import { resolveEffectiveEventAccessState } from '@/lib/event-access'
 import { resolveDashboardExperience } from '@/lib/dashboard-experience'
 import { EXTRA_EVENT_PRICE_LABEL } from '@/lib/pricing-config'
+import { resolveCreateRoomState } from '@/lib/create-room-state'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -133,7 +134,7 @@ export default function DashboardPage() {
   const roomLimitTracked = useRef(false)
 
   useEffect(() => {
-    if (createError?.limit === 'room_count' && !roomLimitTracked.current) {
+    if (showCreateEventUpsell && !roomLimitTracked.current) {
       roomLimitTracked.current = true
       trackUpsellImpression({
         upsellType: 'room_limit',
@@ -144,7 +145,7 @@ export default function DashboardPage() {
         ctaPlan: 'professional',
       })
     }
-  }, [createError?.limit, plan])
+  }, [showCreateEventUpsell, plan])
 
   const filteredEvents = useMemo(() => {
     let result = [...events]
@@ -170,13 +171,14 @@ export default function DashboardPage() {
 
   const experience = useMemo(() => resolveDashboardExperience({ plan, events, metrics }), [plan, events, metrics])
 
-  const canCreateRoom = useMemo(() => {
-    if (!authState.authenticated) return false
-    const roomCreationState = resolveEffectiveEventAccessState({ ownerPlan: plan })
-    if (roomCreationState.canCreateUnlimitedRooms) return true
-    const FREE_ROOM_LIMIT = 1
-    return events.length < FREE_ROOM_LIMIT + extraEventCredits
+  const roomState = useMemo(() => {
+    if (!authState.authenticated) {
+      return resolveCreateRoomState({ ownerPlan: 'free', currentRooms: events.length, extraEventCredits })
+    }
+    return resolveCreateRoomState({ ownerPlan: plan, currentRooms: events.length, extraEventCredits })
   }, [authState.authenticated, plan, events.length, extraEventCredits])
+
+  const { isAccountUnlimited, hasExtraEventCredits, freeLimitReached, canCreateRoom, showCreateEventUpsell } = roomState
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -921,6 +923,20 @@ export default function DashboardPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     const params = new URLSearchParams(window.location.search)
+
+    const extraEvent = params.get('extraEvent')
+    if (extraEvent === 'success') {
+      setMessage(t.extraEventPurchaseSuccess)
+      setCreateDialogOpen(false)
+      loadPlan()
+      loadEvents()
+      if (selectedSlug) {
+        loadEventDetail(selectedSlug)
+      }
+      router.replace('/dashboard', { scroll: false })
+      return
+    }
+
     const upgrade = params.get('upgrade')
     if (upgrade === 'success') {
       const intent = params.get('intent')
@@ -1339,68 +1355,74 @@ export default function DashboardPage() {
                 autoFocus
               />
             </div>
-            {createError?.limit === 'room_count' ? (
+            {showCreateEventUpsell || hasExtraEventCredits || createError?.limit === 'room_count' ? (
               <div className="space-y-3">
-                {createError.extraEventCredits > 0 && (
+                {hasExtraEventCredits && (
                   <p className="text-xs text-muted-foreground">
-                    {t.youHaveExtraEventsAvailable?.replace('{count}', createError.extraEventCredits) || `You have ${createError.extraEventCredits} additional event available.`}
+                    {t.youHaveExtraEventsAvailable?.replace('{count}', extraEventCredits) || `You have ${extraEventCredits} additional event available.`}
                   </p>
                 )}
-                <p className="text-sm text-muted-foreground">{t.freeLimitReachedDescWithExtra}</p>
 
-                {/* Extra Event option */}
-                <div className="space-y-2 rounded-lg border border-primary/10 bg-primary/5 p-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-foreground">{t.extraEvent}</p>
-                    <p className="text-xs font-medium text-accent-dark">{EXTRA_EVENT_PRICE_LABEL}</p>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{t.oneMoreFreeEvent}</p>
-                  <Button
-                    className="w-full cta-primary"
-                    disabled={checkoutBusy}
-                    onClick={() => {
-                      trackUpsellClick({
-                        upsellType: 'extra_event',
-                        source: 'create_room_modal',
-                        location: 'dashboard',
-                        ownerPlan: plan,
-                        effectivePlan: plan,
-                        ctaPlan: 'extra_event',
-                        priceLabel: EXTRA_EVENT_PRICE_LABEL,
-                      })
-                      startCheckout('extra_event', null, 'dashboard_create_room_limit', 'extra_event', 'create_room_modal')
-                    }}
-                  >
-                    {checkoutBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.buyExtraEvent}
-                  </Button>
-                </div>
+                {showCreateEventUpsell && (
+                  <>
+                    <p className="text-sm text-muted-foreground">{t.freeLimitReachedDescWithExtra}</p>
 
-                {/* Professional option */}
-                <div className="space-y-2 rounded-lg border border-border bg-raised p-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-foreground">{t.professional}</p>
-                    <p className="text-xs font-medium text-muted-foreground">{t.professionalPrice || '€79 / month'}</p>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{t.professionalUnlimitedEvents}</p>
-                  <Button
-                    variant="outline"
-                    className="w-full border-border bg-surface text-foreground hover:bg-elevated hover:text-foreground"
-                    disabled={checkoutBusy}
-                    onClick={() => {
-                      trackUpsellClick({
-                        upsellType: 'room_limit',
-                        source: 'create_room_modal',
-                        location: 'dashboard',
-                        ownerPlan: plan,
-                        effectivePlan: plan,
-                        ctaPlan: 'professional',
-                      })
-                      startCheckout('professional', null, 'dashboard_create_room_limit', 'room_limit', 'create_room_modal')
-                    }}
-                  >
-                    {checkoutBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.startProfessional}
-                  </Button>
-                </div>
+                    {/* Extra Event option */}
+                    <div className="space-y-2 rounded-lg border border-primary/10 bg-primary/5 p-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-foreground">{t.extraEvent}</p>
+                        <p className="text-xs font-medium text-accent-dark">{EXTRA_EVENT_PRICE_LABEL}</p>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{t.oneMoreFreeEvent}</p>
+                      <Button
+                        className="w-full cta-primary"
+                        disabled={checkoutBusy}
+                        onClick={() => {
+                          trackUpsellClick({
+                            upsellType: 'extra_event',
+                            source: 'create_room_modal',
+                            location: 'dashboard',
+                            ownerPlan: plan,
+                            effectivePlan: plan,
+                            ctaPlan: 'extra_event',
+                            priceLabel: EXTRA_EVENT_PRICE_LABEL,
+                            extraEventCredits,
+                          })
+                          startCheckout('extra_event', null, 'create_room_modal', 'extra_event', 'create_room_modal')
+                        }}
+                      >
+                        {checkoutBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.buyExtraEvent}
+                      </Button>
+                    </div>
+
+                    {/* Professional option */}
+                    <div className="space-y-2 rounded-lg border border-border bg-raised p-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-foreground">{t.professional}</p>
+                        <p className="text-xs font-medium text-muted-foreground">{t.professionalMonthlyPrice || '€79 / month'}</p>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{t.professionalUnlimitedEvents}</p>
+                      <Button
+                        variant="outline"
+                        className="w-full border-border bg-surface text-foreground hover:bg-elevated hover:text-foreground"
+                        disabled={checkoutBusy}
+                        onClick={() => {
+                          trackUpsellClick({
+                            upsellType: 'professional_account',
+                            source: 'create_room_modal',
+                            location: 'dashboard',
+                            ownerPlan: plan,
+                            effectivePlan: plan,
+                            ctaPlan: 'professional',
+                          })
+                          startCheckout('professional', null, 'create_room_modal', 'professional_account', 'create_room_modal')
+                        }}
+                      >
+                        {checkoutBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.startProfessional}
+                      </Button>
+                    </div>
+                  </>
+                )}
               </div>
             ) : createError?.error ? (
               <p className="text-sm text-destructive">{createError.error}</p>
@@ -1418,7 +1440,7 @@ export default function DashboardPage() {
               >
                 {createBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.createRoomBtn}
               </Button>
-              {createError?.limit === 'room_count' && !canCreateRoom && (
+              {showCreateEventUpsell && (
                 <p className="text-xs text-muted-foreground">{t.buyExtraEventOrStartProfessional}</p>
               )}
             </div>

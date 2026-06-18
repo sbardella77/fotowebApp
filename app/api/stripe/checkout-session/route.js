@@ -102,6 +102,13 @@ export async function POST(request) {
     const priceIdEnv = PRICE_ENV_MAP[intent]
     const priceId = process.env[priceIdEnv]
     if (!priceId) {
+      if (intent === 'extra_event') {
+        console.error('[checkout] Missing STRIPE_PRICE_ID_EXTRA_EVENT')
+        return NextResponse.json(
+          { error: 'Extra Event checkout is not configured.' },
+          { status: 500 }
+        )
+      }
       console.error(`${logPrefix} Missing env var: ${priceIdEnv} for intent=${intent}`)
       return NextResponse.json(
         { error: `Stripe price not configured for intent: ${intent}` },
@@ -148,8 +155,8 @@ export async function POST(request) {
       customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],
       mode,
-      success_url: `${baseUrl}/dashboard?upgrade=success&intent=${intent}`,
-      cancel_url: `${baseUrl}/dashboard?upgrade=cancelled&intent=${intent}`,
+      success_url: `${baseUrl}/dashboard?${intent === 'extra_event' ? 'extraEvent=success' : `upgrade=success&intent=${intent}`}`,
+      cancel_url: `${baseUrl}/dashboard?${intent === 'extra_event' ? 'extraEvent=cancelled' : `upgrade=cancelled&intent=${intent}`}`,
       metadata: {
         intent,
         ownerId: owner.id,
