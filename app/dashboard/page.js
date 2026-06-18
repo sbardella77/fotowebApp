@@ -129,6 +129,7 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState('newest')
   const roomLimitTracked = useRef(false)
+  const [createEventIntent, setCreateEventIntent] = useState(false)
 
   // Safe derived values used throughout the dashboard.
   // These are computed early so every useMemo/useEffect below can depend on
@@ -963,6 +964,11 @@ export default function DashboardPage() {
     if (typeof window === 'undefined') return
     const params = new URLSearchParams(window.location.search)
 
+    const createEvent = params.get('createEvent')
+    if (createEvent === '1') {
+      setCreateEventIntent(true)
+    }
+
     const extraEvent = params.get('extraEvent')
     if (extraEvent === 'success') {
       setMessage(t.extraEventPurchaseSuccess)
@@ -1016,6 +1022,18 @@ export default function DashboardPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Auto-open the create-event modal when an authenticated owner lands on the
+  // dashboard via the public "Create event" CTA (/dashboard?createEvent=1).
+  useEffect(() => {
+    if (!createEventIntent || authState.loading || !authState.authenticated) return
+    setCreateEventIntent(false)
+    setCreateName('')
+    setCreateError(null)
+    setCreateDialogOpen(true)
+    router.replace('/dashboard', { scroll: false })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [createEventIntent, authState.loading, authState.authenticated])
 
 
   return (

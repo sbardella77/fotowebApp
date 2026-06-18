@@ -1,12 +1,12 @@
 'use client'
 
 import { Camera } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { useTranslations, useLocale } from '@/components/i18n-provider'
 import { trackEvent } from '@/lib/analytics/track-client'
 import { EVENT_PRICING_LINK_CLICKED } from '@/lib/analytics/events'
 import { AuthAwareNavActions } from '@/components/auth-aware-nav-actions'
+import { AuthAwareCreateEventCta } from '@/components/auth-aware-create-event-cta'
 
 export function MarketingNav({ variant = 'fixed' }) {
   const t = useTranslations('nav')
@@ -58,13 +58,10 @@ export function MarketingNav({ variant = 'fixed' }) {
 
           <AuthAwareNavActions />
 
-          <Button
-            size="sm"
-            asChild
+          <AuthAwareCreateEventCta
+            t={t}
             className="cta-primary font-semibold flex-shrink-0 whitespace-nowrap"
-          >
-            <a href="/">{t.createRoom}</a>
-          </Button>
+          />
         </div>
       </div>
     </nav>
