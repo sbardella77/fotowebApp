@@ -27,6 +27,7 @@ import { resolveEffectiveEventAccessState } from '@/lib/event-access'
 import { resolveAllUpsells } from '@/lib/upsell-context'
 import { UpsellRow } from '@/components/upsell-row'
 import { resolveEventRetentionState } from '@/lib/event-retention'
+import { normalizeEvent } from '@/lib/dashboard-data-helpers'
 
 export function EventDetailPanel({
   event,
@@ -64,6 +65,7 @@ export function EventDetailPanel({
   tPrivate,
   tCommon,
 }) {
+  event = normalizeEvent(event)
   if (!event) return null
 
   const state = resolveEffectiveEventAccessState({

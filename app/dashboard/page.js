@@ -71,6 +71,7 @@ import { resolveEffectiveEventAccessState } from '@/lib/event-access'
 import { resolveDashboardExperience } from '@/lib/dashboard-experience'
 import { EXTRA_EVENT_PRICE_LABEL } from '@/lib/pricing-config'
 import { resolveCreateRoomState } from '@/lib/create-room-state'
+import { safeFetchJson } from '@/lib/dashboard-data-helpers'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -219,7 +220,11 @@ export default function DashboardPage() {
     setAuthState((c) => ({ ...c, loading: true }))
     try {
       const response = await fetch('/api/owner/session', { cache: 'no-store' })
-      const payload = await response.json()
+      const { ok, payload } = await safeFetchJson(response, { fallback: { authenticated: false } })
+      if (!ok) {
+        setAuthState({ loading: false, authenticated: false, email: '' })
+        return
+      }
       setAuthState({
         loading: false,
         authenticated: payload.authenticated,
@@ -242,8 +247,8 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), token: token.trim() }),
       })
-      const payload = await response.json()
-      if (!response.ok) {
+      const { ok, payload } = await safeFetchJson(response)
+      if (!ok) {
         throw new Error(payload.error || t.authFailed)
       }
       setAuthState({ loading: false, authenticated: true, email: payload.email })
@@ -271,11 +276,11 @@ export default function DashboardPage() {
   const loadPlan = async () => {
     try {
       const response = await fetch('/api/owner/plan', { cache: 'no-store' })
-      if (!response.ok) return
-      const payload = await response.json()
+      const { ok, payload } = await safeFetchJson(response, { fallback: { plan: 'free', extraEventCredits: 0 } })
+      if (!ok) return
       setPlan(payload.plan || 'free')
       setSubscriptionCanceledAt(payload.subscriptionCanceledAt || null)
-      setExtraEventCredits(payload.extraEventCredits || 0)
+      setExtraEventCredits(typeof payload.extraEventCredits === 'number' ? payload.extraEventCredits : 0)
     } catch {
       // ignore plan load errors
     }
@@ -315,16 +320,15 @@ export default function DashboardPage() {
   const loadEvents = async () => {
     try {
       const response = await fetch('/api/owner/events', { cache: 'no-store' })
-      let payload
-      try {
-        payload = await response.json()
-      } catch {
-        throw new Error(response.status >= 500 ? t.serverError : t.unableToLoadRooms)
+      const { ok, payload } = await safeFetchJson(response, { fallback: { events: [] } })
+      if (!ok) {
+        setEvents([])
+        throw new Error(payload.error || (response.status >= 500 ? t.serverError : t.unableToLoadRooms))
       }
-      if (!response.ok) throw new Error(payload.error || t.unableToLoadRooms)
-      setEvents(payload.events || [])
-      if (!selectedSlug && payload.events?.[0]?.slug) {
-        setSelectedSlug(payload.events[0].slug)
+      const nextEvents = Array.isArray(payload.events) ? payload.events : []
+      setEvents(nextEvents)
+      if (!selectedSlug && nextEvents[0]?.slug) {
+        setSelectedSlug(nextEvents[0].slug)
       }
     } catch (error) {
       if (error.message.includes('authentication')) {
@@ -339,13 +343,15 @@ export default function DashboardPage() {
     setBusy((c) => ({ ...c, detail: true }))
     try {
       const response = await fetch(`/api/owner/events/${slug}`, { cache: 'no-store' })
-      let payload
-      try {
-        payload = await response.json()
-      } catch {
-        throw new Error(response.status >= 500 ? t.serverError : t.unableToLoadRoomDetail)
+      const { ok, payload } = await safeFetchJson(response, { fallback: { event: null } })
+      if (!ok || !payload.event?.slug) {
+        // The previously selected event no longer exists or the response was malformed.
+        if (selectedSlug === slug) {
+          setSelectedSlug('')
+          setSelectedEvent(null)
+        }
+        throw new Error(payload.error || (response.status >= 500 ? t.serverError : t.unableToLoadRoomDetail))
       }
-      if (!response.ok) throw new Error(payload.error || t.unableToLoadRoomDetail)
       setSelectedEvent(payload.event)
       setSelectedSlug(payload.event.slug)
       setMessage(t.viewingRoom.replace('{name}', payload.event.name))
@@ -407,7 +413,10 @@ export default function DashboardPage() {
       })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || t.unableToRenameRoom)
-      setSelectedEvent(payload.event)
+      if (payload.event?.slug) {
+        setSelectedEvent(payload.event)
+        setSelectedSlug(payload.event.slug)
+      }
       setMessage(t.roomRenamed)
       await loadEvents()
       setIsEditingName(false)
@@ -445,8 +454,8 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), password }),
       })
-      const payload = await response.json()
-      if (!response.ok) {
+      const { ok, payload } = await safeFetchJson(response)
+      if (!ok) {
         throw new Error(payload.error || t.signInFailed)
       }
       setAuthState({ loading: false, authenticated: true, email: payload.email })
@@ -913,6 +922,24 @@ export default function DashboardPage() {
       }
     }
   }, [selectedEvent, plan])
+
+  // Keep the selected event in sync with the event list. If the selected slug
+  // disappears (e.g. event deleted or renamed on another device), clear it so
+  // the detail panel never renders stale data.
+  useEffect(() => {
+    if (!selectedSlug) {
+      if (selectedEvent) setSelectedEvent(null)
+      return
+    }
+    const match = events.find((e) => e.slug === selectedSlug)
+    if (!match) {
+      setSelectedSlug('')
+      setSelectedEvent(null)
+    } else if (selectedEvent && selectedEvent.slug !== match.slug) {
+      // The list was refreshed and the slug no longer matches the cached event.
+      setSelectedEvent(null)
+    }
+  }, [events, selectedSlug, selectedEvent])
 
   useEffect(() => {
     if (!authState.authenticated) return

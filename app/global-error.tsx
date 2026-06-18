@@ -20,7 +20,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
               Ein Fehler ist aufgetreten
             </h1>
             <p className="mt-3 text-sm font-light text-muted-foreground leading-relaxed">
-              Diese Galerie konnte leider nicht geladen werden. Bitte versuchen Sie es erneut.
+              Diese Seite konnte leider nicht geladen werden. Bitte versuchen Sie es erneut.
             </p>
           </div>
 
