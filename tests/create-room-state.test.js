@@ -8,6 +8,8 @@ describe('resolveCreateRoomState', () => {
     expect(state.showCreateEventUpsell).toBe(false)
     expect(state.hasExtraEventCredits).toBe(false)
     expect(state.isAccountUnlimited).toBe(false)
+    expect(state.withinFreeIncludedLimit).toBe(true)
+    expect(state.freeLimitReached).toBe(false)
   })
 
   it('free limit reached with 0 credits → cannot create, upsell shown', () => {
@@ -16,6 +18,7 @@ describe('resolveCreateRoomState', () => {
     expect(state.showCreateEventUpsell).toBe(true)
     expect(state.hasExtraEventCredits).toBe(false)
     expect(state.freeLimitReached).toBe(true)
+    expect(state.withinFreeIncludedLimit).toBe(false)
   })
 
   it('free limit reached with 1 credit → can create, no upsell', () => {
@@ -23,6 +26,29 @@ describe('resolveCreateRoomState', () => {
     expect(state.canCreateRoom).toBe(true)
     expect(state.showCreateEventUpsell).toBe(false)
     expect(state.hasExtraEventCredits).toBe(true)
+    expect(state.freeLimitReached).toBe(true)
+  })
+
+  it('free above limit with 1 credit → can create, no upsell (bug case)', () => {
+    const state = resolveCreateRoomState({ ownerPlan: 'free', currentRooms: 2, extraEventCredits: 1 })
+    expect(state.canCreateRoom).toBe(true)
+    expect(state.showCreateEventUpsell).toBe(false)
+    expect(state.hasExtraEventCredits).toBe(true)
+    expect(state.freeLimitReached).toBe(true)
+  })
+
+  it('free with multiple rooms and multiple credits → can create', () => {
+    const state = resolveCreateRoomState({ ownerPlan: 'free', currentRooms: 5, extraEventCredits: 2 })
+    expect(state.canCreateRoom).toBe(true)
+    expect(state.showCreateEventUpsell).toBe(false)
+    expect(state.hasExtraEventCredits).toBe(true)
+  })
+
+  it('free with multiple rooms and 0 credits → cannot create, upsell shown', () => {
+    const state = resolveCreateRoomState({ ownerPlan: 'free', currentRooms: 5, extraEventCredits: 0 })
+    expect(state.canCreateRoom).toBe(false)
+    expect(state.showCreateEventUpsell).toBe(true)
+    expect(state.hasExtraEventCredits).toBe(false)
   })
 
   it('professional → can create, no upsell', () => {

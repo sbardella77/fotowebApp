@@ -285,7 +285,7 @@ const createEvent = async (request) => {
       }
 
       // If the owner is past the included free limit, consume an Extra Free Event credit atomically
-      if (entitlement.current >= entitlement.max && entitlement.extraEventCredits > 0) {
+      if (entitlement.consumeExtraCredit) {
         try {
           event = await prisma.$transaction(async (tx) => {
             await tx.owner.update({
