@@ -32,7 +32,12 @@ export async function POST(request) {
     }
 
     const body = await request.json().catch(() => ({}))
-    const { intent, eventId, upsellType, upsellSource } = body
+    const { intent, eventId, upsellType, upsellSource, extraMetadata = {} } = body
+    const pendingEventName =
+      intent === 'extra_event' && extraMetadata?.pendingEventName
+        ? String(extraMetadata.pendingEventName).trim().slice(0, 120)
+        : null
+    const postPurchaseAction = pendingEventName ? 'create_event' : null
 
     // Validate intent
     const validIntents = ['pro_event', 'wedding_pro', 'professional', 'extra_event']
@@ -155,7 +160,10 @@ export async function POST(request) {
       customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],
       mode,
-      success_url: `${baseUrl}/dashboard?${intent === 'extra_event' ? 'extraEvent=success' : `upgrade=success&intent=${intent}`}`,
+      success_url:
+        intent === 'extra_event'
+          ? `${baseUrl}/dashboard?extraEvent=success${postPurchaseAction ? '&createPendingEvent=1&session_id={CHECKOUT_SESSION_ID}' : ''}`
+          : `${baseUrl}/dashboard?upgrade=success&intent=${intent}`,
       cancel_url: `${baseUrl}/dashboard?${intent === 'extra_event' ? 'extraEvent=cancelled' : `upgrade=cancelled&intent=${intent}`}`,
       metadata: {
         intent,
@@ -168,6 +176,7 @@ export async function POST(request) {
         upsellType: upsellType || intent,
         upsellSource: upsellSource || body.entryPoint || 'unknown',
         ...(intent === 'extra_event' ? { productType: 'extra_free_event', restrictions: 'free_plan' } : {}),
+        ...(postPurchaseAction ? { postPurchaseAction, pendingEventName } : {}),
       },
     }
 

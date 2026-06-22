@@ -72,6 +72,14 @@ import { resolveDashboardExperience } from '@/lib/dashboard-experience'
 import { EXTRA_EVENT_PRICE_LABEL } from '@/lib/pricing-config'
 import { resolveCreateRoomState } from '@/lib/create-room-state'
 import { safeFetchJson } from '@/lib/dashboard-data-helpers'
+import {
+  savePendingExtraFreeEvent,
+  loadPendingExtraFreeEvent,
+  clearPendingExtraFreeEvent,
+  markPendingExtraFreeEventCreating,
+  markPendingExtraFreeEventFailed,
+  isPendingExtraFreeEventCreating,
+} from '@/lib/extra-free-event-pending'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -131,6 +139,8 @@ export default function DashboardPage() {
   const roomLimitTracked = useRef(false)
   const [createEventIntent, setCreateEventIntent] = useState(false)
   const [dataLoaded, setDataLoaded] = useState({ plan: false, events: false })
+  const [autoCreateBusy, setAutoCreateBusy] = useState(false)
+  const autoCreateInProgressRef = useRef(false)
 
   // Safe derived values used throughout the dashboard.
   // These are computed early so every useMemo/useEffect below can depend on
@@ -302,7 +312,7 @@ export default function DashboardPage() {
     }
   }
 
-  const startCheckout = async (intent, eventId = null, entryPoint = 'dashboard', upsellType = null, upsellSource = null) => {
+  const startCheckout = async (intent, eventId = null, entryPoint = 'dashboard', upsellType = null, upsellSource = null, extraMetadata = {}) => {
     if (checkoutBusy) return
     setCheckoutBusy(true)
     try {
@@ -316,11 +326,12 @@ export default function DashboardPage() {
         event_id: eventId,
         upsell_type: upsellType,
         upsell_source: upsellSource,
+        ...extraMetadata,
       })
       const response = await fetch('/api/stripe/checkout-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ intent, eventId, entryPoint, upsellType, upsellSource }),
+        body: JSON.stringify({ intent, eventId, entryPoint, upsellType, upsellSource, extraMetadata }),
       })
       const payload = await response.json()
       if (!response.ok || !payload.url) {
@@ -654,12 +665,12 @@ export default function DashboardPage() {
     const trimmed = createName.trim()
     if (!trimmed || trimmed.length < 3) {
       setCreateError({ error: t.roomNameMinChars })
-      return
+      return false
     }
 
     if (!authState.email) {
       setCreateError({ error: t.mustBeSignedIn })
-      return
+      return false
     }
 
     trackEvent(EVENT_CREATE_ROOM_CLICKED, { page_type: 'dashboard', variant: 'modal' })
@@ -680,23 +691,67 @@ export default function DashboardPage() {
       }
       if (!response.ok) {
         setCreateError(payload)
-      } else if (payload.event?.slug) {
+        return false
+      }
+      if (payload.event?.slug) {
         setCreateDialogOpen(false)
         setCreateName('')
         setCreateError(null)
+        clearPendingExtraFreeEvent()
         await loadEvents()
         await loadPlan()
         setSelectedSlug(payload.event.slug)
         setMessage(t.roomCreated.replace('{name}', payload.event.name))
-      } else {
-        setCreateError({ error: t.roomCreatedUnexpected })
+        return true
       }
+      setCreateError({ error: t.roomCreatedUnexpected })
+      return false
     } catch (e) {
       console.error('[createRoom] Error:', e)
       setCreateError({ error: e.message || t.unableToCreateRoom })
+      return false
     } finally {
       setCreateBusy(false)
     }
+  }
+
+  const createRoomWithName = async (name) => {
+    setCreateName(name)
+    return createRoom()
+  }
+
+  const handleBuyExtraFreeEvent = () => {
+    const trimmed = createName.trim()
+    if (!trimmed || trimmed.length < 3) {
+      setCreateError({ error: t.enterEventNameFirst })
+      return
+    }
+
+    savePendingExtraFreeEvent(trimmed, { source: 'create_room_modal', status: 'pending_checkout' })
+
+    trackUpsellClick({
+      upsellType: 'extra_event',
+      productType: 'extra_free_event',
+      source: 'create_room_modal',
+      location: 'dashboard',
+      ownerPlan: plan,
+      effectivePlan: plan,
+      ctaPlan: 'extra_event',
+      postPurchaseAction: 'create_event',
+      hasPendingEventName: true,
+      priceLabel: EXTRA_EVENT_PRICE_LABEL,
+      restrictions: 'free_plan',
+      extraEventCredits,
+    })
+
+    startCheckout(
+      'extra_event',
+      null,
+      'create_room_modal',
+      'extra_event',
+      'create_room_modal',
+      { pendingEventName: trimmed, postPurchaseAction: 'create_event' }
+    )
   }
 
   const accountPremium = resolveEffectiveEventAccessState({ ownerPlan: plan }).isPremium
@@ -981,6 +1036,19 @@ export default function DashboardPage() {
 
     const extraEvent = params.get('extraEvent')
     if (extraEvent === 'success') {
+      const createPendingEvent = params.get('createPendingEvent')
+      if (createPendingEvent === '1') {
+        const sessionId = params.get('session_id') || ''
+        const pending = loadPendingExtraFreeEvent()
+        if (pending && pending.status !== 'creating') {
+          markPendingExtraFreeEventCreating({ checkoutSessionId: sessionId })
+        }
+        setAutoCreateBusy(true)
+        setCreateDialogOpen(true)
+        setMessage(t.purchasingExtraFreeEvent)
+        return
+      }
+
       setMessage(t.extraEventPurchaseSuccess)
       setCreateDialogOpen(false)
       loadPlan()
@@ -1032,6 +1100,82 @@ export default function DashboardPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Auto-create the pending Free event after a successful Extra Free Event
+  // purchase. Polls for the credit if the Stripe webhook is delayed.
+  const runAutoCreatePendingEvent = async () => {
+    if (autoCreateInProgressRef.current) return
+    autoCreateInProgressRef.current = true
+
+    try {
+      const pending = loadPendingExtraFreeEvent()
+      if (!pending) {
+        setAutoCreateBusy(false)
+        router.replace('/dashboard', { scroll: false })
+        return
+      }
+
+      if (!authState.authenticated || authState.loading || !dataLoaded.plan || !dataLoaded.events) {
+        // Not ready yet; the effect will retry when dependencies change.
+        autoCreateInProgressRef.current = false
+        return
+      }
+
+      const checkoutSessionId = pending.checkoutSessionId || ''
+
+      // Poll for the extra event credit (webhook may be delayed).
+      let attempts = 0
+      while (extraEventCredits <= 0 && attempts < 10) {
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+        // eslint-disable-next-line no-await-in-loop
+        await loadPlan()
+        attempts += 1
+      }
+
+      if (extraEventCredits <= 0) {
+        throw new Error('credits_not_available')
+      }
+
+      const success = await createRoomWithName(pending.eventName)
+      if (success) {
+        clearPendingExtraFreeEvent()
+        setAutoCreateBusy(false)
+        router.replace('/dashboard', { scroll: false })
+        trackEvent('extra_free_event_auto_create_success', {
+          checkoutSessionId,
+          source: 'stripe_return',
+        })
+      } else {
+        throw new Error('create_failed')
+      }
+    } catch (error) {
+      console.error('[autoCreatePendingEvent] failed:', error)
+      markPendingExtraFreeEventFailed()
+      setAutoCreateBusy(false)
+      setCreateDialogOpen(true)
+      setMessage(t.autoCreateEventFailed)
+      setCreateError({ error: t.autoCreateEventFailed })
+      router.replace('/dashboard', { scroll: false })
+      const pending = loadPendingExtraFreeEvent()
+      trackEvent('extra_free_event_auto_create_failed', {
+        checkoutSessionId: pending?.checkoutSessionId || '',
+        reason: error.message,
+        source: 'stripe_return',
+      })
+    } finally {
+      autoCreateInProgressRef.current = false
+    }
+  }
+
+  useEffect(() => {
+    if (!autoCreateBusy) return
+    if (autoCreateInProgressRef.current) return
+    if (authState.loading || !authState.authenticated) return
+    if (!dataLoaded.plan || !dataLoaded.events) return
+    runAutoCreatePendingEvent()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoCreateBusy, authState.loading, authState.authenticated, dataLoaded.plan, dataLoaded.events, extraEventCredits])
 
   // Auto-open the create-event modal when an authenticated owner lands on the
   // dashboard via the public "Create event" CTA (/dashboard?createEvent=1).
@@ -1411,6 +1555,12 @@ export default function DashboardPage() {
             <DialogDescription className="text-sm font-light text-muted-foreground">{t.createRoomDesc}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {autoCreateBusy && (
+              <div className="flex items-center gap-3 rounded-lg border border-primary/10 bg-primary/5 p-3 text-sm text-foreground">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                {t.purchasingExtraFreeEvent}
+              </div>
+            )}
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">{t.roomNameLabel}</label>
               <Input
@@ -1418,8 +1568,9 @@ export default function DashboardPage() {
                 onChange={(e) => setCreateName(e.target.value)}
                 placeholder={t.roomNamePlaceholder}
                 className="h-11 rounded-lg border-input bg-surface text-foreground placeholder:text-muted-foreground"
+                disabled={autoCreateBusy}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && createName.trim().length >= 3 && !createBusy) createRoom()
+                  if (e.key === 'Enter' && createName.trim().length >= 3 && !createBusy && !autoCreateBusy) createRoom()
                 }}
                 autoFocus
               />
@@ -1446,25 +1597,14 @@ export default function DashboardPage() {
                       <p className="text-xs text-muted-foreground/80">{t.extraFreeEventRestrictions}</p>
                       <Button
                         className="w-full cta-primary"
-                        disabled={checkoutBusy}
-                        onClick={() => {
-                          trackUpsellClick({
-                            upsellType: 'extra_event',
-                            productType: 'extra_free_event',
-                            source: 'create_room_modal',
-                            location: 'dashboard',
-                            ownerPlan: plan,
-                            effectivePlan: plan,
-                            ctaPlan: 'extra_event',
-                            priceLabel: EXTRA_EVENT_PRICE_LABEL,
-                            restrictions: 'free_plan',
-                            extraEventCredits,
-                          })
-                          startCheckout('extra_event', null, 'create_room_modal', 'extra_event', 'create_room_modal')
-                        }}
+                        disabled={checkoutBusy || autoCreateBusy}
+                        onClick={handleBuyExtraFreeEvent}
                       >
-                        {checkoutBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.buyExtraEvent}
+                        {checkoutBusy || autoCreateBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.buyExtraEvent}
                       </Button>
+                      <p className="text-xs text-muted-foreground/80">
+                        {t.enterEventNameFirst}
+                      </p>
                     </div>
 
                     {/* Professional option */}
@@ -1507,7 +1647,7 @@ export default function DashboardPage() {
             <div className="flex flex-col items-end gap-1">
               <Button
                 className="cta-primary"
-                disabled={createBusy || !createName.trim() || createName.trim().length < 3 || !canCreateRoom}
+                disabled={createBusy || autoCreateBusy || !createName.trim() || createName.trim().length < 3 || !canCreateRoom}
                 onClick={createRoom}
               >
                 {createBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.createRoomBtn}
