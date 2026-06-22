@@ -11,8 +11,8 @@ export function AuthAwareNavActions({ t, anonymousCreateHref = '/' }) {
   if (loading) {
     return (
       <div className="flex items-center gap-2">
-        <Skeleton className="h-9 w-20" />
-        <Skeleton className="h-9 w-24" />
+        <Skeleton className="h-9 w-20 rounded-lg" />
+        <Skeleton className="h-9 w-24 rounded-lg" />
       </div>
     )
   }
@@ -23,15 +23,30 @@ export function AuthAwareNavActions({ t, anonymousCreateHref = '/' }) {
   return (
     <div className="flex items-center gap-2">
       {authenticated ? (
-        <Button variant="outline" size="sm" asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          asChild
+          className="border-primary/40 text-foreground transition hover:border-primary/60 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
           <a href="/dashboard">{t.dashboard}</a>
         </Button>
       ) : (
         <>
-          <Button variant="outline" size="sm" asChild className="sm:hidden">
+          <Button
+            variant="outline"
+            size="sm"
+            asChild
+            className="border-primary/40 text-foreground transition hover:border-primary/60 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:hidden"
+          >
             <a href="/dashboard/login">{t.signIn}</a>
           </Button>
-          <Button variant="ghost" size="sm" asChild className="hidden sm:inline-flex">
+          <Button
+            variant="ghost"
+            size="sm"
+            asChild
+            className="hidden text-foreground transition hover:bg-primary/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:inline-flex"
+          >
             <a href="/dashboard/login">{t.signIn}</a>
           </Button>
         </>
@@ -40,7 +55,7 @@ export function AuthAwareNavActions({ t, anonymousCreateHref = '/' }) {
       <Button
         size="sm"
         asChild
-        className="cta-primary font-semibold flex-shrink-0 whitespace-nowrap"
+        className="cta-primary flex-shrink-0 whitespace-nowrap rounded-lg font-semibold"
       >
         <a href={createEventHref}>{t.createRoom}</a>
       </Button>

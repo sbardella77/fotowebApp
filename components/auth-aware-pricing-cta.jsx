@@ -1,6 +1,7 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useTranslations } from '@/components/i18n-provider'
 import { useOwnerSession } from '@/lib/use-owner-session'
 import { resolvePricingCtaState } from '@/lib/pricing-cta-state'
@@ -14,7 +15,7 @@ import { Loader2 } from 'lucide-react'
  *
  * Props:
  *  - intent: 'pro-event' | 'wedding-pro' | 'professional' | 'business' | 'free' | 'generic'
- *  - variant: 'primary' | 'outline'
+ *  - variant: 'primary' | 'outline' (kept for API compatibility; visual style is always brand CTA)
  *  - size: 'sm' | 'lg' | 'default'
  *  - className: additional classes
  *  - showHelper: when true and intent is event-level, shows a small hint
@@ -23,18 +24,20 @@ import { Loader2 } from 'lucide-react'
 export function AuthAwarePricingCta({
   intent = 'generic',
   variant = 'primary',
-  size = 'sm',
+  size = 'default',
   className = '',
   showHelper = false,
 }) {
   const t = useTranslations('pricing')
   const { loading, authenticated } = useOwnerSession()
 
+  const buttonSize = size === 'sm' ? 'default' : size === 'lg' ? 'lg' : 'default'
+
   if (loading) {
     return (
-      <Button variant={variant} size={size} className={className} disabled>
-        <Loader2 className="h-4 w-4 animate-spin" />
-      </Button>
+      <div className={showHelper ? 'space-y-2' : undefined}>
+        <Skeleton className="h-10 w-full rounded-xl" />
+      </div>
     )
   }
 
@@ -42,7 +45,12 @@ export function AuthAwarePricingCta({
 
   return (
     <div className={helperKey ? 'space-y-2' : undefined}>
-      <Button variant={variant} size={size} className={className} asChild>
+      <Button
+        variant="default"
+        size={buttonSize}
+        className={`w-full cta-primary rounded-xl border-transparent ${className}`}
+        asChild
+      >
         <a href={href}>{t[labelKey]}</a>
       </Button>
       {showHelper && helperKey && (

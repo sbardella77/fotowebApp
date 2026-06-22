@@ -1,9 +1,9 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useTranslations } from '@/components/i18n-provider'
 import { useOwnerSession } from '@/lib/use-owner-session'
-import { Loader2 } from 'lucide-react'
 
 /**
  * Auth-aware final CTA section for the pricing page.
@@ -18,9 +18,8 @@ export function AuthAwareFinalCta() {
   if (loading) {
     return (
       <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-        <Button size="lg" className="cta-primary" disabled>
-          <Loader2 className="h-4 w-4 animate-spin" />
-        </Button>
+        <Skeleton className="h-12 w-full rounded-xl sm:w-48" />
+        <Skeleton className="h-12 w-full rounded-xl sm:w-48" />
       </div>
     )
   }
@@ -28,7 +27,7 @@ export function AuthAwareFinalCta() {
   if (authenticated) {
     return (
       <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-        <Button size="lg" className="cta-primary" asChild>
+        <Button size="lg" className="cta-primary rounded-xl w-full sm:w-auto" asChild>
           <a href="/dashboard">{t.pricingGoToDashboard}</a>
         </Button>
       </div>
@@ -37,13 +36,13 @@ export function AuthAwareFinalCta() {
 
   return (
     <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-      <Button size="lg" className="cta-primary" asChild>
+      <Button size="lg" className="cta-primary rounded-xl w-full sm:w-auto" asChild>
         <a href="/">{t.createFreeRoom}</a>
       </Button>
       <Button
         size="lg"
         variant="outline"
-        className="border-border bg-transparent hover:bg-surface"
+        className="rounded-xl w-full sm:w-auto border-primary/40 bg-transparent px-8 text-base font-semibold text-foreground transition hover:border-primary/60 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         asChild
       >
         <a href="/dashboard/login">{t.signInToUpgrade}</a>

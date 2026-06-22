@@ -336,7 +336,7 @@ function TierCard({ tier, index, delayOffset = 0, isHighlighted = false }) {
         <AuthAwarePricingCta
           intent={tier.id}
           variant={tier.cta.variant === 'primary' ? 'primary' : 'outline'}
-          size="sm"
+          size="default"
           className="w-full"
           showHelper
         />
