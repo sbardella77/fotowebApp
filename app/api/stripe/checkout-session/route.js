@@ -2,8 +2,13 @@ import { NextResponse } from 'next/server'
 import { getStripe } from '@/lib/server/stripe'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { verifyOwnerSessionToken } from '@/lib/server/owner-auth'
+import { validatePendingEventName } from '@/lib/extra-free-event-pending'
 import { trackServerEvent } from '@/lib/analytics/track-server'
-import { EVENT_CHECKOUT_STARTED, EVENT_UPSELL_CHECKOUT_START } from '@/lib/analytics/events'
+import {
+  EVENT_CHECKOUT_STARTED,
+  EVENT_UPSELL_CHECKOUT_START,
+  EXTRA_FREE_EVENT_CHECKOUT_CREATED,
+} from '@/lib/analytics/events'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,11 +38,22 @@ export async function POST(request) {
 
     const body = await request.json().catch(() => ({}))
     const { intent, eventId, upsellType, upsellSource, extraMetadata = {} } = body
-    const pendingEventName =
+    const validation =
       intent === 'extra_event' && extraMetadata?.pendingEventName
-        ? String(extraMetadata.pendingEventName).trim().slice(0, 120)
-        : null
+        ? validatePendingEventName(extraMetadata.pendingEventName)
+        : { valid: false, value: '' }
+    const pendingEventName = validation.valid ? validation.value : null
     const postPurchaseAction = pendingEventName ? 'create_event' : null
+
+    // Validate pending event name for the "buy and create" flow
+    if (intent === 'extra_event' && extraMetadata?.postPurchaseAction === 'create_event') {
+      if (!validation.valid) {
+        return NextResponse.json(
+          { error: 'Event name must be between 3 and 120 characters' },
+          { status: 400 }
+        )
+      }
+    }
 
     // Validate intent
     const validIntents = ['pro_event', 'wedding_pro', 'professional', 'extra_event']
@@ -156,6 +172,17 @@ export async function POST(request) {
       }
     }
 
+    let extraFreeEventCheckout = null
+    if (intent === 'extra_event' && postPurchaseAction === 'create_event') {
+      extraFreeEventCheckout = await prisma.extraFreeEventCheckout.create({
+        data: {
+          ownerId: owner.id,
+          eventName: pendingEventName,
+          status: 'pending',
+        },
+      })
+    }
+
     const sessionConfig = {
       customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],
@@ -176,7 +203,9 @@ export async function POST(request) {
         upsellType: upsellType || intent,
         upsellSource: upsellSource || body.entryPoint || 'unknown',
         ...(intent === 'extra_event' ? { productType: 'extra_free_event', restrictions: 'free_plan' } : {}),
-        ...(postPurchaseAction ? { postPurchaseAction, pendingEventName } : {}),
+        ...(extraFreeEventCheckout
+          ? { postPurchaseAction, pendingCheckoutId: extraFreeEventCheckout.id }
+          : {}),
       },
     }
 
@@ -192,6 +221,16 @@ export async function POST(request) {
     let session
     try {
       session = await stripe.checkout.sessions.create(sessionConfig)
+
+      if (extraFreeEventCheckout) {
+        await prisma.extraFreeEventCheckout.update({
+          where: { id: extraFreeEventCheckout.id },
+          data: {
+            stripeCheckoutSessionId: session.id,
+            status: 'checkout_created',
+          },
+        })
+      }
     } catch (stripeError) {
       const rawMessage = stripeError?.message || 'Unknown Stripe error'
       console.error(`${logPrefix} Stripe checkout session creation failed:`, {
@@ -215,6 +254,20 @@ export async function POST(request) {
       return NextResponse.json(
         { error: rawMessage },
         { status: 502 }
+      )
+    }
+
+    if (extraFreeEventCheckout) {
+      trackServerEvent(
+        EXTRA_FREE_EVENT_CHECKOUT_CREATED,
+        {
+          owner_id: owner.id,
+          pending_checkout_id: extraFreeEventCheckout.id,
+          source: upsellSource || body.entryPoint || 'create_room_modal',
+          post_purchase_action: postPurchaseAction,
+          stripe_session_id: session.id,
+        },
+        { distinctId: owner.email }
       )
     }
 

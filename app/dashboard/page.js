@@ -141,6 +141,7 @@ export default function DashboardPage() {
   const [dataLoaded, setDataLoaded] = useState({ plan: false, events: false })
   const [autoCreateBusy, setAutoCreateBusy] = useState(false)
   const autoCreateInProgressRef = useRef(false)
+  const [pendingCheckoutReturn, setPendingCheckoutReturn] = useState(null)
 
   // Safe derived values used throughout the dashboard.
   // These are computed early so every useMemo/useEffect below can depend on
@@ -1039,10 +1040,7 @@ export default function DashboardPage() {
       const createPendingEvent = params.get('createPendingEvent')
       if (createPendingEvent === '1') {
         const sessionId = params.get('session_id') || ''
-        const pending = loadPendingExtraFreeEvent()
-        if (pending && pending.status !== 'creating') {
-          markPendingExtraFreeEventCreating({ checkoutSessionId: sessionId })
-        }
+        setPendingCheckoutReturn({ sessionId })
         setAutoCreateBusy(true)
         setCreateDialogOpen(true)
         setMessage(t.purchasingExtraFreeEvent)
@@ -1101,81 +1099,137 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Auto-create the pending Free event after a successful Extra Free Event
-  // purchase. Polls for the credit if the Stripe webhook is delayed.
-  const runAutoCreatePendingEvent = async () => {
+  // Handle the dashboard return after an Extra Free Event "buy and create"
+  // purchase. The actual event creation happens server-side in the Stripe
+  // webhook; this polls the pending-checkout status endpoint until the webhook
+  // has finished, then selects the new event or surfaces a manual fallback.
+  const runPendingCheckoutReturnFlow = async () => {
     if (autoCreateInProgressRef.current) return
     autoCreateInProgressRef.current = true
 
     try {
-      const pending = loadPendingExtraFreeEvent()
-      if (!pending) {
+      if (!pendingCheckoutReturn?.sessionId) {
         setAutoCreateBusy(false)
-        router.replace('/dashboard', { scroll: false })
         return
       }
 
-      if (!authState.authenticated || authState.loading || !dataLoaded.plan || !dataLoaded.events) {
-        // Not ready yet; the effect will retry when dependencies change.
+      if (!authState.authenticated || authState.loading) {
         autoCreateInProgressRef.current = false
         return
       }
 
-      const checkoutSessionId = pending.checkoutSessionId || ''
+      const sessionId = pendingCheckoutReturn.sessionId
 
-      // Poll for the extra event credit (webhook may be delayed).
-      let attempts = 0
-      while (extraEventCredits <= 0 && attempts < 10) {
-        // eslint-disable-next-line no-await-in-loop
-        await new Promise((resolve) => setTimeout(resolve, 1000))
-        // eslint-disable-next-line no-await-in-loop
-        await loadPlan()
-        attempts += 1
+      let status = null
+      let eventSlug = null
+      let eventName = ''
+      let fallbackCreditAvailable = false
+      let responseOk = false
+
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        try {
+          const res = await fetch(
+            `/api/owner/extra-free-event-checkout?session_id=${encodeURIComponent(sessionId)}`,
+            { cache: 'no-store' }
+          )
+          if (res.ok) {
+            const data = await res.json()
+            status = data.status
+            eventSlug = data.eventSlug || null
+            eventName = data.eventName || ''
+            fallbackCreditAvailable = data.fallbackCreditAvailable || false
+            responseOk = true
+            if (status === 'auto_created' || status === 'failed') {
+              break
+            }
+          }
+        } catch (fetchError) {
+          console.error('[pendingCheckoutReturn] status fetch failed:', fetchError)
+        }
+        if (attempt < 7) {
+          // eslint-disable-next-line no-await-in-loop
+          await new Promise((resolve) => setTimeout(resolve, 1000))
+        }
       }
 
-      if (extraEventCredits <= 0) {
-        throw new Error('credits_not_available')
-      }
-
-      const success = await createRoomWithName(pending.eventName)
-      if (success) {
-        clearPendingExtraFreeEvent()
+      if (!responseOk) {
+        // sessionStorage is only a UX fallback; DB is the source of truth.
+        const pending = loadPendingExtraFreeEvent()
+        if (pending?.eventName) {
+          setCreateName(pending.eventName)
+        }
         setAutoCreateBusy(false)
+        setMessage(t.autoCreateEventFailed)
+        setCreateError({ error: t.autoCreateEventFailed })
+        clearPendingExtraFreeEvent()
         router.replace('/dashboard', { scroll: false })
-        trackEvent('extra_free_event_auto_create_success', {
-          checkoutSessionId,
-          source: 'stripe_return',
+        trackEvent(EXTRA_FREE_EVENT_AUTO_CREATE_FAILED, {
+          checkoutSessionId: sessionId,
+          fallbackCreditGranted: false,
+          reason: 'status_endpoint_unreachable',
+          source: 'dashboard_return',
         })
-      } else {
-        throw new Error('create_failed')
+        return
       }
-    } catch (error) {
-      console.error('[autoCreatePendingEvent] failed:', error)
-      markPendingExtraFreeEventFailed()
+
+      if (status === 'auto_created' && eventSlug) {
+        await loadEvents()
+        setSelectedSlug(eventSlug)
+        setMessage(t.roomCreated.replace('{name}', eventName || t.createNewRoomDialog))
+        setAutoCreateBusy(false)
+        setCreateDialogOpen(false)
+        clearPendingExtraFreeEvent()
+        router.replace('/dashboard', { scroll: false })
+        trackEvent(EXTRA_FREE_EVENT_AUTO_CREATE_SUCCESS, {
+          checkoutSessionId: sessionId,
+          eventSlug,
+          source: 'dashboard_return',
+        })
+        return
+      }
+
+      if (status === 'failed') {
+        await loadPlan()
+        if (eventName) {
+          setCreateName(eventName)
+        }
+        setAutoCreateBusy(false)
+        setCreateDialogOpen(true)
+        setMessage(t.autoCreateEventFailed)
+        setCreateError({ error: t.autoCreateEventFailed })
+        clearPendingExtraFreeEvent()
+        router.replace('/dashboard', { scroll: false })
+        if (fallbackCreditAvailable) {
+          trackEvent(EXTRA_FREE_EVENT_AUTO_CREATE_FAILED, {
+            checkoutSessionId: sessionId,
+            fallbackCreditGranted: true,
+            reason: 'webhook_failed',
+            source: 'dashboard_return',
+          })
+        }
+        return
+      }
+
+      // Webhook hasn't processed yet; leave the modal open with the progress
+      // message. The server will finish creating the event independently.
+      setMessage(t.purchasingExtraFreeEvent)
       setAutoCreateBusy(false)
-      setCreateDialogOpen(true)
-      setMessage(t.autoCreateEventFailed)
+    } catch (error) {
+      console.error('[pendingCheckoutReturn] unexpected error:', error)
+      setAutoCreateBusy(false)
       setCreateError({ error: t.autoCreateEventFailed })
-      router.replace('/dashboard', { scroll: false })
-      const pending = loadPendingExtraFreeEvent()
-      trackEvent('extra_free_event_auto_create_failed', {
-        checkoutSessionId: pending?.checkoutSessionId || '',
-        reason: error.message,
-        source: 'stripe_return',
-      })
     } finally {
       autoCreateInProgressRef.current = false
     }
   }
 
   useEffect(() => {
-    if (!autoCreateBusy) return
+    if (!pendingCheckoutReturn) return
     if (autoCreateInProgressRef.current) return
     if (authState.loading || !authState.authenticated) return
-    if (!dataLoaded.plan || !dataLoaded.events) return
-    runAutoCreatePendingEvent()
+    runPendingCheckoutReturnFlow()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoCreateBusy, authState.loading, authState.authenticated, dataLoaded.plan, dataLoaded.events, extraEventCredits])
+  }, [pendingCheckoutReturn, authState.loading, authState.authenticated])
 
   // Auto-open the create-event modal when an authenticated owner lands on the
   // dashboard via the public "Create event" CTA (/dashboard?createEvent=1).

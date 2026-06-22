@@ -7,6 +7,7 @@ import {
   markPendingExtraFreeEventFailed,
   isPendingExtraFreeEventCreating,
   isPendingExtraFreeEventRecent,
+  validatePendingEventName,
 } from '@/lib/extra-free-event-pending'
 
 function createFakeStorage() {
@@ -83,5 +84,18 @@ describe('extra-free-event-pending', () => {
   it('detects recent pending event', () => {
     savePendingExtraFreeEvent('Test', { storage })
     expect(isPendingExtraFreeEventRecent(storage)).toBe(true)
+  })
+
+  it('validates pending event names', () => {
+    expect(validatePendingEventName('Valid Name')).toEqual({ valid: true, value: 'Valid Name' })
+    expect(validatePendingEventName('  Valid Name  ')).toEqual({ valid: true, value: 'Valid Name' })
+    expect(validatePendingEventName('ab')).toEqual({ valid: false, error: 'too_short', value: 'ab' })
+    expect(validatePendingEventName('')).toEqual({ valid: false, error: 'too_short', value: '' })
+    expect(validatePendingEventName('   ')).toEqual({ valid: false, error: 'too_short', value: '' })
+    expect(validatePendingEventName('a'.repeat(121))).toEqual({
+      valid: false,
+      error: 'too_long',
+      value: 'a'.repeat(120),
+    })
   })
 })

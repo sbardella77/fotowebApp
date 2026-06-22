@@ -29,6 +29,7 @@ model Owner {
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
   events                  Event[]
+  extraFreeEventCheckouts ExtraFreeEventCheckout[]
 
   @@index([email])
 }
@@ -164,6 +165,25 @@ model GalleryDownloadJob {
   @@index([createdAt])
   @@index([status, processedAt])
   @@index([status, updatedAt])
+}
+
+model ExtraFreeEventCheckout {
+  id                      String   @id @default(cuid())
+  ownerId                 String
+  owner                   Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  stripeCheckoutSessionId String?  @unique
+  eventName               String
+  status                  String   @default("pending")
+  createdEventId          String?
+  createdEventSlug        String?
+  errorMessage            String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  completedAt             DateTime?
+  autoCreatedAt           DateTime?
+
+  @@index([ownerId, status])
+  @@index([stripeCheckoutSessionId])
 }
 
 model UpsellEvent {
