@@ -274,7 +274,7 @@ const createEvent = async (request) => {
           { distinctId: payload.ownerEmail }
         )
         return json({
-          error: `Free plan limit reached: you can only have ${entitlement.max} active room plus any Extra Events purchased.`,
+          error: `Free plan limit reached: you can only have ${entitlement.max} active room plus any Extra Free Events purchased.`,
           limit: 'room_count',
           current: entitlement.current,
           max: entitlement.max,
@@ -284,7 +284,7 @@ const createEvent = async (request) => {
         }, 403)
       }
 
-      // If the owner is past the included free limit, consume an Extra Event credit atomically
+      // If the owner is past the included free limit, consume an Extra Free Event credit atomically
       if (entitlement.current >= entitlement.max && entitlement.extraEventCredits > 0) {
         try {
           event = await prisma.$transaction(async (tx) => {
@@ -298,7 +298,7 @@ const createEvent = async (request) => {
         } catch (txError) {
           console.error('[api/events] Extra event credit transaction failed:', txError)
           return json({
-            error: 'Extra Event credit no longer available. Please try again or upgrade to Professional.',
+            error: 'Extra Free Event credit no longer available. Please try again or upgrade to Professional.',
             limit: 'room_count',
             current: entitlement.current,
             max: entitlement.max,

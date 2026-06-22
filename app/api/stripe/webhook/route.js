@@ -125,7 +125,7 @@ export async function POST(request) {
       return NextResponse.json({ received: true })
     }
 
-    // ── Extra Event one-time credit ──
+    // ── Extra Free Event one-time credit ──
     if (intent === 'extra_event') {
       try {
         // Idempotency: skip if this exact session already fulfilled
@@ -133,7 +133,7 @@ export async function POST(request) {
           where: { id: ownerId, extraEventCheckoutSessionId: session.id },
         })
         if (existing) {
-          console.log(`[stripe/webhook] Owner ${existing.email} already fulfilled for extra event session ${session.id}`)
+          console.log(`[stripe/webhook] Owner ${existing.email} already fulfilled for extra free event session ${session.id}`)
           return NextResponse.json({ received: true })
         }
 
@@ -151,6 +151,8 @@ export async function POST(request) {
           {
             owner_id: ownerId,
             billing_intent: intent,
+            product_type: session.metadata?.productType || 'extra_free_event',
+            restrictions: session.metadata?.restrictions || 'free_plan',
             stripe_session_id: session.id,
             stripe_customer_id: session.customer,
             extra_event_credits: updatedOwner.extraEventCredits,
@@ -164,6 +166,8 @@ export async function POST(request) {
             owner_id: ownerId,
             billing_intent: intent,
             upsell_type: session.metadata?.upsellType || 'extra_event',
+            product_type: session.metadata?.productType || 'extra_free_event',
+            restrictions: session.metadata?.restrictions || 'free_plan',
             source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
             stripe_session_id: session.id,
             stripe_customer_id: session.customer,
@@ -182,13 +186,13 @@ export async function POST(request) {
           },
         })
 
-        console.log(`[stripe/webhook] Owner ${updatedOwner.email} granted extra event credit. Total credits: ${updatedOwner.extraEventCredits}`)
+        console.log(`[stripe/webhook] Owner ${updatedOwner.email} granted extra free event credit. Total credits: ${updatedOwner.extraEventCredits}`)
       } catch (dbError) {
         if (dbError instanceof Prisma.PrismaClientKnownRequestError && dbError.code === 'P2025') {
-          console.warn('[stripe/webhook] Owner not found for extra event fulfillment, skipping:', ownerId)
+          console.warn('[stripe/webhook] Owner not found for extra free event fulfillment, skipping:', ownerId)
           return NextResponse.json({ received: true })
         }
-        console.error('[stripe/webhook] Failed to grant extra event credit:', dbError)
+        console.error('[stripe/webhook] Failed to grant extra free event credit:', dbError)
         return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
       }
 

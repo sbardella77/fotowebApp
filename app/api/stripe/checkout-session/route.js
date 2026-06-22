@@ -58,7 +58,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'eventId is required for event-based purchases' }, { status: 400 })
     }
 
-    // Extra Event is a one-time account-level credit, no eventId needed
+    // Extra Free Event is a one-time account-level credit, no eventId needed
     if (intent === 'extra_event' && eventId) {
       return NextResponse.json({ error: 'eventId must not be provided for extra_event purchases' }, { status: 400 })
     }
@@ -105,7 +105,7 @@ export async function POST(request) {
       if (intent === 'extra_event') {
         console.error('[checkout] Missing STRIPE_PRICE_ID_EXTRA_EVENT')
         return NextResponse.json(
-          { error: 'Extra Event checkout is not configured.' },
+          { error: 'Extra Free Event checkout is not configured.' },
           { status: 500 }
         )
       }
@@ -167,6 +167,7 @@ export async function POST(request) {
         entryPoint: body.entryPoint || 'dashboard',
         upsellType: upsellType || intent,
         upsellSource: upsellSource || body.entryPoint || 'unknown',
+        ...(intent === 'extra_event' ? { productType: 'extra_free_event', restrictions: 'free_plan' } : {}),
       },
     }
 

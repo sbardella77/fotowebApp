@@ -1436,25 +1436,28 @@ export default function DashboardPage() {
                   <>
                     <p className="text-sm text-muted-foreground">{t.freeLimitReachedDescWithExtra}</p>
 
-                    {/* Extra Event option */}
+                    {/* Extra Free Event option */}
                     <div className="space-y-2 rounded-lg border border-primary/10 bg-primary/5 p-3">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-semibold text-foreground">{t.extraEvent}</p>
                         <p className="text-xs font-medium text-accent-dark">{EXTRA_EVENT_PRICE_LABEL}</p>
                       </div>
-                      <p className="text-xs text-muted-foreground">{t.oneMoreFreeEvent}</p>
+                      <p className="text-xs text-muted-foreground">{t.extraFreeEventDescription}</p>
+                      <p className="text-xs text-muted-foreground/80">{t.extraFreeEventRestrictions}</p>
                       <Button
                         className="w-full cta-primary"
                         disabled={checkoutBusy}
                         onClick={() => {
                           trackUpsellClick({
                             upsellType: 'extra_event',
+                            productType: 'extra_free_event',
                             source: 'create_room_modal',
                             location: 'dashboard',
                             ownerPlan: plan,
                             effectivePlan: plan,
                             ctaPlan: 'extra_event',
                             priceLabel: EXTRA_EVENT_PRICE_LABEL,
+                            restrictions: 'free_plan',
                             extraEventCredits,
                           })
                           startCheckout('extra_event', null, 'create_room_modal', 'extra_event', 'create_room_modal')
