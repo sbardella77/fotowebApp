@@ -24,14 +24,33 @@ model Owner {
   stripeCustomerId        String?
   stripeSubscriptionId    String?
   stripeCheckoutSessionId String?
+  sessionVersion          Int       @default(0)
+  passwordChangedAt       DateTime?
   planUpdatedAt           DateTime  @default(now())
   subscriptionCanceledAt  DateTime?
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
   events                  Event[]
   extraFreeEventCheckouts ExtraFreeEventCheckout[]
+  passwordResetTokens     OwnerPasswordResetToken[]
 
   @@index([email])
+}
+
+model OwnerPasswordResetToken {
+  id            String    @id @default(cuid())
+  ownerId       String
+  owner         Owner     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  tokenHash     String    @unique
+  purpose       String    @default("password_reset")
+  expiresAt     DateTime
+  usedAt        DateTime?
+  requestedIpHash String?
+  createdAt     DateTime  @default(now())
+
+  @@index([ownerId])
+  @@index([expiresAt])
+  @@index([usedAt])
 }
 
 model Event {

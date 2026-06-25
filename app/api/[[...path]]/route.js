@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 import { handleUpload } from '@vercel/blob/client'
 import {
   generateManagementToken,
@@ -47,10 +47,15 @@ import {
   createRecoveryToken,
   createSetupToken,
   getOwnerCookieOptions,
+  hashPasswordResetToken,
   verifyOwnerSessionToken,
   verifyRecoveryToken,
   verifySetupToken,
 } from '@/lib/server/owner-auth'
+import {
+  createPasswordResetTokenForOwner,
+  findValidPasswordResetToken,
+} from '@/lib/server/password-reset-tokens'
 import { getGalleryRepository, getGalleryRepositoryMode } from '@/lib/server/gallery-repository'
 import { createPasswordHash, verifyPassword, validatePassword } from '@/lib/server/owner-password'
 import { rateLimit, getClientIp, AUTH_LIMITS, RATE_LIMITS } from '@/lib/server/rate-limiter'
@@ -177,8 +182,8 @@ const requireOwner = async (request) => {
   return email ? email : json({ error: 'Owner authentication required' }, 401)
 }
 
-const setOwnerSessionCookie = async (response, email) => {
-  response.cookies.set(OWNER_COOKIE_NAME, await createOwnerSessionToken(email), getOwnerCookieOptions())
+const setOwnerSessionCookie = async (response, ownerOrEmail) => {
+  response.cookies.set(OWNER_COOKIE_NAME, await createOwnerSessionToken(ownerOrEmail), getOwnerCookieOptions())
   return response
 }
 
@@ -573,11 +578,20 @@ const sendOwnerNotificationEmail = async ({ email, event, owner, request }) => {
   const from = process.env.RESEND_FROM_EMAIL
   if (!from) return
 
+  const prisma = await getPrismaClient()
+  if (!prisma || !owner?.id) return
+
   const appUrl = getAppUrl(request)
+  const clientIp = getClientIp(request)
   try {
     const isFirstTime = !owner?.passwordHash
     if (isFirstTime) {
-      const setupToken = await createSetupToken(email)
+      const setupToken = await createPasswordResetTokenForOwner({
+        prisma,
+        ownerId: owner.id,
+        purpose: 'setup_password',
+        clientIp,
+      })
       const setupUrl = `${appUrl}/dashboard/setup-password?token=${encodeURIComponent(setupToken)}`
       await resend.emails.send({
         from,
@@ -2091,147 +2105,55 @@ const resendOwnerAccess = async (request) => {
     return json({ error: 'Email sender is not configured' }, 503)
   }
 
-  const repository = await getGalleryRepository()
-  const owner = await repository.getOwnerByEmail(email)
+  const prisma = await getPrismaClient()
+  if (!prisma) {
+    return json({ error: 'Service temporarily unavailable' }, 503)
+  }
+
+  const owner = await prisma.owner.findUnique({ where: { email } })
 
   // Always return generic success — do not reveal whether email exists
   if (owner) {
     const appUrl = getAppUrl(request)
-    if (owner.passwordHash) {
-      const recoveryToken = await createRecoveryToken(email)
-      const resetUrl = `${appUrl}/dashboard/reset-password?token=${encodeURIComponent(recoveryToken)}`
+    const purpose = owner.passwordHash ? 'password_reset' : 'setup_password'
+    try {
+      const rawToken = await createPasswordResetTokenForOwner({ prisma, ownerId: owner.id, purpose, clientIp })
+      const urlPath = purpose === 'password_reset' ? 'reset-password' : 'setup-password'
+      const actionUrl = `${appUrl}/dashboard/${urlPath}?token=${encodeURIComponent(rawToken)}`
+      const subject = purpose === 'password_reset' ? 'Reset your SnapRooms password' : 'Set your SnapRooms password'
+      const actionText = purpose === 'password_reset' ? 'Reset your password' : 'Set your password'
+      const expiryText = purpose === 'password_reset' ? '30 minutes' : '24 hours'
 
-      try {
-        await resend.emails.send({
-          from,
-          to: email,
-          reply_to: 'hello@snaprooms.app',
-          subject: `Reset your SnapRooms password`,
-          text: `Hi,
+      await resend.emails.send({
+        from,
+        to: email,
+        reply_to: 'hello@snaprooms.app',
+        subject,
+        text: `Hi,
 
-You requested to reset your SnapRooms password.
+You requested to ${purpose === 'password_reset' ? 'reset your SnapRooms password' : 'access your SnapRooms dashboard'}.
 
-Reset your password here:
-${resetUrl}
+${actionText} here:
+${actionUrl}
 
-This link expires in 30 minutes. If you didn't request it, you can safely ignore this email.
-
-– SnapRooms
-Every guest photo. One room.`,
-          html: `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reset your SnapRooms password</title>
-</head>
-<body style="margin:0;padding:0;background-color:#F7F7F8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-    <tr>
-      <td align="center" style="padding:40px 16px;">
-        <table role="presentation" width="100%" max-width="480" cellspacing="0" cellpadding="0" border="0" style="max-width:480px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;">
-          <tr>
-            <td style="padding:32px 32px 16px;text-align:center;">
-              <span style="font-size:22px;font-weight:700;color:#d4a853;letter-spacing:-0.5px;">SnapRooms</span>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:16px 32px 8px;text-align:center;">
-              <h1 style="margin:0;font-size:20px;font-weight:700;color:#111111;line-height:1.3;">Reset your password</h1>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:8px 32px 24px;text-align:center;">
-              <p style="margin:0;font-size:15px;color:#4b5563;line-height:1.6;">
-                Tap the button below to reset your password. This link is valid for 30 minutes.
-              </p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:0 32px 24px;text-align:center;">
-              <a href="${resetUrl}" style="display:inline-block;padding:14px 28px;background:#d4a853;color:#ffffff;text-decoration:none;border-radius:10px;font-weight:600;font-size:15px;">Reset password</a>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:0 32px 24px;text-align:center;">
-              <p style="margin:0;font-size:13px;color:#9ca3af;line-height:1.5;word-break:break-all;">
-                Or copy this link:<br>
-                <a href="${resetUrl}" style="color:#d4a853;text-decoration:underline;">${resetUrl}</a>
-              </p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:0 32px 32px;text-align:center;">
-              <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.5;">
-                If you didn't request this, you can safely ignore this email.
-              </p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:16px 32px;border-top:1px solid #e5e7eb;text-align:center;">
-              <p style="margin:0;font-size:12px;color:#9ca3af;">
-                SnapRooms — Every guest photo. One room.
-              </p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`,
-        })
-      } catch (emailError) {
-        console.error('[resendOwnerAccess] Failed to send reset email:', emailError)
-      }
-    } else {
-      // Owner exists but has no password yet — send setup link
-      const setupToken = await createSetupToken(email)
-      const setupUrl = `${appUrl}/dashboard/setup-password?token=${encodeURIComponent(setupToken)}`
-
-      try {
-        await resend.emails.send({
-          from,
-          to: email,
-          reply_to: 'hello@snaprooms.app',
-          subject: `Set your SnapRooms password`,
-          text: `Hi,
-
-You requested access to your SnapRooms dashboard.
-
-Set your password here:
-${setupUrl}
-
-This link expires in 24 hours.
+This link expires in ${expiryText}. If you didn't request this, you can safely ignore this email.
 
 – SnapRooms
 Every guest photo. One room.`,
-          html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
-  <div style="text-align:center;margin-bottom:24px;">
-    <span style="font-size:20px;font-weight:700;color:#d4a853;letter-spacing:-0.5px;">SnapRooms</span>
-  </div>
-  <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Set your password</h1>
-  <p style="margin:0 0 24px;text-align:center;color:#4b5563;">
-    You requested access to your SnapRooms dashboard. Create a password to manage all your rooms in one place.
-  </p>
-  <p style="margin:0 0 24px;text-align:center;">
-    <a href="${setupUrl}" style="display:inline-block;padding:12px 24px;background:#d4a853;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Set password</a>
-  </p>
-  <p style="margin:0 0 32px;text-align:center;color:#6b7280;font-size:14px;">
-    This link expires in 24 hours. If you didn't request this, you can safely ignore this email.
-  </p>
-  <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">
-    SnapRooms — Every guest photo. One room.
-  </p>
+        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
+  <div style="text-align:center;margin-bottom:24px;"><span style="font-size:20px;font-weight:700;color:#d4a853;letter-spacing:-0.5px;">SnapRooms</span></div>
+  <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">${subject}</h1>
+  <p style="margin:0 0 24px;text-align:center;color:#4b5563;">Tap the button below. This link is valid for ${expiryText}.</p>
+  <p style="margin:0 0 24px;text-align:center;"><a href="${actionUrl}" style="display:inline-block;padding:12px 24px;background:#d4a853;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">${actionText}</a></p>
+  <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">If you didn't request this, you can safely ignore this email.<br>SnapRooms — Every guest photo. One room.</p>
 </div>`,
-        })
-      } catch (emailError) {
-        console.error('[resendOwnerAccess] Failed to send setup email:', emailError)
-      }
+      })
+    } catch (emailError) {
+      console.error('[resendOwnerAccess] Failed to send email:', emailError)
     }
   }
 
-  return json({ success: true })
+  return json({ success: true, message: 'If an account with this email exists, a password reset link has been sent.' })
 }
 
 const recoverOwnerAccess = async (request) => {
@@ -2242,13 +2164,49 @@ const recoverOwnerAccess = async (request) => {
     return json({ error: 'Recovery token required' }, 400)
   }
 
-  const email = await verifyRecoveryToken(token)
+  const appUrl = getAppUrl(request)
+  const prisma = await getPrismaClient()
 
+  // New DB-backed tokens: if the token is valid, redirect straight to the
+  // password reset page.
+  if (prisma) {
+    const dbRecord = await findValidPasswordResetToken({
+      prisma,
+      rawToken: token,
+      purpose: 'password_reset',
+    })
+    if (dbRecord) {
+      const resetUrl = `${appUrl}/dashboard/reset-password?token=${encodeURIComponent(token)}`
+      return NextResponse.redirect(new URL(resetUrl, request.url))
+    }
+  }
+
+  // Legacy signed recovery tokens: verify, then mint a fresh single-use DB
+  // token so old links remain usable until they expire.
+  const email = await verifyRecoveryToken(token)
   if (!email) {
     return json({ error: 'Invalid or expired recovery link' }, 400)
   }
 
-  const appUrl = getAppUrl(request)
+  if (prisma) {
+    const owner = await prisma.owner.findUnique({ where: { email } })
+    if (owner) {
+      try {
+        const rawToken = await createPasswordResetTokenForOwner({
+          prisma,
+          ownerId: owner.id,
+          purpose: 'password_reset',
+          clientIp: getClientIp(request),
+        })
+        const resetUrl = `${appUrl}/dashboard/reset-password?token=${encodeURIComponent(rawToken)}`
+        return NextResponse.redirect(new URL(resetUrl, request.url))
+      } catch (error) {
+        console.error('[recoverOwnerAccess] Failed to mint DB token:', error)
+      }
+    }
+  }
+
+  // Fallback: redirect with the original token (will show an expired message).
   const resetUrl = `${appUrl}/dashboard/reset-password?token=${encodeURIComponent(token)}`
   return NextResponse.redirect(new URL(resetUrl, request.url))
 }
@@ -2295,7 +2253,7 @@ const loginOwnerWithPassword = async (request) => {
     trackServerEvent(EVENT_OWNER_LOGGED_IN, { method: 'password_api' }, { distinctId: email })
 
     const response = json({ authenticated: true, email })
-    return await setOwnerSessionCookie(response, email)
+    return await setOwnerSessionCookie(response, owner)
   } catch (error) {
     if (isDatabaseUnavailableError(error)) {
       logDbError(error, '/api/owner/login', Date.now())
@@ -2326,87 +2284,61 @@ const forgotOwnerPassword = async (request) => {
     return json({ error: 'Too many attempts. Please try again later.' }, 429)
   }
 
-  if (!resend) {
-    return json({ error: 'Email service is not configured' }, 503)
+  const prisma = await getPrismaClient()
+  if (!prisma) {
+    return json({ error: 'Service temporarily unavailable' }, 503)
   }
 
-  const from = process.env.RESEND_FROM_EMAIL
-  if (!from) {
-    return json({ error: 'Email sender is not configured' }, 503)
-  }
+  const owner = await prisma.owner.findUnique({ where: { email } })
 
-  const repository = await getGalleryRepository()
-  const owner = await repository.getOwnerByEmail(email)
+  if (owner && resend && process.env.RESEND_FROM_EMAIL) {
+    try {
+      const appUrl = getAppUrl(request)
+      const purpose = owner.passwordHash ? 'password_reset' : 'setup_password'
+      const rawToken = await createPasswordResetTokenForOwner({ prisma, ownerId: owner.id, purpose, clientIp })
 
-  if (owner) {
-    const appUrl = getAppUrl(request)
-    if (owner.passwordHash) {
-      const recoveryToken = await createRecoveryToken(email)
-      const resetUrl = `${appUrl}/dashboard/reset-password?token=${encodeURIComponent(recoveryToken)}`
+      const urlPath = purpose === 'password_reset' ? 'reset-password' : 'setup-password'
+      const actionUrl = `${appUrl}/dashboard/${urlPath}?token=${encodeURIComponent(rawToken)}`
+      const subject = purpose === 'password_reset' ? 'Reset your SnapRooms password' : 'Set your SnapRooms password'
+      const actionText = purpose === 'password_reset' ? 'Reset your password' : 'Set your password'
+      const expiryText = purpose === 'password_reset' ? '30 minutes' : '24 hours'
 
-      try {
-        await resend.emails.send({
-          from,
-          to: email,
-          reply_to: 'hello@snaprooms.app',
-          subject: `Reset your SnapRooms password`,
-          text: `Hi,
+      await resend.emails.send({
+        from: process.env.RESEND_FROM_EMAIL,
+        to: email,
+        reply_to: 'hello@snaprooms.app',
+        subject,
+        text: `Hi,
 
-You requested to reset your SnapRooms password.
+You requested to ${purpose === 'password_reset' ? 'reset your SnapRooms password' : 'set up your SnapRooms dashboard password'}.
 
-Reset your password here:
-${resetUrl}
+${actionText} here:
+${actionUrl}
 
-This link expires in 30 minutes.
+This link expires in ${expiryText}.
 
-– SnapRooms`,
-          html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
-  <div style="text-align:center;margin-bottom:24px;"><span style="font-size:20px;font-weight:700;color:#d4a853;letter-spacing:-0.5px;">SnapRooms</span></div>
-  <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Reset your password</h1>
-  <p style="margin:0 0 24px;text-align:center;color:#4b5563;">Tap the button below to reset your password. This link is valid for 30 minutes.</p>
-  <p style="margin:0 0 24px;text-align:center;"><a href="${resetUrl}" style="display:inline-block;padding:12px 24px;background:#d4a853;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Reset password</a></p>
-  <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">SnapRooms — Every guest photo. One room.</p>
-</div>`,
-        })
-      } catch (emailError) {
-        console.error('[forgotOwnerPassword] Failed to send reset email:', emailError)
-      }
-    } else {
-      // Owner exists but has no password yet — send setup link
-      const setupToken = await createSetupToken(email)
-      const setupUrl = `${appUrl}/dashboard/setup-password?token=${encodeURIComponent(setupToken)}`
-
-      try {
-        await resend.emails.send({
-          from,
-          to: email,
-          reply_to: 'hello@snaprooms.app',
-          subject: `Set your SnapRooms password`,
-          text: `Hi,
-
-You requested access to your SnapRooms dashboard.
-
-Set your password here:
-${setupUrl}
-
-This link expires in 24 hours.
+If you did not request this, you can safely ignore this email.
 
 – SnapRooms`,
-          html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
+        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
   <div style="text-align:center;margin-bottom:24px;"><span style="font-size:20px;font-weight:700;color:#d4a853;letter-spacing:-0.5px;">SnapRooms</span></div>
-  <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Set your password</h1>
-  <p style="margin:0 0 24px;text-align:center;color:#4b5563;">You requested access to your SnapRooms dashboard. Create a password to manage all your rooms in one place.</p>
-  <p style="margin:0 0 24px;text-align:center;"><a href="${setupUrl}" style="display:inline-block;padding:12px 24px;background:#d4a853;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Set password</a></p>
-  <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">SnapRooms — Every guest photo. One room.</p>
+  <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">${subject}</h1>
+  <p style="margin:0 0 24px;text-align:center;color:#4b5563;">Tap the button below. This link is valid for ${expiryText}.</p>
+  <p style="margin:0 0 24px;text-align:center;"><a href="${actionUrl}" style="display:inline-block;padding:12px 24px;background:#d4a853;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">${actionText}</a></p>
+  <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">If you did not request this, you can safely ignore this email.<br>SnapRooms — Every guest photo. One room.</p>
 </div>`,
-        })
-      } catch (emailError) {
-        console.error('[forgotOwnerPassword] Failed to send setup email:', emailError)
-      }
+      })
+    } catch (emailError) {
+      console.error('[forgotOwnerPassword] Failed to send email:', emailError)
     }
   }
 
-  return json({ success: true })
+  // Anti-enumeration: return the same generic message regardless of whether
+  // the email exists, the owner has a password, or email sending succeeded.
+  return json({
+    success: true,
+    message: 'If an account with this email exists, a password reset link has been sent.',
+  })
 }
 
 const resetOwnerPassword = async (request) => {
@@ -2426,7 +2358,8 @@ const resetOwnerPassword = async (request) => {
 
   const clientIp = getClientIp(request)
   const ipLimit = rateLimit(`reset:ip:${clientIp}`, AUTH_LIMITS.reset.ip.max, AUTH_LIMITS.reset.ip.window)
-  if (ipLimit.limited) {
+  const tokenLimit = rateLimit(`reset:token:${hashPasswordResetToken(token)}`, 10, 15 * 60 * 1000)
+  if (ipLimit.limited || tokenLimit.limited) {
     return json({ error: 'Too many attempts. Please try again later.' }, 429)
   }
 
@@ -2435,22 +2368,57 @@ const resetOwnerPassword = async (request) => {
     return json({ error: `Password requirements: ${errors.join(', ')}` }, 400)
   }
 
-  const email = await verifyRecoveryToken(token)
-  if (!email) {
-    return json({ error: 'Invalid or expired reset token' }, 400)
+  const prisma = await getPrismaClient()
+  if (!prisma) {
+    return json({ error: 'Service temporarily unavailable' }, 503)
   }
 
-  const repository = await getGalleryRepository()
-  const owner = await repository.getOwnerByEmail(email)
-  if (!owner) {
+  const tokenRecord = await findValidPasswordResetToken({ prisma, rawToken: token, purpose: 'password_reset' })
+  if (!tokenRecord) {
     return json({ error: 'Invalid or expired reset token' }, 400)
   }
 
   const { salt, hash } = createPasswordHash(password)
-  await repository.setOwnerPassword(owner.id, { passwordHash: hash, passwordSalt: salt })
+  try {
+    await prisma.$transaction(async (tx) => {
+      const fresh = await tx.ownerPasswordResetToken.findUnique({
+        where: { id: tokenRecord.id },
+      })
+      if (!fresh || fresh.usedAt || fresh.expiresAt <= new Date()) {
+        throw new Error('INVALID_TOKEN')
+      }
 
-  const response = json({ authenticated: true, email })
-  return await setOwnerSessionCookie(response, email)
+      await tx.owner.update({
+        where: { id: fresh.ownerId },
+        data: {
+          passwordHash: hash,
+          passwordSalt: salt,
+          passwordChangedAt: new Date(),
+          sessionVersion: { increment: 1 },
+        },
+      })
+
+      await tx.ownerPasswordResetToken.update({
+        where: { id: fresh.id },
+        data: { usedAt: new Date() },
+      })
+
+      await tx.ownerPasswordResetToken.updateMany({
+        where: { ownerId: fresh.ownerId, usedAt: null, id: { not: fresh.id } },
+        data: { usedAt: new Date() },
+      })
+    })
+  } catch (error) {
+    if (error.message === 'INVALID_TOKEN') {
+      return json({ error: 'Invalid or expired reset token' }, 400)
+    }
+    console.error('[resetOwnerPassword] Transaction failed:', error)
+    return json({ error: 'Unable to reset password. Please try again later.' }, 500)
+  }
+
+  const owner = await prisma.owner.findUnique({ where: { id: tokenRecord.ownerId } })
+  const response = json({ authenticated: true, email: owner.email })
+  return await setOwnerSessionCookie(response, owner)
 }
 
 const getSetupTokenStatus = async (request) => {
@@ -2461,12 +2429,17 @@ const getSetupTokenStatus = async (request) => {
     return json({ error: 'Setup token required' }, 400)
   }
 
-  const email = await verifySetupToken(token)
-  if (!email) {
+  const prisma = await getPrismaClient()
+  if (!prisma) {
+    return json({ error: 'Service temporarily unavailable' }, 503)
+  }
+
+  const tokenRecord = await findValidPasswordResetToken({ prisma, rawToken: token, purpose: 'setup_password' })
+  if (!tokenRecord || tokenRecord.owner.passwordHash) {
     return json({ error: 'Invalid or expired setup link' }, 400)
   }
 
-  return json({ valid: true, email })
+  return json({ valid: true, email: tokenRecord.owner.email })
 }
 
 const getResetTokenStatus = async (request) => {
@@ -2477,12 +2450,17 @@ const getResetTokenStatus = async (request) => {
     return json({ error: 'Reset token required' }, 400)
   }
 
-  const email = await verifyRecoveryToken(token)
-  if (!email) {
+  const prisma = await getPrismaClient()
+  if (!prisma) {
+    return json({ error: 'Service temporarily unavailable' }, 503)
+  }
+
+  const tokenRecord = await findValidPasswordResetToken(prisma, token, 'password_reset')
+  if (!tokenRecord) {
     return json({ error: 'Invalid or expired reset link' }, 400)
   }
 
-  return json({ valid: true, email })
+  return json({ valid: true, email: tokenRecord.owner.email })
 }
 
 const setupOwnerPassword = async (request) => {
@@ -2502,7 +2480,8 @@ const setupOwnerPassword = async (request) => {
 
   const clientIp = getClientIp(request)
   const ipLimit = rateLimit(`setup:ip:${clientIp}`, AUTH_LIMITS.setup.ip.max, AUTH_LIMITS.setup.ip.window)
-  if (ipLimit.limited) {
+  const tokenLimit = rateLimit(`setup:token:${hashPasswordResetToken(token)}`, 10, 15 * 60 * 1000)
+  if (ipLimit.limited || tokenLimit.limited) {
     trackServerEvent(EVENT_RATE_LIMIT_HIT, { reason: 'setup_password', client_ip: clientIp }, { distinctId: clientIp })
     return json({ error: 'Too many attempts. Please try again later.' }, 429)
   }
@@ -2512,28 +2491,59 @@ const setupOwnerPassword = async (request) => {
     return json({ error: `Password requirements: ${errors.join(', ')}` }, 400)
   }
 
-  const email = await verifySetupToken(token)
-  if (!email) {
+  const prisma = await getPrismaClient()
+  if (!prisma) {
+    return json({ error: 'Service temporarily unavailable' }, 503)
+  }
+
+  const tokenRecord = await findValidPasswordResetToken(prisma, token, 'setup_password')
+  if (!tokenRecord || tokenRecord.owner.passwordHash) {
     return json({ error: 'Invalid or expired setup token' }, 400)
   }
 
-  const repository = await getGalleryRepository()
-  let owner = await repository.getOwnerByEmail(email)
-  if (!owner) {
-    owner = await repository.getOrCreateOwnerByEmail(email)
-  }
-
-  if (owner.passwordHash) {
-    return json({ error: 'Password already set. Sign in or use forgot password.' }, 400)
-  }
-
   const { salt, hash } = createPasswordHash(password)
-  await repository.setOwnerPassword(owner.id, { passwordHash: hash, passwordSalt: salt })
+  try {
+    await prisma.$transaction(async (tx) => {
+      const fresh = await tx.ownerPasswordResetToken.findUnique({
+        where: { id: tokenRecord.id },
+      })
+      if (!fresh || fresh.usedAt || fresh.expiresAt <= new Date()) {
+        throw new Error('INVALID_TOKEN')
+      }
 
-  trackServerEvent(EVENT_OWNER_CLAIM_COMPLETED, {}, { distinctId: email })
+      await tx.owner.update({
+        where: { id: fresh.ownerId },
+        data: {
+          passwordHash: hash,
+          passwordSalt: salt,
+          passwordChangedAt: new Date(),
+          sessionVersion: { increment: 1 },
+        },
+      })
 
-  const response = json({ authenticated: true, email })
-  return await setOwnerSessionCookie(response, email)
+      await tx.ownerPasswordResetToken.update({
+        where: { id: fresh.id },
+        data: { usedAt: new Date() },
+      })
+
+      await tx.ownerPasswordResetToken.updateMany({
+        where: { ownerId: fresh.ownerId, usedAt: null, id: { not: fresh.id } },
+        data: { usedAt: new Date() },
+      })
+    })
+  } catch (error) {
+    if (error.message === 'INVALID_TOKEN') {
+      return json({ error: 'Invalid or expired setup token' }, 400)
+    }
+    console.error('[setupOwnerPassword] Transaction failed:', error)
+    return json({ error: 'Unable to set password. Please try again later.' }, 500)
+  }
+
+  const owner = await prisma.owner.findUnique({ where: { id: tokenRecord.ownerId } })
+  trackServerEvent(EVENT_OWNER_CLAIM_COMPLETED, {}, { distinctId: owner.email })
+
+  const response = json({ authenticated: true, email: owner.email })
+  return await setOwnerSessionCookie(response, owner)
 }
 
 const listOwnerEvents = async (request) => {
