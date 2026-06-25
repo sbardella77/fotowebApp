@@ -2284,31 +2284,32 @@ const forgotOwnerPassword = async (request) => {
     return json({ error: 'Too many attempts. Please try again later.' }, 429)
   }
 
-  const prisma = await getPrismaClient()
-  if (!prisma) {
-    return json({ error: 'Service temporarily unavailable' }, 503)
-  }
+  try {
+    const prisma = await getPrismaClient()
+    if (!prisma) {
+      return json({ error: 'Service temporarily unavailable' }, 503)
+    }
 
-  const owner = await prisma.owner.findUnique({ where: { email } })
+    const owner = await prisma.owner.findUnique({ where: { email } })
 
-  if (owner && resend && process.env.RESEND_FROM_EMAIL) {
-    try {
-      const appUrl = getAppUrl(request)
-      const purpose = owner.passwordHash ? 'password_reset' : 'setup_password'
-      const rawToken = await createPasswordResetTokenForOwner({ prisma, ownerId: owner.id, purpose, clientIp })
+    if (owner && resend && process.env.RESEND_FROM_EMAIL) {
+      try {
+        const appUrl = getAppUrl(request)
+        const purpose = owner.passwordHash ? 'password_reset' : 'setup_password'
+        const rawToken = await createPasswordResetTokenForOwner({ prisma, ownerId: owner.id, purpose, clientIp })
 
-      const urlPath = purpose === 'password_reset' ? 'reset-password' : 'setup-password'
-      const actionUrl = `${appUrl}/dashboard/${urlPath}?token=${encodeURIComponent(rawToken)}`
-      const subject = purpose === 'password_reset' ? 'Reset your SnapRooms password' : 'Set your SnapRooms password'
-      const actionText = purpose === 'password_reset' ? 'Reset your password' : 'Set your password'
-      const expiryText = purpose === 'password_reset' ? '30 minutes' : '24 hours'
+        const urlPath = purpose === 'password_reset' ? 'reset-password' : 'setup-password'
+        const actionUrl = `${appUrl}/dashboard/${urlPath}?token=${encodeURIComponent(rawToken)}`
+        const subject = purpose === 'password_reset' ? 'Reset your SnapRooms password' : 'Set your SnapRooms password'
+        const actionText = purpose === 'password_reset' ? 'Reset your password' : 'Set your password'
+        const expiryText = purpose === 'password_reset' ? '30 minutes' : '24 hours'
 
-      await resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL,
-        to: email,
-        reply_to: 'hello@snaprooms.app',
-        subject,
-        text: `Hi,
+        await resend.emails.send({
+          from: process.env.RESEND_FROM_EMAIL,
+          to: email,
+          reply_to: 'hello@snaprooms.app',
+          subject,
+          text: `Hi,
 
 You requested to ${purpose === 'password_reset' ? 'reset your SnapRooms password' : 'set up your SnapRooms dashboard password'}.
 
@@ -2320,17 +2321,21 @@ This link expires in ${expiryText}.
 If you did not request this, you can safely ignore this email.
 
 – SnapRooms`,
-        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
+          html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
   <div style="text-align:center;margin-bottom:24px;"><span style="font-size:20px;font-weight:700;color:#d4a853;letter-spacing:-0.5px;">SnapRooms</span></div>
   <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">${subject}</h1>
   <p style="margin:0 0 24px;text-align:center;color:#4b5563;">Tap the button below. This link is valid for ${expiryText}.</p>
   <p style="margin:0 0 24px;text-align:center;"><a href="${actionUrl}" style="display:inline-block;padding:12px 24px;background:#d4a853;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">${actionText}</a></p>
   <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">If you did not request this, you can safely ignore this email.<br>SnapRooms — Every guest photo. One room.</p>
 </div>`,
-      })
-    } catch (emailError) {
-      console.error('[forgotOwnerPassword] Failed to send email:', emailError)
+        })
+      } catch (emailError) {
+        console.error('[forgotOwnerPassword] Failed to send email:', emailError)
+      }
     }
+  } catch (error) {
+    console.error('[forgotOwnerPassword] Unexpected error:', error)
+    return json({ error: 'Password reset is temporarily unavailable. Please try again later.' }, 503)
   }
 
   // Anti-enumeration: return the same generic message regardless of whether
@@ -2455,7 +2460,7 @@ const getResetTokenStatus = async (request) => {
     return json({ error: 'Service temporarily unavailable' }, 503)
   }
 
-  const tokenRecord = await findValidPasswordResetToken(prisma, token, 'password_reset')
+  const tokenRecord = await findValidPasswordResetToken({ prisma, rawToken: token, purpose: 'password_reset' })
   if (!tokenRecord) {
     return json({ error: 'Invalid or expired reset link' }, 400)
   }
@@ -2496,7 +2501,7 @@ const setupOwnerPassword = async (request) => {
     return json({ error: 'Service temporarily unavailable' }, 503)
   }
 
-  const tokenRecord = await findValidPasswordResetToken(prisma, token, 'setup_password')
+  const tokenRecord = await findValidPasswordResetToken({ prisma, rawToken: token, purpose: 'setup_password' })
   if (!tokenRecord || tokenRecord.owner.passwordHash) {
     return json({ error: 'Invalid or expired setup token' }, 400)
   }
