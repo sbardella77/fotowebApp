@@ -50,6 +50,8 @@
         "@radix-ui/react-toggle-group": "^1.1.10",
         "@radix-ui/react-tooltip": "^1.2.7",
         "@tanstack/react-table": "^8.21.3",
+        "@upstash/ratelimit": "^2.0.8",
+        "@upstash/redis": "^1.38.0",
         "@vercel/blob": "^1.1.1",
         "archiver": "^8.0.0",
         "axios": "^1.10.0",

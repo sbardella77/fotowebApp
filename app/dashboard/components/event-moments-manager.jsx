@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Loader2, Plus, Trash2, Pencil, Check, X, Clock, Image } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { csrfFetch } from '@/lib/client/csrf-fetch'
 
 export function EventMomentsManager({ event, t }) {
   const [moments, setMoments] = useState(event?.moments || [])
@@ -59,7 +60,7 @@ export function EventMomentsManager({ event, t }) {
     setCreating(true)
     setError('')
     try {
-      const res = await fetch(`/api/owner/events/${event.slug}/moments`, {
+      const res = await csrfFetch(`/api/owner/events/${event.slug}/moments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
@@ -84,7 +85,7 @@ export function EventMomentsManager({ event, t }) {
     setBusyId(momentId)
     setError('')
     try {
-      const res = await fetch(`/api/owner/events/${event.slug}/moments/${momentId}`, {
+      const res = await csrfFetch(`/api/owner/events/${event.slug}/moments/${momentId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
@@ -109,7 +110,7 @@ export function EventMomentsManager({ event, t }) {
     setBusyId(momentId)
     setError('')
     try {
-      const res = await fetch(`/api/owner/events/${event.slug}/moments/${momentId}`, {
+      const res = await csrfFetch(`/api/owner/events/${event.slug}/moments/${momentId}`, {
         method: 'DELETE',
       })
       if (!res.ok) {

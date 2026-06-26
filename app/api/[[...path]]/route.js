@@ -58,7 +58,17 @@ import {
 } from '@/lib/server/password-reset-tokens'
 import { getGalleryRepository, getGalleryRepositoryMode } from '@/lib/server/gallery-repository'
 import { createPasswordHash, verifyPassword, validatePassword } from '@/lib/server/owner-password'
-import { rateLimit, getClientIp, AUTH_LIMITS, RATE_LIMITS } from '@/lib/server/rate-limiter'
+import {
+  checkRateLimit,
+  rateLimit,
+  getClientIp,
+  hashIdentifier,
+  AUTH_LIMITS,
+  RATE_LIMITS,
+  OWNER_WRITE_LIMITS,
+  ADMIN_LIMITS,
+} from '@/lib/server/rate-limiter'
+import { requireCsrfProtection, verifySameOriginRequest } from '@/lib/server/csrf'
 import { withTiming } from '@/lib/server/timing'
 import { readSessionMeta, getReceivedChunkSize } from '@/lib/server/storage/local-storage'
 import {
@@ -180,6 +190,73 @@ const getOwnerAuthentication = async (request) => {
 const requireOwner = async (request) => {
   const email = await getOwnerAuthentication(request)
   return email ? email : json({ error: 'Owner authentication required' }, 401)
+}
+
+const requireOwnerWithCsrf = async (request) => {
+  const email = await requireOwner(request)
+  if (typeof email !== 'string') return email
+  const csrf = requireCsrfProtection(request, email)
+  if (!csrf.success) {
+    return json({ error: csrf.message, code: csrf.code }, csrf.status)
+  }
+  return email
+}
+
+const requireAdminWithCsrf = async (request) => {
+  const adminError = await requireAdmin(request)
+  if (adminError) return adminError
+  const token = request.cookies.get(ADMIN_COOKIE_NAME)?.value
+  const adminSession = token ? await verifyAdminSessionToken(token) : null
+  const subject = `admin:${adminSession?.id || adminSession?.email || 'session'}`
+  const csrf = requireCsrfProtection(request, subject)
+  if (!csrf.success) {
+    return json({ error: csrf.message, code: csrf.code }, csrf.status)
+  }
+  return null
+}
+
+const buildRateLimitResponse = (result) => {
+  const response = json(
+    {
+      error: 'Too many requests. Please try again later.',
+      code: 'rate_limited',
+      retryAfter: result.retryAfter,
+    },
+    429
+  )
+  response.headers.set('Retry-After', String(result.retryAfter))
+  return response
+}
+
+const checkOwnerRateLimit = async (request, ownerEmail, limitConfig) => {
+  const clientIp = getClientIp(request)
+  if (limitConfig.owner && ownerEmail) {
+    const key = `owner:${hashIdentifier(ownerEmail)}`
+    const result = await checkRateLimit(key, limitConfig.owner.max, limitConfig.owner.window)
+    if (result.limited) return buildRateLimitResponse(result)
+  }
+  if (limitConfig.ip) {
+    const key = `ip:${hashIdentifier(clientIp)}`
+    const result = await checkRateLimit(key, limitConfig.ip.max, limitConfig.ip.window)
+    if (result.limited) return buildRateLimitResponse(result)
+  }
+  return null
+}
+
+const checkAdminRateLimit = async (request, limitConfig) => {
+  const clientIp = getClientIp(request)
+  if (limitConfig.ip) {
+    const key = `admin-ip:${hashIdentifier(clientIp)}`
+    const result = await checkRateLimit(key, limitConfig.ip.max, limitConfig.ip.window)
+    if (result.limited) return buildRateLimitResponse(result)
+  }
+  if (limitConfig.admin) {
+    const token = request.cookies.get(ADMIN_COOKIE_NAME)?.value
+    const key = `admin:${hashIdentifier(token || 'unknown')}`
+    const result = await checkRateLimit(key, limitConfig.admin.max, limitConfig.admin.window)
+    if (result.limited) return buildRateLimitResponse(result)
+  }
+  return null
 }
 
 const setOwnerSessionCookie = async (response, ownerOrEmail) => {
@@ -1138,8 +1215,11 @@ const listPrivateDeliveryAssets = async (request, slug) => {
 }
 
 const initPrivateDeliveryUpload = async (request, slug) => {
-  const ownerEmail = await requireOwner(request)
-  if (ownerEmail?.error) return ownerEmail
+  const ownerEmail = await requireOwnerWithCsrf(request)
+  if (typeof ownerEmail !== 'string') return ownerEmail
+
+  const rateLimitCheck = await checkOwnerRateLimit(request, ownerEmail, OWNER_WRITE_LIMITS.privateDeliveryWrite)
+  if (rateLimitCheck) return rateLimitCheck
 
   const payload = privateDeliveryUploadInitSchema.parse(await request.json())
   if (payload.eventSlug !== slug) {
@@ -1179,8 +1259,11 @@ const initPrivateDeliveryUpload = async (request, slug) => {
 }
 
 const issuePrivateDeliveryBlobToken = async (request, slug) => {
-  const ownerEmail = await requireOwner(request)
-  if (ownerEmail?.error) return ownerEmail
+  const ownerEmail = await requireOwnerWithCsrf(request)
+  if (typeof ownerEmail !== 'string') return ownerEmail
+
+  const rateLimitCheck = await checkOwnerRateLimit(request, ownerEmail, OWNER_WRITE_LIMITS.privateDeliveryWrite)
+  if (rateLimitCheck) return rateLimitCheck
 
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
@@ -1259,8 +1342,11 @@ const issuePrivateDeliveryBlobToken = async (request, slug) => {
 }
 
 const completePrivateDeliveryUpload = async (request, slug) => {
-  const ownerEmail = await requireOwner(request)
-  if (ownerEmail?.error) return ownerEmail
+  const ownerEmail = await requireOwnerWithCsrf(request)
+  if (typeof ownerEmail !== 'string') return ownerEmail
+
+  const rateLimitCheck = await checkOwnerRateLimit(request, ownerEmail, OWNER_WRITE_LIMITS.privateDeliveryWrite)
+  if (rateLimitCheck) return rateLimitCheck
 
   const body = await request.json()
   const repository = await getGalleryRepository()
@@ -1337,8 +1423,11 @@ const completePrivateDeliveryUpload = async (request, slug) => {
 }
 
 const deletePrivateDeliveryAsset = async (request, assetId) => {
-  const ownerEmail = await requireOwner(request)
-  if (ownerEmail?.error) return ownerEmail
+  const ownerEmail = await requireOwnerWithCsrf(request)
+  if (typeof ownerEmail !== 'string') return ownerEmail
+
+  const rateLimitCheck = await checkOwnerRateLimit(request, ownerEmail, OWNER_WRITE_LIMITS.privateDeliveryWrite)
+  if (rateLimitCheck) return rateLimitCheck
 
   const repository = await getGalleryRepository()
   const prisma = await getPrismaClient()
@@ -1381,8 +1470,11 @@ const deletePrivateDeliveryAsset = async (request, assetId) => {
 }
 
 const createPhotographerUploadLink = async (request, slug) => {
-  const ownerEmail = await requireOwner(request)
-  if (ownerEmail?.error) return ownerEmail
+  const ownerEmail = await requireOwnerWithCsrf(request)
+  if (typeof ownerEmail !== 'string') return ownerEmail
+
+  const rateLimitCheck = await checkOwnerRateLimit(request, ownerEmail, OWNER_WRITE_LIMITS.photographerLinkWrite)
+  if (rateLimitCheck) return rateLimitCheck
 
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
@@ -1414,8 +1506,11 @@ const createPhotographerUploadLink = async (request, slug) => {
 }
 
 const deletePhotographerUploadLink = async (request, slug) => {
-  const ownerEmail = await requireOwner(request)
-  if (ownerEmail?.error) return ownerEmail
+  const ownerEmail = await requireOwnerWithCsrf(request)
+  if (typeof ownerEmail !== 'string') return ownerEmail
+
+  const rateLimitCheck = await checkOwnerRateLimit(request, ownerEmail, OWNER_WRITE_LIMITS.photographerLinkWrite)
+  if (rateLimitCheck) return rateLimitCheck
 
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
@@ -1435,10 +1530,13 @@ const deletePhotographerUploadLink = async (request, slug) => {
 }
 
 const uploadEventCover = withTiming('uploadEventCover', async (request, slug) => {
-  const ownerEmail = await requireOwner(request)
+  const ownerEmail = await requireOwnerWithCsrf(request)
   if (typeof ownerEmail !== 'string') {
     return ownerEmail
   }
+
+  const rateLimitCheck = await checkOwnerRateLimit(request, ownerEmail, OWNER_WRITE_LIMITS.coverUpload)
+  if (rateLimitCheck) return rateLimitCheck
 
   const clientIp = getClientIp(request)
   const ipLimit = rateLimit(`cover-upload:ip:${clientIp}`, RATE_LIMITS.coverUpload.ip.max, RATE_LIMITS.coverUpload.ip.window)
@@ -1514,10 +1612,13 @@ const uploadEventCover = withTiming('uploadEventCover', async (request, slug) =>
 })
 
 const deleteEventCover = async (request, slug) => {
-  const ownerEmail = await requireOwner(request)
+  const ownerEmail = await requireOwnerWithCsrf(request)
   if (typeof ownerEmail !== 'string') {
     return ownerEmail
   }
+
+  const rateLimitCheck = await checkOwnerRateLimit(request, ownerEmail, OWNER_WRITE_LIMITS.coverDelete)
+  if (rateLimitCheck) return rateLimitCheck
 
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
@@ -1552,10 +1653,13 @@ const listOwnerEventMoments = async (request, slug) => {
 }
 
 const createOwnerEventMoment = async (request, slug) => {
-  const ownerEmail = await requireOwner(request)
+  const ownerEmail = await requireOwnerWithCsrf(request)
   if (typeof ownerEmail !== 'string') {
     return ownerEmail
   }
+
+  const rateLimitCheck = await checkOwnerRateLimit(request, ownerEmail, OWNER_WRITE_LIMITS.momentsWrite)
+  if (rateLimitCheck) return rateLimitCheck
 
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
@@ -1594,10 +1698,13 @@ const createOwnerEventMoment = async (request, slug) => {
 }
 
 const updateOwnerEventMoment = async (request, slug, momentId) => {
-  const ownerEmail = await requireOwner(request)
+  const ownerEmail = await requireOwnerWithCsrf(request)
   if (typeof ownerEmail !== 'string') {
     return ownerEmail
   }
+
+  const rateLimitCheck = await checkOwnerRateLimit(request, ownerEmail, OWNER_WRITE_LIMITS.momentsWrite)
+  if (rateLimitCheck) return rateLimitCheck
 
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
@@ -1623,10 +1730,13 @@ const updateOwnerEventMoment = async (request, slug, momentId) => {
 }
 
 const deleteOwnerEventMoment = async (request, slug, momentId) => {
-  const ownerEmail = await requireOwner(request)
+  const ownerEmail = await requireOwnerWithCsrf(request)
   if (typeof ownerEmail !== 'string') {
     return ownerEmail
   }
+
+  const rateLimitCheck = await checkOwnerRateLimit(request, ownerEmail, OWNER_WRITE_LIMITS.momentsWrite)
+  if (rateLimitCheck) return rateLimitCheck
 
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
@@ -1867,6 +1977,19 @@ const getAdminSession = async (request) => {
 }
 
 const setupAdmin = async (request) => {
+  const originCheck = verifySameOriginRequest(request)
+  if (!originCheck.allowed) {
+    return json({ error: originCheck.message, code: originCheck.code }, 403)
+  }
+
+  const clientIp = getClientIp(request)
+  const ipLimit = rateLimit(`admin-setup:ip:${clientIp}`, ADMIN_LIMITS.login.ip.max, ADMIN_LIMITS.login.ip.window)
+  if (ipLimit.limited) {
+    const response = json({ error: 'Too many attempts. Please try again later.', code: 'rate_limited', retryAfter: ipLimit.retryAfter }, 429)
+    response.headers.set('Retry-After', String(ipLimit.retryAfter))
+    return response
+  }
+
   const payload = adminPasswordSchema.parse(await request.json())
   const adminStatus = await setupLocalAdminPassword(payload.password)
   const response = json({
@@ -1878,6 +2001,19 @@ const setupAdmin = async (request) => {
 }
 
 const loginAdmin = async (request) => {
+  const originCheck = verifySameOriginRequest(request)
+  if (!originCheck.allowed) {
+    return json({ error: originCheck.message, code: originCheck.code }, 403)
+  }
+
+  const clientIp = getClientIp(request)
+  const ipLimit = rateLimit(`admin-login:ip:${clientIp}`, ADMIN_LIMITS.login.ip.max, ADMIN_LIMITS.login.ip.window)
+  if (ipLimit.limited) {
+    const response = json({ error: 'Too many attempts. Please try again later.', code: 'rate_limited', retryAfter: ipLimit.retryAfter }, 429)
+    response.headers.set('Retry-After', String(ipLimit.retryAfter))
+    return response
+  }
+
   const payload = adminPasswordSchema.parse(await request.json())
   const isValid = await verifyAdminPassword(payload.password)
 
@@ -1894,7 +2030,18 @@ const loginAdmin = async (request) => {
   return setAdminSessionCookie(response)
 }
 
-const logoutAdmin = async () => {
+const logoutAdmin = async (request) => {
+  const authError = await requireAdmin(request)
+  if (authError) return authError
+
+  const token = request.cookies.get(ADMIN_COOKIE_NAME)?.value
+  const adminSession = token ? await verifyAdminSessionToken(token) : null
+  const subject = `admin:${adminSession?.id || adminSession?.email || 'session'}`
+  const csrf = requireCsrfProtection(request, subject)
+  if (!csrf.success) {
+    return json({ error: csrf.message, code: csrf.code }, csrf.status)
+  }
+
   return clearAdminSessionCookie(json({ authenticated: false, loggedOut: true }))
 }
 
@@ -1909,11 +2056,11 @@ const listAdminEvents = async (request) => {
 }
 
 const createAdminEvent = async (request) => {
-  const authError = await requireAdmin(request)
+  const authError = await requireAdminWithCsrf(request)
+  if (authError) return authError
 
-  if (authError) {
-    return authError
-  }
+  const rateLimitCheck = await checkAdminRateLimit(request, ADMIN_LIMITS.write)
+  if (rateLimitCheck) return rateLimitCheck
 
   return createEvent(request)
 }
@@ -1929,11 +2076,11 @@ const getAdminEvent = async (request, slug) => {
 }
 
 const moderatePhoto = async (request, photoId) => {
-  const authError = await requireAdmin(request)
+  const authError = await requireAdminWithCsrf(request)
+  if (authError) return authError
 
-  if (authError) {
-    return authError
-  }
+  const rateLimitCheck = await checkAdminRateLimit(request, ADMIN_LIMITS.write)
+  if (rateLimitCheck) return rateLimitCheck
 
   const payload = adminModerationSchema.parse(await request.json())
   const repository = await getGalleryRepository()
@@ -1948,11 +2095,11 @@ const moderatePhoto = async (request, photoId) => {
 }
 
 const deletePhoto = async (request, photoId) => {
-  const authError = await requireAdmin(request)
+  const authError = await requireAdminWithCsrf(request)
+  if (authError) return authError
 
-  if (authError) {
-    return authError
-  }
+  const rateLimitCheck = await checkAdminRateLimit(request, ADMIN_LIMITS.write)
+  if (rateLimitCheck) return rateLimitCheck
 
   const repository = await getGalleryRepository()
   const photo = await repository.getPhotoById(photoId)
@@ -2067,11 +2214,24 @@ const loginOwner = withTiming('loginOwner', async (request) => {
   return await setOwnerSessionCookie(response, email)
 })
 
-const logoutOwner = () => {
+const logoutOwner = async (request) => {
+  const ownerEmail = await requireOwner(request)
+  if (typeof ownerEmail !== 'string') {
+    return ownerEmail
+  }
+  const csrf = requireCsrfProtection(request, ownerEmail)
+  if (!csrf.success) {
+    return json({ error: csrf.message, code: csrf.code }, csrf.status)
+  }
   return clearOwnerSessionCookie(json({ authenticated: false, loggedOut: true }))
 }
 
 const resendOwnerAccess = async (request) => {
+  const originCheck = verifySameOriginRequest(request)
+  if (!originCheck.allowed) {
+    return json({ error: originCheck.message, code: originCheck.code }, 403)
+  }
+
   if (!resend) {
     return json({ error: 'Email service is not configured' }, 503)
   }
@@ -2265,6 +2425,11 @@ const loginOwnerWithPassword = async (request) => {
 }
 
 const forgotOwnerPassword = async (request) => {
+  const originCheck = verifySameOriginRequest(request)
+  if (!originCheck.allowed) {
+    return json({ error: originCheck.message, code: originCheck.code }, 403)
+  }
+
   let body
   try {
     body = await request.json()
@@ -2347,6 +2512,11 @@ If you did not request this, you can safely ignore this email.
 }
 
 const resetOwnerPassword = async (request) => {
+  const originCheck = verifySameOriginRequest(request)
+  if (!originCheck.allowed) {
+    return json({ error: originCheck.message, code: originCheck.code }, 403)
+  }
+
   let body
   try {
     body = await request.json()
@@ -2469,6 +2639,11 @@ const getResetTokenStatus = async (request) => {
 }
 
 const setupOwnerPassword = async (request) => {
+  const originCheck = verifySameOriginRequest(request)
+  if (!originCheck.allowed) {
+    return json({ error: originCheck.message, code: originCheck.code }, 403)
+  }
+
   let body
   try {
     body = await request.json()
@@ -2580,10 +2755,13 @@ const getOwnerEvent = async (request, slug) => {
 }
 
 const updateOwnerEvent = async (request, slug) => {
-  const ownerEmail = await requireOwner(request)
+  const ownerEmail = await requireOwnerWithCsrf(request)
   if (typeof ownerEmail !== 'string') {
     return ownerEmail
   }
+
+  const rateLimitCheck = await checkOwnerRateLimit(request, ownerEmail, OWNER_WRITE_LIMITS.updateEvent)
+  if (rateLimitCheck) return rateLimitCheck
 
   let body
   try {
@@ -2615,10 +2793,13 @@ const updateOwnerEvent = async (request, slug) => {
 }
 
 const deleteOwnerEvent = withTiming('deleteOwnerEvent', async (request, slug) => {
-  const ownerEmail = await requireOwner(request)
+  const ownerEmail = await requireOwnerWithCsrf(request)
   if (typeof ownerEmail !== 'string') {
     return ownerEmail
   }
+
+  const rateLimitCheck = await checkOwnerRateLimit(request, ownerEmail, OWNER_WRITE_LIMITS.deleteEvent)
+  if (rateLimitCheck) return rateLimitCheck
 
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
@@ -2649,10 +2830,13 @@ const deleteOwnerEvent = withTiming('deleteOwnerEvent', async (request, slug) =>
 })
 
 const moderateOwnerPhoto = async (request, photoId) => {
-  const ownerEmail = await requireOwner(request)
+  const ownerEmail = await requireOwnerWithCsrf(request)
   if (typeof ownerEmail !== 'string') {
     return ownerEmail
   }
+
+  const rateLimitCheck = await checkOwnerRateLimit(request, ownerEmail, OWNER_WRITE_LIMITS.deletePhoto)
+  if (rateLimitCheck) return rateLimitCheck
 
   const payload = adminModerationSchema.parse(await request.json())
   const repository = await getGalleryRepository()
@@ -2667,10 +2851,13 @@ const moderateOwnerPhoto = async (request, photoId) => {
 }
 
 const deleteOwnerPhoto = async (request, photoId) => {
-  const ownerEmail = await requireOwner(request)
+  const ownerEmail = await requireOwnerWithCsrf(request)
   if (typeof ownerEmail !== 'string') {
     return ownerEmail
   }
+
+  const rateLimitCheck = await checkOwnerRateLimit(request, ownerEmail, OWNER_WRITE_LIMITS.deletePhoto)
+  if (rateLimitCheck) return rateLimitCheck
 
   const repository = await getGalleryRepository()
   const photo = await repository.deletePhotoByOwner(photoId, ownerEmail)
@@ -2722,7 +2909,7 @@ async function handleRoute(request, { params }) {
       }
 
       if (segments.length === 2 && segments[1] === 'logout' && method === 'POST') {
-        return logoutAdmin()
+        return logoutAdmin(request)
       }
 
       if (segments.length === 2 && segments[1] === 'events' && method === 'GET') {
@@ -2760,7 +2947,7 @@ async function handleRoute(request, { params }) {
       }
 
       if (segments.length === 2 && segments[1] === 'logout' && method === 'POST') {
-        return logoutOwner()
+        return logoutOwner(request)
       }
 
       if (segments.length === 2 && segments[1] === 'resend' && method === 'POST') {

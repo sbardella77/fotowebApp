@@ -8,6 +8,9 @@ Use this checklist before and after every production deployment, especially when
 - [ ] `npm test` passes locally.
 - [ ] If `prisma/schema.prisma` changed, a migration file exists under `prisma/migrations/`.
 - [ ] Migration SQL has been reviewed for production safety (no destructive changes, `IF NOT EXISTS` / `DROP COLUMN` justified).
+- [ ] `CSRF_SECRET` is set in production environment variables.
+- [ ] `ALLOWED_ORIGINS` includes the production domain (e.g. `https://snaprooms.app`).
+- [ ] Upstash Redis is configured (`UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`) for production rate limiting.
 
 ## Deploy
 
@@ -23,6 +26,12 @@ Use this checklist before and after every production deployment, especially when
 - [ ] Run `/api/owner/forgot-password` with a non-existing email and confirm generic `200` response.
 - [ ] Run `/api/owner/login` with a valid account and confirm successful login.
 - [ ] For password-reset changes: request a reset, use the link once, reuse the link, and confirm it fails with "invalid or expired".
+- [ ] `GET /api/csrf` returns a token for an authenticated owner/admin.
+- [ ] `POST /api/stripe/checkout-session` without `X-CSRF-Token` returns `403`.
+- [ ] `POST /api/stripe/checkout-session` from a foreign `Origin` returns `403`.
+- [ ] Rapid repeated checkouts trigger `429` and do not create Stripe sessions.
+- [ ] Stripe webhook continues to work without CSRF headers.
+- [ ] Guest upload still works from the public event page.
 
 ## Emergency rollback note
 

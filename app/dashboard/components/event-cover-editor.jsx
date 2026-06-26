@@ -22,6 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { csrfFetch } from '@/lib/client/csrf-fetch'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
@@ -136,7 +137,7 @@ export function EventCoverEditor({ event, onCoverUpdated, t, tCommon }) {
     setError(null)
     try {
       const croppedDataUrl = await getCroppedImg(imageSrc, croppedAreaPixels)
-      const response = await fetch(`/api/owner/events/${event.slug}/cover`, {
+      const response = await csrfFetch(`/api/owner/events/${event.slug}/cover`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ coverDataUrl: croppedDataUrl }),
@@ -313,7 +314,7 @@ export function EventCoverRemove({ event, onCoverUpdated, t, tCommon }) {
     if (!event?.slug) return
     setBusy(true)
     try {
-      const response = await fetch(`/api/owner/events/${event.slug}/cover`, {
+      const response = await csrfFetch(`/api/owner/events/${event.slug}/cover`, {
         method: 'DELETE',
       })
       const payload = await response.json()

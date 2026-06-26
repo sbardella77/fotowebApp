@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useTranslations } from '@/components/i18n-provider'
 import { trackEvent } from '@/lib/analytics/track-client'
+import { csrfFetch } from '@/lib/client/csrf-fetch'
 import { resolveEffectiveEventAccessState } from '@/lib/event-access'
 import { trackUpsellImpression, trackUpsellClick } from '@/lib/analytics/upsell'
 import {
@@ -243,7 +244,7 @@ const PhotoLightbox = ({
         effectivePlan: access.effectivePlan,
         ctaPlan: 'unlock',
       })
-      const response = await fetch('/api/stripe/unlock-download', {
+      const response = await csrfFetch('/api/stripe/unlock-download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ eventSlug: event.slug }),

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 
 import { Input } from '@/components/ui/input'
 import PhotoLightbox from '@/components/photo-lightbox'
+import { csrfFetch } from '@/lib/client/csrf-fetch'
 
 const AdminPhotoCard = ({ photo, onApprove, onReject, onDelete, onOpenLightbox, busyId }) => {
   const isBusy = busyId === photo.id
@@ -153,7 +154,7 @@ function App() {
   }
 
   const logout = async () => {
-    await fetch('/api/admin/logout', { method: 'POST' })
+    await csrfFetch('/api/admin/logout', { method: 'POST' })
     setSelectedEvent(null)
     setSelectedSlug('')
     setEvents([])
@@ -165,7 +166,7 @@ function App() {
     setBusy((current) => ({ ...current, create: true }))
 
     try {
-      const response = await fetch('/api/admin/events', {
+      const response = await csrfFetch('/api/admin/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newEventName }),
@@ -191,7 +192,7 @@ function App() {
     setBusy((current) => ({ ...current, photoId }))
 
     try {
-      const response = await fetch(`/api/admin/photos/${photoId}`, {
+      const response = await csrfFetch(`/api/admin/photos/${photoId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
@@ -216,7 +217,7 @@ function App() {
     setBusy((current) => ({ ...current, photoId }))
 
     try {
-      const response = await fetch(`/api/admin/photos/${photoId}`, {
+      const response = await csrfFetch(`/api/admin/photos/${photoId}`, {
         method: 'DELETE',
       })
       const payload = await response.json()

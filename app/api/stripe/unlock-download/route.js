@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { getStripe } from '@/lib/server/stripe'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { verifyOwnerSessionToken } from '@/lib/server/owner-auth'
+import { verifySameOriginRequest, requireCsrfProtection } from '@/lib/server/csrf'
+import { checkRateLimit, getClientIp, hashIdentifier, PAYMENT_LIMITS } from '@/lib/server/rate-limiter'
 import { trackServerEvent } from '@/lib/analytics/track-server'
 import { EVENT_ORIGINAL_DOWNLOAD_CHECKOUT_STARTED } from '@/lib/analytics/events'
 
@@ -13,6 +15,38 @@ export async function POST(request) {
     // Try to authenticate owner (optional — guests can also unlock)
     const token = request.cookies.get('snaprooms_owner_session')?.value
     const ownerEmail = token ? await verifyOwnerSessionToken(token) : null
+
+    // Origin check for everyone; CSRF token required for authenticated owners
+    const originCheck = verifySameOriginRequest(request)
+    if (!originCheck.allowed) {
+      return NextResponse.json({ error: originCheck.message, code: originCheck.code }, { status: 403 })
+    }
+    if (ownerEmail) {
+      const csrf = requireCsrfProtection(request, ownerEmail)
+      if (!csrf.success) {
+        return NextResponse.json({ error: csrf.message, code: csrf.code }, { status: csrf.status })
+      }
+    }
+
+    const clientIp = getClientIp(request)
+    const ipKey = `unlock-download:ip:${hashIdentifier(clientIp)}`
+    const ipRate = await checkRateLimit(ipKey, PAYMENT_LIMITS.unlockDownload.ip.max, PAYMENT_LIMITS.unlockDownload.ip.window)
+    if (ipRate.limited) {
+      return NextResponse.json(
+        { error: 'Too many checkout attempts. Please try again later.', code: 'rate_limited', retryAfter: ipRate.retryAfter },
+        { status: 429, headers: { 'Retry-After': String(ipRate.retryAfter) } }
+      )
+    }
+    if (ownerEmail && PAYMENT_LIMITS.unlockDownload.owner) {
+      const ownerKey = `unlock-download:owner:${hashIdentifier(ownerEmail)}`
+      const ownerRate = await checkRateLimit(ownerKey, PAYMENT_LIMITS.unlockDownload.owner.max, PAYMENT_LIMITS.unlockDownload.owner.window)
+      if (ownerRate.limited) {
+        return NextResponse.json(
+          { error: 'Too many checkout attempts. Please try again later.', code: 'rate_limited', retryAfter: ownerRate.retryAfter },
+          { status: 429, headers: { 'Retry-After': String(ownerRate.retryAfter) } }
+        )
+      }
+    }
 
     const body = await request.json().catch(() => ({}))
     const { eventSlug } = body

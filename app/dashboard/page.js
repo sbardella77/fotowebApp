@@ -289,7 +289,7 @@ export default function DashboardPage() {
   }
 
   const logout = async () => {
-    await fetch('/api/owner/logout', { method: 'POST' })
+    await csrfFetch('/api/owner/logout', { method: 'POST' })
     setSelectedEvent(null)
     setSelectedSlug('')
     setEvents([])
@@ -329,7 +329,7 @@ export default function DashboardPage() {
         upsell_source: upsellSource,
         ...extraMetadata,
       })
-      const response = await fetch('/api/stripe/checkout-session', {
+      const response = await csrfFetch('/api/stripe/checkout-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ intent, eventId, entryPoint, upsellType, upsellSource, extraMetadata }),
@@ -395,7 +395,7 @@ export default function DashboardPage() {
   const moderatePhoto = async (photoId, action) => {
     setBusy((c) => ({ ...c, photoId }))
     try {
-      const response = await fetch(`/api/owner/photos/${photoId}`, {
+      const response = await csrfFetch(`/api/owner/photos/${photoId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
@@ -415,7 +415,7 @@ export default function DashboardPage() {
   const deletePhoto = async (photoId) => {
     setBusy((c) => ({ ...c, photoId }))
     try {
-      const response = await fetch(`/api/owner/photos/${photoId}`, { method: 'DELETE' })
+      const response = await csrfFetch(`/api/owner/photos/${photoId}`, { method: 'DELETE' })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || t.unableToDeletePhoto)
       setMessage(t.photoDeleted)
@@ -436,7 +436,7 @@ export default function DashboardPage() {
     }
     setBusy((c) => ({ ...c, detail: true }))
     try {
-      const response = await fetch(`/api/owner/events/${selectedSlug}`, {
+      const response = await csrfFetch(`/api/owner/events/${selectedSlug}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: trimmed }),
@@ -461,7 +461,7 @@ export default function DashboardPage() {
     setDeleteDialogOpen(false)
     setBusy((c) => ({ ...c, detail: true }))
     try {
-      const response = await fetch(`/api/owner/events/${selectedSlug}`, { method: 'DELETE' })
+      const response = await csrfFetch(`/api/owner/events/${selectedSlug}`, { method: 'DELETE' })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || t.somethingWentWrong)
       setMessage(t.roomDeleted)
@@ -603,7 +603,7 @@ export default function DashboardPage() {
     }
     setBusy((c) => ({ ...c, detail: true }))
     try {
-      const response = await fetch(`/api/owner/events/${slug}`, {
+      const response = await csrfFetch(`/api/owner/events/${slug}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: trimmed }),
@@ -792,7 +792,7 @@ export default function DashboardPage() {
       const CHUNK_SIZE = 1024 * 1024
       const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
 
-      const initResponse = await fetch(`/api/owner/events/${selectedEvent.slug}/private-delivery/init`, {
+      const initResponse = await csrfFetch(`/api/owner/events/${selectedEvent.slug}/private-delivery/init`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -822,7 +822,7 @@ export default function DashboardPage() {
           multipart: file.size > 5 * 1024 * 1024,
         })
 
-        const completeResponse = await fetch(`/api/owner/events/${selectedEvent.slug}/private-delivery/complete`, {
+        const completeResponse = await csrfFetch(`/api/owner/events/${selectedEvent.slug}/private-delivery/complete`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -865,7 +865,7 @@ export default function DashboardPage() {
           }
         }
 
-        const completeResponse = await fetch(`/api/owner/events/${selectedEvent.slug}/private-delivery/complete`, {
+        const completeResponse = await csrfFetch(`/api/owner/events/${selectedEvent.slug}/private-delivery/complete`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sessionId: initPayload.session.sessionId }),
@@ -901,7 +901,7 @@ export default function DashboardPage() {
   const deletePrivateAsset = async (assetId) => {
     setBusy((c) => ({ ...c, detail: true }))
     try {
-      const response = await fetch(`/api/owner/private-delivery/${assetId}`, { method: 'DELETE' })
+      const response = await csrfFetch(`/api/owner/private-delivery/${assetId}`, { method: 'DELETE' })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || t.unableToDeleteFile)
       trackEvent(EVENT_PRIVATE_DELIVERY_DELETED, { room_slug: selectedEvent?.slug, asset_id: assetId })
@@ -924,7 +924,7 @@ export default function DashboardPage() {
     if (!selectedEvent) return
     setPhotographerLinkBusy(true)
     try {
-      const response = await fetch(`/api/owner/events/${selectedEvent.slug}/photographer-link`, { method: 'POST' })
+      const response = await csrfFetch(`/api/owner/events/${selectedEvent.slug}/photographer-link`, { method: 'POST' })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || t.unableToGenerateLink)
       trackEvent(EVENT_PHOTOGRAPHER_UPLOAD_LINK_CREATED, { room_slug: selectedEvent.slug })
@@ -954,7 +954,7 @@ export default function DashboardPage() {
     if (!selectedEvent) return
     setPhotographerLinkBusy(true)
     try {
-      const response = await fetch(`/api/owner/events/${selectedEvent.slug}/photographer-link`, { method: 'DELETE' })
+      const response = await csrfFetch(`/api/owner/events/${selectedEvent.slug}/photographer-link`, { method: 'DELETE' })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || t.unableToRevokeLink)
       trackEvent(EVENT_PHOTOGRAPHER_UPLOAD_LINK_REVOKED, { room_slug: selectedEvent.slug })

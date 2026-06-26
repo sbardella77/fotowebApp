@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { getStripe } from '@/lib/server/stripe'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { verifyOwnerSessionToken } from '@/lib/server/owner-auth'
+import { verifySameOriginRequest, requireCsrfProtection } from '@/lib/server/csrf'
+import { checkRateLimit, getClientIp, hashIdentifier, PAYMENT_LIMITS } from '@/lib/server/rate-limiter'
 import { validatePendingEventName } from '@/lib/extra-free-event-pending'
 import { trackServerEvent } from '@/lib/analytics/track-server'
 import {
@@ -36,8 +38,44 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
+    // Origin check + CSRF token validation
+    const originCheck = verifySameOriginRequest(request)
+    if (!originCheck.allowed) {
+      return NextResponse.json({ error: originCheck.message, code: originCheck.code }, { status: 403 })
+    }
+
+    const csrf = requireCsrfProtection(request, ownerEmail)
+    if (!csrf.success) {
+      return NextResponse.json({ error: csrf.message, code: csrf.code }, { status: csrf.status })
+    }
+
     const body = await request.json().catch(() => ({}))
     const { intent, eventId, upsellType, upsellSource, extraMetadata = {} } = body
+
+    // Rate limit by owner + intent before any Stripe call
+    const limitConfig =
+      intent === 'extra_event'
+        ? PAYMENT_LIMITS.checkoutExtraEvent
+        : intent === 'professional'
+          ? PAYMENT_LIMITS.checkoutProfessional
+          : PAYMENT_LIMITS.checkoutSession
+
+    const clientIp = getClientIp(request)
+    const ownerKey = `checkout:${intent}:owner:${hashIdentifier(ownerEmail)}`
+    const ipKey = `checkout:${intent}:ip:${hashIdentifier(clientIp)}`
+    const ownerRate = limitConfig.owner
+      ? await checkRateLimit(ownerKey, limitConfig.owner.max, limitConfig.owner.window)
+      : { limited: false }
+    const ipRate = limitConfig.ip
+      ? await checkRateLimit(ipKey, limitConfig.ip.max, limitConfig.ip.window)
+      : { limited: false }
+    if (ownerRate.limited || ipRate.limited) {
+      const result = ownerRate.limited ? ownerRate : ipRate
+      return NextResponse.json(
+        { error: 'Too many checkout attempts. Please try again later.', code: 'rate_limited', retryAfter: result.retryAfter },
+        { status: 429, headers: { 'Retry-After': String(result.retryAfter) } }
+      )
+    }
     const validation =
       intent === 'extra_event' && extraMetadata?.pendingEventName
         ? validatePendingEventName(extraMetadata.pendingEventName)
