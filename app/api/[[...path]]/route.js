@@ -491,6 +491,14 @@ const getEventPhotos = withTiming('getEventPhotos', async (request, slug) => {
 })
 
 const createGalleryDownload = withTiming('createGalleryDownload', async (request, slug) => {
+  const clientIp = getClientIp(request)
+  const rateLimitCheck = await checkRateLimit(
+    `gallery-download:create:ip:${hashIdentifier(clientIp)}:event:${slug}`,
+    RATE_LIMITS.galleryDownloadCreate.ip.max,
+    RATE_LIMITS.galleryDownloadCreate.ip.window
+  )
+  if (rateLimitCheck) return buildRateLimitResponse(rateLimitCheck)
+
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlug(slug)
   if (!event) {
@@ -817,6 +825,14 @@ const saveEventOwner = async (request, slug) => {
 }
 
 const updateEvent = async (request, slug) => {
+  const clientIp = getClientIp(request)
+  const rateLimitCheck = await checkRateLimit(
+    `public-event-update:ip:${hashIdentifier(clientIp)}:event:${slug}`,
+    RATE_LIMITS.publicEventUpdate.ip.max,
+    RATE_LIMITS.publicEventUpdate.ip.window
+  )
+  if (rateLimitCheck) return buildRateLimitResponse(rateLimitCheck)
+
   const token = getManagementTokenFromRequest(request)
 
   let body
@@ -850,6 +866,14 @@ const updateEvent = async (request, slug) => {
 }
 
 const deleteEvent = withTiming('deleteEvent', async (request, slug) => {
+  const clientIp = getClientIp(request)
+  const rateLimitCheck = await checkRateLimit(
+    `public-event-delete:ip:${hashIdentifier(clientIp)}:event:${slug}`,
+    RATE_LIMITS.publicEventDelete.ip.max,
+    RATE_LIMITS.publicEventDelete.ip.window
+  )
+  if (rateLimitCheck) return buildRateLimitResponse(rateLimitCheck)
+
   const token = getManagementTokenFromRequest(request)
 
   const repository = await getGalleryRepository()
