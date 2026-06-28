@@ -72,6 +72,7 @@ import { resolveDashboardExperience } from '@/lib/dashboard-experience'
 import { EXTRA_EVENT_PRICE_LABEL } from '@/lib/pricing-config'
 import { resolveCreateRoomState } from '@/lib/create-room-state'
 import { safeFetchJson } from '@/lib/dashboard-data-helpers'
+import { csrfFetch } from '@/lib/client/csrf-fetch'
 import {
   savePendingExtraFreeEvent,
   loadPendingExtraFreeEvent,
@@ -289,13 +290,21 @@ export default function DashboardPage() {
   }
 
   const logout = async () => {
-    await csrfFetch('/api/owner/logout', { method: 'POST' })
-    setSelectedEvent(null)
-    setSelectedSlug('')
-    setEvents([])
-    setAuthState({ loading: false, authenticated: false, email: '' })
-    setMessage(t.signedOut)
-    router.push('/')
+    try {
+      const response = await csrfFetch('/api/owner/logout', { method: 'POST' })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload.error || t.logoutFailed)
+      }
+      setSelectedEvent(null)
+      setSelectedSlug('')
+      setEvents([])
+      setAuthState({ loading: false, authenticated: false, email: '' })
+      setMessage(t.signedOut)
+      router.push('/')
+    } catch (error) {
+      setMessage(error.message || t.logoutFailed)
+    }
   }
 
   const loadPlan = async () => {
