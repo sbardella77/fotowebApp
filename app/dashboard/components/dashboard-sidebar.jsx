@@ -1,11 +1,21 @@
 'use client'
 
 import { useEffect } from 'react'
-import { Camera, LayoutDashboard, LogOut, Sparkles, User, BarChart3, Tag } from 'lucide-react'
+import { Camera, CreditCard, LayoutDashboard, LogOut, Sparkles, User, BarChart3, Tag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { trackUpsellImpression, trackUpsellClick } from '@/lib/analytics/upsell'
 
-export function DashboardSidebar({ experience, email, onLogout, onUpgradeClick, t, tCommon }) {
+export function DashboardSidebar({
+  experience,
+  email,
+  onLogout,
+  onUpgradeClick,
+  canManageSubscription,
+  onManageSubscription,
+  portalBusy,
+  t,
+  tCommon,
+}) {
   const showAnalytics = experience?.sidebarItems?.includes('analytics')
   const showPricing = experience?.sidebarItems?.includes('pricing')
   const showSidebarUpsell = experience?.showSidebarUpsell && onUpgradeClick
@@ -121,6 +131,17 @@ export function DashboardSidebar({ experience, email, onLogout, onUpgradeClick, 
             </p>
           </div>
         </div>
+        {canManageSubscription && (
+          <button
+            type="button"
+            onClick={onManageSubscription}
+            disabled={portalBusy}
+            className="mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-raised hover:text-foreground transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <CreditCard className="h-4 w-4" />
+            {portalBusy ? t.openingBillingPortal : t.manageSubscription}
+          </button>
+        )}
         <button
           type="button"
           onClick={onLogout}

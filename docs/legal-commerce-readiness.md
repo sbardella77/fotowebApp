@@ -116,7 +116,9 @@ The pricing page shows **€79/month** and **€790/year** (save 17%), but the b
 
 ## 6. Stripe Customer Portal
 
-**Current state:** ❌ Not implemented.
+**Current state:** ✅ Implemented.
+
+**Route:** `POST /api/stripe/customer-portal`
 
 **Required for subscriptions:**
 - Allow users to update payment method
@@ -125,15 +127,17 @@ The pricing page shows **€79/month** and **€790/year** (save 17%), but the b
 
 **Implementation:**
 ```js
-// app/api/stripe/portal/route.js (future)
+// app/api/stripe/customer-portal/route.js
 const session = await stripe.billingPortal.sessions.create({
   customer: owner.stripeCustomerId,
-  return_url: `${baseUrl}/dashboard`,
+  return_url: `${baseUrl}/dashboard?billing=portal_return`,
 })
-return NextResponse.redirect(session.url)
+return NextResponse.json({ url: session.url })
 ```
 
-**UI:** Add "Manage Subscription" / "Abo verwalten" button in dashboard when `owner.plan === 'professional'`.
+**Security:** owner session, same-origin check, CSRF token, rate limit (`PAYMENT_LIMITS.customerPortal`).
+
+**UI:** "Manage subscription" / "Abo verwalten" button in dashboard sidebar when the owner has a Professional subscription.
 
 ---
 
@@ -160,7 +164,7 @@ For both **Widerruf** and **Kündigung**, EU consumer law requires clear confirm
 - [ ] **Add explicit withdrawal right notice** before Stripe Checkout for one-time digital products
 - [ ] **Add checkbox** at checkout: "I acknowledge that I lose my right of withdrawal once the digital content is delivered"
 - [ ] **Implement `/withdrawal` page** with form and email confirmation
-- [ ] **Implement Stripe Customer Portal** (or equivalent cancellation flow) for Professional subscriptions
+- [x] **Implement Stripe Customer Portal** (or equivalent cancellation flow) for Professional subscriptions
 - [ ] **Wire up yearly Professional price** or remove display from pricing page
 - [ ] **Set `OWNER_SESSION_SECRET`** in Vercel Production environment
 - [ ] **Review privacy policy** for GDPR compliance (lawful basis, data retention, DPO contact)
@@ -169,7 +173,7 @@ For both **Widerruf** and **Kündigung**, EU consumer law requires clear confirm
 - [ ] **Add VAT ID / company name fields** if B2B sales are expected
 - [ ] **Set up transactional email** for withdrawal and cancellation confirmations
 - [ ] **Create invoice generation** for B2B customers (Stripe invoices or custom)
-- [ ] **Add "Manage Subscription" button** to dashboard
+- [x] **Add "Manage Subscription" button** to dashboard
 - [ ] **Document refund policy** clearly in Terms (e.g. discretionary refunds within 14 days)
 
 ### Nice to have

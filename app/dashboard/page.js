@@ -121,6 +121,7 @@ export default function DashboardPage() {
   const [plan, setPlan] = useState('free')
   const [subscriptionCanceledAt, setSubscriptionCanceledAt] = useState(null)
   const [checkoutBusy, setCheckoutBusy] = useState(false)
+  const [portalBusy, setPortalBusy] = useState(false)
   const [galleryDownloadBusy, setGalleryDownloadBusy] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [createName, setCreateName] = useState('')
@@ -319,6 +320,25 @@ export default function DashboardPage() {
       // ignore plan load errors
     } finally {
       setDataLoaded((current) => ({ ...current, plan: true }))
+    }
+  }
+
+  const canManageSubscription =
+    ['professional', 'business', 'pro'].includes(plan) || !!subscriptionCanceledAt
+
+  const openCustomerPortal = async () => {
+    if (portalBusy) return
+    setPortalBusy(true)
+    try {
+      const response = await csrfFetch('/api/stripe/customer-portal', { method: 'POST' })
+      const payload = await response.json()
+      if (!response.ok || !payload.url) {
+        throw new Error(payload.error || t.billingPortalError)
+      }
+      window.location.href = payload.url
+    } catch (error) {
+      setMessage(error.message || t.billingPortalError)
+      setPortalBusy(false)
     }
   }
 
@@ -1067,6 +1087,14 @@ export default function DashboardPage() {
       return
     }
 
+    const billing = params.get('billing')
+    if (billing === 'portal_return') {
+      setMessage(t.billingPortalReturned)
+      loadPlan()
+      router.replace('/dashboard', { scroll: false })
+      return
+    }
+
     const upgrade = params.get('upgrade')
     if (upgrade === 'success') {
       const intent = params.get('intent')
@@ -1267,6 +1295,9 @@ export default function DashboardPage() {
               ? () => startCheckout('professional', null, 'dashboard_sidebar')
               : undefined
           }
+          canManageSubscription={canManageSubscription}
+          onManageSubscription={openCustomerPortal}
+          portalBusy={portalBusy}
           t={t}
           tCommon={tCommon}
         />

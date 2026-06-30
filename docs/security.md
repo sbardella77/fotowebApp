@@ -13,7 +13,7 @@
 - Without Redis, the app falls back to in-memory buckets. This is acceptable for development but not ideal for production multi-instance deployments.
 - Limits are defined per endpoint category in `lib/server/rate-limiter.js`:
   - `AUTH_LIMITS` — login, forgot/reset/setup password, resend.
-  - `PAYMENT_LIMITS` — checkout session, unlock download.
+  - `PAYMENT_LIMITS` — checkout session, customer portal, unlock download.
   - `OWNER_WRITE_LIMITS` — event CRUD, photo actions, moments, private delivery, photographer links, cover upload.
   - `ADMIN_LIMITS` — admin auth and write operations.
 
@@ -21,7 +21,7 @@
 
 - Owner authenticated write endpoints under `/api/owner/*` (event update/delete, photo moderate/delete, moments, private delivery, photographer link, cover, logout).
 - Admin authenticated write endpoints under `/api/admin/*`.
-- Payment initiation: `POST /api/stripe/checkout-session`, `POST /api/stripe/unlock-download`.
+- Payment initiation: `POST /api/stripe/checkout-session`, `POST /api/stripe/customer-portal`, `POST /api/stripe/unlock-download`.
 
 ## Excluded endpoints
 

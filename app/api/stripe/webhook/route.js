@@ -236,6 +236,8 @@ export async function POST(request) {
             stripeSubscriptionId: session.subscription || null,
             stripeCheckoutSessionId: session.id,
             planUpdatedAt: new Date(),
+            // Clear any previous cancellation timestamp on re-subscription.
+            subscriptionCanceledAt: null,
           },
         })
 
