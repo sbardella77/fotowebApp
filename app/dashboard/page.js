@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslations } from '@/components/i18n-provider'
 import { useRouter } from 'next/navigation'
 import { upload } from '@vercel/blob/client'
-import { ArrowUpDown, Camera, CheckCircle2, Copy, Download, Eye, EyeOff, FolderHeart, ImagePlus, LinkIcon, Loader2, Lock, LogOut, Pencil, Plus, QrCode, RefreshCw, Search, Share2, Sparkles, Trash2, Upload, Archive } from 'lucide-react'
+import { AlertTriangle, ArrowUpDown, Camera, CheckCircle2, Copy, Download, Eye, EyeOff, FolderHeart, ImagePlus, LinkIcon, Loader2, Lock, LogOut, Pencil, Plus, QrCode, RefreshCw, Search, Share2, Sparkles, Trash2, Upload, Archive } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import PhotoLightbox from '@/components/photo-lightbox'
@@ -174,7 +174,18 @@ export default function DashboardPage() {
     return { eventsCount, totalPhotos }
   }, [safeEvents])
 
-  const experience = useMemo(() => resolveDashboardExperience({ plan, events: safeEvents, metrics }), [plan, safeEvents, metrics])
+  const experience = useMemo(
+    () =>
+      resolveDashboardExperience({
+        plan,
+        events: safeEvents,
+        metrics,
+        subscriptionStatus,
+        subscriptionGraceUntil,
+        subscriptionCanceledAt,
+      }),
+    [plan, safeEvents, metrics, subscriptionStatus, subscriptionGraceUntil, subscriptionCanceledAt]
+  )
 
   const roomState = useMemo(() => {
     if (!authState.authenticated) {
@@ -314,7 +325,13 @@ export default function DashboardPage() {
       const { ok, payload } = await safeFetchJson(response, { fallback: { plan: 'free', extraEventCredits: 0 } })
       if (!ok) return
       setPlan(payload.plan || 'free')
+      setSubscriptionStatus(payload.subscriptionStatus || null)
+      setPaymentFailedAt(payload.paymentFailedAt || null)
+      setSubscriptionGraceUntil(payload.subscriptionGraceUntil || null)
       setSubscriptionCanceledAt(payload.subscriptionCanceledAt || null)
+      setBillingWarning(!!payload.billingWarning)
+      setBillingActionRequired(!!payload.billingActionRequired)
+      setCanManageSubscription(!!payload.canManageSubscription)
       setExtraEventCredits(typeof payload.extraEventCredits === 'number' ? payload.extraEventCredits : 0)
     } catch {
       // ignore plan load errors
@@ -323,8 +340,9 @@ export default function DashboardPage() {
     }
   }
 
-  const canManageSubscription =
-    ['professional', 'business', 'pro'].includes(plan) || !!subscriptionCanceledAt
+  // canManageSubscription is loaded from /api/owner/plan; fall back to local heuristic if missing.
+  const effectiveCanManageSubscription =
+    canManageSubscription || ['professional', 'business', 'pro'].includes(plan) || !!subscriptionCanceledAt
 
   const openCustomerPortal = async () => {
     if (portalBusy) return
@@ -1295,7 +1313,7 @@ export default function DashboardPage() {
               ? () => startCheckout('professional', null, 'dashboard_sidebar')
               : undefined
           }
-          canManageSubscription={canManageSubscription}
+          canManageSubscription={effectiveCanManageSubscription}
           onManageSubscription={openCustomerPortal}
           portalBusy={portalBusy}
           t={t}
@@ -1533,6 +1551,37 @@ export default function DashboardPage() {
               </Select>
             </div>
           </div>
+
+          {billingWarning && (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-foreground shadow-subtle">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-medium">{t.paymentFailedTitle}</p>
+                  <p className="mt-1 text-muted-foreground">
+                    {subscriptionGraceUntil && new Date(subscriptionGraceUntil) > new Date()
+                      ? t.paymentFailedGraceDescription.replace(
+                          '{date}',
+                          new Date(subscriptionGraceUntil).toLocaleDateString()
+                        )
+                      : subscriptionGraceUntil
+                        ? t.paymentFailedGraceExpiredDescription
+                        : t.paymentFailedDescription}
+                  </p>
+                  {effectiveCanManageSubscription && (
+                    <Button
+                      size="sm"
+                      className="mt-3 cta-primary"
+                      disabled={portalBusy}
+                      onClick={openCustomerPortal}
+                    >
+                      {portalBusy ? t.openingBillingPortal : t.updatePaymentMethod}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {message && (
             <div className="rounded-xl border border-border bg-surface p-4 text-sm text-foreground flex items-center gap-2.5 shadow-subtle">

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { verifyOwnerSessionToken } from '@/lib/server/owner-auth'
 import { resolveCanonicalOwner } from '@/lib/server/owner-resolution'
+import { resolveSubscriptionAccessState } from '@/lib/server/subscription-lifecycle'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,13 +24,24 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Owner not found' }, { status: 404 })
     }
 
+    const access = resolveSubscriptionAccessState(owner)
+
     return NextResponse.json({
       plan: owner.plan || 'free',
-      stripeCustomerId: owner.stripeCustomerId,
-      stripeSubscriptionId: owner.stripeSubscriptionId,
+      subscriptionStatus: owner.subscriptionStatus || null,
+      paymentFailedAt: owner.paymentFailedAt || null,
+      subscriptionGraceUntil: owner.subscriptionGraceUntil || null,
+      subscriptionCanceledAt: owner.subscriptionCanceledAt || null,
+      lastInvoiceId: owner.lastInvoiceId || null,
+      lastInvoiceStatus: owner.lastInvoiceStatus || null,
+      stripeCustomerId: owner.stripeCustomerId || null,
+      stripeSubscriptionId: owner.stripeSubscriptionId || null,
       planUpdatedAt: owner.planUpdatedAt,
-      subscriptionCanceledAt: owner.subscriptionCanceledAt,
       extraEventCredits: typeof owner.extraEventCredits === 'number' ? owner.extraEventCredits : 0,
+      billingWarning: access.dashboardBillingWarning,
+      billingActionRequired: access.billingActionRequired,
+      canManageSubscription: access.canManageSubscription,
+      accountPremiumActive: access.accountPremiumActive,
     })
   } catch (error) {
     console.error('[owner/plan]', error)

@@ -11,6 +11,7 @@ Use this checklist before and after every production deployment, especially when
 - [ ] `CSRF_SECRET` is set in production environment variables.
 - [ ] `ALLOWED_ORIGINS` includes the production domain (e.g. `https://snaprooms.app`).
 - [ ] `NEXT_PUBLIC_BASE_URL` is set to the production domain (e.g. `https://snaprooms.app`).
+- [ ] `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are set if sending dunning/payment-failed emails.
 - [ ] Stripe Customer Portal is configured in the Stripe Dashboard (return URL, payment-method update, invoice history, subscription cancellation).
 - [ ] Upstash Redis is configured (`UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`) for production rate limiting.
 
@@ -37,6 +38,10 @@ Use this checklist before and after every production deployment, especially when
 - [ ] Rapid repeated checkouts trigger `429` and do not create Stripe sessions.
 - [ ] Rapid repeated Customer Portal requests trigger `429` and do not create Stripe portal sessions.
 - [ ] Stripe webhook continues to work without CSRF headers.
+- [ ] Stripe webhook handles `invoice.payment_failed` by setting `subscriptionStatus=past_due` and a 7-day grace period.
+- [ ] Stripe webhook handles `invoice.payment_succeeded` by restoring `subscriptionStatus=active` and clearing the grace period.
+- [ ] `customer.subscription.updated` with `past_due` keeps the owner on Professional during the grace window.
+- [ ] Dashboard shows a payment-failed warning with a CTA to update the payment method.
 - [ ] Guest upload still works from the public event page.
 - [ ] Professional owner sees "Manage subscription" in the dashboard sidebar and the button opens Stripe Billing Portal.
 - [ ] Returning from the portal to `/dashboard?billing=portal_return` shows the return message and cleans the URL.

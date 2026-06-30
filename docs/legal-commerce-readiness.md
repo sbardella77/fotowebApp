@@ -141,6 +141,30 @@ return NextResponse.json({ url: session.url })
 
 ---
 
+## 6.5 Subscription Payment Failure / Dunning
+
+**Stripe events:** `invoice.payment_failed`, `invoice.payment_succeeded`, `customer.subscription.updated`.
+
+**Behavior on `invoice.payment_failed`:**
+- Owner `subscriptionStatus` is set to `past_due`.
+- A 7-day grace period is started (`subscriptionGraceUntil`).
+- Professional features remain active during the grace period.
+- Dashboard shows a payment-failed warning with a CTA to update the payment method via the Customer Portal.
+- A dunning email is sent to the owner via Resend.
+- No events or photos are deleted.
+
+**Behavior on `invoice.payment_succeeded`:**
+- Owner `subscriptionStatus` is restored to `active`.
+- `paymentFailedAt`, `subscriptionGraceUntil`, and `lastPaymentError` are cleared.
+
+**If the grace period expires without recovery:**
+- Effective premium access ends (effective `accountPremium` becomes false).
+- Data retention follows the existing cancellation grace policy (90 days from `subscriptionCanceledAt` or event-level tier).
+
+**Important:** Payment failure is not treated as immediate cancellation. The subscription remains in `past_due` until Stripe sends `customer.subscription.deleted` or the owner explicitly cancels.
+
+---
+
 ## 7. Email Confirmation Requirement
 
 For both **Widerruf** and **Kündigung**, EU consumer law requires clear confirmation:
@@ -177,9 +201,9 @@ For both **Widerruf** and **Kündigung**, EU consumer law requires clear confirm
 - [ ] **Document refund policy** clearly in Terms (e.g. discretionary refunds within 14 days)
 
 ### Nice to have
+- [x] **Dunning management** for failed subscription payments
 - [ ] **Self-service refund** for small amounts (e.g. Pro Event €9.99) to reduce support load
 - [ ] **Billing history page** in dashboard
-- [ ] **Dunning management** for failed subscription payments
 
 ---
 

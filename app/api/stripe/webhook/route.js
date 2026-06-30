@@ -3,6 +3,15 @@ import { Prisma } from '@prisma/client'
 import { getStripe } from '@/lib/server/stripe'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { trackServerEvent } from '@/lib/analytics/track-server'
+import { Resend } from 'resend'
+import {
+  buildPaymentFailedUpdate,
+  buildPaymentSucceededUpdate,
+  buildSubscriptionUpdatedData,
+  buildSubscriptionDeletedData,
+  resolveSubscriptionAccessState,
+  GRACE_PERIOD_DAYS,
+} from '@/lib/server/subscription-lifecycle'
 import {
   EVENT_CHECKOUT_COMPLETED,
   EVENT_ORIGINAL_DOWNLOAD_CHECKOUT_COMPLETED,
@@ -13,8 +22,51 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-function isActiveSubscription(status) {
-  return status === 'active' || status === 'trialing'
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
+
+function getAppUrl() {
+  return (process.env.NEXT_PUBLIC_BASE_URL || 'https://snaprooms.app').replace(/\/$/, '')
+}
+
+async function sendPaymentFailedEmail(owner, invoice, access) {
+  if (!resend || !process.env.RESEND_FROM_EMAIL) {
+    return
+  }
+
+  try {
+    const baseUrl = getAppUrl()
+    const graceDays = GRACE_PERIOD_DAYS
+    const subject = 'Payment failed – please update your payment method'
+    const dashboardUrl = `${baseUrl}/dashboard`
+    const text = `Hi,
+
+Your SnapRooms Professional payment could not be processed. Please update your payment method within ${graceDays} days to keep your Professional features active.
+
+Update your payment method here:
+${dashboardUrl}
+
+– SnapRooms
+Every guest photo. One room.`
+
+    const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
+  <div style="text-align:center;margin-bottom:24px;"><span style="font-size:20px;font-weight:700;color:#d4a853;letter-spacing:-0.5px;">SnapRooms</span></div>
+  <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Payment failed</h1>
+  <p style="margin:0 0 24px;text-align:center;color:#4b5563;">We couldn't process your Professional payment. Please update your payment method within <strong>${graceDays} days</strong> to avoid any interruption.</p>
+  <p style="margin:0 0 24px;text-align:center;"><a href="${dashboardUrl}" style="display:inline-block;padding:12px 24px;background:#d4a853;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Update payment method</a></p>
+  <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">If you already updated your card, you can ignore this email.<br>SnapRooms — Every guest photo. One room.</p>
+</div>`
+
+    await resend.emails.send({
+      from: process.env.RESEND_FROM_EMAIL,
+      to: owner.email,
+      reply_to: 'hello@snaprooms.app',
+      subject,
+      text,
+      html,
+    })
+  } catch (emailError) {
+    console.error('[stripe/webhook] Failed to send payment-failed email:', emailError)
+  }
 }
 
 export async function POST(request) {
@@ -233,11 +285,15 @@ export async function POST(request) {
           where: { id: ownerId },
           data: {
             plan: 'professional',
+            subscriptionStatus: 'active',
             stripeSubscriptionId: session.subscription || null,
             stripeCheckoutSessionId: session.id,
             planUpdatedAt: new Date(),
-            // Clear any previous cancellation timestamp on re-subscription.
+            // Clear any previous failure/cancellation timestamps on re-subscription.
+            paymentFailedAt: null,
+            subscriptionGraceUntil: null,
             subscriptionCanceledAt: null,
+            lastPaymentError: null,
           },
         })
 
@@ -310,18 +366,12 @@ export async function POST(request) {
         return NextResponse.json({ received: true })
       }
 
-      const newPlan = isActiveSubscription(status) ? 'professional' : 'free'
-
-      if (owner.plan !== newPlan) {
-        await prisma.owner.update({
-          where: { id: owner.id },
-          data: {
-            plan: newPlan,
-            planUpdatedAt: new Date(),
-          },
-        })
-        console.log(`[stripe/webhook] Owner ${owner.email} plan changed to ${newPlan} (status: ${status})`)
-      }
+      const updateData = buildSubscriptionUpdatedData({ status, owner })
+      await prisma.owner.update({
+        where: { id: owner.id },
+        data: updateData,
+      })
+      console.log(`[stripe/webhook] Owner ${owner.email} subscription updated (status: ${status}, plan: ${updateData.plan})`)
     } catch (dbError) {
       console.error('[stripe/webhook] Failed to handle subscription update:', dbError)
       return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
@@ -346,12 +396,7 @@ export async function POST(request) {
 
       await prisma.owner.update({
         where: { id: owner.id },
-        data: {
-          plan: 'free',
-          stripeSubscriptionId: null,
-          subscriptionCanceledAt: new Date(),
-          planUpdatedAt: new Date(),
-        },
+        data: buildSubscriptionDeletedData(),
       })
 
       console.log('[stripe/webhook] Owner downgraded to free after subscription deletion:', owner.email)
@@ -359,6 +404,95 @@ export async function POST(request) {
       console.error('[stripe/webhook] Failed to handle subscription deletion:', dbError)
       return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
     }
+  }
+
+  // ── invoice.payment_failed ──
+  // Professional payment failed: enter past_due with a grace period.
+  if (event.type === 'invoice.payment_failed') {
+    const invoice = event.data.object
+    const subscriptionId = invoice.subscription
+    const customerId = invoice.customer
+
+    try {
+      const owner = await prisma.owner.findFirst({
+        where: {
+          OR: [
+            { stripeSubscriptionId: subscriptionId || '' },
+            { stripeCustomerId: customerId || '' },
+          ],
+        },
+      })
+
+      if (!owner) {
+        console.warn('[stripe/webhook] Owner not found for failed invoice:', { subscriptionId, customerId })
+        return NextResponse.json({ received: true })
+      }
+
+      // Idempotency: skip if we already recorded this exact invoice as failed.
+      if (owner.lastInvoiceId === invoice.id && owner.subscriptionStatus === 'past_due') {
+        console.log(`[stripe/webhook] Failed invoice ${invoice.id} already recorded for owner ${owner.email}`)
+        return NextResponse.json({ received: true })
+      }
+
+      const updateData = buildPaymentFailedUpdate(invoice)
+      await prisma.owner.update({
+        where: { id: owner.id },
+        data: updateData,
+      })
+
+      const access = resolveSubscriptionAccessState({ ...owner, ...updateData })
+      console.log(
+        `[stripe/webhook] Owner ${owner.email} payment failed (invoice: ${invoice.id}, grace active: ${access.graceActive})`
+      )
+
+      await sendPaymentFailedEmail(owner, invoice, access)
+    } catch (dbError) {
+      console.error('[stripe/webhook] Failed to handle payment failure:', dbError)
+      return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
+    }
+
+    return NextResponse.json({ received: true })
+  }
+
+  // ── invoice.payment_succeeded ──
+  // Subscription payment recovered: restore active state.
+  if (event.type === 'invoice.payment_succeeded') {
+    const invoice = event.data.object
+    const subscriptionId = invoice.subscription
+    const customerId = invoice.customer
+
+    // Only handle subscription invoices, not one-time event upgrades.
+    if (!subscriptionId) {
+      return NextResponse.json({ received: true })
+    }
+
+    try {
+      const owner = await prisma.owner.findFirst({
+        where: {
+          OR: [
+            { stripeSubscriptionId: subscriptionId || '' },
+            { stripeCustomerId: customerId || '' },
+          ],
+        },
+      })
+
+      if (!owner) {
+        console.warn('[stripe/webhook] Owner not found for successful invoice:', { subscriptionId, customerId })
+        return NextResponse.json({ received: true })
+      }
+
+      await prisma.owner.update({
+        where: { id: owner.id },
+        data: buildPaymentSucceededUpdate(invoice),
+      })
+
+      console.log('[stripe/webhook] Owner payment succeeded, subscription restored:', owner.email)
+    } catch (dbError) {
+      console.error('[stripe/webhook] Failed to handle payment success:', dbError)
+      return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
+    }
+
+    return NextResponse.json({ received: true })
   }
 
   return NextResponse.json({ received: true })
