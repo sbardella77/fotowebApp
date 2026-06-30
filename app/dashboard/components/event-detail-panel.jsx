@@ -82,7 +82,15 @@ export function EventDetailPanel({
 
   const allEventUpsells = resolveAllUpsells(state)
   const eventUpgradeFeatures = new Set(['pro_event_upgrade', 'wedding_pro_upgrade'])
-  const eventUpgradeUpsells = allEventUpsells.filter((u) => eventUpgradeFeatures.has(u.feature))
+  const isWeddingProEvent = event.billingTier === 'wedding_pro'
+  const isProEvent = event.billingTier === 'pro_event'
+  const isAccountPremium = state.accountPremium
+  let eventUpgradeUpsells = allEventUpsells.filter((u) => eventUpgradeFeatures.has(u.feature))
+  if (isWeddingProEvent) {
+    eventUpgradeUpsells = []
+  } else if (isProEvent) {
+    eventUpgradeUpsells = eventUpgradeUpsells.filter((u) => u.feature === 'wedding_pro_upgrade')
+  }
   const otherUpsells = allEventUpsells.filter((u) => !eventUpgradeFeatures.has(u.feature) && u.feature !== 'room_limit')
 
   // Source of truth for the total event photo count (visible photos only).
@@ -178,11 +186,18 @@ export function EventDetailPanel({
         {/* Event-level upgrades */}
         <div className="mt-5 space-y-3 rounded-xl border border-border bg-raised p-4">
           <p className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.eventUpgradeTitle ?? 'Event upgrades'}</p>
-          {state.accountPremium ? (
+          {isAccountPremium ? (
             <div className="mt-2">
               <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-accent-dark">
                 <Sparkles className="mr-1 h-3 w-3" />
                 {t.coveredByProfessional ?? 'Covered by Professional'}
+              </span>
+            </div>
+          ) : isWeddingProEvent ? (
+            <div className="mt-2">
+              <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-accent-dark">
+                <Sparkles className="mr-1 h-3 w-3" />
+                {t.eventPlanWeddingPro ?? t.weddingPro ?? 'Wedding Pro'}
               </span>
             </div>
           ) : (
@@ -209,7 +224,7 @@ export function EventDetailPanel({
                 <div className="mt-2">
                   <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-accent-dark">
                     <Sparkles className="mr-1 h-3 w-3" />
-                    {event.billingTier === 'wedding_pro' ? t.weddingPro : t.proEvent}
+                    {isProEvent ? (t.eventPlanProEvent ?? t.proEvent ?? 'Pro Event') : (t.proEvent ?? 'Pro Event')}
                   </span>
                 </div>
               )}

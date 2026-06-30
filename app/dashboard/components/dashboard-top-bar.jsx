@@ -1,10 +1,24 @@
 'use client'
 
 import { CheckCircle2, Sparkles } from 'lucide-react'
+import { useTranslations } from '@/components/i18n-provider'
 
 export function DashboardTopBar({ experience, message, onDismissMessage }) {
+  const t = useTranslations('dashboard')
   const badge = experience?.planBadge
   const isPremium = badge?.variant === 'premium' || badge?.variant === 'pro'
+  const planBadgeLabel = (() => {
+    switch (badge?.plan) {
+      case 'professional':
+        return t?.accountPlanProfessional || t?.professional || 'Professional'
+      case 'business':
+        return t?.accountPlanBusiness || t?.business || 'Business'
+      case 'pro':
+        return t?.proBadge || 'Pro'
+      default:
+        return t?.accountPlanFree || t?.freePlan || 'Free'
+    }
+  })()
 
   return (
     <div className="flex items-center justify-between gap-4 w-full">
@@ -18,7 +32,7 @@ export function DashboardTopBar({ experience, message, onDismissMessage }) {
           }`}
         >
           {isPremium && <Sparkles className="h-3 w-3" />}
-          {badge?.label || 'Free'}
+          {planBadgeLabel}
         </span>
       </div>
 

@@ -127,7 +127,18 @@ export function DashboardSidebar({
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-foreground">{email || 'Owner'}</p>
             <p className="truncate text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-              {experience?.planBadge?.label || (t.freePlan || 'Free')}
+              {(() => {
+                switch (experience?.planBadge?.plan) {
+                  case 'professional':
+                    return t.accountPlanProfessional || t.professional || 'Professional'
+                  case 'business':
+                    return t.accountPlanBusiness || t.business || 'Business'
+                  case 'pro':
+                    return t.proBadge || 'Pro'
+                  default:
+                    return t.accountPlanFree || t.freePlan || 'Free'
+                }
+              })()}
             </p>
           </div>
         </div>
