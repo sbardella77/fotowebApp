@@ -11,7 +11,7 @@ Use this checklist before and after every production deployment, especially when
 - [ ] `CSRF_SECRET` is set in production environment variables.
 - [ ] `ALLOWED_ORIGINS` includes the production domain (e.g. `https://snaprooms.app`).
 - [ ] `NEXT_PUBLIC_BASE_URL` is set to the production domain (e.g. `https://snaprooms.app`).
-- [ ] `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are set if sending dunning/payment-failed emails.
+- [ ] `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are set for transactional billing emails (dunning, checkout confirmations, cancellation).
 - [ ] Stripe Customer Portal is configured in the Stripe Dashboard (return URL, payment-method update, invoice history, subscription cancellation).
 - [ ] Upstash Redis is configured (`UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`) for production rate limiting.
 
@@ -46,6 +46,16 @@ Use this checklist before and after every production deployment, especially when
 - [ ] Professional owner sees "Manage subscription" in the dashboard sidebar and the button opens Stripe Billing Portal.
 - [ ] Returning from the portal to `/dashboard?billing=portal_return` shows the return message and cleans the URL.
 - [ ] Cancelling Professional via the portal triggers `customer.subscription.deleted` and downgrades the owner to `free`.
+- [ ] **Billing emails** are verified in Stripe test mode:
+  - [ ] Extra Free Event auto-created → creation email received
+  - [ ] Extra Free Event fallback credit → credit email received
+  - [ ] Pro Event purchase → Pro Event activation email received
+  - [ ] Wedding Pro purchase → Wedding Pro activation email received
+  - [ ] Professional subscription → Professional activation email received
+  - [ ] `invoice.payment_failed` → payment failed email with grace period
+  - [ ] `invoice.payment_succeeded` after failure → payment recovered email received
+  - [ ] `customer.subscription.deleted` → cancellation email received
+  - [ ] Webhook retry of the same event does not send duplicate emails
 
 ## Emergency rollback note
 

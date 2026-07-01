@@ -172,11 +172,18 @@ For both **Widerruf** and **Kündigung**, EU consumer law requires clear confirm
 - **Widerruf:** Email confirmation must be sent immediately upon receipt of the withdrawal declaration
 - **Kündigung:** Confirmation of cancellation and end-of-access date should be communicated
 
+**Implemented:**
+- Transactional billing emails are sent via Resend from `app/api/stripe/webhook/route.js`.
+- Subscription cancellation confirmation email is sent on `customer.subscription.deleted`.
+- Payment failure dunning email is sent on `invoice.payment_failed`.
+- Payment recovery email is sent on `invoice.payment_succeeded` after a failed/past_due state.
+- Checkout confirmation emails are sent for Pro Event, Wedding Pro, Professional, and Extra Free Event.
+
+See `docs/billing.md` for the full list of emails, triggers, and idempotency behavior.
+
 **TODO:**
-- Set up transactional email provider (e.g. Resend, SendGrid, Postmark) if not already done
-- Create email templates for:
+- Create email template for:
   - Withdrawal received
-  - Subscription cancelled
   - Refund processed (if applicable)
 
 ---
@@ -195,7 +202,8 @@ For both **Widerruf** and **Kündigung**, EU consumer law requires clear confirm
 
 ### Important (Should have within 30 days of launch)
 - [ ] **Add VAT ID / company name fields** if B2B sales are expected
-- [ ] **Set up transactional email** for withdrawal and cancellation confirmations
+- [x] **Set up transactional email** for cancellation confirmations and other billing events
+- [ ] **Set up transactional email** for withdrawal confirmations
 - [ ] **Create invoice generation** for B2B customers (Stripe invoices or custom)
 - [x] **Add "Manage Subscription" button** to dashboard
 - [ ] **Document refund policy** clearly in Terms (e.g. discretionary refunds within 14 days)

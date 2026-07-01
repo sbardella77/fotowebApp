@@ -3,7 +3,6 @@ import { Prisma } from '@prisma/client'
 import { getStripe } from '@/lib/server/stripe'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { trackServerEvent } from '@/lib/analytics/track-server'
-import { Resend } from 'resend'
 import {
   buildPaymentFailedUpdate,
   buildPaymentSucceededUpdate,
@@ -14,6 +13,17 @@ import {
   GRACE_PERIOD_DAYS,
 } from '@/lib/server/subscription-lifecycle'
 import {
+  sendExtraFreeEventCreatedEmail,
+  sendExtraFreeEventFallbackCreditEmail,
+  sendExtraFreeEventCreditGrantedEmail,
+  sendProEventPurchasedEmail,
+  sendWeddingProPurchasedEmail,
+  sendProfessionalActivatedEmail,
+  sendProfessionalPaymentFailedEmail,
+  sendProfessionalPaymentRecoveredEmail,
+  sendProfessionalCanceledEmail,
+} from '@/lib/server/billing-emails'
+import {
   EVENT_CHECKOUT_COMPLETED,
   EVENT_ORIGINAL_DOWNLOAD_CHECKOUT_COMPLETED,
   EVENT_UPSELL_CONVERSION,
@@ -23,51 +33,8 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
-
 function getAppUrl() {
   return (process.env.NEXT_PUBLIC_BASE_URL || 'https://snaprooms.app').replace(/\/$/, '')
-}
-
-async function sendPaymentFailedEmail(owner, invoice, access) {
-  if (!resend || !process.env.RESEND_FROM_EMAIL) {
-    return
-  }
-
-  try {
-    const baseUrl = getAppUrl()
-    const graceDays = GRACE_PERIOD_DAYS
-    const subject = 'Payment failed – please update your payment method'
-    const dashboardUrl = `${baseUrl}/dashboard`
-    const text = `Hi,
-
-Your SnapRooms Professional payment could not be processed. Please update your payment method within ${graceDays} days to keep your Professional features active.
-
-Update your payment method here:
-${dashboardUrl}
-
-– SnapRooms
-Every guest photo. One room.`
-
-    const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
-  <div style="text-align:center;margin-bottom:24px;"><span style="font-size:20px;font-weight:700;color:#d4a853;letter-spacing:-0.5px;">SnapRooms</span></div>
-  <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Payment failed</h1>
-  <p style="margin:0 0 24px;text-align:center;color:#4b5563;">We couldn't process your Professional payment. Please update your payment method within <strong>${graceDays} days</strong> to avoid any interruption.</p>
-  <p style="margin:0 0 24px;text-align:center;"><a href="${dashboardUrl}" style="display:inline-block;padding:12px 24px;background:#d4a853;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Update payment method</a></p>
-  <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">If you already updated your card, you can ignore this email.<br>SnapRooms — Every guest photo. One room.</p>
-</div>`
-
-    await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL,
-      to: owner.email,
-      reply_to: 'hello@snaprooms.app',
-      subject,
-      text,
-      html,
-    })
-  } catch (emailError) {
-    console.error('[stripe/webhook] Failed to send payment-failed email:', emailError)
-  }
 }
 
 export async function POST(request) {
@@ -218,6 +185,13 @@ export async function POST(request) {
           },
         })
 
+        const appUrl = getAppUrl()
+        if (intent === 'wedding_pro') {
+          await sendWeddingProPurchasedEmail({ owner: { id: ownerId, email: session.metadata?.ownerEmail }, event: updatedEvent, appUrl })
+        } else {
+          await sendProEventPurchasedEmail({ owner: { id: ownerId, email: session.metadata?.ownerEmail }, event: updatedEvent, appUrl })
+        }
+
         trackServerEvent(
           EVENT_CHECKOUT_COMPLETED,
           {
@@ -297,6 +271,8 @@ export async function POST(request) {
             lastPaymentError: null,
           },
         })
+
+        await sendProfessionalActivatedEmail({ owner, appUrl: getAppUrl() })
 
         trackServerEvent(
           EVENT_CHECKOUT_COMPLETED,
@@ -395,10 +371,18 @@ export async function POST(request) {
         return NextResponse.json({ received: true })
       }
 
+      // Avoid duplicate cancellation emails if Stripe retries while the owner
+      // is already marked as canceled.
+      const wasAlreadyCanceled = owner.subscriptionStatus === 'canceled'
+
       await prisma.owner.update({
         where: { id: owner.id },
         data: buildSubscriptionDeletedData(),
       })
+
+      if (!wasAlreadyCanceled) {
+        await sendProfessionalCanceledEmail({ owner, appUrl: getAppUrl() })
+      }
 
       console.log('[stripe/webhook] Owner downgraded to free after subscription deletion:', owner.email)
     } catch (dbError) {
@@ -448,7 +432,7 @@ export async function POST(request) {
         `[stripe/webhook] Owner ${owner.email} payment failed (invoice: ${invoice.id}, grace active: ${access.graceActive})`
       )
 
-      await sendPaymentFailedEmail(owner, invoice, access)
+      await sendProfessionalPaymentFailedEmail({ owner, billingState: access, appUrl: getAppUrl() })
     } catch (dbError) {
       console.error('[stripe/webhook] Failed to handle payment failure:', dbError)
       return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
@@ -484,10 +468,22 @@ export async function POST(request) {
         return NextResponse.json({ received: true })
       }
 
+      // Only send a "payment recovered" email when this success resolves a
+      // previous failure or past_due/unpaid state. Normal monthly renewals
+      // should stay silent.
+      const wasRecoverable =
+        !!owner.paymentFailedAt ||
+        owner.subscriptionStatus === 'past_due' ||
+        owner.subscriptionStatus === 'unpaid'
+
       await prisma.owner.update({
         where: { id: owner.id },
         data: buildPaymentSucceededUpdate(invoice),
       })
+
+      if (wasRecoverable) {
+        await sendProfessionalPaymentRecoveredEmail({ owner, appUrl: getAppUrl() })
+      }
 
       console.log('[stripe/webhook] Owner payment succeeded, subscription restored:', owner.email)
     } catch (dbError) {
@@ -564,6 +560,12 @@ async function fulfillExtraFreeEventCredit({ prisma, session, ownerId, intent })
     })
 
     console.log(`[stripe/webhook] Owner ${updatedOwner.email} granted extra free event credit. Total credits: ${updatedOwner.extraEventCredits}`)
+
+    await sendExtraFreeEventCreditGrantedEmail({
+      owner: updatedOwner,
+      credits: updatedOwner.extraEventCredits,
+      appUrl: getAppUrl(),
+    })
   } catch (dbError) {
     if (dbError instanceof Prisma.PrismaClientKnownRequestError && dbError.code === 'P2025') {
       console.warn('[stripe/webhook] Owner not found for extra free event fulfillment, skipping:', ownerId)
@@ -711,6 +713,12 @@ async function fulfillExtraFreeEventBuyAndCreate({ prisma, session, ownerId, int
     )
 
     console.log(`[stripe/webhook] Auto-created event ${result.event.slug} for pending checkout ${pending.id}`)
+
+    await sendExtraFreeEventCreatedEmail({
+      owner,
+      event: result.event,
+      appUrl: getAppUrl(),
+    })
   } catch (error) {
     console.error('[stripe/webhook] Auto-create event failed, granting fallback credit:', {
       pendingCheckoutId: pending.id,
@@ -750,6 +758,12 @@ async function fulfillExtraFreeEventBuyAndCreate({ prisma, session, ownerId, int
         },
         { distinctId: session.metadata?.ownerEmail || ownerId }
       )
+
+      await sendExtraFreeEventFallbackCreditEmail({
+        owner,
+        pending,
+        appUrl: getAppUrl(),
+      })
     } catch (fallbackError) {
       console.error('[stripe/webhook] Fallback credit grant also failed:', fallbackError)
       return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
