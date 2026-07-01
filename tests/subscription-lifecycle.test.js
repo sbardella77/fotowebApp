@@ -259,6 +259,36 @@ describe('buildSubscriptionUpdatedData', () => {
     expect(update.paymentFailedAt).toBeNull()
     expect(update.subscriptionGraceUntil).toBeNull()
   })
+
+  it('active + cancel_at_period_end keeps professional and schedules cancellation', () => {
+    const periodEnd = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60
+    const update = buildSubscriptionUpdatedData({
+      subscription: { status: 'active', cancel_at_period_end: true, current_period_end: periodEnd },
+      owner: { plan: 'professional' },
+    })
+    expect(update.plan).toBe('professional')
+    expect(update.subscriptionStatus).toBe('active')
+    expect(update.subscriptionCancelAtPeriodEnd).toBe(true)
+    expect(update.subscriptionCurrentPeriodEnd).toBeInstanceOf(Date)
+    expect(update.subscriptionCancelScheduledAt).toBeInstanceOf(Date)
+    expect(update.paymentFailedAt).toBeNull()
+  })
+
+  it('active + cancel_at_period_end false clears scheduled flags', () => {
+    const update = buildSubscriptionUpdatedData({
+      subscription: { status: 'active', cancel_at_period_end: false, current_period_end: Date.now() / 1000 + 86400 },
+      owner: {
+        plan: 'professional',
+        subscriptionCancelAtPeriodEnd: true,
+        subscriptionCurrentPeriodEnd: new Date(),
+        subscriptionCancelScheduledAt: new Date(),
+      },
+    })
+    expect(update.subscriptionCancelAtPeriodEnd).toBe(false)
+    expect(update.subscriptionCurrentPeriodEnd).toBeNull()
+    expect(update.subscriptionCancelScheduledAt).toBeNull()
+    expect(update.subscriptionCanceledAt).toBeNull()
+  })
 })
 
 describe('buildSubscriptionDeletedData', () => {
@@ -270,5 +300,35 @@ describe('buildSubscriptionDeletedData', () => {
     expect(update.subscriptionCanceledAt).toBeInstanceOf(Date)
     expect(update.paymentFailedAt).toBeNull()
     expect(update.subscriptionGraceUntil).toBeNull()
+    expect(update.subscriptionCancelAtPeriodEnd).toBe(false)
+    expect(update.subscriptionCurrentPeriodEnd).toBeNull()
+    expect(update.subscriptionCancelScheduledAt).toBeNull()
+  })
+})
+
+describe('resolveSubscriptionAccessState scheduled cancellation', () => {
+  it('keeps premium active until current_period_end when cancellation is scheduled', () => {
+    const state = resolveSubscriptionAccessState({
+      plan: 'professional',
+      subscriptionStatus: 'active',
+      subscriptionCancelAtPeriodEnd: true,
+      subscriptionCurrentPeriodEnd: dateDaysFromNow(5),
+    })
+    expect(state.accountPremiumActive).toBe(true)
+    expect(state.isCancellationScheduled).toBe(true)
+    expect(state.dashboardCancellationInfo).toBe(true)
+    expect(state.dashboardBillingWarning).toBe(false)
+  })
+
+  it('downgrades after current_period_end expires', () => {
+    const state = resolveSubscriptionAccessState({
+      plan: 'professional',
+      subscriptionStatus: 'active',
+      subscriptionCancelAtPeriodEnd: true,
+      subscriptionCurrentPeriodEnd: dateDaysFromNow(-1),
+    })
+    expect(state.accountPremiumActive).toBe(false)
+    expect(state.isCancellationScheduled).toBe(true)
+    expect(state.dashboardCancellationInfo).toBe(false)
   })
 })

@@ -22,6 +22,7 @@ import {
   sendProfessionalPaymentFailedEmail,
   sendProfessionalPaymentRecoveredEmail,
   sendProfessionalCanceledEmail,
+  sendProfessionalCancellationScheduledEmail,
 } from '@/lib/server/billing-emails'
 import {
   EVENT_CHECKOUT_COMPLETED,
@@ -327,11 +328,13 @@ export async function POST(request) {
   }
 
   // ── customer.subscription.updated ──
-  // Handle status changes for Professional subscriptions
+  // Handle status changes and scheduled cancellations for Professional subscriptions
   if (event.type === 'customer.subscription.updated') {
     const subscription = event.data.object
     const subscriptionId = subscription.id
     const status = subscription.status
+    const cancelAtPeriodEnd = subscription.cancel_at_period_end === true
+    const currentPeriodEnd = subscription.current_period_end
 
     try {
       const owner = await prisma.owner.findFirst({
@@ -343,12 +346,37 @@ export async function POST(request) {
         return NextResponse.json({ received: true })
       }
 
-      const updateData = buildSubscriptionUpdatedData({ status, owner })
+      const wasScheduled = owner.subscriptionCancelAtPeriodEnd === true
+      const hadSamePeriodEnd =
+        owner.subscriptionCurrentPeriodEnd &&
+        currentPeriodEnd &&
+        new Date(owner.subscriptionCurrentPeriodEnd).getTime() === new Date(currentPeriodEnd * 1000).getTime()
+
+      const updateData = buildSubscriptionUpdatedData({ subscription, owner })
       await prisma.owner.update({
         where: { id: owner.id },
         data: updateData,
       })
-      console.log(`[stripe/webhook] Owner ${owner.email} subscription updated (status: ${status}, plan: ${updateData.plan})`)
+      console.log(
+        `[stripe/webhook] Owner ${owner.email} subscription updated (status: ${status}, plan: ${updateData.plan}, cancelAtPeriodEnd: ${cancelAtPeriodEnd})`
+      )
+
+      const appUrl = getAppUrl()
+
+      if (cancelAtPeriodEnd && (!wasScheduled || !hadSamePeriodEnd)) {
+        await sendProfessionalCancellationScheduledEmail({
+          owner,
+          currentPeriodEnd: currentPeriodEnd ? new Date(currentPeriodEnd * 1000) : null,
+          appUrl,
+        })
+      }
+
+      if (!cancelAtPeriodEnd && wasScheduled) {
+        // Reactivation: cancellation schedule was removed (e.g. via Customer Portal).
+        // For V1 we only clear the dashboard state; an optional reactivation email
+        // can be added later.
+        console.log(`[stripe/webhook] Owner ${owner.email} cancellation schedule removed`)
+      }
     } catch (dbError) {
       console.error('[stripe/webhook] Failed to handle subscription update:', dbError)
       return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
@@ -374,13 +402,17 @@ export async function POST(request) {
       // Avoid duplicate cancellation emails if Stripe retries while the owner
       // is already marked as canceled.
       const wasAlreadyCanceled = owner.subscriptionStatus === 'canceled'
+      const cancellationWasScheduled = owner.subscriptionCancelAtPeriodEnd === true
 
       await prisma.owner.update({
         where: { id: owner.id },
         data: buildSubscriptionDeletedData(),
       })
 
-      if (!wasAlreadyCanceled) {
+      // If the user canceled at period end, the scheduled-cancellation email was
+      // already sent when cancel_at_period_end became true. Send the final
+      // cancellation email only for immediate cancellations or legacy cases.
+      if (!wasAlreadyCanceled && !cancellationWasScheduled) {
         await sendProfessionalCanceledEmail({ owner, appUrl: getAppUrl() })
       }
 

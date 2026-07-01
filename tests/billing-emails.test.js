@@ -20,6 +20,7 @@ import {
   sendProfessionalPaymentFailedEmail,
   sendProfessionalPaymentRecoveredEmail,
   sendProfessionalCanceledEmail,
+  sendProfessionalCancellationScheduledEmail,
 } from '@/lib/server/billing-emails'
 import { buildEmail } from '@/lib/server/email/email-layout'
 
@@ -223,6 +224,24 @@ describe('billing email senders', () => {
     expect(payload.subject).toBe('Dein Professional-Abonnement wurde beendet')
     expect(payload.text).toContain('beendet')
     expect(payload.text).toContain('nicht sofort gelöscht')
+    expectNoSensitiveData(payload)
+  })
+
+  it('sendProfessionalCancellationScheduledEmail includes period end date', async () => {
+    const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    const result = await sendProfessionalCancellationScheduledEmail({
+      owner: { id: 'owner_1', email: 'user@example.com' },
+      currentPeriodEnd: periodEnd,
+      appUrl,
+    })
+
+    expect(result.sent).toBe(true)
+    const payload = sendMock.mock.calls[0][0]
+    expect(payload.subject).toBe('Professional-Abonnement gekündigt')
+    expect(payload.text).toContain('Kündigung erhalten')
+    expect(payload.text).toContain(
+      periodEnd.toLocaleDateString('de', { year: 'numeric', month: 'long', day: 'numeric' })
+    )
     expectNoSensitiveData(payload)
   })
 

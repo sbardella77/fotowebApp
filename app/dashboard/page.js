@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslations } from '@/components/i18n-provider'
 import { useRouter } from 'next/navigation'
 import { upload } from '@vercel/blob/client'
-import { AlertTriangle, ArrowUpDown, Camera, CheckCircle2, Copy, Download, Eye, EyeOff, FolderHeart, ImagePlus, LinkIcon, Loader2, Lock, LogOut, Pencil, Plus, QrCode, RefreshCw, Search, Share2, Sparkles, Trash2, Upload, Archive } from 'lucide-react'
+import { AlertTriangle, ArrowUpDown, Camera, CheckCircle2, Copy, Download, Eye, EyeOff, FolderHeart, ImagePlus, Info, LinkIcon, Loader2, Lock, LogOut, Pencil, Plus, QrCode, RefreshCw, Search, Share2, Sparkles, Trash2, Upload, Archive } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import PhotoLightbox from '@/components/photo-lightbox'
@@ -123,6 +123,9 @@ export default function DashboardPage() {
   const [paymentFailedAt, setPaymentFailedAt] = useState(null)
   const [subscriptionGraceUntil, setSubscriptionGraceUntil] = useState(null)
   const [subscriptionCanceledAt, setSubscriptionCanceledAt] = useState(null)
+  const [subscriptionCancelAtPeriodEnd, setSubscriptionCancelAtPeriodEnd] = useState(false)
+  const [subscriptionCurrentPeriodEnd, setSubscriptionCurrentPeriodEnd] = useState(null)
+  const [cancellationInfo, setCancellationInfo] = useState(false)
   const [billingWarning, setBillingWarning] = useState(false)
   const [billingActionRequired, setBillingActionRequired] = useState(false)
   const [canManageSubscription, setCanManageSubscription] = useState(false)
@@ -335,6 +338,9 @@ export default function DashboardPage() {
       setPaymentFailedAt(payload.paymentFailedAt || null)
       setSubscriptionGraceUntil(payload.subscriptionGraceUntil || null)
       setSubscriptionCanceledAt(payload.subscriptionCanceledAt || null)
+      setSubscriptionCancelAtPeriodEnd(!!payload.subscriptionCancelAtPeriodEnd)
+      setSubscriptionCurrentPeriodEnd(payload.subscriptionCurrentPeriodEnd || null)
+      setCancellationInfo(!!payload.cancellationInfo)
       setBillingWarning(!!payload.billingWarning)
       setBillingActionRequired(!!payload.billingActionRequired)
       setCanManageSubscription(!!payload.canManageSubscription)
@@ -1582,6 +1588,36 @@ export default function DashboardPage() {
                       onClick={openCustomerPortal}
                     >
                       {portalBusy ? t.openingBillingPortal : t.updatePaymentMethod}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {cancellationInfo && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-foreground shadow-subtle">
+              <div className="flex items-start gap-3">
+                <Info className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-medium">{t.subscriptionCancellationScheduledTitle}</p>
+                  <p className="mt-1 text-muted-foreground">
+                    {subscriptionCurrentPeriodEnd
+                      ? t.subscriptionCancellationScheduledDescription.replace(
+                          '{date}',
+                          new Date(subscriptionCurrentPeriodEnd).toLocaleDateString()
+                        )
+                      : t.subscriptionCancellationScheduledDescription.replace('{date}', '')}
+                  </p>
+                  {effectiveCanManageSubscription && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-3 border-amber-300 text-amber-800 hover:bg-amber-100"
+                      disabled={portalBusy}
+                      onClick={openCustomerPortal}
+                    >
+                      {portalBusy ? t.openingBillingPortal : t.manageSubscription}
                     </Button>
                   )}
                 </div>

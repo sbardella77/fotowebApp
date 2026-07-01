@@ -32,6 +32,9 @@ export async function GET(request) {
       paymentFailedAt: owner.paymentFailedAt || null,
       subscriptionGraceUntil: owner.subscriptionGraceUntil || null,
       subscriptionCanceledAt: owner.subscriptionCanceledAt || null,
+      subscriptionCancelAtPeriodEnd: owner.subscriptionCancelAtPeriodEnd || false,
+      subscriptionCurrentPeriodEnd: owner.subscriptionCurrentPeriodEnd || null,
+      subscriptionCancelScheduledAt: owner.subscriptionCancelScheduledAt || null,
       lastInvoiceId: owner.lastInvoiceId || null,
       lastInvoiceStatus: owner.lastInvoiceStatus || null,
       stripeCustomerId: owner.stripeCustomerId || null,
@@ -42,6 +45,7 @@ export async function GET(request) {
       billingActionRequired: access.billingActionRequired,
       canManageSubscription: access.canManageSubscription,
       accountPremiumActive: access.accountPremiumActive,
+      cancellationInfo: access.dashboardCancellationInfo,
     })
   } catch (error) {
     console.error('[owner/plan]', error)

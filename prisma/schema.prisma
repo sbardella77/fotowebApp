@@ -28,6 +28,9 @@ model Owner {
   passwordChangedAt       DateTime?
   planUpdatedAt            DateTime  @default(now())
   subscriptionCanceledAt   DateTime?
+  subscriptionCancelAtPeriodEnd Boolean @default(false)
+  subscriptionCurrentPeriodEnd  DateTime?
+  subscriptionCancelScheduledAt DateTime?
   subscriptionStatus       String?
   paymentFailedAt          DateTime?
   subscriptionGraceUntil   DateTime?

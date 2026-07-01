@@ -38,7 +38,8 @@ Until `Owner.locale` is persisted, all billing emails default to German.
 | **Professional activated** | `sendProfessionalActivatedEmail` | `checkout.session.completed` with `professional` intent | `stripeCheckoutSessionId` on the owner; retry skips fulfillment and email |
 | **Professional payment failed** | `sendProfessionalPaymentFailedEmail` | `invoice.payment_failed` | `isPaymentFailureAlreadyHandled` keys on `lastInvoiceId` + `paymentFailedAt`; retry returns `{ duplicate: true }` without email |
 | **Professional payment recovered** | `sendProfessionalPaymentRecoveredEmail` | `invoice.payment_succeeded` after `past_due`/`unpaid` or when `paymentFailedAt` was set | After recovery `paymentFailedAt` is cleared; retries see no failure state and skip email |
-| **Professional subscription canceled** | `sendProfessionalCanceledEmail` | `customer.subscription.deleted` | Sent only when the owner was not already `canceled`; retries for already-canceled owners skip email |
+| **Professional cancellation scheduled** | `sendProfessionalCancellationScheduledEmail` | `customer.subscription.updated` when `cancel_at_period_end` becomes `true` | Sent only when the schedule is new or the period end changed; retries with the same period end skip email |
+| **Professional subscription canceled** | `sendProfessionalCanceledEmail` | `customer.subscription.deleted` | Sent only for immediate cancellations (no prior scheduled cancellation); scheduled cancellations already sent their email |
 
 ## Email Content
 
@@ -83,10 +84,37 @@ Until `Owner.locale` is persisted, all billing emails default to German.
 - Subject: `Zahlung erfolgreich – Professional bleibt aktiv`
 - Confirms the recovered payment and that Professional remains active.
 
+### Professional cancellation scheduled (DE example)
+
+- Subject: `Professional-Abonnement gekündigt`
+- Sent immediately when the user cancels at period end via the Stripe Customer Portal.
+- Confirms the cancellation request and states that Professional remains active until `{date}`.
+- After the period ends, `customer.subscription.deleted` downgrades the account to Free without sending another email.
+
 ### Professional subscription canceled (DE example)
 
 - Subject: `Dein Professional-Abonnement wurde beendet`
+- Sent only for immediate cancellations (when `customer.subscription.deleted` arrives without a prior scheduled cancellation).
 - Confirms cancellation, explains that data is not deleted immediately, mentions remaining grace if applicable, and links to the dashboard for reactivation.
+
+## Scheduled Cancellation Lifecycle
+
+When a Professional user cancels via the Stripe Customer Portal with "cancel at period end":
+
+1. Stripe sends `customer.subscription.updated` with `cancel_at_period_end: true` and `current_period_end`.
+2. SnapRooms:
+   - Keeps `plan` as `professional`.
+   - Sets `subscriptionCancelAtPeriodEnd: true`.
+   - Stores `subscriptionCurrentPeriodEnd`.
+   - Sends `sendProfessionalCancellationScheduledEmail`.
+3. Dashboard shows an informative banner: "Subscription canceled — Professional remains active until {date}".
+4. Premium access remains effective until `subscriptionCurrentPeriodEnd`.
+5. When the period ends, Stripe sends `customer.subscription.deleted`:
+   - Downgrades owner to `free`.
+   - Clears scheduled-cancellation flags.
+   - No duplicate cancellation email is sent.
+
+If the user removes the cancellation schedule before the period ends, Stripe sends `customer.subscription.updated` with `cancel_at_period_end: false`; SnapRooms clears the scheduled flags and the dashboard banner disappears.
 
 ## Security and Privacy
 
@@ -95,10 +123,21 @@ Until `Owner.locale` is persisted, all billing emails default to German.
 - Email links use only public URLs (`/dashboard`, `/event/{slug}`, `/privacy`) or the Stripe Customer Portal URL generated server-side.
 - All user-provided text is HTML-escaped before being rendered.
 
+## Database Migration
+
+Handling scheduled cancellations requires the `Owner` fields added by migration `20260701120000_add_subscription_cancellation_schedule`:
+
+- `subscriptionCancelAtPeriodEnd Boolean @default(false)`
+- `subscriptionCurrentPeriodEnd DateTime?`
+- `subscriptionCancelScheduledAt DateTime?`
+
+Deploy with `npx prisma migrate deploy`. Do **not** use `prisma db push` in production.
+
 ## Residual Limitations
 
-- No new Prisma migration was added. Idempotency relies on existing fields (`stripeCheckoutSessionId`, `lastInvoiceId`, `paymentFailedAt`, `subscriptionStatus`).
-- `customer.subscription.deleted` deduplication is based on the pre-update `subscriptionStatus`. If the owner re-subscribes and cancels again, a new cancellation email is correctly sent.
+- `customer.subscription.updated` deduplication for scheduled-cancellation emails relies on comparing `subscriptionCancelAtPeriodEnd` and `subscriptionCurrentPeriodEnd`. If the owner re-subscribes and schedules cancellation again with the exact same period end, no new email is sent; this is acceptable because the schedule already existed.
+- `customer.subscription.deleted` deduplication is based on the pre-update `subscriptionStatus` and whether a scheduled cancellation was already handled.
+- Reactivation after canceling at period end does not send an email in V1; the dashboard state clears correctly.
 - Withdrawal (`Widerruf`) confirmation emails are out of scope and still require a dedicated `/withdrawal` flow.
 - Refund confirmation emails are out of scope until a refund webhook handler exists.
 - Invoice generation for B2B customers is not implemented.
