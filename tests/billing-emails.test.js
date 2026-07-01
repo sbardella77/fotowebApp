@@ -65,6 +65,26 @@ describe('buildEmail', () => {
     expect(email.html).not.toContain('<script>')
     expect(email.html).toContain('&lt;script&gt;')
   })
+
+  it('uses SnapRooms brand colors and lime CTA', () => {
+    const email = buildEmail({
+      subject: 'Brand check',
+      headline: 'Headline',
+      bodyLines: ['Body line'],
+      cta: { text: 'Go', url: `${appUrl}/dashboard` },
+      appUrl,
+    })
+
+    expect(email.html).toContain('background:#F8F6F1')
+    expect(email.html).toContain('background:#FFFFFF')
+    expect(email.html).toContain('border:1px solid #D8D0C2')
+    expect(email.html).toContain('background:linear-gradient(180deg, #F0FF5A 0%, #DDFB25 100%)')
+    expect(email.html).toContain('color:#1F1F1F')
+    expect(email.html).toContain('border:1px solid #D6F500')
+    expect(email.html).not.toContain('#d4a853')
+    expect(email.html).toContain('SnapRooms</span><span')
+    expect(email.html).toContain('#C8E020')
+  })
 })
 
 describe('billing email senders', () => {

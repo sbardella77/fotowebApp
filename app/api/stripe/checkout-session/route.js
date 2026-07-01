@@ -187,14 +187,17 @@ export async function POST(request) {
           { status: 500 }
         )
       }
-      const missingEnvVar =
+      const isAnnualMissing =
         intent === 'professional' && normalizedBillingInterval === 'annual'
-          ? 'STRIPE_PRICE_ID_PROFESSIONAL_ANNUAL'
-          : priceIdEnv
+      const missingEnvVar = isAnnualMissing ? 'STRIPE_PRICE_ID_PROFESSIONAL_ANNUAL' : priceIdEnv
       console.error(`${logPrefix} Missing env var: ${missingEnvVar} for intent=${intent}, billingInterval=${normalizedBillingInterval}`)
       return NextResponse.json(
-        { error: `Stripe price not configured for intent: ${intent}` },
-        { status: 500 }
+        {
+          error: isAnnualMissing
+            ? 'The annual Professional plan is not available at the moment. Please choose the monthly plan or contact support.'
+            : `Stripe price not configured for intent: ${intent}`,
+        },
+        { status: isAnnualMissing ? 503 : 500 }
       )
     }
 

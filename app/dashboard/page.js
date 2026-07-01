@@ -64,6 +64,7 @@ import { DashboardSidebar } from './components/dashboard-sidebar'
 import { DashboardTopBar } from './components/dashboard-top-bar'
 import { DashboardHeader } from './components/dashboard-header'
 import { InsightCard } from './components/insight-card'
+import { ProfessionalUpgradeModal } from './components/professional-upgrade-modal'
 import { EventCard } from './components/event-card'
 import { EventDetailPanel } from './components/event-detail-panel'
 import { DashboardPhotoCard } from './components/dashboard-photo-card'
@@ -154,6 +155,13 @@ export default function DashboardPage() {
   const [autoCreateBusy, setAutoCreateBusy] = useState(false)
   const autoCreateInProgressRef = useRef(false)
   const [pendingCheckoutReturn, setPendingCheckoutReturn] = useState(null)
+  const [professionalUpgradeOpen, setProfessionalUpgradeOpen] = useState(false)
+  const [professionalUpgradeContext, setProfessionalUpgradeContext] = useState({
+    entryPoint: 'dashboard',
+    upsellType: 'professional_account',
+    upsellSource: 'dashboard',
+    preselectedBillingInterval: null,
+  })
 
   // Safe derived values used throughout the dashboard.
   // These are computed early so every useMemo/useEffect below can depend on
@@ -372,6 +380,31 @@ export default function DashboardPage() {
       setMessage(error.message || t.billingPortalError)
       setPortalBusy(false)
     }
+  }
+
+  const openProfessionalUpgradeModal = ({
+    entryPoint = 'dashboard',
+    upsellType = 'professional_account',
+    upsellSource = 'dashboard',
+    preselectedBillingInterval = null,
+  } = {}) => {
+    setProfessionalUpgradeContext({
+      entryPoint,
+      upsellType,
+      upsellSource,
+      preselectedBillingInterval,
+    })
+    setProfessionalUpgradeOpen(true)
+  }
+
+  const closeProfessionalUpgradeModal = () => {
+    setProfessionalUpgradeOpen(false)
+  }
+
+  const handleProfessionalUpgrade = (billingInterval) => {
+    const { entryPoint, upsellType, upsellSource } = professionalUpgradeContext
+    closeProfessionalUpgradeModal()
+    startCheckout('professional', null, entryPoint, upsellType, upsellSource, {}, billingInterval)
   }
 
   const startCheckout = async (intent, eventId = null, entryPoint = 'dashboard', upsellType = null, upsellSource = null, extraMetadata = {}, billingInterval = null) => {
@@ -1327,7 +1360,12 @@ export default function DashboardPage() {
           onLogout={logout}
           onUpgradeClick={
             experience.showSidebarUpsell
-              ? () => startCheckout('professional', null, 'dashboard_sidebar')
+              ? () =>
+                  openProfessionalUpgradeModal({
+                    entryPoint: 'dashboard_sidebar',
+                    upsellType: 'professional_account',
+                    upsellSource: 'dashboard_sidebar',
+                  })
               : undefined
           }
           canManageSubscription={effectiveCanManageSubscription}
@@ -1366,7 +1404,13 @@ export default function DashboardPage() {
             onGalleryDownload={handleGalleryDownload}
             onUpgradeProEvent={(upsellType) => startCheckout('pro_event', selectedEvent.id, 'dashboard_room_detail', upsellType, 'dashboard_event_panel')}
             onUpgradeWeddingPro={(upsellType) => startCheckout('wedding_pro', selectedEvent.id, 'dashboard_room_detail', upsellType, 'dashboard_event_panel')}
-            onUpgradeProfessional={(upsellType) => startCheckout('professional', null, 'dashboard_room_detail', upsellType, 'dashboard_event_panel')}
+            onUpgradeProfessional={(upsellType) =>
+              openProfessionalUpgradeModal({
+                entryPoint: 'dashboard_room_detail',
+                upsellType,
+                upsellSource: 'dashboard_event_panel',
+              })
+            }
             onDelete={startDelete}
             onOpenLightbox={(index) => {
               setLightboxIndex(index)
@@ -1540,7 +1584,13 @@ export default function DashboardPage() {
             experience={experience}
             events={events}
             checkoutBusy={checkoutBusy}
-            onUpgrade={() => startCheckout('professional', null, 'dashboard_banner', 'professional_account', 'dashboard_insight_card')}
+            onUpgrade={() =>
+              openProfessionalUpgradeModal({
+                entryPoint: 'dashboard_banner',
+                upsellType: 'professional_account',
+                upsellSource: 'dashboard_insight_card',
+              })
+            }
             t={t}
           />
 
@@ -1632,9 +1682,16 @@ export default function DashboardPage() {
                         <Button
                           size="sm"
                           className="cta-primary"
-                          onClick={() => router.push('/pricing?plan=professional&billing=annual')}
+                          onClick={() =>
+                            openProfessionalUpgradeModal({
+                              entryPoint: 'dashboard_retention_banner',
+                              upsellType: 'professional_account',
+                              upsellSource: 'retention_banner',
+                              preselectedBillingInterval: 'annual',
+                            })
+                          }
                         >
-                          {t.viewYearlyPlan}
+                          {t.switchToYearly}
                         </Button>
                       )}
                     </div>
@@ -1715,7 +1772,13 @@ export default function DashboardPage() {
                 onGalleryDownload={handleGalleryDownload}
                 onUpgradeProEvent={(upsellType) => startCheckout('pro_event', selectedEvent.id, 'dashboard_room_detail', upsellType, 'dashboard_event_panel')}
                 onUpgradeWeddingPro={(upsellType) => startCheckout('wedding_pro', selectedEvent.id, 'dashboard_room_detail', upsellType, 'dashboard_event_panel')}
-                onUpgradeProfessional={(upsellType) => startCheckout('professional', null, 'dashboard_room_detail', upsellType, 'dashboard_event_panel')}
+                onUpgradeProfessional={(upsellType) =>
+              openProfessionalUpgradeModal({
+                entryPoint: 'dashboard_room_detail',
+                upsellType,
+                upsellSource: 'dashboard_event_panel',
+              })
+            }
                 onDelete={startDelete}
                 onOpenLightbox={(index) => {
                   setLightboxIndex(index)
@@ -1831,7 +1894,11 @@ export default function DashboardPage() {
                             effectivePlan: plan,
                             ctaPlan: 'professional',
                           })
-                          startCheckout('professional', null, 'create_room_modal', 'professional_account', 'create_room_modal')
+                          openProfessionalUpgradeModal({
+                            entryPoint: 'create_room_modal',
+                            upsellType: 'professional_account',
+                            upsellSource: 'create_room_modal',
+                          })
                         }}
                       >
                         {checkoutBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.startProfessional}
@@ -1882,6 +1949,15 @@ export default function DashboardPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ProfessionalUpgradeModal
+        open={professionalUpgradeOpen}
+        onClose={closeProfessionalUpgradeModal}
+        onStartCheckout={handleProfessionalUpgrade}
+        preselectedBillingInterval={professionalUpgradeContext.preselectedBillingInterval}
+        t={t}
+        checkoutBusy={checkoutBusy}
+      />
 
       {/* Hidden file input for private delivery */}
       <input ref={privateDeliveryFileInputRef} type="file" accept="image/jpeg,image/png" className="hidden" onChange={onPrivateDeliveryFileSelect} />
