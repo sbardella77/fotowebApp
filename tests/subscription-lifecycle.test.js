@@ -6,6 +6,7 @@ import {
   buildSubscriptionUpdatedData,
   buildSubscriptionDeletedData,
   computeOwnerPlanFromSubscriptionStatus,
+  isPaymentFailureAlreadyHandled,
   GRACE_PERIOD_DAYS,
 } from '@/lib/server/subscription-lifecycle'
 
@@ -92,6 +93,49 @@ describe('resolveSubscriptionAccessState', () => {
       stripeSubscriptionId: 'sub_123',
     })
     expect(state.canManageSubscription).toBe(true)
+  })
+})
+
+describe('isPaymentFailureAlreadyHandled', () => {
+  it('returns false for a brand new failed invoice', () => {
+    const owner = { subscriptionStatus: 'active', lastInvoiceId: null, paymentFailedAt: null }
+    expect(isPaymentFailureAlreadyHandled(owner, { id: 'in_123' })).toBe(false)
+  })
+
+  it('returns true when the same failed invoice is retried', () => {
+    const owner = {
+      subscriptionStatus: 'past_due',
+      lastInvoiceId: 'in_123',
+      paymentFailedAt: new Date(),
+    }
+    expect(isPaymentFailureAlreadyHandled(owner, { id: 'in_123' })).toBe(true)
+  })
+
+  it('returns true for a retried invoice even if subscriptionStatus has changed', () => {
+    const owner = {
+      subscriptionStatus: 'unpaid',
+      lastInvoiceId: 'in_123',
+      paymentFailedAt: new Date(),
+    }
+    expect(isPaymentFailureAlreadyHandled(owner, { id: 'in_123' })).toBe(true)
+  })
+
+  it('returns false for a different failed invoice', () => {
+    const owner = {
+      subscriptionStatus: 'past_due',
+      lastInvoiceId: 'in_123',
+      paymentFailedAt: new Date(),
+    }
+    expect(isPaymentFailureAlreadyHandled(owner, { id: 'in_456' })).toBe(false)
+  })
+
+  it('returns false after a successful payment cleared the failure timestamp', () => {
+    const owner = {
+      subscriptionStatus: 'active',
+      lastInvoiceId: 'in_123',
+      paymentFailedAt: null,
+    }
+    expect(isPaymentFailureAlreadyHandled(owner, { id: 'in_123' })).toBe(false)
   })
 })
 

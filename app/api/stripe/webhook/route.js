@@ -10,6 +10,7 @@ import {
   buildSubscriptionUpdatedData,
   buildSubscriptionDeletedData,
   resolveSubscriptionAccessState,
+  isPaymentFailureAlreadyHandled,
   GRACE_PERIOD_DAYS,
 } from '@/lib/server/subscription-lifecycle'
 import {
@@ -429,9 +430,11 @@ export async function POST(request) {
       }
 
       // Idempotency: skip if we already recorded this exact invoice as failed.
-      if (owner.lastInvoiceId === invoice.id && owner.subscriptionStatus === 'past_due') {
+      // Key on invoice ID + paymentFailedAt so retries are deduplicated even if
+      // subscriptionStatus has changed in the meantime.
+      if (isPaymentFailureAlreadyHandled(owner, invoice)) {
         console.log(`[stripe/webhook] Failed invoice ${invoice.id} already recorded for owner ${owner.email}`)
-        return NextResponse.json({ received: true })
+        return NextResponse.json({ received: true, duplicate: true })
       }
 
       const updateData = buildPaymentFailedUpdate(invoice)
