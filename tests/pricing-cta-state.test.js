@@ -23,6 +23,13 @@ describe('resolvePricingCtaState', () => {
     expect(result.helperKey).toBeUndefined()
   })
 
+  it('authenticated + professional + annual billing → link to annual offer', () => {
+    const result = resolvePricingCtaState({ authenticated: true, intent: 'professional', billingInterval: 'annual' })
+    expect(result.labelKey).toBe('pricingStartProfessionalFromDashboard')
+    expect(result.href).toBe('/dashboard?upgrade=professional&from=pricing&billing=annual')
+    expect(result.helperKey).toBeUndefined()
+  })
+
   it('authenticated + free → go to dashboard', () => {
     const result = resolvePricingCtaState({ authenticated: true, intent: 'free' })
     expect(result.labelKey).toBe('pricingGoToDashboard')

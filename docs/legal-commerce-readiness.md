@@ -12,14 +12,12 @@
 |---------|------|-------------|------------|-----------|-------|
 | **Pro Event** | One-time (per event) | `payment` | €9.99 | B2C | Unlocks features for a single event |
 | **Wedding Pro** | One-time (per event) | `payment` | €19.99 | B2C | Wedding-specific feature pack |
-| **Professional** | Subscription (account-level) | `subscription` | €79/mo or €790/yr | B2C / B2B | Currently only one Stripe price ID wired up (likely monthly) |
+| **Professional** | Subscription (account-level) | `subscription` | €79/mo or €790/yr | B2C / B2B | Monthly (`STRIPE_PRICE_ID_PROFESSIONAL`) and annual (`STRIPE_PRICE_ID_PROFESSIONAL_ANNUAL`) price IDs wired up |
 | **Original Quality Download** | One-time (per event) | `payment` | €1.99 | B2C | Guest-side unlock via Stripe Checkout |
 | **Business** | Custom | — | Contact us | B2B | Not sold through Stripe; links to `mailto` |
 
-### Important Gap
-The pricing page shows **€79/month** and **€790/year** (save 17%), but the backend only supports **one** Professional price ID (`STRIPE_PRICE_ID_PROFESSIONAL`). The yearly option is **display-only** and not a purchasable checkout option.
-
-**TODO:** Either remove the yearly display or wire up a second yearly price ID in Stripe and the checkout handler.
+### Yearly Billing
+The Professional card supports a monthly/yearly toggle. The annual plan is offered at €790/year (2 months free / save €158). The checkout handler accepts `billingInterval=annual` and maps it to the annual Stripe price ID. Switching from an active monthly subscription to annual via the Customer Portal is not supported in V1.
 
 ---
 

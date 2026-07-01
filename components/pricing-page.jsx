@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Check,
   Minus,
@@ -133,6 +133,9 @@ const recurringTiers = [
     badge: null,
     price: '€79',
     interval: '/ month',
+    annualPrice: '€790',
+    annualInterval: '/ year',
+    annualBadgeKey: 'save158',
     target: 'Photographers, planners, venues',
     description: 'Run multiple events for multiple clients. Commercial use included. Built for professionals who rely on SnapRooms every week.',
     cta: { label: 'Start Professional', href: '/dashboard/login', variant: 'outline' },
@@ -275,14 +278,23 @@ function translateFeatureValue(t, value) {
   return value
 }
 
-function TierCard({ tier, index, delayOffset = 0, isHighlighted = false }) {
+function TierCard({ tier, index, delayOffset = 0, isHighlighted = false, billingInterval = null }) {
   const t = useTranslations('pricing')
+  const [isAnnual, setIsAnnual] = useState(tier.id === 'professional' && billingInterval === 'annual')
 
   const displayName = translateTierName(t, tier)
   const displayTarget = translateTierTarget(t, tier)
   const displayDescription = translateTierDescription(t, tier)
-  const displayInterval = translateInterval(t, tier.interval)
-  const displayBadge = tier.badge === 'Most popular' ? t.mostPopular : tier.badge === 'Custom' ? t.businessPrice : tier.badge
+  const isProfessional = tier.id === 'professional'
+  const displayPrice = isProfessional && isAnnual ? tier.annualPrice : tier.price
+  const displayInterval = isProfessional && isAnnual ? t.perYear : translateInterval(t, tier.interval)
+  const displayBadge = isProfessional && isAnnual
+    ? t[tier.annualBadgeKey]
+    : tier.badge === 'Most popular'
+      ? t.mostPopular
+      : tier.badge === 'Custom'
+        ? t.businessPrice
+        : tier.badge
 
   const isPopular = tier.badge === 'Most popular'
 
@@ -297,16 +309,16 @@ function TierCard({ tier, index, delayOffset = 0, isHighlighted = false }) {
       }`}
       style={{ transitionDelay: `${(index + delayOffset) * 60}ms` }}
     >
-      {tier.badge && (
+      {displayBadge && (
         <div className="absolute -top-3 left-5">
           <span
             className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${
-              isPopular
+              isPopular || isAnnual
                 ? 'bg-primary text-black'
                 : 'border border-border bg-surface text-muted-foreground'
             }`}
           >
-            {isPopular && <Sparkles className="h-3 w-3" />}
+            {(isPopular || isAnnual) && <Sparkles className="h-3 w-3" />}
             {displayBadge}
           </span>
         </div>
@@ -320,14 +332,39 @@ function TierCard({ tier, index, delayOffset = 0, isHighlighted = false }) {
       </div>
 
       <div className="mt-4 flex items-baseline gap-1">
-        <span className="font-display text-3xl font-bold text-foreground">{tier.price}</span>
+        <span className="font-display text-3xl font-bold text-foreground">{displayPrice}</span>
         {displayInterval && <span className="text-sm text-muted-foreground">{displayInterval}</span>}
       </div>
 
-      {tier.secondaryPrice && (
+      {tier.secondaryPrice && !isAnnual && (
         <p className="mt-1 text-xs text-muted-foreground">
           {t.or} <span className="text-foreground">{tier.secondaryPrice}</span> ({t.save17})
         </p>
+      )}
+
+      {isProfessional && (
+        <div className="mt-3 inline-flex self-start rounded-full border border-border bg-surface p-1">
+          <button
+            type="button"
+            onClick={() => setIsAnnual(false)}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              !isAnnual ? 'bg-primary text-black' : 'text-muted-foreground hover:text-foreground'
+            }`}
+            aria-pressed={!isAnnual}
+          >
+            {t.monthly}
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsAnnual(true)}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              isAnnual ? 'bg-primary text-black' : 'text-muted-foreground hover:text-foreground'
+            }`}
+            aria-pressed={isAnnual}
+          >
+            {t.yearly}
+          </button>
+        </div>
       )}
 
       <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{displayDescription}</p>
@@ -339,6 +376,7 @@ function TierCard({ tier, index, delayOffset = 0, isHighlighted = false }) {
           size="default"
           className="w-full"
           showHelper
+          billingInterval={isProfessional && isAnnual ? 'annual' : 'monthly'}
         />
       </div>
 
@@ -365,7 +403,7 @@ function TierCard({ tier, index, delayOffset = 0, isHighlighted = false }) {
   )
 }
 
-export function PricingPage({ fromDashboard, highlightPlan, eventSlug }) {
+export function PricingPage({ fromDashboard, highlightPlan, eventSlug, billingInterval = null }) {
   const t = useTranslations('pricing')
   const tCommon = useTranslations('common')
   const tLanding = useTranslations('landing')
@@ -488,7 +526,14 @@ export function PricingPage({ fromDashboard, highlightPlan, eventSlug }) {
 
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {recurringTiers.map((tier, i) => (
-                <TierCard key={tier.id} tier={tier} index={i} delayOffset={eventTiers.length} isHighlighted={tier.id === highlightPlan} />
+                <TierCard
+                  key={tier.id}
+                  tier={tier}
+                  index={i}
+                  delayOffset={eventTiers.length}
+                  isHighlighted={tier.id === highlightPlan}
+                  billingInterval={tier.id === 'professional' ? billingInterval : null}
+                />
               ))}
               {/* Spacer for alignment on desktop */}
               <div className="hidden lg:block" />

@@ -21,6 +21,13 @@ const PRICE_ENV_MAP = {
   extra_event: 'STRIPE_PRICE_ID_EXTRA_EVENT',
 }
 
+function getProfessionalPriceId(billingInterval) {
+  if (billingInterval === 'annual') {
+    return process.env.STRIPE_PRICE_ID_PROFESSIONAL_ANNUAL
+  }
+  return process.env.STRIPE_PRICE_ID_PROFESSIONAL
+}
+
 const MODE_MAP = {
   pro_event: 'payment',
   wedding_pro: 'payment',
@@ -50,7 +57,7 @@ export async function POST(request) {
     }
 
     const body = await request.json().catch(() => ({}))
-    const { intent, eventId, upsellType, upsellSource, extraMetadata = {} } = body
+    const { intent, eventId, upsellType, upsellSource, extraMetadata = {}, billingInterval } = body
 
     // Rate limit by owner + intent before any Stripe call
     const limitConfig =
@@ -122,6 +129,15 @@ export async function POST(request) {
       return NextResponse.json({ error: 'eventId must not be provided for extra_event purchases' }, { status: 400 })
     }
 
+    // Validate billing interval for subscriptions
+    const normalizedBillingInterval = billingInterval === 'annual' ? 'annual' : 'monthly'
+    if (intent === 'professional' && billingInterval && !['monthly', 'annual'].includes(billingInterval)) {
+      return NextResponse.json(
+        { error: 'Invalid billing interval. Choose monthly or annual.' },
+        { status: 400 }
+      )
+    }
+
     // Prevent duplicate Professional subscription
     if (intent === 'professional' && owner.plan === 'professional' && owner.stripeSubscriptionId) {
       return NextResponse.json(
@@ -159,7 +175,10 @@ export async function POST(request) {
     }
 
     const priceIdEnv = PRICE_ENV_MAP[intent]
-    const priceId = process.env[priceIdEnv]
+    const priceId =
+      intent === 'professional'
+        ? getProfessionalPriceId(normalizedBillingInterval)
+        : process.env[priceIdEnv]
     if (!priceId) {
       if (intent === 'extra_event') {
         console.error('[checkout] Missing STRIPE_PRICE_ID_EXTRA_EVENT')
@@ -168,7 +187,11 @@ export async function POST(request) {
           { status: 500 }
         )
       }
-      console.error(`${logPrefix} Missing env var: ${priceIdEnv} for intent=${intent}`)
+      const missingEnvVar =
+        intent === 'professional' && normalizedBillingInterval === 'annual'
+          ? 'STRIPE_PRICE_ID_PROFESSIONAL_ANNUAL'
+          : priceIdEnv
+      console.error(`${logPrefix} Missing env var: ${missingEnvVar} for intent=${intent}, billingInterval=${normalizedBillingInterval}`)
       return NextResponse.json(
         { error: `Stripe price not configured for intent: ${intent}` },
         { status: 500 }
@@ -240,6 +263,7 @@ export async function POST(request) {
         entryPoint: body.entryPoint || 'dashboard',
         upsellType: upsellType || intent,
         upsellSource: upsellSource || body.entryPoint || 'unknown',
+        billingInterval: intent === 'professional' ? normalizedBillingInterval : '',
         ...(intent === 'extra_event' ? { productType: 'extra_free_event', restrictions: 'free_plan' } : {}),
         ...(extraFreeEventCheckout
           ? { postPurchaseAction, pendingCheckoutId: extraFreeEventCheckout.id }
@@ -252,6 +276,7 @@ export async function POST(request) {
         metadata: {
           intent,
           ownerId: owner.id,
+          billingInterval: normalizedBillingInterval,
         },
       }
     }

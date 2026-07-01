@@ -27,6 +27,7 @@ export function AuthAwarePricingCta({
   size = 'default',
   className = '',
   showHelper = false,
+  billingInterval = null,
 }) {
   const t = useTranslations('pricing')
   const { loading, authenticated } = useOwnerSession()
@@ -41,7 +42,7 @@ export function AuthAwarePricingCta({
     )
   }
 
-  const { labelKey, href, helperKey } = resolvePricingCtaState({ authenticated, intent })
+  const { labelKey, href, helperKey } = resolvePricingCtaState({ authenticated, intent, billingInterval })
 
   return (
     <div className={helperKey ? 'space-y-2' : undefined}>

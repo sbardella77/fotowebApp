@@ -264,6 +264,7 @@ export async function POST(request) {
             subscriptionStatus: 'active',
             stripeSubscriptionId: session.subscription || null,
             stripeCheckoutSessionId: session.id,
+            subscriptionBillingInterval: session.metadata?.billingInterval === 'annual' ? 'annual' : 'monthly',
             planUpdatedAt: new Date(),
             // Clear any previous failure/cancellation timestamps on re-subscription.
             paymentFailedAt: null,

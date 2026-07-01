@@ -227,7 +227,7 @@ describe('billing email senders', () => {
     expectNoSensitiveData(payload)
   })
 
-  it('sendProfessionalCancellationScheduledEmail includes period end date', async () => {
+  it('sendProfessionalCancellationScheduledEmail includes period end date and retention offer for monthly', async () => {
     const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
     const result = await sendProfessionalCancellationScheduledEmail({
       owner: { id: 'owner_1', email: 'user@example.com' },
@@ -242,6 +242,24 @@ describe('billing email senders', () => {
     expect(payload.text).toContain(
       periodEnd.toLocaleDateString('de', { year: 'numeric', month: 'long', day: 'numeric' })
     )
+    expect(payload.text).toContain('Jahresplan ansehen')
+    expect(payload.text).toContain('https://snaprooms.app/pricing?plan=professional&billing=annual')
+    expectNoSensitiveData(payload)
+  })
+
+  it('sendProfessionalCancellationScheduledEmail skips retention offer for annual', async () => {
+    const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    const result = await sendProfessionalCancellationScheduledEmail({
+      owner: { id: 'owner_1', email: 'user@example.com', subscriptionBillingInterval: 'annual' },
+      currentPeriodEnd: periodEnd,
+      appUrl,
+    })
+
+    expect(result.sent).toBe(true)
+    const payload = sendMock.mock.calls[0][0]
+    expect(payload.text).toContain('Zum Dashboard')
+    expect(payload.text).not.toContain('Jahresplan ansehen')
+    expect(payload.text).not.toContain('https://snaprooms.app/pricing?plan=professional&billing=annual')
     expectNoSensitiveData(payload)
   })
 

@@ -31,5 +31,6 @@ export default function Pricing({ params, searchParams }) {
   const fromDashboard = searchParams?.from === 'dashboard'
   const highlightPlan = searchParams?.plan || null
   const eventSlug = searchParams?.eventSlug || null
-  return <PricingPage locale={locale} fromDashboard={fromDashboard} highlightPlan={highlightPlan} eventSlug={eventSlug} />
+  const billingInterval = searchParams?.billing === 'annual' ? 'annual' : null
+  return <PricingPage locale={locale} fromDashboard={fromDashboard} highlightPlan={highlightPlan} eventSlug={eventSlug} billingInterval={billingInterval} />
 }

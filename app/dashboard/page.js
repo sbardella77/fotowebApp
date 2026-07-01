@@ -125,6 +125,7 @@ export default function DashboardPage() {
   const [subscriptionCanceledAt, setSubscriptionCanceledAt] = useState(null)
   const [subscriptionCancelAtPeriodEnd, setSubscriptionCancelAtPeriodEnd] = useState(false)
   const [subscriptionCurrentPeriodEnd, setSubscriptionCurrentPeriodEnd] = useState(null)
+  const [subscriptionBillingInterval, setSubscriptionBillingInterval] = useState(null)
   const [cancellationInfo, setCancellationInfo] = useState(false)
   const [billingWarning, setBillingWarning] = useState(false)
   const [billingActionRequired, setBillingActionRequired] = useState(false)
@@ -340,6 +341,7 @@ export default function DashboardPage() {
       setSubscriptionCanceledAt(payload.subscriptionCanceledAt || null)
       setSubscriptionCancelAtPeriodEnd(!!payload.subscriptionCancelAtPeriodEnd)
       setSubscriptionCurrentPeriodEnd(payload.subscriptionCurrentPeriodEnd || null)
+      setSubscriptionBillingInterval(payload.subscriptionBillingInterval || null)
       setCancellationInfo(!!payload.cancellationInfo)
       setBillingWarning(!!payload.billingWarning)
       setBillingActionRequired(!!payload.billingActionRequired)
@@ -372,7 +374,7 @@ export default function DashboardPage() {
     }
   }
 
-  const startCheckout = async (intent, eventId = null, entryPoint = 'dashboard', upsellType = null, upsellSource = null, extraMetadata = {}) => {
+  const startCheckout = async (intent, eventId = null, entryPoint = 'dashboard', upsellType = null, upsellSource = null, extraMetadata = {}, billingInterval = null) => {
     if (checkoutBusy) return
     setCheckoutBusy(true)
     try {
@@ -386,12 +388,15 @@ export default function DashboardPage() {
         event_id: eventId,
         upsell_type: upsellType,
         upsell_source: upsellSource,
+        billing_interval: billingInterval,
         ...extraMetadata,
       })
+      const body = { intent, eventId, entryPoint, upsellType, upsellSource, extraMetadata }
+      if (billingInterval) body.billingInterval = billingInterval
       const response = await csrfFetch('/api/stripe/checkout-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ intent, eventId, entryPoint, upsellType, upsellSource, extraMetadata }),
+        body: JSON.stringify(body),
       })
       const payload = await response.json()
       if (!response.ok || !payload.url) {
@@ -1609,16 +1614,30 @@ export default function DashboardPage() {
                         )
                       : t.subscriptionCancellationScheduledDescription.replace('{date}', '')}
                   </p>
+                  {subscriptionBillingInterval !== 'annual' && (
+                    <p className="mt-1 text-muted-foreground">{t.subscriptionCancellationScheduledRetention}</p>
+                  )}
                   {effectiveCanManageSubscription && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="mt-3 border-amber-300 text-amber-800 hover:bg-amber-100"
-                      disabled={portalBusy}
-                      onClick={openCustomerPortal}
-                    >
-                      {portalBusy ? t.openingBillingPortal : t.manageSubscription}
-                    </Button>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-amber-300 text-amber-800 hover:bg-amber-100"
+                        disabled={portalBusy}
+                        onClick={openCustomerPortal}
+                      >
+                        {portalBusy ? t.openingBillingPortal : t.manageSubscription}
+                      </Button>
+                      {subscriptionBillingInterval !== 'annual' && (
+                        <Button
+                          size="sm"
+                          className="cta-primary"
+                          onClick={() => router.push('/pricing?plan=professional&billing=annual')}
+                        >
+                          {t.viewYearlyPlan}
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

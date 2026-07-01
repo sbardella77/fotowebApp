@@ -274,6 +274,44 @@ describe('buildSubscriptionUpdatedData', () => {
     expect(update.paymentFailedAt).toBeNull()
   })
 
+  it('derives monthly billing interval from subscription items', () => {
+    const update = buildSubscriptionUpdatedData({
+      subscription: {
+        status: 'active',
+        cancel_at_period_end: false,
+        current_period_end: Date.now() / 1000 + 86400,
+        items: { data: [{ price: { recurring: { interval: 'month' } } }] },
+      },
+      owner: { plan: 'professional' },
+    })
+    expect(update.subscriptionBillingInterval).toBe('monthly')
+  })
+
+  it('derives annual billing interval from subscription items', () => {
+    const update = buildSubscriptionUpdatedData({
+      subscription: {
+        status: 'active',
+        cancel_at_period_end: false,
+        current_period_end: Date.now() / 1000 + 86400,
+        items: { data: [{ price: { recurring: { interval: 'year' } } }] },
+      },
+      owner: { plan: 'professional' },
+    })
+    expect(update.subscriptionBillingInterval).toBe('annual')
+  })
+
+  it('clears billing interval when subscription is canceled', () => {
+    const update = buildSubscriptionUpdatedData({
+      subscription: {
+        status: 'canceled',
+        items: { data: [{ price: { recurring: { interval: 'month' } } }] },
+      },
+      owner: { plan: 'professional', subscriptionBillingInterval: 'monthly' },
+    })
+    expect(update.plan).toBe('free')
+    expect(update.subscriptionBillingInterval).toBeNull()
+  })
+
   it('active + cancel_at_period_end false clears scheduled flags', () => {
     const update = buildSubscriptionUpdatedData({
       subscription: { status: 'active', cancel_at_period_end: false, current_period_end: Date.now() / 1000 + 86400 },
@@ -303,6 +341,7 @@ describe('buildSubscriptionDeletedData', () => {
     expect(update.subscriptionCancelAtPeriodEnd).toBe(false)
     expect(update.subscriptionCurrentPeriodEnd).toBeNull()
     expect(update.subscriptionCancelScheduledAt).toBeNull()
+    expect(update.subscriptionBillingInterval).toBeNull()
   })
 })
 

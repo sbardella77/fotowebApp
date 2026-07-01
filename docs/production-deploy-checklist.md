@@ -8,6 +8,8 @@ Use this checklist before and after every production deployment, especially when
 - [ ] `npm test` passes locally.
 - [ ] If `prisma/schema.prisma` changed, a migration file exists under `prisma/migrations/`.
 - [ ] Migration `20260701120000_add_subscription_cancellation_schedule` has been created for scheduled-cancellation fields.
+- [ ] Migration `20260701130000_add_subscription_billing_interval` has been created for the `subscriptionBillingInterval` field.
+- [ ] `STRIPE_PRICE_ID_PROFESSIONAL_ANNUAL` is set in production environment variables.
 - [ ] Migration SQL has been reviewed for production safety (no destructive changes, `IF NOT EXISTS` / `DROP COLUMN` justified).
 - [ ] `CSRF_SECRET` is set in production environment variables.
 - [ ] `ALLOWED_ORIGINS` includes the production domain (e.g. `https://snaprooms.app`).
@@ -52,9 +54,16 @@ Use this checklist before and after every production deployment, especially when
   - [ ] `subscriptionCurrentPeriodEnd` is stored and exposed by `/api/owner/plan`.
   - [ ] Dashboard shows informative banner "Professional remains active until {date}".
   - [ ] `sendProfessionalCancellationScheduledEmail` is received.
+  - [ ] Retention offer email includes yearly-plan CTA for monthly subscribers.
+  - [ ] Annual subscribers receive scheduled-cancellation email without retention offer.
   - [ ] Webhook retry with the same `current_period_end` does not resend the email.
   - [ ] Removing the schedule (cancel_at_period_end: false) clears dashboard banner.
   - [ ] At period end `customer.subscription.deleted` downgrades to free without duplicate email.
+- [ ] **Professional Annual Plan**:
+  - [ ] Stripe test-mode checkout for `billingInterval=annual` creates a subscription with the annual price.
+  - [ ] Webhook `checkout.session.completed` stores `subscriptionBillingInterval=annual`.
+  - [ ] Pricing page `/pricing?plan=professional&billing=annual` shows €790/year and "save €158" badge.
+  - [ ] Dashboard scheduled-cancellation banner shows "View yearly plan" CTA for monthly subscribers.
 - [ ] **Billing emails** are verified in Stripe test mode:
   - [ ] Extra Free Event auto-created → creation email received
   - [ ] Extra Free Event fallback credit → credit email received

@@ -35,6 +35,7 @@ export async function GET(request) {
       subscriptionCancelAtPeriodEnd: owner.subscriptionCancelAtPeriodEnd || false,
       subscriptionCurrentPeriodEnd: owner.subscriptionCurrentPeriodEnd || null,
       subscriptionCancelScheduledAt: owner.subscriptionCancelScheduledAt || null,
+      subscriptionBillingInterval: owner.subscriptionBillingInterval || null,
       lastInvoiceId: owner.lastInvoiceId || null,
       lastInvoiceStatus: owner.lastInvoiceStatus || null,
       stripeCustomerId: owner.stripeCustomerId || null,
