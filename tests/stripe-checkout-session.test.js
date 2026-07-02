@@ -56,7 +56,7 @@ beforeEach(() => {
   getPrismaClient.mockResolvedValue({
     event: { findFirst: vi.fn() },
     owner: { update: vi.fn().mockResolvedValue({ ...baseOwner }) },
-    extraFreeEventCheckout: { create: vi.fn(), update: vi.fn() },
+    extraFreeEventCheckout: { create: vi.fn().mockResolvedValue({ id: 'pending-1' }), update: vi.fn() },
   })
   getStripe.mockReturnValue({
     customers: { create: vi.fn() },
@@ -246,9 +246,10 @@ describe('POST /api/stripe/checkout-session', () => {
     expect(body.error).toBe('eventId must not be provided for extra_event purchases')
   })
 
-  it('allows extra_event checkout without eventId', async () => {
+  it('allows extra_event credit-only checkout and creates a pending row', async () => {
     const email = 'owner@example.com'
     verifyOwnerSessionToken.mockResolvedValue(email)
+    const prisma = await getPrismaClient()
 
     const response = await POST(
       createRequest({
@@ -258,9 +259,59 @@ describe('POST /api/stripe/checkout-session', () => {
       })
     )
     const body = await response.json()
+    const stripe = getStripe()
 
     expect(response.status).toBe(200)
     expect(body.url).toBe('https://checkout.stripe.com/test')
+    expect(prisma.extraFreeEventCheckout.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ eventName: null, status: 'pending' }),
+      })
+    )
+    expect(prisma.extraFreeEventCheckout.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'checkout_created' }),
+      })
+    )
+    expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success_url: expect.not.stringContaining('createPendingEvent'),
+        metadata: expect.objectContaining({ postPurchaseAction: 'credit_only' }),
+      })
+    )
+  })
+
+  it('allows extra_event buy-and-create checkout and creates a pending row with event name', async () => {
+    const email = 'owner@example.com'
+    verifyOwnerSessionToken.mockResolvedValue(email)
+    const prisma = await getPrismaClient()
+
+    const response = await POST(
+      createRequest({
+        body: {
+          intent: 'extra_event',
+          extraMetadata: { pendingEventName: 'Birthday Party', postPurchaseAction: 'create_event' },
+        },
+        cookie: 'session',
+        csrfToken: createCsrfToken(email),
+      })
+    )
+    const body = await response.json()
+    const stripe = getStripe()
+
+    expect(response.status).toBe(200)
+    expect(body.url).toBe('https://checkout.stripe.com/test')
+    expect(prisma.extraFreeEventCheckout.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ eventName: 'Birthday Party', status: 'pending' }),
+      })
+    )
+    expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success_url: expect.stringContaining('createPendingEvent=1'),
+        metadata: expect.objectContaining({ postPurchaseAction: 'create_event' }),
+      })
+    )
   })
 
   it('blocks duplicate Professional subscriptions', async () => {

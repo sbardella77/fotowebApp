@@ -201,7 +201,7 @@ model ExtraFreeEventCheckout {
   ownerId                 String
   owner                   Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   stripeCheckoutSessionId String?  @unique
-  eventName               String
+  eventName               String?
   status                  String   @default("pending")
   createdEventId          String?
   createdEventSlug        String?

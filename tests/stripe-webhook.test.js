@@ -9,10 +9,14 @@ vi.mock('@/lib/server/billing-emails', () => ({
   sendExtraFreeEventCreatedEmail: vi.fn().mockResolvedValue(undefined),
   sendExtraFreeEventFallbackCreditEmail: vi.fn().mockResolvedValue(undefined),
 }))
+vi.mock('@/lib/server/prisma-gallery-repository', () => ({
+  prismaGalleryRepository: { createEvent: vi.fn() },
+}))
 
 import { POST } from '@/app/api/stripe/webhook/route'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { getStripe } from '@/lib/server/stripe'
+import { prismaGalleryRepository } from '@/lib/server/prisma-gallery-repository'
 
 const originalEnv = process.env
 
@@ -59,7 +63,7 @@ function buildCheckoutSession({ intent, eventId, sessionId = 'cs_test', extra = 
 }
 
 function createPrismaMock(overrides = {}) {
-  return {
+  const prisma = {
     event: {
       findFirst: vi.fn().mockResolvedValue(null),
       findUnique: vi.fn().mockResolvedValue(null),
@@ -68,17 +72,23 @@ function createPrismaMock(overrides = {}) {
     owner: {
       findFirst: vi.fn().mockResolvedValue(null),
       findUnique: vi.fn().mockResolvedValue({ id: 'owner-1', email: 'owner@example.com', extraEventCredits: 1 }),
-      update: vi.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'owner-1', email: 'owner@example.com', ...data })),
+      update: vi.fn().mockImplementation(({ data, where }) => {
+        const credits = typeof data.extraEventCredits?.increment === 'number' ? 1 + data.extraEventCredits.increment : 1
+        return Promise.resolve({ id: where?.id || 'owner-1', email: 'owner@example.com', extraEventCredits: credits })
+      }),
     },
     extraFreeEventCheckout: {
       findFirst: vi.fn().mockResolvedValue(null),
       findUnique: vi.fn().mockResolvedValue(null),
       create: vi.fn().mockResolvedValue({ id: 'pending-1' }),
-      update: vi.fn().mockResolvedValue({ id: 'pending-1', status: 'auto_created' }),
+      update: vi.fn().mockImplementation(({ data, where }) => Promise.resolve({ id: where?.id || 'pending-1', ...data })),
     },
     upsellEvent: { create: vi.fn().mockResolvedValue({ id: 'upsell-1' }) },
+    $queryRaw: vi.fn().mockResolvedValue([]),
     ...overrides,
   }
+  prisma.$transaction = vi.fn(async (fn) => fn(prisma))
+  return prisma
 }
 
 beforeEach(() => {
@@ -165,46 +175,206 @@ describe('POST /api/stripe/webhook', () => {
     expect(prisma.event.update).not.toHaveBeenCalled()
   })
 
-  it('skips legacy extra_event credit when the same session was already granted', async () => {
-    const session = buildCheckoutSession({ intent: 'extra_event', eventId: '', sessionId: 'cs_credit' })
-    getStripe.mockReturnValue({
-      webhooks: {
-        constructEvent: vi.fn(() => buildStripeEvent('checkout.session.completed', session)),
-      },
+  describe('Extra Free Event credit-only', () => {
+    it('grants exactly one credit and marks pending checkout as credit_granted', async () => {
+      const session = buildCheckoutSession({
+        intent: 'extra_event',
+        sessionId: 'cs_credit',
+        extra: { postPurchaseAction: 'credit_only', pendingCheckoutId: 'pending-credit-1' },
+      })
+      getStripe.mockReturnValue({
+        webhooks: {
+          constructEvent: vi.fn(() => buildStripeEvent('checkout.session.completed', session)),
+        },
+      })
+      const prisma = await getPrismaClient()
+      prisma.extraFreeEventCheckout.findUnique.mockResolvedValue({
+        id: 'pending-credit-1',
+        ownerId: 'owner-1',
+        eventName: null,
+        status: 'checkout_created',
+      })
+
+      const response = await POST(createWebhookRequest())
+      const body = await response.json()
+
+      expect(body.received).toBe(true)
+      expect(prisma.owner.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'owner-1' },
+          data: expect.objectContaining({ extraEventCredits: { increment: 1 } }),
+        })
+      )
+      expect(prisma.extraFreeEventCheckout.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'pending-credit-1' },
+          data: expect.objectContaining({ status: 'credit_granted' }),
+        })
+      )
     })
-    const prisma = await getPrismaClient()
-    prisma.owner.findFirst.mockResolvedValue({ id: 'owner-1', email: 'owner@example.com', extraEventCheckoutSessionId: 'cs_credit' })
 
-    const response = await POST(createWebhookRequest())
-    const body = await response.json()
+    it('skips credit grant when pending checkout is already credit_granted', async () => {
+      const session = buildCheckoutSession({
+        intent: 'extra_event',
+        sessionId: 'cs_credit',
+        extra: { postPurchaseAction: 'credit_only', pendingCheckoutId: 'pending-credit-1' },
+      })
+      getStripe.mockReturnValue({
+        webhooks: {
+          constructEvent: vi.fn(() => buildStripeEvent('checkout.session.completed', session)),
+        },
+      })
+      const prisma = await getPrismaClient()
+      prisma.extraFreeEventCheckout.findUnique.mockResolvedValue({
+        id: 'pending-credit-1',
+        ownerId: 'owner-1',
+        eventName: null,
+        status: 'credit_granted',
+      })
 
-    expect(body.received).toBe(true)
-    expect(prisma.owner.update).not.toHaveBeenCalled()
+      const response = await POST(createWebhookRequest())
+      const body = await response.json()
+
+      expect(body.received).toBe(true)
+      expect(prisma.owner.update).not.toHaveBeenCalled()
+      expect(prisma.extraFreeEventCheckout.update).not.toHaveBeenCalled()
+    })
+
+    it('grants only one credit when the same session is delivered twice', async () => {
+      const session = buildCheckoutSession({
+        intent: 'extra_event',
+        sessionId: 'cs_credit_twice',
+        extra: { postPurchaseAction: 'credit_only', pendingCheckoutId: 'pending-credit-2' },
+      })
+      getStripe.mockReturnValue({
+        webhooks: {
+          constructEvent: vi.fn(() => buildStripeEvent('checkout.session.completed', session)),
+        },
+      })
+      const prisma = await getPrismaClient()
+
+      // First delivery: pending row exists in checkout_created state.
+      prisma.extraFreeEventCheckout.findUnique.mockResolvedValue({
+        id: 'pending-credit-2',
+        ownerId: 'owner-1',
+        eventName: null,
+        status: 'checkout_created',
+      })
+      const first = await POST(createWebhookRequest())
+      expect((await first.json()).received).toBe(true)
+      expect(prisma.owner.update).toHaveBeenCalledTimes(1)
+
+      // Simulate the row now being credit_granted for the second delivery.
+      prisma.extraFreeEventCheckout.findUnique.mockResolvedValue({
+        id: 'pending-credit-2',
+        ownerId: 'owner-1',
+        eventName: null,
+        status: 'credit_granted',
+      })
+      vi.clearAllMocks()
+      const second = await POST(createWebhookRequest())
+      expect((await second.json()).received).toBe(true)
+      expect(prisma.owner.update).not.toHaveBeenCalled()
+    })
   })
 
-  it('skips buy-and-create when the pending checkout is already auto_created', async () => {
-    const session = buildCheckoutSession({
-      intent: 'extra_event',
-      eventId: '',
-      sessionId: 'cs_create',
-      extra: { pendingCheckoutId: 'pending-1', postPurchaseAction: 'create_event' },
-    })
-    getStripe.mockReturnValue({
-      webhooks: {
-        constructEvent: vi.fn(() => buildStripeEvent('checkout.session.completed', session)),
-      },
-    })
-    const prisma = await getPrismaClient()
-    prisma.extraFreeEventCheckout.findFirst.mockResolvedValue({
-      id: 'pending-1',
-      ownerId: 'owner-1',
-      status: 'auto_created',
+  describe('Extra Free Event buy-and-create', () => {
+    it('skips auto-create when the pending checkout is already auto_created', async () => {
+      const session = buildCheckoutSession({
+        intent: 'extra_event',
+        sessionId: 'cs_create',
+        extra: { postPurchaseAction: 'create_event', pendingCheckoutId: 'pending-1' },
+      })
+      getStripe.mockReturnValue({
+        webhooks: {
+          constructEvent: vi.fn(() => buildStripeEvent('checkout.session.completed', session)),
+        },
+      })
+      const prisma = await getPrismaClient()
+      const pending = {
+        id: 'pending-1',
+        ownerId: 'owner-1',
+        eventName: 'Birthday Party',
+        status: 'auto_created',
+      }
+      prisma.extraFreeEventCheckout.findUnique.mockResolvedValue(pending)
+      prisma.extraFreeEventCheckout.findFirst.mockResolvedValue(pending)
+
+      const response = await POST(createWebhookRequest())
+      const body = await response.json()
+
+      expect(body.received).toBe(true)
+      expect(prisma.extraFreeEventCheckout.update).not.toHaveBeenCalled()
+      expect(prisma.owner.update).not.toHaveBeenCalled()
     })
 
-    const response = await POST(createWebhookRequest())
-    const body = await response.json()
+    it('grants exactly one fallback credit and marks pending checkout as failed when auto-create fails', async () => {
+      const session = buildCheckoutSession({
+        intent: 'extra_event',
+        sessionId: 'cs_create_fail',
+        extra: { postPurchaseAction: 'create_event', pendingCheckoutId: 'pending-fail-1' },
+      })
+      getStripe.mockReturnValue({
+        webhooks: {
+          constructEvent: vi.fn(() => buildStripeEvent('checkout.session.completed', session)),
+        },
+      })
+      const prisma = await getPrismaClient()
+      const pending = {
+        id: 'pending-fail-1',
+        ownerId: 'owner-1',
+        eventName: 'Birthday Party',
+        status: 'checkout_created',
+      }
+      prisma.extraFreeEventCheckout.findUnique.mockResolvedValue(pending)
+      prisma.extraFreeEventCheckout.findFirst.mockResolvedValue(pending)
+      prismaGalleryRepository.createEvent.mockRejectedValue(new Error('create failed'))
 
-    expect(body.received).toBe(true)
-    expect(prisma.extraFreeEventCheckout.update).not.toHaveBeenCalled()
+      const response = await POST(createWebhookRequest())
+      const body = await response.json()
+
+      expect(body.received).toBe(true)
+      expect(prisma.owner.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'owner-1' },
+          data: expect.objectContaining({ extraEventCredits: { increment: 1 } }),
+        })
+      )
+      expect(prisma.extraFreeEventCheckout.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'pending-fail-1' },
+          data: expect.objectContaining({ status: 'failed' }),
+        })
+      )
+    })
+
+    it('does not grant a second fallback credit when retry hits a failed pending checkout', async () => {
+      const session = buildCheckoutSession({
+        intent: 'extra_event',
+        sessionId: 'cs_create_fail',
+        extra: { postPurchaseAction: 'create_event', pendingCheckoutId: 'pending-fail-1' },
+      })
+      getStripe.mockReturnValue({
+        webhooks: {
+          constructEvent: vi.fn(() => buildStripeEvent('checkout.session.completed', session)),
+        },
+      })
+      const prisma = await getPrismaClient()
+      const pending = {
+        id: 'pending-fail-1',
+        ownerId: 'owner-1',
+        eventName: 'Birthday Party',
+        status: 'failed',
+      }
+      prisma.extraFreeEventCheckout.findUnique.mockResolvedValue(pending)
+      prisma.extraFreeEventCheckout.findFirst.mockResolvedValue(pending)
+
+      const response = await POST(createWebhookRequest())
+      const body = await response.json()
+
+      expect(body.received).toBe(true)
+      expect(prisma.owner.update).not.toHaveBeenCalled()
+      expect(prisma.extraFreeEventCheckout.update).not.toHaveBeenCalled()
+    })
   })
 })

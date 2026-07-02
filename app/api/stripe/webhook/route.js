@@ -150,13 +150,21 @@ export async function POST(request) {
 
     // ── Extra Free Event one-time credit ──
     if (intent === 'extra_event') {
-      const pendingCheckoutId = session.metadata?.pendingCheckoutId
       const postPurchaseAction = session.metadata?.postPurchaseAction
 
-      if (pendingCheckoutId && postPurchaseAction === 'create_event') {
-        return await fulfillExtraFreeEventBuyAndCreate({ prisma, session, ownerId, intent })
+      // New canonical path: every extra_event checkout has a unique pending row.
+      const pendingCheckout = await prisma.extraFreeEventCheckout.findUnique({
+        where: { stripeCheckoutSessionId: session.id },
+      })
+
+      if (pendingCheckout) {
+        if (postPurchaseAction === 'create_event') {
+          return await fulfillExtraFreeEventBuyAndCreate({ prisma, session, ownerId, intent })
+        }
+        return await fulfillExtraFreeEventCredit({ prisma, session, ownerId, intent, pendingCheckout })
       }
 
+      // Legacy fallback: sessions created before the pending-row migration.
       return await fulfillExtraFreeEventCredit({ prisma, session, ownerId, intent })
     }
 
@@ -544,26 +552,76 @@ export async function POST(request) {
 }
 
 
-// ── Helper: legacy Extra Free Event credit fulfillment ──
-async function fulfillExtraFreeEventCredit({ prisma, session, ownerId, intent }) {
+// ── Helper: Extra Free Event credit fulfillment ──
+async function fulfillExtraFreeEventCredit({ prisma, session, ownerId, intent, pendingCheckout = null }) {
   try {
-    // Idempotency: skip if this exact session already fulfilled
-    const existing = await prisma.owner.findFirst({
-      where: { id: ownerId, extraEventCheckoutSessionId: session.id },
-    })
-    if (existing) {
-      console.log(`[stripe/webhook] Owner ${existing.email} already fulfilled for extra free event session ${session.id}`)
-      return NextResponse.json({ received: true })
-    }
+    let updatedOwner
 
-    const updatedOwner = await prisma.owner.update({
-      where: { id: ownerId },
-      data: {
-        extraEventCredits: { increment: 1 },
-        extraEventCheckoutSessionId: session.id,
-        updatedAt: new Date(),
-      },
-    })
+    if (pendingCheckout) {
+      // Canonical path: every extra_event checkout has a unique pending row.
+      if (['credit_granted', 'auto_created', 'failed'].includes(pendingCheckout.status)) {
+        console.log(
+          `[stripe/webhook] Extra free event checkout ${pendingCheckout.id} already processed (status=${pendingCheckout.status}), skipping`
+        )
+        return NextResponse.json({ received: true })
+      }
+
+      const result = await prisma.$transaction(async (tx) => {
+        // Pessimistic lock: serialize concurrent webhook deliveries for the same session.
+        await tx.$queryRaw`SELECT id FROM "ExtraFreeEventCheckout" WHERE id = ${pendingCheckout.id} FOR UPDATE`
+
+        const fresh = await tx.extraFreeEventCheckout.findUnique({
+          where: { id: pendingCheckout.id },
+        })
+        if (!fresh || ['credit_granted', 'auto_created', 'failed'].includes(fresh.status)) {
+          return null
+        }
+
+        const owner = await tx.owner.update({
+          where: { id: ownerId },
+          data: {
+            extraEventCredits: { increment: 1 },
+            extraEventCheckoutSessionId: session.id,
+            updatedAt: new Date(),
+          },
+        })
+
+        await tx.extraFreeEventCheckout.update({
+          where: { id: fresh.id },
+          data: {
+            status: 'credit_granted',
+            stripeCheckoutSessionId: session.id,
+            completedAt: new Date(),
+          },
+        })
+
+        return owner
+      })
+
+      if (!result) {
+        return NextResponse.json({ received: true })
+      }
+
+      updatedOwner = result
+    } else {
+      // Legacy path: sessions created before the pending-row change.
+      const existing = await prisma.owner.findFirst({
+        where: { id: ownerId, extraEventCheckoutSessionId: session.id },
+      })
+      if (existing) {
+        console.log(`[stripe/webhook] Owner ${existing.email} already fulfilled for extra free event session ${session.id}`)
+        return NextResponse.json({ received: true })
+      }
+
+      updatedOwner = await prisma.owner.update({
+        where: { id: ownerId },
+        data: {
+          extraEventCredits: { increment: 1 },
+          extraEventCheckoutSessionId: session.id,
+          updatedAt: new Date(),
+        },
+      })
+    }
 
     trackServerEvent(
       EVENT_CHECKOUT_COMPLETED,

@@ -88,7 +88,7 @@ export async function POST(request) {
         ? validatePendingEventName(extraMetadata.pendingEventName)
         : { valid: false, value: '' }
     const pendingEventName = validation.valid ? validation.value : null
-    const postPurchaseAction = pendingEventName ? 'create_event' : null
+    const postPurchaseAction = pendingEventName ? 'create_event' : 'credit_only'
 
     // Validate pending event name for the "buy and create" flow
     if (intent === 'extra_event' && extraMetadata?.postPurchaseAction === 'create_event') {
@@ -251,7 +251,7 @@ export async function POST(request) {
     }
 
     let extraFreeEventCheckout = null
-    if (intent === 'extra_event' && postPurchaseAction === 'create_event') {
+    if (intent === 'extra_event') {
       extraFreeEventCheckout = await prisma.extraFreeEventCheckout.create({
         data: {
           ownerId: owner.id,
@@ -267,7 +267,7 @@ export async function POST(request) {
       mode,
       success_url:
         intent === 'extra_event'
-          ? `${baseUrl}/dashboard?extraEvent=success${postPurchaseAction ? '&createPendingEvent=1&session_id={CHECKOUT_SESSION_ID}' : ''}`
+          ? `${baseUrl}/dashboard?extraEvent=success${postPurchaseAction === 'create_event' ? '&createPendingEvent=1&session_id={CHECKOUT_SESSION_ID}' : ''}`
           : `${baseUrl}/dashboard?upgrade=success&intent=${intent}`,
       cancel_url: `${baseUrl}/dashboard?${intent === 'extra_event' ? 'extraEvent=cancelled' : `upgrade=cancelled&intent=${intent}`}`,
       metadata: {
@@ -285,6 +285,7 @@ export async function POST(request) {
         ...(extraFreeEventCheckout
           ? { postPurchaseAction, pendingCheckoutId: extraFreeEventCheckout.id }
           : {}),
+
       },
     }
 

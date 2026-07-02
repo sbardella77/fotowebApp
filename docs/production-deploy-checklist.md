@@ -9,6 +9,8 @@ Use this checklist before and after every production deployment, especially when
 - [ ] If `prisma/schema.prisma` changed, a migration file exists under `prisma/migrations/`.
 - [ ] Migration `20260701120000_add_subscription_cancellation_schedule` has been created for scheduled-cancellation fields.
 - [ ] Migration `20260701130000_add_subscription_billing_interval` has been created for the `subscriptionBillingInterval` field.
+- [ ] Migration `20260701174300_extra_free_event_credit_only` has been applied to make `ExtraFreeEventCheckout.eventName` nullable.
+- [ ] `STRIPE_PRICE_ID_EXTRA_EVENT` is set in production environment variables.
 - [ ] `STRIPE_PRICE_ID_PROFESSIONAL_ANNUAL` is set in production environment variables.
 - [ ] Migration SQL has been reviewed for production safety (no destructive changes, `IF NOT EXISTS` / `DROP COLUMN` justified).
 - [ ] `CSRF_SECRET` is set in production environment variables.
@@ -72,8 +74,10 @@ Use this checklist before and after every production deployment, especially when
   - [ ] Webhook retry of the same `checkout.session.completed` event does not double-fulfill or resend email.
   - [ ] `pro_event` webhook on an already-`wedding_pro` event is silently skipped (no downgrade).
   - [ ] Extra Free Event auto-create succeeds and creates exactly one event.
+  - [ ] Extra Free Event credit-only checkout creates an `ExtraFreeEventCheckout` row and grants exactly one credit.
+  - [ ] Retry of the same Extra Free Event credit-only session does not double-grant credits.
   - [ ] Extra Free Event fallback credit (auto-create failure) grants exactly one credit and sends one email.
-  - [ ] Retry of Extra Free Event fulfillment does not double-grant credits or create duplicate events.
+  - [ ] Retry of Extra Free Event fallback credit does not double-grant credits.
 - [ ] **Billing emails** are verified in Stripe test mode:
   - [ ] Extra Free Event auto-created → creation email received
   - [ ] Extra Free Event fallback credit → credit email received

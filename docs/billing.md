@@ -31,8 +31,8 @@ Until `Owner.locale` is persisted, all billing emails default to German.
 | Email | Function | Trigger | Idempotency |
 |-------|----------|---------|-------------|
 | **Extra Free Event created** | `sendExtraFreeEventCreatedEmail` | `checkout.session.completed` with `extra_event` intent and successful auto-create | `extraFreeEventCheckout` status is `auto_created`; retry skips DB update and email |
-| **Extra Free Event credit granted** | `sendExtraFreeEventCreditGrantedEmail` | `checkout.session.completed` with `extra_event` intent (credit purchase) | `extraEventCheckoutSessionId` is set to the session; retry skips credit increment and email |
-| **Extra Free Event fallback credit** | `sendExtraFreeEventFallbackCreditEmail` | Auto-create fails and a fallback credit is granted | Checkout status becomes `failed`; retry skips credit grant and email |
+| **Extra Free Event credit granted** | `sendExtraFreeEventCreditGrantedEmail` | `checkout.session.completed` with `extra_event` intent (credit purchase) | `ExtraFreeEventCheckout` row status becomes `credit_granted`; retry skips credit increment and email |
+| **Extra Free Event fallback credit** | `sendExtraFreeEventFallbackCreditEmail` | Auto-create fails and a fallback credit is granted | `ExtraFreeEventCheckout` status becomes `failed`; retry skips credit grant and email |
 | **Pro Event activated** | `sendProEventPurchasedEmail` | `checkout.session.completed` with `pro_event` intent | `stripeCheckoutSessionId` on the event; retry skips fulfillment and email; also skips if the event is already `wedding_pro` to avoid a downgrade |
 | **Wedding Pro activated** | `sendWeddingProPurchasedEmail` | `checkout.session.completed` with `wedding_pro` intent | `stripeCheckoutSessionId` on the event; retry skips fulfillment and email; also skips if the event is already `wedding_pro` |
 | **Professional activated** | `sendProfessionalActivatedEmail` | `checkout.session.completed` with `professional` intent | `stripeCheckoutSessionId` on the owner; retry skips fulfillment and email |

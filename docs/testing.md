@@ -65,6 +65,11 @@ Schema / Migration checklist
 [ ] Feature collegata alla migration testata
 ```
 
-## Known residual risks
+## Resolved risks
 
-- **Extra Free Event legacy credit race condition.** The legacy credit-only path (`fulfillExtraFreeEventCredit`) is idempotent for retries of the *same* Stripe session via `Owner.extraEventCheckoutSessionId`. Concurrent webhook deliveries for *different* successful checkout sessions could, in theory, race on the same `Owner` row and grant more than one credit. The buy-and-create path is protected by the `ExtraFreeEventCheckout` status machine. If the legacy path becomes a high-volume flow, persist each credit purchase as an `ExtraFreeEventCheckout` row (or add a unique constraint on `extraEventCheckoutSessionId`) and fulfill inside a transaction.
+- **Extra Free Event credit race condition (resolved).** Every `extra_event` checkout now creates an `ExtraFreeEventCheckout` row with a unique `stripeCheckoutSessionId`. The webhook fulfills credit-only purchases inside a transaction that:
+  1. takes a row-level lock with `SELECT ... FOR UPDATE` on the pending row,
+  2. re-reads the status,
+  3. increments `Owner.extraEventCredits` by 1,
+  4. sets the pending row status to `credit_granted`.
+  Retries and concurrent deliveries for the same session are no-ops because the row status is already terminal. The buy-and-create path remains protected by its own status machine (`checkout_created` → `auto_created` | `failed`).
