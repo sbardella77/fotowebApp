@@ -159,9 +159,23 @@ export async function POST(request) {
         console.warn(`${logPrefix} Event not found or not owned. eventId=${eventId}, ownerId=${owner.id}`)
         return NextResponse.json({ error: 'Event not found or not owned by you' }, { status: 403 })
       }
-      if (event.billingTier) {
+      if (event.billingTier === intent) {
         return NextResponse.json(
-          { error: 'This event has already been upgraded', currentTier: event.billingTier },
+          {
+            error:
+              intent === 'wedding_pro'
+                ? 'This event is already Wedding Pro.'
+                : 'This event is already Pro Event.',
+            code: intent === 'wedding_pro' ? 'event_already_wedding_pro' : 'event_already_pro_event',
+            currentTier: event.billingTier,
+          },
+          { status: 409 }
+        )
+      }
+
+      if (intent === 'pro_event' && event.billingTier === 'wedding_pro') {
+        return NextResponse.json(
+          { error: 'This event is already Wedding Pro.', code: 'event_already_wedding_pro', currentTier: event.billingTier },
           { status: 409 }
         )
       }

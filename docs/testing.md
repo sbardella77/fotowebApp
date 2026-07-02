@@ -2,10 +2,13 @@
 
 ## Core Entitlement & Retention Tests
 
-Two critical pure-function layers have minimal but solid test coverage:
+Critical pure-function layers have focused test coverage:
 
-- `tests/event-access.test.js` — 12 tests covering Free, Pro Event, Wedding Pro, Professional, Business, legacy `pro`, and `originalDownloadUnlocked` only.
-- `tests/event-retention.test.js` — 11 tests covering Free 90 days, Pro Event 12 months, Wedding Pro 24 months, Professional active, Professional cancelled grace period, vault extension, and archive lock.
+- `tests/event-access.test.js` — Free, Pro Event, Wedding Pro, Professional, Business, legacy `pro`, and `originalDownloadUnlocked` only.
+- `tests/event-retention.test.js` — Free 90 days, Pro Event 12 months, Wedding Pro 24 months, Professional active, Professional cancelled grace period, vault extension, and archive lock.
+- `tests/upsell-context.test.js` — Contextual upsell resolver: free vs. upgraded events, account premium suppression, and Wedding Pro upgrade from Pro Event.
+- `tests/entitlements.test.js` — Room creation entitlement matrix including Extra Free Event credit consumption.
+- `tests/create-room-state.test.js` / `tests/create-event-cta-state.test.js` — UI state machines for create-room modals and CTAs.
 
 ### Running tests
 
@@ -15,11 +18,22 @@ npm test
 
 Uses **Vitest** (dev dependency). No DB, no Prisma, no fetch — tests are pure, fast, and timezone-safe.
 
+### Stripe checkout & webhook integration tests
+
+`tests/stripe-checkout-session.test.js` and `tests/stripe-webhook.test.js` cover the payment-critical paths with mocked Prisma/Stripe:
+
+- Checkout rejects `pro_event` on a `wedding_pro` event and allows `wedding_pro` on a `pro_event` event.
+- Checkout blocks event-level purchases for Professional/Business owners and duplicate Professional subscriptions.
+- Webhook skips duplicate fulfillments by `stripeCheckoutSessionId`.
+- Webhook skips `pro_event` fulfillment when the event is already `wedding_pro`.
+- Extra Free Event legacy credit and buy-and-create paths are idempotent by session / pending-checkout status.
+
 ### When to update
 
-- Any change to pricing plans or entitlement rules → update `event-access` tests.
+- Any change to pricing plans or entitlement rules → update `event-access` and `upsell-context` tests.
 - Any change to retention durations or grace-period logic → update `event-retention` tests.
-- Adding a new plan tier? Add a matching scenario in both files before shipping.
+- Any change to checkout validation or webhook fulfillment → update `stripe-checkout-session` and `stripe-webhook` tests.
+- Adding a new plan tier? Add a matching scenario in `event-access`, `event-retention`, and the relevant Stripe tests before shipping.
 
 ## Prisma schema changes
 
@@ -50,3 +64,7 @@ Schema / Migration checklist
 [ ] Login dashboard testato
 [ ] Feature collegata alla migration testata
 ```
+
+## Known residual risks
+
+- **Extra Free Event legacy credit race condition.** The legacy credit-only path (`fulfillExtraFreeEventCredit`) is idempotent for retries of the *same* Stripe session via `Owner.extraEventCheckoutSessionId`. Concurrent webhook deliveries for *different* successful checkout sessions could, in theory, race on the same `Owner` row and grant more than one credit. The buy-and-create path is protected by the `ExtraFreeEventCheckout` status machine. If the legacy path becomes a high-volume flow, persist each credit purchase as an `ExtraFreeEventCheckout` row (or add a unique constraint on `extraEventCheckoutSessionId`) and fulfill inside a transaction.

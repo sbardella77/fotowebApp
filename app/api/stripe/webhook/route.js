@@ -177,6 +177,19 @@ export async function POST(request) {
           return NextResponse.json({ received: true })
         }
 
+        const eventBeforeUpdate = await prisma.event.findUnique({
+          where: { id: eventId },
+          select: { billingTier: true },
+        })
+        if (eventBeforeUpdate?.billingTier === intent) {
+          console.log(`[stripe/webhook] Event ${eventId} already has billingTier=${intent}, skipping`)
+          return NextResponse.json({ received: true })
+        }
+        if (intent === 'pro_event' && eventBeforeUpdate?.billingTier === 'wedding_pro') {
+          console.log(`[stripe/webhook] Event ${eventId} is already Wedding Pro, skipping pro_event downgrade`)
+          return NextResponse.json({ received: true })
+        }
+
         const updatedEvent = await prisma.event.update({
           where: { id: eventId },
           data: {

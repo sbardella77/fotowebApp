@@ -64,6 +64,16 @@ Use this checklist before and after every production deployment, especially when
   - [ ] Webhook `checkout.session.completed` stores `subscriptionBillingInterval=annual`.
   - [ ] Pricing page `/pricing?plan=professional&billing=annual` shows €790/year and "save €158" badge.
   - [ ] Dashboard scheduled-cancellation banner shows "View yearly plan" CTA for monthly subscribers.
+- [ ] **Wedding Pro & Extra Free Event hardening** (Stripe test mode):
+  - [ ] Free event → Pro Event checkout succeeds.
+  - [ ] Pro Event → Wedding Pro upgrade checkout succeeds.
+  - [ ] Wedding Pro → Wedding Pro checkout returns `409 event_already_wedding_pro`.
+  - [ ] Pro Event → Wedding Pro webhook fulfillment updates `billingTier` to `wedding_pro`.
+  - [ ] Webhook retry of the same `checkout.session.completed` event does not double-fulfill or resend email.
+  - [ ] `pro_event` webhook on an already-`wedding_pro` event is silently skipped (no downgrade).
+  - [ ] Extra Free Event auto-create succeeds and creates exactly one event.
+  - [ ] Extra Free Event fallback credit (auto-create failure) grants exactly one credit and sends one email.
+  - [ ] Retry of Extra Free Event fulfillment does not double-grant credits or create duplicate events.
 - [ ] **Billing emails** are verified in Stripe test mode:
   - [ ] Extra Free Event auto-created → creation email received
   - [ ] Extra Free Event fallback credit → credit email received
