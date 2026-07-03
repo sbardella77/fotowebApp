@@ -4,6 +4,7 @@ import { getPrismaClient } from '@/lib/server/prisma-client'
 import { verifyOwnerSessionToken } from '@/lib/server/owner-auth'
 import { verifySameOriginRequest, requireCsrfProtection } from '@/lib/server/csrf'
 import { checkRateLimit, getClientIp, hashIdentifier, PAYMENT_LIMITS } from '@/lib/server/rate-limiter'
+import { sendOpsAlert } from '@/lib/server/ops-alerts'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,10 +12,11 @@ const SUBSCRIPTION_PLANS = new Set(['professional', 'business', 'pro'])
 
 export async function POST(request) {
   const logPrefix = '[stripe/customer-portal]'
+  let ownerEmail = null
   try {
     // 1. Owner authentication
     const token = request.cookies.get('snaprooms_owner_session')?.value
-    const ownerEmail = await verifyOwnerSessionToken(token)
+    ownerEmail = await verifyOwnerSessionToken(token)
     if (!ownerEmail) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
@@ -59,6 +61,13 @@ export async function POST(request) {
     const prisma = await getPrismaClient()
     if (!prisma) {
       console.error(`${logPrefix} Database unavailable`)
+      await sendOpsAlert({
+        severity: 'critical',
+        type: 'db:unavailable',
+        title: 'Database unavailable when opening Stripe Customer Portal',
+        message: 'Prisma client could not be initialized during a Customer Portal request.',
+        context: { ownerEmail },
+      })
       return NextResponse.json({ error: 'Database unavailable' }, { status: 503 })
     }
 
@@ -98,6 +107,13 @@ export async function POST(request) {
     return NextResponse.json({ url: portalSession.url })
   } catch (error) {
     console.error(`${logPrefix} Unexpected error:`, error)
+    await sendOpsAlert({
+      severity: 'warning',
+      type: 'billing:customer_portal:create_failed',
+      title: 'Stripe Customer Portal session creation failed',
+      message: error.message,
+      context: { ownerEmail },
+    })
     return NextResponse.json(
       { error: 'Unable to open billing portal. Please try again later.' },
       { status: 500 }

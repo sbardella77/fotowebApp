@@ -11,6 +11,7 @@ import {
   EVENT_UPSELL_CHECKOUT_START,
   EXTRA_FREE_EVENT_CHECKOUT_CREATED,
 } from '@/lib/analytics/events'
+import { sendOpsAlert } from '@/lib/server/ops-alerts'
 
 export const dynamic = 'force-dynamic'
 
@@ -385,6 +386,17 @@ export async function POST(request) {
     return NextResponse.json({ url: session.url })
   } catch (error) {
     console.error(`${logPrefix} Unexpected error:`, error)
+    await sendOpsAlert({
+      severity: 'critical',
+      type: 'billing:checkout:start_failed',
+      title: 'Stripe checkout session creation failed',
+      message: error.message,
+      context: {
+        intent: body?.intent,
+        eventId: body?.eventId,
+        ownerEmail: ownerEmail || null,
+      },
+    })
     return NextResponse.json(
       { error: 'Unable to start checkout. Please try again later.' },
       { status: 500 }

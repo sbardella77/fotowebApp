@@ -31,6 +31,7 @@ import {
   EXTRA_FREE_EVENT_AUTO_CREATE_FAILED,
   EXTRA_FREE_EVENT_AUTO_CREATE_SUCCESS,
 } from '@/lib/analytics/events'
+import { sendOpsAlert } from '@/lib/server/ops-alerts'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,12 +53,26 @@ export async function POST(request) {
     )
   } catch (err) {
     console.error('[stripe/webhook] Signature verification failed:', err.message)
+    await sendOpsAlert({
+      severity: 'warning',
+      type: 'stripe:webhook:signature_failed',
+      title: 'Stripe webhook signature verification failed',
+      message: err.message,
+      context: { stripeEventId: event?.id },
+    })
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
   const prisma = await getPrismaClient()
   if (!prisma) {
     console.error('[stripe/webhook] Database unavailable')
+    await sendOpsAlert({
+      severity: 'critical',
+      type: 'db:unavailable',
+      title: 'Database unavailable when handling Stripe webhook',
+      message: 'Prisma client could not be initialized during a Stripe webhook delivery.',
+      context: { stripeEventId: event?.id, stripeEventType: event?.type },
+    })
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 })
   }
 
@@ -137,6 +152,18 @@ export async function POST(request) {
           return NextResponse.json({ received: true })
         }
         console.error('[stripe/webhook] Failed to unlock original downloads:', dbError)
+        await sendOpsAlert({
+          severity: 'critical',
+          type: 'billing:webhook:download_unlock_failed',
+          title: 'Original download unlock fulfillment failed',
+          message: dbError.message,
+          context: {
+            stripeEventId: event?.id,
+            stripeSessionId: session.id,
+            eventId,
+            roomSlug: session.metadata?.roomSlug,
+          },
+        })
         return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
       }
 
@@ -145,6 +172,13 @@ export async function POST(request) {
 
     if (!ownerId) {
       console.warn('[stripe/webhook] Missing ownerId in session metadata')
+      await sendOpsAlert({
+        severity: 'warning',
+        type: 'billing:webhook:missing_owner_id',
+        title: 'Stripe checkout.session.completed missing ownerId',
+        message: 'The checkout session metadata did not include ownerId.',
+        context: { stripeEventId: event?.id, stripeSessionId: session.id, intent },
+      })
       return NextResponse.json({ received: true })
     }
 
@@ -262,6 +296,20 @@ export async function POST(request) {
           return NextResponse.json({ received: true })
         }
         console.error('[stripe/webhook] Failed to update event billing:', dbError)
+        await sendOpsAlert({
+          severity: 'critical',
+          type: 'billing:webhook:event_upgrade_failed',
+          title: 'Event-level purchase fulfillment failed',
+          message: dbError.message,
+          context: {
+            stripeEventId: event?.id,
+            stripeSessionId: session.id,
+            ownerId,
+            eventId,
+            intent,
+            roomSlug: session.metadata?.roomSlug,
+          },
+        })
         return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
       }
     }
@@ -340,12 +388,31 @@ export async function POST(request) {
           return NextResponse.json({ received: true })
         }
         console.error('[stripe/webhook] Failed to update owner plan:', dbError)
+        await sendOpsAlert({
+          severity: 'critical',
+          type: 'billing:webhook:professional_upgrade_failed',
+          title: 'Professional subscription fulfillment failed',
+          message: dbError.message,
+          context: {
+            stripeEventId: event?.id,
+            stripeSessionId: session.id,
+            ownerId,
+            stripeSubscriptionId: session.subscription,
+          },
+        })
         return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
       }
     }
 
     else {
       console.warn('[stripe/webhook] Unknown checkout intent:', intent)
+      await sendOpsAlert({
+        severity: 'warning',
+        type: 'billing:webhook:unknown_intent',
+        title: 'Unknown checkout intent in Stripe webhook',
+        message: `Received checkout.session.completed with intent=${intent}`,
+        context: { stripeEventId: event?.id, stripeSessionId: session.id, intent },
+      })
     }
   }
 
@@ -365,6 +432,13 @@ export async function POST(request) {
 
       if (!owner) {
         console.warn('[stripe/webhook] Owner not found for subscription:', subscriptionId)
+        await sendOpsAlert({
+          severity: 'warning',
+          type: 'billing:webhook:subscription_owner_not_found',
+          title: 'Owner not found for subscription update',
+          message: `Stripe subscription ${subscriptionId} could not be matched to an owner.`,
+          context: { stripeEventId: event?.id, stripeSubscriptionId: subscriptionId, status },
+        })
         return NextResponse.json({ received: true })
       }
 
@@ -401,6 +475,18 @@ export async function POST(request) {
       }
     } catch (dbError) {
       console.error('[stripe/webhook] Failed to handle subscription update:', dbError)
+      await sendOpsAlert({
+        severity: 'critical',
+        type: 'billing:webhook:subscription_update_failed',
+        title: 'Subscription update webhook failed',
+        message: dbError.message,
+        context: {
+          stripeEventId: event?.id,
+          stripeSubscriptionId: subscriptionId,
+          status,
+          cancelAtPeriodEnd,
+        },
+      })
       return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
     }
   }
@@ -418,6 +504,13 @@ export async function POST(request) {
 
       if (!owner) {
         console.warn('[stripe/webhook] Owner not found for deleted subscription:', subscriptionId)
+        await sendOpsAlert({
+          severity: 'warning',
+          type: 'billing:webhook:subscription_deleted_owner_not_found',
+          title: 'Owner not found for subscription deletion',
+          message: `Stripe subscription ${subscriptionId} could not be matched to an owner.`,
+          context: { stripeEventId: event?.id, stripeSubscriptionId: subscriptionId },
+        })
         return NextResponse.json({ received: true })
       }
 
@@ -441,6 +534,13 @@ export async function POST(request) {
       console.log('[stripe/webhook] Owner downgraded to free after subscription deletion:', owner.email)
     } catch (dbError) {
       console.error('[stripe/webhook] Failed to handle subscription deletion:', dbError)
+      await sendOpsAlert({
+        severity: 'critical',
+        type: 'billing:webhook:subscription_deletion_failed',
+        title: 'Subscription deletion webhook failed',
+        message: dbError.message,
+        context: { stripeEventId: event?.id, stripeSubscriptionId: subscriptionId },
+      })
       return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
     }
   }
@@ -464,6 +564,13 @@ export async function POST(request) {
 
       if (!owner) {
         console.warn('[stripe/webhook] Owner not found for failed invoice:', { subscriptionId, customerId })
+        await sendOpsAlert({
+          severity: 'warning',
+          type: 'billing:webhook:invoice_failed_owner_not_found',
+          title: 'Owner not found for invoice.payment_failed',
+          message: `Could not match failed invoice to an owner.`,
+          context: { stripeEventId: event?.id, stripeInvoiceId: invoice.id, subscriptionId, customerId },
+        })
         return NextResponse.json({ received: true })
       }
 
@@ -489,6 +596,18 @@ export async function POST(request) {
       await sendProfessionalPaymentFailedEmail({ owner, billingState: access, appUrl: getAppUrl() })
     } catch (dbError) {
       console.error('[stripe/webhook] Failed to handle payment failure:', dbError)
+      await sendOpsAlert({
+        severity: 'warning',
+        type: 'billing:webhook:payment_failure_handling_failed',
+        title: 'Failed to record invoice.payment_failed',
+        message: dbError.message,
+        context: {
+          stripeEventId: event?.id,
+          stripeInvoiceId: invoice.id,
+          subscriptionId,
+          customerId,
+        },
+      })
       return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
     }
 
@@ -519,6 +638,13 @@ export async function POST(request) {
 
       if (!owner) {
         console.warn('[stripe/webhook] Owner not found for successful invoice:', { subscriptionId, customerId })
+        await sendOpsAlert({
+          severity: 'warning',
+          type: 'billing:webhook:invoice_succeeded_owner_not_found',
+          title: 'Owner not found for invoice.payment_succeeded',
+          message: `Could not match successful subscription invoice to an owner.`,
+          context: { stripeEventId: event?.id, stripeInvoiceId: invoice.id, subscriptionId, customerId },
+        })
         return NextResponse.json({ received: true })
       }
 
@@ -542,6 +668,18 @@ export async function POST(request) {
       console.log('[stripe/webhook] Owner payment succeeded, subscription restored:', owner.email)
     } catch (dbError) {
       console.error('[stripe/webhook] Failed to handle payment success:', dbError)
+      await sendOpsAlert({
+        severity: 'warning',
+        type: 'billing:webhook:payment_success_handling_failed',
+        title: 'Failed to record invoice.payment_succeeded',
+        message: dbError.message,
+        context: {
+          stripeEventId: event?.id,
+          stripeInvoiceId: invoice.id,
+          subscriptionId,
+          customerId,
+        },
+      })
       return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
     }
 
@@ -676,6 +814,17 @@ async function fulfillExtraFreeEventCredit({ prisma, session, ownerId, intent, p
       return NextResponse.json({ received: true })
     }
     console.error('[stripe/webhook] Failed to grant extra free event credit:', dbError)
+    await sendOpsAlert({
+      severity: 'critical',
+      type: 'billing:extra_free_event:credit_grant_failed',
+      title: 'Extra Free Event credit grant failed',
+      message: dbError.message,
+      context: {
+        stripeSessionId: session.id,
+        ownerId,
+        pendingCheckoutId: pendingCheckout?.id,
+      },
+    })
     return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
   }
 
@@ -830,6 +979,19 @@ async function fulfillExtraFreeEventBuyAndCreate({ prisma, session, ownerId, int
       error: error.message,
     })
 
+    await sendOpsAlert({
+      severity: 'critical',
+      type: 'billing:extra_free_event:auto_create_failed',
+      title: 'Extra Free Event auto-create failed; fallback credit granted',
+      message: error.message,
+      context: {
+        stripeSessionId: session.id,
+        ownerId,
+        pendingCheckoutId: pending.id,
+        eventName: pending.eventName,
+      },
+    })
+
     try {
       await prisma.$transaction(async (tx) => {
         await tx.owner.update({
@@ -870,6 +1032,18 @@ async function fulfillExtraFreeEventBuyAndCreate({ prisma, session, ownerId, int
       })
     } catch (fallbackError) {
       console.error('[stripe/webhook] Fallback credit grant also failed:', fallbackError)
+      await sendOpsAlert({
+        severity: 'critical',
+        type: 'billing:extra_free_event:fallback_credit_failed',
+        title: 'Extra Free Event fallback credit grant failed',
+        message: fallbackError.message,
+        context: {
+          stripeSessionId: session.id,
+          ownerId,
+          pendingCheckoutId: pending.id,
+          eventName: pending.eventName,
+        },
+      })
       return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
     }
   }
