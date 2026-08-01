@@ -61,7 +61,7 @@ export default function LoginPageClient({ redirect = '/dashboard' }) {
       }
 
       identifyUser(payload.email)
-      router.push(redirect)
+      router.push(redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/dashboard')
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
         console.warn('[login] error', error.message)

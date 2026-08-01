@@ -84,24 +84,9 @@ const PhotoLightbox = ({
   isOwner = false,
   className = '',
 }) => {
-  // Defensive: ensure photos array only contains valid objects
-  const safePhotos = photos.filter((photo, index) => {
-    if (!photo || typeof photo !== 'object') {
-      console.warn('[lightbox] filtering out non-object photo at index', index)
-      return false
-    }
-    if (!photo.id || !photo.url) {
-      console.warn('[lightbox] filtering out photo missing id or url', {
-        index,
-        photoId: photo?.id,
-        hasUrl: Boolean(photo?.url),
-      })
-      return false
-    }
-    return true
-  })
-
-  const photo = safePhotos[selectedIndex] || null
+  // Photos are already filtered/normalized once by the parent (getRenderablePhotos).
+  // selectedIndex refers to that same list, so the lightbox must not re-filter it.
+  const photo = photos[selectedIndex] || null
   const t = useTranslations('room')
   const [isClosing, setIsClosing] = useState(false)
   const [isNavigating, setIsNavigating] = useState(false)
@@ -165,11 +150,11 @@ const PhotoLightbox = ({
   }, [selectedIndex, isNavigating, onSelectIndex])
 
   const selectNext = useCallback(() => {
-    if (selectedIndex >= safePhotos.length - 1 || isNavigating) return
+    if (selectedIndex >= photos.length - 1 || isNavigating) return
     setIsNavigating(true)
     onSelectIndex?.(selectedIndex + 1)
     setTimeout(() => setIsNavigating(false), 300)
-  }, [selectedIndex, safePhotos.length, isNavigating, onSelectIndex])
+  }, [selectedIndex, photos.length, isNavigating, onSelectIndex])
 
   const performDownload = useCallback(
     async (quality) => {
@@ -414,7 +399,7 @@ const PhotoLightbox = ({
         <div className="flex items-center gap-2 rounded-full bg-black/30 px-3 py-1.5 text-sm text-foreground/90 backdrop-blur-sm">
           <span className="font-medium">{selectedIndex + 1}</span>
           <span className="text-foreground/40">/</span>
-          <span className="text-foreground/60">{safePhotos.length}</span>
+          <span className="text-foreground/60">{photos.length}</span>
         </div>
         {isOwner && (
           <div className={`hidden sm:flex items-center gap-1.5 rounded-full bg-black/30 px-3 py-1.5 text-xs backdrop-blur-sm ${isFreeRoom ? 'text-white/70' : 'text-green-400/90'}`}>
@@ -568,11 +553,11 @@ const PhotoLightbox = ({
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        <ImageWithLoading src={photo.url} alt={photo.originalName || t.photo} />
+        <ImageWithLoading key={photo.id || photo.url} src={photo.url} alt={photo.originalName || t.photo} />
       </div>
 
       {/* Navigation arrows (desktop) */}
-      {safePhotos.length > 1 && (
+      {photos.length > 1 && (
         <>
           <button
             disabled={selectedIndex <= 0}
@@ -585,7 +570,7 @@ const PhotoLightbox = ({
             <ChevronLeft className="h-6 w-6" />
           </button>
           <button
-            disabled={selectedIndex >= safePhotos.length - 1}
+            disabled={selectedIndex >= photos.length - 1}
             className="absolute right-2 top-1/2 hidden -translate-y-1/2 rounded-full bg-black/30 p-2 text-foreground/70 backdrop-blur-sm transition-all hover:bg-black/50 hover:text-foreground disabled:opacity-0 sm:right-4 sm:block"
             onClick={(e) => {
               e.stopPropagation()

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolveEffectiveEventAccessState, resolveEffectiveEventPlan } from '@/lib/event-access'
+import { isEffectivePremiumActive, resolveEffectiveEventAccessState, resolveEffectiveEventPlan } from '@/lib/event-access'
 
 describe('resolveEffectiveEventAccessState', () => {
   // ── SCENARIO A: FREE ──
@@ -171,5 +171,29 @@ describe('resolveEffectiveEventPlan', () => {
     expect(
       resolveEffectiveEventPlan({ billingTier: null, originalDownloadUnlocked: false, ownerPlan: null })
     ).toBe('free')
+  })
+})
+
+describe('isEffectivePremiumActive scheduled cancellation', () => {
+  it('keeps premium active until current period end when cancellation is scheduled', () => {
+    expect(
+      isEffectivePremiumActive({
+        plan: 'professional',
+        subscriptionStatus: 'active',
+        subscriptionCancelAtPeriodEnd: true,
+        subscriptionCurrentPeriodEnd: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
+      })
+    ).toBe(true)
+  })
+
+  it('is not premium after current period end expires', () => {
+    expect(
+      isEffectivePremiumActive({
+        plan: 'professional',
+        subscriptionStatus: 'active',
+        subscriptionCancelAtPeriodEnd: true,
+        subscriptionCurrentPeriodEnd: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      })
+    ).toBe(false)
   })
 })

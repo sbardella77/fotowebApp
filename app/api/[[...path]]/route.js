@@ -458,7 +458,17 @@ const getEvent = async (slug, options = {}) => {
 
   const duration = Date.now() - start
   console.log(`[api/events/${slug}] 200 (took ${duration}ms) photos=${event.photos?.length || 0} photoCount=${event.photoCount || 0}`)
-  return json({ event: { ...event, ownerPlan } })
+  // Strip sensitive fields before exposing the event publicly.
+  // ownerEmail is intentionally kept: the public room page (room-page-client.jsx)
+  // uses it to recognize the logged-in owner viewing their own room.
+  const {
+    managementTokenHash,
+    photographerUploadTokenHash,
+    stripeCheckoutSessionId,
+    originalDownloadCheckoutSessionId,
+    ...publicEvent
+  } = event
+  return json({ event: { ...publicEvent, ownerPlan } })
 }
 
 const getEventPhotos = withTiming('getEventPhotos', async (request, slug) => {
@@ -497,7 +507,7 @@ const createGalleryDownload = withTiming('createGalleryDownload', async (request
     RATE_LIMITS.galleryDownloadCreate.ip.max,
     RATE_LIMITS.galleryDownloadCreate.ip.window
   )
-  if (rateLimitCheck) return buildRateLimitResponse(rateLimitCheck)
+  if (rateLimitCheck.limited) return buildRateLimitResponse(rateLimitCheck)
 
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlug(slug)
@@ -554,9 +564,8 @@ const getAppUrl = (request) => {
   const envUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL
   if (envUrl) return envUrl.replace(/\/$/, '')
 
-  const proto = request.headers.get('x-forwarded-proto') || 'http'
-  const host = request.headers.get('host') || 'localhost'
-  return `${proto}://${host}`
+  console.error('[getAppUrl] APP_URL/NEXT_PUBLIC_APP_URL not configured; refusing to build URLs from the Host header')
+  return null
 }
 
 const saveEventByEmail = async (request, slug) => {
@@ -594,6 +603,9 @@ const saveEventByEmail = async (request, slug) => {
   }
 
   const appUrl = getAppUrl(request)
+  if (!appUrl) {
+    return json({ error: 'Unable to send email. Please try again later.' }, 500)
+  }
   const eventUrl = `${appUrl}/event/${event.slug}`
 
   try {
@@ -667,6 +679,7 @@ const sendOwnerNotificationEmail = async ({ email, event, owner, request }) => {
   if (!prisma || !owner?.id) return
 
   const appUrl = getAppUrl(request)
+  if (!appUrl) return
   const clientIp = getClientIp(request)
   try {
     const isFirstTime = !owner?.passwordHash
@@ -831,7 +844,7 @@ const updateEvent = async (request, slug) => {
     RATE_LIMITS.publicEventUpdate.ip.max,
     RATE_LIMITS.publicEventUpdate.ip.window
   )
-  if (rateLimitCheck) return buildRateLimitResponse(rateLimitCheck)
+  if (rateLimitCheck.limited) return buildRateLimitResponse(rateLimitCheck)
 
   const token = getManagementTokenFromRequest(request)
 
@@ -872,7 +885,7 @@ const deleteEvent = withTiming('deleteEvent', async (request, slug) => {
     RATE_LIMITS.publicEventDelete.ip.max,
     RATE_LIMITS.publicEventDelete.ip.window
   )
-  if (rateLimitCheck) return buildRateLimitResponse(rateLimitCheck)
+  if (rateLimitCheck.limited) return buildRateLimitResponse(rateLimitCheck)
 
   const token = getManagementTokenFromRequest(request)
 
@@ -1526,7 +1539,11 @@ const createPhotographerUploadLink = async (request, slug) => {
     { distinctId: ownerEmail }
   )
 
-  return json({ token, url: `${getAppUrl(request)}/photographer-upload/${token}` })
+  const appUrl = getAppUrl(request)
+  if (!appUrl) {
+    return json({ error: 'Unable to create upload link. Please try again later.' }, 500)
+  }
+  return json({ token, url: `${appUrl}/photographer-upload/${token}` })
 }
 
 const deletePhotographerUploadLink = async (request, slug) => {
@@ -1651,7 +1668,11 @@ const deleteEventCover = async (request, slug) => {
   }
 
   if (event.coverUrl) {
-    await deleteManagedEventCover(event.coverUrl, slug)
+    try {
+      await deleteManagedEventCover(event.coverUrl, slug)
+    } catch (storageError) {
+      console.error('[deleteEventCover] Storage cleanup failed for cover:', event.coverUrl, storageError)
+    }
   }
 
   const updatedEvent = await repository.updateEvent(slug, { coverUrl: null })
@@ -2219,6 +2240,7 @@ const loginOwner = withTiming('loginOwner', async (request) => {
     return json({ error: 'Password or management token is required' }, 400)
   }
 
+  const repository = await getGalleryRepository()
   const events = await repository.listEventsByOwnerEmail(email)
 
   let valid = false
@@ -2299,6 +2321,9 @@ const resendOwnerAccess = async (request) => {
   // Always return generic success — do not reveal whether email exists
   if (owner) {
     const appUrl = getAppUrl(request)
+    if (!appUrl) {
+      return json({ error: 'Service temporarily unavailable' }, 500)
+    }
     const purpose = owner.passwordHash ? 'password_reset' : 'setup_password'
     try {
       const rawToken = await createPasswordResetTokenForOwner({ prisma, ownerId: owner.id, purpose, clientIp })
@@ -2349,6 +2374,9 @@ const recoverOwnerAccess = async (request) => {
   }
 
   const appUrl = getAppUrl(request)
+  if (!appUrl) {
+    return json({ error: 'Service temporarily unavailable' }, 500)
+  }
   const prisma = await getPrismaClient()
 
   // New DB-backed tokens: if the token is valid, redirect straight to the
@@ -2484,6 +2512,9 @@ const forgotOwnerPassword = async (request) => {
     if (owner && resend && process.env.RESEND_FROM_EMAIL) {
       try {
         const appUrl = getAppUrl(request)
+        if (!appUrl) {
+          return json({ error: 'Password reset is temporarily unavailable. Please try again later.' }, 500)
+        }
         const purpose = owner.passwordHash ? 'password_reset' : 'setup_password'
         const rawToken = await createPasswordResetTokenForOwner({ prisma, ownerId: owner.id, purpose, clientIp })
 
@@ -2809,7 +2840,11 @@ const updateOwnerEvent = async (request, slug) => {
   }
 
   if (payload.coverUrl === null && event.coverUrl) {
-    await deleteManagedEventCover(event.coverUrl, slug)
+    try {
+      await deleteManagedEventCover(event.coverUrl, slug)
+    } catch (storageError) {
+      console.error('[updateOwnerEvent] Storage cleanup failed for cover:', event.coverUrl, storageError)
+    }
   }
 
   const updatedEvent = await repository.updateEvent(slug, payload)
@@ -2833,11 +2868,19 @@ const deleteOwnerEvent = withTiming('deleteOwnerEvent', async (request, slug) =>
   }
 
   for (const photo of event.photos || []) {
-    await deleteStoredFile(photo.url)
+    try {
+      await deleteStoredFile(photo.url)
+    } catch (storageError) {
+      console.error('[deleteOwnerEvent] Storage cleanup failed for photo:', photo.id, storageError)
+    }
   }
 
   if (event.coverUrl) {
-    await deleteManagedEventCover(event.coverUrl, slug)
+    try {
+      await deleteManagedEventCover(event.coverUrl, slug)
+    } catch (storageError) {
+      console.error('[deleteOwnerEvent] Storage cleanup failed for cover:', event.coverUrl, storageError)
+    }
   }
 
   const privateAssets = await repository.listPrivateAssetsByEventId(event.id)

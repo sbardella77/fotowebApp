@@ -38,10 +38,12 @@ const MODE_MAP = {
 
 export async function POST(request) {
   const logPrefix = '[stripe/checkout-session]'
+  let body = {}
+  let ownerEmail = null
   try {
     // Authenticate owner
     const token = request.cookies.get('snaprooms_owner_session')?.value
-    const ownerEmail = await verifyOwnerSessionToken(token)
+    ownerEmail = await verifyOwnerSessionToken(token)
     if (!ownerEmail) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
@@ -57,7 +59,7 @@ export async function POST(request) {
       return NextResponse.json({ error: csrf.message, code: csrf.code }, { status: csrf.status })
     }
 
-    const body = await request.json().catch(() => ({}))
+    body = await request.json().catch(() => ({}))
     const { intent, eventId, upsellType, upsellSource, extraMetadata = {}, billingInterval } = body
 
     // Rate limit by owner + intent before any Stripe call
@@ -334,7 +336,7 @@ export async function POST(request) {
       }
 
       return NextResponse.json(
-        { error: rawMessage },
+        { error: 'Payment service temporarily unavailable. Please try again later.' },
         { status: 502 }
       )
     }

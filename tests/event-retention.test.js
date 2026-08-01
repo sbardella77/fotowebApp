@@ -174,4 +174,32 @@ describe('resolveEventRetentionState', () => {
     expect(state.policy).toBe('pro_event_12_months')
     expect(state.isExpired).toBe(false)
   })
+
+  // ── SCENARIO E2: EXPLICIT gracePeriodUntil IS AN ABSOLUTE DEADLINE ──
+  it('gracePeriodUntil is used directly as the retention deadline', () => {
+    const graceUntil = new Date('2026-09-30T00:00:00.000Z')
+    const state = resolveEventRetentionState({
+      event: makeEvent({ gracePeriodUntil: graceUntil }),
+      ownerPlan: null,
+      now: JUN_15,
+    })
+
+    expect(state.policy).toBe('professional_grace_90_days')
+    expect(state.gracePeriodActive).toBe(true)
+    expect(state.retentionUntil).toEqual(graceUntil)
+    expect(state.isExpired).toBe(false)
+  })
+
+  it('gracePeriodUntil takes precedence over ownerSubscriptionCanceledAt', () => {
+    const graceUntil = new Date('2026-07-15T00:00:00.000Z')
+    const state = resolveEventRetentionState({
+      event: makeEvent({ gracePeriodUntil: graceUntil }),
+      ownerPlan: null,
+      ownerSubscriptionCanceledAt: JUN_1,
+      now: JUN_15,
+    })
+
+    expect(state.retentionUntil).toEqual(graceUntil)
+    expect(state.isExpired).toBe(false)
+  })
 })

@@ -153,7 +153,10 @@ export async function POST(request) {
         )
       }
 
-      return NextResponse.json({ error: rawMessage }, { status: 502 })
+      return NextResponse.json(
+        { error: 'Payment service temporarily unavailable. Please try again later.' },
+        { status: 502 }
+      )
     }
 
     trackServerEvent(

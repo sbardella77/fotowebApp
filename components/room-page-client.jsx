@@ -241,6 +241,9 @@ export default function RoomPageClient({ slug, isNew }) {
   const uploadCompletedTracked = useRef(false)
   const { showToast, ToastComponent } = useToast()
   const fetchControllerRef = useRef(null)
+  const photosControllerRef = useRef(null)
+  const galleryJobPollTimeoutRef = useRef(null)
+  const galleryJobPollAttemptsRef = useRef(0)
   const isFetchingRef = useRef(false)
   const pollTimeoutRef = useRef(null)
   const pollBackoffRef = useRef(3000)
@@ -655,6 +658,12 @@ export default function RoomPageClient({ slug, isNew }) {
     const targetSort = sortOverride || photoSort
     const targetMoment = momentOverride !== undefined ? momentOverride : selectedMomentSlug
     const cursor = reset ? null : photoCursor
+    // Abort previous fetch to avoid race conditions
+    if (photosControllerRef.current) {
+      photosControllerRef.current.abort()
+    }
+    const controller = new AbortController()
+    photosControllerRef.current = controller
     setLoadingMorePhotos(true)
     setGalleryError('')
     try {
@@ -662,7 +671,7 @@ export default function RoomPageClient({ slug, isNew }) {
       if (cursor) url.searchParams.set('cursor', cursor)
       url.searchParams.set('sort', targetSort)
       if (targetMoment && targetMoment !== 'all') url.searchParams.set('moment', targetMoment)
-      const response = await fetch(url.toString(), { cache: 'no-store' })
+      const response = await fetch(url.toString(), { cache: 'no-store', signal: controller.signal })
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}))
         throw new Error(payload.error || t.unableToLoadGallery)
@@ -676,10 +685,15 @@ export default function RoomPageClient({ slug, isNew }) {
       setPhotoCursor(data.nextCursor)
       setHasMorePhotos(Boolean(data.nextCursor))
     } catch (error) {
+      if (error.name === 'AbortError') {
+        return
+      }
       console.error('[room] loadPhotos error:', error)
       setGalleryError(error.message || t.unableToLoadGallery)
     } finally {
-      setLoadingMorePhotos(false)
+      if (photosControllerRef.current === controller) {
+        setLoadingMorePhotos(false)
+      }
     }
   }
 
@@ -799,8 +813,14 @@ export default function RoomPageClient({ slug, isNew }) {
       }
       setGalleryJob(createData.job)
       setGalleryJobPolling(true)
+      galleryJobPollAttemptsRef.current = 0
+      if (galleryJobPollTimeoutRef.current) {
+        window.clearTimeout(galleryJobPollTimeoutRef.current)
+        galleryJobPollTimeoutRef.current = null
+      }
 
       const poll = async () => {
+        galleryJobPollTimeoutRef.current = null
         try {
           const statusRes = await fetch(`/api/events/${activeEvent.slug}/gallery-download`)
           const statusData = await statusRes.json()
@@ -836,8 +856,15 @@ export default function RoomPageClient({ slug, isNew }) {
             return
           }
 
-          // PENDING or PROCESSING: continue polling
-          setTimeout(poll, 3000)
+          // PENDING or PROCESSING: continue polling (max ~100 attempts ≈ 5 minutes)
+          galleryJobPollAttemptsRef.current += 1
+          if (galleryJobPollAttemptsRef.current >= 100) {
+            setGalleryJobPolling(false)
+            setGalleryDownloadBusy(false)
+            showToast(t.galleryExportRetryLater || 'Gallery export failed after multiple attempts. Please try again later.', 'error')
+            return
+          }
+          galleryJobPollTimeoutRef.current = window.setTimeout(poll, 3000)
         } catch (pollErr) {
           console.error('[room] gallery job polling error:', pollErr)
           setGalleryJobPolling(false)
@@ -880,6 +907,16 @@ export default function RoomPageClient({ slug, isNew }) {
       }
     }
   }
+
+  // Cancel any pending gallery-download poll on unmount
+  useEffect(() => {
+    return () => {
+      if (galleryJobPollTimeoutRef.current) {
+        window.clearTimeout(galleryJobPollTimeoutRef.current)
+        galleryJobPollTimeoutRef.current = null
+      }
+    }
+  }, [])
 
   useEffect(() => {
     loadEvent(slug)

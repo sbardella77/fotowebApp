@@ -885,6 +885,9 @@ async function fulfillExtraFreeEventBuyAndCreate({ prisma, session, ownerId, int
     const { prismaGalleryRepository } = await import('@/lib/server/prisma-gallery-repository')
 
     const result = await prisma.$transaction(async (tx) => {
+      // Pessimistic lock: serialize concurrent webhook deliveries for the same session.
+      await tx.$queryRaw`SELECT id FROM "ExtraFreeEventCheckout" WHERE id = ${pending.id} FOR UPDATE`
+
       const fresh = await tx.extraFreeEventCheckout.findUnique({
         where: { id: pending.id },
       })

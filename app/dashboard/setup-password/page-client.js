@@ -9,8 +9,9 @@ import { useTranslations } from '@/components/i18n-provider'
 
 function generateStrongPassword() {
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*'
+  const values = crypto.getRandomValues(new Uint32Array(16))
   let pwd = ''
-  for (let i = 0; i < 16; i++) pwd += chars.charAt(Math.floor(Math.random() * chars.length))
+  for (let i = 0; i < 16; i++) pwd += chars.charAt(values[i] % chars.length)
   return pwd
 }
 

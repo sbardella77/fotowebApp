@@ -3,6 +3,7 @@ import { ZipArchive } from 'archiver'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { getEffectiveEventAccessState } from '@/lib/server/event-access'
 import { getPhotoBuffer, applyWatermark, getDownloadFileName } from '@/lib/server/download-utils'
+import { checkRateLimit, getClientIp, hashIdentifier, RATE_LIMITS } from '@/lib/server/rate-limiter'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -22,6 +23,19 @@ export async function GET(request) {
 
     if (!eventSlug || typeof eventSlug !== 'string') {
       return NextResponse.json({ error: 'eventSlug is required' }, { status: 400 })
+    }
+
+    const clientIp = getClientIp(request)
+    const rateLimitCheck = await checkRateLimit(
+      `gallery-download:create:ip:${hashIdentifier(clientIp)}:event:${eventSlug}`,
+      RATE_LIMITS.galleryDownloadCreate.ip.max,
+      RATE_LIMITS.galleryDownloadCreate.ip.window
+    )
+    if (rateLimitCheck.limited) {
+      return NextResponse.json(
+        { error: 'Too many download requests. Please try again later.', code: 'rate_limited', retryAfter: rateLimitCheck.retryAfter },
+        { status: 429, headers: { 'Retry-After': String(rateLimitCheck.retryAfter) } }
+      )
     }
 
     const prisma = await getPrismaClient()

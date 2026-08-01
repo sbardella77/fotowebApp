@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { verifyOwnerSessionToken } from '@/lib/server/owner-auth'
+import { resolveCanonicalOwner } from '@/lib/server/owner-resolution'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,25 +23,32 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Database unavailable' }, { status: 503 })
     }
 
+    const owner = await resolveCanonicalOwner(ownerEmail)
+    if (!owner) {
+      return NextResponse.json({ error: 'Owner not found' }, { status: 404 })
+    }
+
+    const ownerId = owner.id
+
     const [byEventName, byUpsellType, bySource, byCtaPlan] = await Promise.all([
       prisma.upsellEvent.groupBy({
         by: ['eventName'],
-        where: { createdAt: { gte: startDate } },
+        where: { ownerId, createdAt: { gte: startDate } },
         _count: { id: true },
       }),
       prisma.upsellEvent.groupBy({
         by: ['upsellType', 'eventName'],
-        where: { createdAt: { gte: startDate } },
+        where: { ownerId, createdAt: { gte: startDate } },
         _count: { id: true },
       }),
       prisma.upsellEvent.groupBy({
         by: ['source', 'eventName'],
-        where: { createdAt: { gte: startDate } },
+        where: { ownerId, createdAt: { gte: startDate } },
         _count: { id: true },
       }),
       prisma.upsellEvent.groupBy({
         by: ['ctaPlan', 'eventName'],
-        where: { createdAt: { gte: startDate } },
+        where: { ownerId, createdAt: { gte: startDate } },
         _count: { id: true },
       }),
     ])

@@ -60,8 +60,10 @@ export function BirthdayLandingPage() {
   const [eventName, setEventName] = useState('')
   const [ownerEmail, setOwnerEmail] = useState('')
   const [isCreating, setIsCreating] = useState(false)
+  const [createError, setCreateError] = useState(null)
 
   const t = useTranslations('birthday')
+  const tLanding = useTranslations('landing')
 
   useScrollReveal()
 
@@ -87,6 +89,7 @@ export function BirthdayLandingPage() {
     })
 
     setIsCreating(true)
+    setCreateError(null)
     try {
       const response = await fetch('/api/events', {
         method: 'POST',
@@ -97,13 +100,16 @@ export function BirthdayLandingPage() {
       try {
         payload = await response.json()
       } catch {
-        payload = { error: `Server error (${response.status}). Please try again.` }
+        payload = { error: `${tLanding.serverError} (${response.status}). ${tLanding.pleaseTryAgain}` }
       }
       if (response.ok && payload.event?.slug) {
         router.push(`/event/${payload.event.slug}?new=1`)
+      } else if (!response.ok) {
+        setCreateError(payload)
       }
     } catch (e) {
       console.error('[createEvent] Error:', e)
+      setCreateError({ error: e.message || tLanding.genericError })
     } finally {
       setIsCreating(false)
     }
@@ -178,6 +184,11 @@ export function BirthdayLandingPage() {
                       )}
                     </Button>
                   </div>
+                  {createError && (
+                    <div className="mt-3 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-left">
+                      <p className="text-sm font-medium text-destructive">{createError.error || tLanding.genericError}</p>
+                    </div>
+                  )}
                   <p className="mt-3 text-center font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
                     {t.finalMicrocopy}
                   </p>

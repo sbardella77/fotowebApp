@@ -15,14 +15,11 @@ import { trackUpsellImpression, trackUpsellClick, resolveUpsellType } from '@/li
  *   source, eventSlug, eventId, ownerPlan, billingTier, effectivePlan
  */
 export function UpsellRow({ upsell, t, onUpgrade, checkoutBusy, size = 'sm', source, eventSlug, eventId, ownerPlan, billingTier, effectivePlan }) {
-  if (!upsell) return null
-
-  const hasCta = upsell.ctaKey && onUpgrade && upsell.ctaPlan
   const rowRef = useRef(null)
   const hasTracked = useRef(false)
 
   useEffect(() => {
-    if (!rowRef.current || !source || hasTracked.current) return
+    if (!upsell || !rowRef.current || !source || hasTracked.current) return
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -46,7 +43,11 @@ export function UpsellRow({ upsell, t, onUpgrade, checkoutBusy, size = 'sm', sou
 
     observer.observe(rowRef.current)
     return () => observer.disconnect()
-  }, [source, eventSlug, eventId, ownerPlan, billingTier, effectivePlan, upsell.feature, upsell.ctaPlan])
+  }, [upsell, source, eventSlug, eventId, ownerPlan, billingTier, effectivePlan])
+
+  if (!upsell) return null
+
+  const hasCta = upsell.ctaKey && onUpgrade && upsell.ctaPlan
 
   const handleClick = () => {
     if (source) {

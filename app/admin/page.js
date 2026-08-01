@@ -154,12 +154,16 @@ function App() {
   }
 
   const logout = async () => {
-    await csrfFetch('/api/admin/logout', { method: 'POST' })
-    setSelectedEvent(null)
-    setSelectedSlug('')
-    setEvents([])
-    setAuthState((current) => ({ ...current, authenticated: false }))
-    setMessage('Signed out from admin.')
+    try {
+      await csrfFetch('/api/admin/logout', { method: 'POST' })
+      setSelectedEvent(null)
+      setSelectedSlug('')
+      setEvents([])
+      setAuthState((current) => ({ ...current, authenticated: false }))
+      setMessage('Signed out from admin.')
+    } catch (error) {
+      setMessage(error.message || 'Unable to sign out from admin.')
+    }
   }
 
   const createEvent = async () => {

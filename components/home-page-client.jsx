@@ -17,11 +17,7 @@ export function HomePageClient({ locale = 'en' }) {
   const [ownerEmail, setOwnerEmail] = useState('')
   const [isCreating, setIsCreating] = useState(false)
   const [createError, setCreateError] = useState(null)
-  const [isRedirecting, setIsRedirecting] = useState(() => {
-    if (typeof window === 'undefined') return false
-    const params = new URLSearchParams(window.location.search)
-    return Boolean(params.get('event'))
-  })
+  const [isRedirecting, setIsRedirecting] = useState(false)
 
   useEffect(() => {
     if (isRedirecting) return
@@ -35,6 +31,7 @@ export function HomePageClient({ locale = 'en' }) {
     const params = new URLSearchParams(window.location.search)
     const eventSlug = params.get('event')
     if (eventSlug) {
+      setIsRedirecting(true)
       router.replace(`/event/${eventSlug}`)
     }
   }, [router])

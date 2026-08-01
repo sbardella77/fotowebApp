@@ -74,10 +74,12 @@ export function WeddingLandingPage({ locale = 'en' }) {
   const [eventName, setEventName] = useState('')
   const [ownerEmail, setOwnerEmail] = useState('')
   const [isCreating, setIsCreating] = useState(false)
+  const [createError, setCreateError] = useState(null)
 
   const t = useTranslations('wedding')
   const nav = useTranslations('nav')
   const footer = useTranslations('footer')
+  const tLanding = useTranslations('landing')
 
   useScrollReveal()
 
@@ -96,6 +98,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
     trackEvent(EVENT_CREATE_ROOM_CLICKED, { page_type: 'landing', variant: 'wedding' })
 
     setIsCreating(true)
+    setCreateError(null)
     try {
       const response = await fetch('/api/events', {
         method: 'POST',
@@ -106,13 +109,16 @@ export function WeddingLandingPage({ locale = 'en' }) {
       try {
         payload = await response.json()
       } catch {
-        payload = { error: `Server error (${response.status}). Please try again.` }
+        payload = { error: `${tLanding.serverError} (${response.status}). ${tLanding.pleaseTryAgain}` }
       }
       if (response.ok && payload.event?.slug) {
         router.push(`/event/${payload.event.slug}?new=1`)
+      } else if (!response.ok) {
+        setCreateError(payload)
       }
     } catch (e) {
       console.error('[createEvent] Error:', e)
+      setCreateError({ error: e.message || tLanding.genericError })
     } finally {
       setIsCreating(false)
     }
@@ -252,6 +258,11 @@ export function WeddingLandingPage({ locale = 'en' }) {
                       </>
                     )}
                   </Button>
+                  {createError && (
+                    <div className="mt-3 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-left">
+                      <p className="text-sm font-medium text-destructive">{createError.error || tLanding.genericError}</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Trust signals */}
@@ -679,6 +690,11 @@ export function WeddingLandingPage({ locale = 'en' }) {
                   </>
                 )}
               </Button>
+              {createError && (
+                <div className="rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-left">
+                  <p className="text-sm font-medium text-destructive">{createError.error || tLanding.genericError}</p>
+                </div>
+              )}
             </div>
 
             <p className="mt-4 font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">

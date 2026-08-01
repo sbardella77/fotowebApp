@@ -32,6 +32,8 @@ import {
   EVENT_GALLERY_DOWNLOAD_CLICKED,
   EVENT_GALLERY_DOWNLOAD_COMPLETED,
   EVENT_GALLERY_DOWNLOAD_BLOCKED,
+  EXTRA_FREE_EVENT_AUTO_CREATE_SUCCESS,
+  EXTRA_FREE_EVENT_AUTO_CREATE_FAILED,
 } from '@/lib/analytics/events'
 import {
   AlertDialog,
@@ -78,9 +80,6 @@ import {
   savePendingExtraFreeEvent,
   loadPendingExtraFreeEvent,
   clearPendingExtraFreeEvent,
-  markPendingExtraFreeEventCreating,
-  markPendingExtraFreeEventFailed,
-  isPendingExtraFreeEventCreating,
 } from '@/lib/extra-free-event-pending'
 
 export default function DashboardPage() {
@@ -92,7 +91,6 @@ export default function DashboardPage() {
 
   const [authState, setAuthState] = useState({ loading: true, authenticated: false, email: '' })
   const [email, setEmail] = useState('')
-  const [token, setToken] = useState('')
   const [message, setMessage] = useState('')
   const [events, setEvents] = useState([])
   const [selectedSlug, setSelectedSlug] = useState('')
@@ -104,10 +102,6 @@ export default function DashboardPage() {
   const [isEditingName, setIsEditingName] = useState(false)
   const [newEventName, setNewEventName] = useState('')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [recoveryMode, setRecoveryMode] = useState(false)
-  const [recoveryEmail, setRecoveryEmail] = useState('')
-  const [recoveryBusy, setRecoveryBusy] = useState(false)
-  const [recoverySent, setRecoverySent] = useState(false)
   const [redirectParam, setRedirectParam] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -121,7 +115,6 @@ export default function DashboardPage() {
   const [forgotSent, setForgotSent] = useState(false)
   const [plan, setPlan] = useState('free')
   const [subscriptionStatus, setSubscriptionStatus] = useState(null)
-  const [paymentFailedAt, setPaymentFailedAt] = useState(null)
   const [subscriptionGraceUntil, setSubscriptionGraceUntil] = useState(null)
   const [subscriptionCanceledAt, setSubscriptionCanceledAt] = useState(null)
   const [subscriptionCancelAtPeriodEnd, setSubscriptionCancelAtPeriodEnd] = useState(false)
@@ -129,7 +122,6 @@ export default function DashboardPage() {
   const [subscriptionBillingInterval, setSubscriptionBillingInterval] = useState(null)
   const [cancellationInfo, setCancellationInfo] = useState(false)
   const [billingWarning, setBillingWarning] = useState(false)
-  const [billingActionRequired, setBillingActionRequired] = useState(false)
   const [canManageSubscription, setCanManageSubscription] = useState(false)
   const [checkoutBusy, setCheckoutBusy] = useState(false)
   const [portalBusy, setPortalBusy] = useState(false)
@@ -178,8 +170,8 @@ export default function DashboardPage() {
     }
     if (sortBy === 'name') {
       result.sort((a, b) => a.name.localeCompare(b.name))
-    } else if (sortBy === 'newest' && result[0]?.createdAt) {
-      result.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    } else if (sortBy === 'newest') {
+      result.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
     }
     return result
   }, [safeEvents, searchQuery, sortBy])
@@ -236,7 +228,7 @@ export default function DashboardPage() {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
       const redirect = params.get('redirect') || ''
-      if (redirect && redirect.startsWith('/')) {
+      if (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) {
         setRedirectParam(redirect)
       }
     }
@@ -260,7 +252,6 @@ export default function DashboardPage() {
       try {
         const parsed = JSON.parse(window.localStorage.getItem(keys[0]))
         if (parsed.email) setEmail(parsed.email)
-        if (parsed.token) setToken(parsed.token)
       } catch {
         // ignore parse errors
       }
@@ -295,30 +286,6 @@ export default function DashboardPage() {
     }
   }
 
-  const login = async () => {
-    setBusy((c) => ({ ...c, auth: true }))
-    try {
-      const response = await fetch('/api/owner/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), token: token.trim() }),
-      })
-      const { ok, payload } = await safeFetchJson(response)
-      if (!ok) {
-        throw new Error(payload.error || t.authFailed)
-      }
-      setAuthState({ loading: false, authenticated: true, email: payload.email })
-      setMessage(t.signedIn)
-      if (redirectParam && redirectParam.startsWith('/')) {
-        router.push(redirectParam)
-      }
-    } catch (error) {
-      setMessage(error.message)
-    } finally {
-      setBusy((c) => ({ ...c, auth: false }))
-    }
-  }
-
   const logout = async () => {
     try {
       const response = await csrfFetch('/api/owner/logout', { method: 'POST' })
@@ -344,7 +311,6 @@ export default function DashboardPage() {
       if (!ok) return
       setPlan(payload.plan || 'free')
       setSubscriptionStatus(payload.subscriptionStatus || null)
-      setPaymentFailedAt(payload.paymentFailedAt || null)
       setSubscriptionGraceUntil(payload.subscriptionGraceUntil || null)
       setSubscriptionCanceledAt(payload.subscriptionCanceledAt || null)
       setSubscriptionCancelAtPeriodEnd(!!payload.subscriptionCancelAtPeriodEnd)
@@ -352,7 +318,6 @@ export default function DashboardPage() {
       setSubscriptionBillingInterval(payload.subscriptionBillingInterval || null)
       setCancellationInfo(!!payload.cancellationInfo)
       setBillingWarning(!!payload.billingWarning)
-      setBillingActionRequired(!!payload.billingActionRequired)
       setCanManageSubscription(!!payload.canManageSubscription)
       setExtraEventCredits(typeof payload.extraEventCredits === 'number' ? payload.extraEventCredits : 0)
     } catch {
@@ -731,28 +696,6 @@ export default function DashboardPage() {
     setDeleteDialogOpen(true)
   }
 
-  const sendRecoveryLink = async () => {
-    setRecoveryBusy(true)
-    try {
-      const response = await fetch('/api/owner/resend', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: recoveryEmail.trim(),
-          ...(redirectParam && redirectParam.startsWith('/') ? { redirect: redirectParam } : {}),
-        }),
-      })
-      const payload = await response.json()
-      if (!response.ok) throw new Error(payload.error || t.unableToSendRecovery)
-      setRecoverySent(true)
-    } catch (error) {
-      setMessage(error.message)
-      setRecoverySent(true)
-    } finally {
-      setRecoveryBusy(false)
-    }
-  }
-
   const openCreateDialog = () => {
     setCreateName('')
     setCreateError(null)
@@ -813,11 +756,6 @@ export default function DashboardPage() {
     }
   }
 
-  const createRoomWithName = async (name) => {
-    setCreateName(name)
-    return createRoom()
-  }
-
   const handleBuyExtraFreeEvent = () => {
     const trimmed = createName.trim()
     if (!trimmed || trimmed.length < 3) {
@@ -851,8 +789,6 @@ export default function DashboardPage() {
       { pendingEventName: trimmed, postPurchaseAction: 'create_event' }
     )
   }
-
-  const accountPremium = resolveEffectiveEventAccessState({ ownerPlan: plan }).isPremium
 
   const loadPrivateAssets = async (slug) => {
     if (!slug) return
@@ -1553,6 +1489,10 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+      ) : !dataLoaded.events ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
       ) : events.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center px-4">
           <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-primary/10 text-accent-dark">
@@ -1905,6 +1845,10 @@ export default function DashboardPage() {
                       </Button>
                     </div>
                   </>
+                )}
+
+                {createError?.error && (
+                  <p className="text-sm text-destructive">{createError.error}</p>
                 )}
               </div>
             ) : createError?.error ? (

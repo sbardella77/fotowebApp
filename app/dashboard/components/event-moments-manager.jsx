@@ -15,12 +15,12 @@ export function EventMomentsManager({ event, t }) {
   const [busyId, setBusyId] = useState(null)
   const [error, setError] = useState('')
 
-  const fetchMoments = useCallback(async () => {
+  const fetchMoments = useCallback(async (signal) => {
     if (!event?.slug) return
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(`/api/owner/events/${event.slug}/moments`, { cache: 'no-store' })
+      const res = await fetch(`/api/owner/events/${event.slug}/moments`, { cache: 'no-store', signal })
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}))
         // If table doesn't exist, surface a clearer message in dev
@@ -32,11 +32,12 @@ export function EventMomentsManager({ event, t }) {
       const data = await res.json()
       setMoments(data.moments || [])
     } catch (e) {
+      if (e.name === 'AbortError') return
       setError(e.message)
       // eslint-disable-next-line no-console
       if (process.env.NODE_ENV !== 'production') console.error('[EventMomentsManager] fetchMoments error:', e)
     } finally {
-      setLoading(false)
+      if (!signal?.aborted) setLoading(false)
     }
   }, [event?.slug])
 
@@ -51,7 +52,9 @@ export function EventMomentsManager({ event, t }) {
 
   // Fetch moments on mount and whenever the event slug changes
   useEffect(() => {
-    fetchMoments()
+    const controller = new AbortController()
+    fetchMoments(controller.signal)
+    return () => controller.abort()
   }, [fetchMoments])
 
   const handleCreate = async () => {

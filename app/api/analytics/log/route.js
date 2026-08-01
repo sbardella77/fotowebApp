@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getPrismaClient } from '@/lib/server/prisma-client'
+import { verifyOwnerSessionToken } from '@/lib/server/owner-auth'
+import { resolveCanonicalOwner } from '@/lib/server/owner-resolution'
 import { checkRateLimit, getClientIp, hashIdentifier, RATE_LIMITS } from '@/lib/server/rate-limiter'
 
 export const dynamic = 'force-dynamic'
@@ -10,6 +12,12 @@ const VALID_EVENTS = new Set([
   'upsell_checkout_start',
   'upsell_conversion',
 ])
+
+const sanitizeString = (value, maxLength) => {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed ? trimmed.slice(0, maxLength) : null
+}
 
 export async function POST(request) {
   try {
@@ -37,16 +45,26 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Database unavailable' }, { status: 503 })
     }
 
+    // Never trust ownerId from the request body: derive it from the owner
+    // session when present, otherwise log the event anonymously.
+    let ownerId = null
+    const token = request.cookies.get('snaprooms_owner_session')?.value
+    const ownerEmail = await verifyOwnerSessionToken(token)
+    if (ownerEmail) {
+      const owner = await resolveCanonicalOwner(ownerEmail)
+      ownerId = owner?.id || null
+    }
+
     await prisma.upsellEvent.create({
       data: {
         eventName: body.eventName,
-        upsellType: body.upsellType || null,
-        source: body.source || null,
-        location: body.location || null,
-        ctaPlan: body.ctaPlan || null,
-        ownerId: body.ownerId || null,
-        eventId: body.eventId || null,
-        eventSlug: body.eventSlug || null,
+        upsellType: sanitizeString(body.upsellType, 100),
+        source: sanitizeString(body.source, 100),
+        location: sanitizeString(body.location, 100),
+        ctaPlan: sanitizeString(body.ctaPlan, 100),
+        ownerId,
+        eventId: sanitizeString(body.eventId, 64),
+        eventSlug: sanitizeString(body.eventSlug, 120),
       },
     })
 

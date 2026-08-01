@@ -32,22 +32,33 @@ function mapEventName(name) {
 function useAnalyticsData(days, enabled) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     if (!enabled) {
       setData(null)
+      setError(null)
       setLoading(false)
       return
     }
+    const controller = new AbortController()
     setLoading(true)
-    fetch(`/api/owner/analytics/upsells?days=${days}`, { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : null))
+    setError(null)
+    fetch(`/api/owner/analytics/upsells?days=${days}`, { cache: 'no-store', signal: controller.signal })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`Request failed: ${r.status}`))))
       .then((d) => setData(d))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false))
+      .catch((err) => {
+        if (err.name === 'AbortError') return
+        setData(null)
+        setError(err.message || 'Unable to load analytics')
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
+    return () => controller.abort()
   }, [days, enabled])
 
-  return { data, loading }
+  return { data, loading, error }
 }
 
 function KpiCard({ icon: Icon, label, value, sub }) {
@@ -87,7 +98,7 @@ export default function AnalyticsPage() {
   const [auth, setAuth] = useState({ loading: true, ok: false })
   const [days, setDays] = useState(30)
   const [analyticsEnabled, setAnalyticsEnabled] = useState(false)
-  const { data, loading } = useAnalyticsData(days, analyticsEnabled)
+  const { data, loading, error } = useAnalyticsData(days, analyticsEnabled)
   const [overview, setOverview] = useState(null)
   const [overviewLoading, setOverviewLoading] = useState(true)
 
@@ -241,6 +252,7 @@ export default function AnalyticsPage() {
             days={days}
             setDays={setDays}
             loading={loading}
+            error={error}
             hasData={hasData}
             totals={totals}
             ctr={ctr}
@@ -303,7 +315,7 @@ function LiteAnalyticsContent({ overview, t, router }) {
   )
 }
 
-function CompleteAnalyticsContent({ days, setDays, loading, hasData, totals, ctr, convRate, abandonment, upsellRows, surfaceRows, planRows, t }) {
+function CompleteAnalyticsContent({ days, setDays, loading, error, hasData, totals, ctr, convRate, abandonment, upsellRows, surfaceRows, planRows, t }) {
   return (
     <>
       {/* Filters */}
@@ -328,13 +340,19 @@ function CompleteAnalyticsContent({ days, setDays, loading, hasData, totals, ctr
         </div>
       )}
 
-      {!loading && !hasData && (
+      {!loading && error && (
+        <div className="mt-8">
+          <EmptyState title={t.analyticsError || 'Unable to load analytics'} description={error} />
+        </div>
+      )}
+
+      {!loading && !error && !hasData && (
         <div className="mt-8">
           <EmptyState title={t.analyticsNoData} description={t.analyticsNoDataDesc} />
         </div>
       )}
 
-      {!loading && hasData && (
+      {!loading && !error && hasData && (
         <div className="mt-8 space-y-8">
           {/* KPI Cards */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
