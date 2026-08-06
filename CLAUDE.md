@@ -86,3 +86,15 @@ Stripe powers subscriptions and one-off upsells. The `Owner` model tracks `strip
 1. Edit `/prisma/schema.prisma`
 2. Run `npm run prisma:migrate:dev --name <description>`
 3. For production: commit the generated migration file, then run `npm run prisma:migrate:deploy`
+
+
+## Regole per l’analisi del progetto
+
+- Prima di proporre modifiche, ricostruisci architettura e flussi.
+- Durante gli audit non modificare file senza approvazione esplicita.
+- Ogni problema deve indicare file e righe coinvolte.
+- Separa fatti verificati, ipotesi e informazioni mancanti.
+- Non mostrare mai valori di password, token, API key o altri segreti.
+- Ignora osservazioni puramente stilistiche senza impatto concreto.
+- Verifica ogni finding seguendo il percorso reale del codice.
+- Prima di eseguire comandi potenzialmente distruttivi, chiedi autorizzazione.
