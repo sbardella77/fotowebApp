@@ -41,6 +41,16 @@ describe('localStorageDriver.deleteStoredFile', () => {
     expect(rm).toHaveBeenCalledWith(expected, { force: true })
   })
 
+  it('deletes a file inside a directory whose name starts with ".." (not a traversal)', async () => {
+    // A directory named "..hidden" is a valid filesystem name; its path.relative()
+    // result starts with "..hidden/" which must NOT be confused with "../" traversal.
+    const url = '/uploads/..hidden/event-slug/photo.jpg'
+    await localStorageDriver.deleteStoredFile(url)
+    const expected = path.join(STORAGE_ROOT, '..hidden', 'event-slug', 'photo.jpg')
+    expect(rm).toHaveBeenCalledOnce()
+    expect(rm).toHaveBeenCalledWith(expected, { force: true })
+  })
+
   // --- Path outside /uploads/ ---
 
   it('throws for a path directly outside /uploads/', async () => {
