@@ -94,6 +94,8 @@ import {
   EVENT_PHOTOGRAPHER_UPLOAD_COMPLETED,
   EVENT_PHOTOGRAPHER_UPLOAD_FAILED,
 } from '@/lib/analytics/events'
+import { BlobUploadKind } from '@prisma/client'
+import { createServerBoundBlobUploadInit } from '@/lib/server/blob-upload-init'
 import { getAdminAuthDriver, getDataAccessDriver, getPrismaClient } from '@/lib/server/prisma-client'
 import {
   buildBlobPathname,
@@ -971,6 +973,27 @@ const initUpload = async (request) => {
   }
 
   const storageDriver = getStorageDriver()
+
+  if (storageDriver.mode === 'vercel-blob') {
+    if (!prisma) {
+      return json(
+        { error: 'Database is required for secure Blob uploads' },
+        503,
+      )
+    }
+
+    const session = await createServerBoundBlobUploadInit({
+      prisma,
+      storageDriver,
+      event,
+      payload,
+      uploadKind: BlobUploadKind.ROOM_PHOTO,
+      handleUploadUrl: '/api/uploads/blob',
+    })
+
+    return json({ session }, 201)
+  }
+
   const session = await storageDriver.initUploadSession(payload)
   return json({ session }, 201)
 }
@@ -1284,7 +1307,27 @@ const initPrivateDeliveryUpload = async (request, slug) => {
   }
 
   const storageDriver = getStorageDriver()
-  const session = await storageDriver.initUploadSession({ ...payload, directory: 'private-delivery' })
+  let session
+
+  if (storageDriver.mode === 'vercel-blob') {
+    if (!prisma) {
+      return json(
+        { error: 'Database is required for secure Blob uploads' },
+        503,
+      )
+    }
+
+    session = await createServerBoundBlobUploadInit({
+      prisma,
+      storageDriver,
+      event,
+      payload,
+      uploadKind: BlobUploadKind.PRIVATE_DELIVERY,
+      handleUploadUrl: '/api/uploads/blob',
+    })
+  } else {
+    session = await storageDriver.initUploadSession({ ...payload, directory: 'private-delivery' })
+  }
 
   trackServerEvent(
     EVENT_PRIVATE_DELIVERY_UPLOAD_STARTED,
@@ -1836,7 +1879,27 @@ const initPhotographerUpload = async (request, token) => {
   }
 
   const storageDriver = getStorageDriver()
-  const session = await storageDriver.initUploadSession({ ...payload, directory: 'private-delivery' })
+  let session
+
+  if (storageDriver.mode === 'vercel-blob') {
+    if (!prisma) {
+      return json(
+        { error: 'Database is required for secure Blob uploads' },
+        503,
+      )
+    }
+
+    session = await createServerBoundBlobUploadInit({
+      prisma,
+      storageDriver,
+      event,
+      payload,
+      uploadKind: BlobUploadKind.PHOTOGRAPHER_UPLOAD,
+      handleUploadUrl: '/api/uploads/blob',
+    })
+  } else {
+    session = await storageDriver.initUploadSession({ ...payload, directory: 'private-delivery' })
+  }
 
   trackServerEvent(
     EVENT_PHOTOGRAPHER_UPLOAD_STARTED,
