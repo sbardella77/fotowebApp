@@ -13,50 +13,67 @@ enum PhotoStatus {
   HIDDEN
 }
 
+enum BlobUploadKind {
+  ROOM_PHOTO
+  PRIVATE_DELIVERY
+  PHOTOGRAPHER_UPLOAD
+}
+
+enum BlobUploadSessionStatus {
+  PENDING
+  TOKEN_ISSUED
+  UPLOADED
+  COMPLETED
+  REJECTED
+  CLEANUP_PENDING
+  CLEANUP_FAILED
+  EXPIRED_CLEANED
+}
+
 model Owner {
-  id                      String    @id @default(uuid())
-  email                   String    @unique
-  passwordHash            String?
-  passwordSalt            String?
-  plan                    String    @default("free")
-  extraEventCredits       Int       @default(0)
-  extraEventCheckoutSessionId String?
-  stripeCustomerId        String?
-  stripeSubscriptionId    String?
-  stripeCheckoutSessionId String?
-  sessionVersion          Int       @default(0)
-  passwordChangedAt       DateTime?
-  planUpdatedAt            DateTime  @default(now())
-  subscriptionCanceledAt   DateTime?
-  subscriptionCancelAtPeriodEnd Boolean @default(false)
+  id                            String                    @id @default(uuid())
+  email                         String                    @unique
+  passwordHash                  String?
+  passwordSalt                  String?
+  plan                          String                    @default("free")
+  extraEventCredits             Int                       @default(0)
+  extraEventCheckoutSessionId   String?
+  stripeCustomerId              String?
+  stripeSubscriptionId          String?
+  stripeCheckoutSessionId       String?
+  sessionVersion                Int                       @default(0)
+  passwordChangedAt             DateTime?
+  planUpdatedAt                 DateTime                  @default(now())
+  subscriptionCanceledAt        DateTime?
+  subscriptionCancelAtPeriodEnd Boolean                   @default(false)
   subscriptionCurrentPeriodEnd  DateTime?
   subscriptionCancelScheduledAt DateTime?
   subscriptionBillingInterval   String?
-  subscriptionStatus       String?
-  paymentFailedAt          DateTime?
-  subscriptionGraceUntil   DateTime?
-  lastInvoiceId            String?
-  lastInvoiceStatus        String?
-  lastPaymentError         String?
-  createdAt                DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
-  events                  Event[]
-  extraFreeEventCheckouts ExtraFreeEventCheckout[]
-  passwordResetTokens     OwnerPasswordResetToken[]
+  subscriptionStatus            String?
+  paymentFailedAt               DateTime?
+  subscriptionGraceUntil        DateTime?
+  lastInvoiceId                 String?
+  lastInvoiceStatus             String?
+  lastPaymentError              String?
+  createdAt                     DateTime                  @default(now())
+  updatedAt                     DateTime                  @updatedAt
+  events                        Event[]
+  extraFreeEventCheckouts       ExtraFreeEventCheckout[]
+  passwordResetTokens           OwnerPasswordResetToken[]
 
   @@index([email])
 }
 
 model OwnerPasswordResetToken {
-  id            String    @id @default(cuid())
-  ownerId       String
-  owner         Owner     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  tokenHash     String    @unique
-  purpose       String    @default("password_reset")
-  expiresAt     DateTime
-  usedAt        DateTime?
+  id              String    @id @default(cuid())
+  ownerId         String
+  owner           Owner     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  tokenHash       String    @unique
+  purpose         String    @default("password_reset")
+  expiresAt       DateTime
+  usedAt          DateTime?
   requestedIpHash String?
-  createdAt     DateTime  @default(now())
+  createdAt       DateTime  @default(now())
 
   @@index([ownerId])
   @@index([expiresAt])
@@ -91,6 +108,7 @@ model Event {
   privateAssets                     PrivateAsset[]
   galleryDownloadJobs               GalleryDownloadJob[]
   moments                           EventMoment[]
+  blobUploadSessions                BlobUploadSession[]
 
   @@index([createdAt])
   @@index([ownerId])
@@ -197,17 +215,17 @@ model GalleryDownloadJob {
 }
 
 model ExtraFreeEventCheckout {
-  id                      String   @id @default(cuid())
+  id                      String    @id @default(cuid())
   ownerId                 String
-  owner                   Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  stripeCheckoutSessionId String?  @unique
+  owner                   Owner     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  stripeCheckoutSessionId String?   @unique
   eventName               String?
-  status                  String   @default("pending")
+  status                  String    @default("pending")
   createdEventId          String?
   createdEventSlug        String?
   errorMessage            String?
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
   completedAt             DateTime?
   autoCreatedAt           DateTime?
 
@@ -230,4 +248,43 @@ model UpsellEvent {
   @@index([eventName, upsellType])
   @@index([source])
   @@index([createdAt])
+}
+
+model BlobUploadSession {
+  id String @id @default(cuid())
+
+  eventId   String?
+  event     Event?  @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  eventSlug String
+
+  uploadKind BlobUploadKind
+  status     BlobUploadSessionStatus @default(PENDING)
+
+  expectedPathname String @unique
+  originalName     String
+  mimeType         String
+  expectedSize     Int
+
+  uploaderName String?
+  caption      String?
+  momentId     String?
+
+  blobUrl  String?
+  resultId String?
+
+  tokenIssuedAt DateTime?
+  uploadedAt    DateTime?
+  consumedAt    DateTime?
+  expiresAt     DateTime
+
+  cleanupAttempts Int     @default(0)
+  lastError       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventId, status])
+  @@index([eventSlug])
+  @@index([status, expiresAt])
+  @@index([uploadKind, status])
 }
