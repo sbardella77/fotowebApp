@@ -22,7 +22,6 @@ import {
   MAX_CHUNK_SIZE_BYTES,
   MAX_FILE_SIZE_BYTES,
   MAX_PRIVATE_DELIVERY_FILE_SIZE_BYTES,
-  privateDeliveryBlobUploadCompleteSchema,
   privateDeliveryLocalUploadCompleteSchema,
   privateDeliveryUploadInitSchema,
   saveOwnerEmailSchema,
@@ -97,6 +96,7 @@ import { BlobUploadKind } from '@prisma/client'
 import { createServerBoundBlobUploadInit } from '@/lib/server/blob-upload-init'
 import {
   BlobUploadCompletionError,
+  completePrivateAssetBlobUpload,
   completeRoomPhotoBlobUpload,
 } from '@/lib/server/blob-upload-completion'
 import {
@@ -116,6 +116,7 @@ import {
 } from '@/lib/server/storage'
 import {
   checkOwnerRoomCreationEntitlement,
+  checkPrivateDeliveryEntitlement,
   checkRoomUploadEntitlement,
 } from '@/lib/server/entitlements'
 import { getEffectiveEventAccessState } from '@/lib/server/event-access'
@@ -1401,30 +1402,69 @@ const completePrivateDeliveryUpload = async (request, slug) => {
     return json({ error: 'Too many upload completions. Please try again later.' }, 429)
   }
 
-  if (body?.blobUrl) {
-    const payload = privateDeliveryBlobUploadCompleteSchema.parse(body)
-    if (payload.eventSlug !== slug) {
-      return json({ error: 'Room slug mismatch' }, 400)
+  const storageDriver = getStorageDriver()
+
+  if (storageDriver.mode === 'vercel-blob') {
+    // ── Server-bound Vercel Blob path ───────────────────────────────────────
+    let payload
+    try {
+      payload = blobUploadSessionCompleteSchema.parse(body)
+    } catch {
+      return json({ error: 'Invalid request body' }, 400)
     }
 
-    const asset = await repository.createPrivateAsset({
-      eventId: event.id,
-      originalName: payload.originalName,
-      storedName: getStoredNameFromBlobPathname(payload.blobPathname),
-      mimeType: payload.mimeType,
-      size: payload.size,
-      url: payload.blobUrl,
-    })
+    if (
+      !prisma ||
+      typeof prisma.blobUploadSession !== 'object' ||
+      prisma.blobUploadSession === null
+    ) {
+      return json({ error: 'Upload service is temporarily unavailable.', code: 'database_unavailable' }, 503)
+    }
 
-    trackServerEvent(
-      EVENT_PRIVATE_DELIVERY_UPLOAD_COMPLETED,
-      { room_slug: slug, asset_id: asset.id, file_size: payload.size },
-      { distinctId: ownerEmail }
+    let result
+    try {
+      result = await completePrivateAssetBlobUpload({
+        prisma,
+        sessionId: payload.sessionId,
+        expectedEventId: event.id,
+        expectedEventSlug: event.slug,
+        expectedUploadKind: BlobUploadKind.PRIVATE_DELIVERY,
+        headBlob: (pathname) => head(pathname),
+        deleteBlob: (url) => deleteStoredFile(url),
+        checkEntitlement: checkPrivateDeliveryEntitlement,
+      })
+    } catch (error) {
+      if (error instanceof BlobUploadCompletionError) {
+        return json(
+          {
+            error: error.publicMessage,
+            code: error.code,
+            ...(error.details || {}),
+          },
+          error.status,
+        )
+      }
+      throw error
+    }
+
+    if (!result.idempotent) {
+      trackServerEvent(
+        EVENT_PRIVATE_DELIVERY_UPLOAD_COMPLETED,
+        { room_slug: event.slug, asset_id: result.asset.id, file_size: result.asset.size },
+        { distinctId: ownerEmail }
+      )
+    }
+
+    return json(
+      {
+        asset: result.asset,
+        idempotent: result.idempotent,
+      },
+      result.idempotent ? 200 : 201,
     )
-
-    return json({ asset }, 201)
   }
 
+  // ── Local upload path ─────────────────────────────────────────────────────
   const payload = privateDeliveryLocalUploadCompleteSchema.parse(body)
   const fileResult = await localStorageDriver.completeUploadSession({
     sessionId: payload.sessionId,
@@ -1888,31 +1928,69 @@ const completePhotographerUpload = async (request, token) => {
     return json({ error: 'Too many upload completions. Please try again later.' }, 429)
   }
 
-  if (body?.blobUrl) {
-    const payload = privateDeliveryBlobUploadCompleteSchema.parse(body)
-    if (payload.eventSlug !== event.slug) {
-      return json({ error: 'Room slug mismatch' }, 400)
+  const storageDriver = getStorageDriver()
+
+  if (storageDriver.mode === 'vercel-blob') {
+    // ── Server-bound Vercel Blob path ───────────────────────────────────────
+    let payload
+    try {
+      payload = blobUploadSessionCompleteSchema.parse(body)
+    } catch {
+      return json({ error: 'Invalid request body' }, 400)
     }
 
-    const asset = await repository.createPrivateAsset({
-      eventId: event.id,
-      originalName: payload.originalName,
-      storedName: getStoredNameFromBlobPathname(payload.blobPathname),
-      mimeType: payload.mimeType,
-      size: payload.size,
-      url: payload.blobUrl,
-      uploadedByRole: 'photographer',
-    })
+    if (
+      !prisma ||
+      typeof prisma.blobUploadSession !== 'object' ||
+      prisma.blobUploadSession === null
+    ) {
+      return json({ error: 'Upload service is temporarily unavailable.', code: 'database_unavailable' }, 503)
+    }
 
-    trackServerEvent(
-      EVENT_PHOTOGRAPHER_UPLOAD_COMPLETED,
-      { room_slug: event.slug, asset_id: asset.id, file_size: payload.size },
-      { distinctId: `photographer_${event.slug}` }
+    let result
+    try {
+      result = await completePrivateAssetBlobUpload({
+        prisma,
+        sessionId: payload.sessionId,
+        expectedEventId: event.id,
+        expectedEventSlug: event.slug,
+        expectedUploadKind: BlobUploadKind.PHOTOGRAPHER_UPLOAD,
+        headBlob: (pathname) => head(pathname),
+        deleteBlob: (url) => deleteStoredFile(url),
+        checkEntitlement: checkPrivateDeliveryEntitlement,
+      })
+    } catch (error) {
+      if (error instanceof BlobUploadCompletionError) {
+        return json(
+          {
+            error: error.publicMessage,
+            code: error.code,
+            ...(error.details || {}),
+          },
+          error.status,
+        )
+      }
+      throw error
+    }
+
+    if (!result.idempotent) {
+      trackServerEvent(
+        EVENT_PHOTOGRAPHER_UPLOAD_COMPLETED,
+        { room_slug: event.slug, asset_id: result.asset.id, file_size: result.asset.size },
+        { distinctId: `photographer_${event.slug}` }
+      )
+    }
+
+    return json(
+      {
+        asset: result.asset,
+        idempotent: result.idempotent,
+      },
+      result.idempotent ? 200 : 201,
     )
-
-    return json({ asset }, 201)
   }
 
+  // ── Local upload path ─────────────────────────────────────────────────────
   const payload = privateDeliveryLocalUploadCompleteSchema.parse(body)
   const fileResult = await localStorageDriver.completeUploadSession({
     sessionId: payload.sessionId,

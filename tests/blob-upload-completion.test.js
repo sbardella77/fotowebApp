@@ -3,6 +3,7 @@ import { BlobUploadKind, BlobUploadSessionStatus } from '@prisma/client'
 import { BlobNotFoundError } from '@vercel/blob'
 import {
   BlobUploadCompletionError,
+  completePrivateAssetBlobUpload,
   completeRoomPhotoBlobUpload,
 } from '../lib/server/blob-upload-completion.js'
 import { blobUploadSessionCompleteSchema } from '../lib/server/schemas.js'
@@ -153,12 +154,15 @@ function makeFakePrisma({
   photos = [],
   events = [],
   moments = [],
+  privateAssets = [],
 } = {}) {
   const sessionsStore = new Map(sessions.map((s) => [s.id, { ...s }]))
   const photosStore = new Map(photos.map((p) => [p.id, { ...p }]))
   const eventsStore = new Map(events.map((e) => [e.id, { ...e }]))
   const momentsStore = new Map(moments.map((m) => [m.id, { ...m }]))
+  const privateAssetsStore = new Map(privateAssets.map((a) => [a.id, { ...a }]))
   let photoCounter = photos.length + 1
+  let assetCounter = privateAssets.length + 1
 
   function makeSessionDelegate(store) {
     return {
@@ -236,20 +240,38 @@ function makeFakePrisma({
     }
   }
 
+  function makePrivateAssetDelegate(store) {
+    return {
+      async findUnique({ where }) {
+        const r = store.get(where.id)
+        return r ? { ...r } : null
+      },
+      async create({ data }) {
+        const id = `asset-${assetCounter++}`
+        const r = { id, createdAt: NOW, updatedAt: NOW, ...data }
+        store.set(id, { ...r })
+        return { ...r }
+      },
+    }
+  }
+
   const blobUploadSession = makeSessionDelegate(sessionsStore)
   const photo = makePhotoDelegate(photosStore)
   const event = makeEventDelegate(eventsStore)
   const eventMoment = makeMomentDelegate(momentsStore)
+  const privateAsset = makePrivateAssetDelegate(privateAssetsStore)
 
   const $transaction = async (fn) => {
     const snapSessions = cloneMap(sessionsStore)
     const snapPhotos = cloneMap(photosStore)
     const snapEvents = cloneMap(eventsStore)
+    const snapAssets = cloneMap(privateAssetsStore)
     const tx = {
       blobUploadSession: makeSessionDelegate(sessionsStore),
       photo: makePhotoDelegate(photosStore),
       event: makeEventDelegate(eventsStore),
       eventMoment: makeMomentDelegate(momentsStore),
+      privateAsset: makePrivateAssetDelegate(privateAssetsStore),
     }
     try {
       return await fn(tx)
@@ -257,6 +279,7 @@ function makeFakePrisma({
       restoreMap(sessionsStore, snapSessions)
       restoreMap(photosStore, snapPhotos)
       restoreMap(eventsStore, snapEvents)
+      restoreMap(privateAssetsStore, snapAssets)
       throw error
     }
   }
@@ -266,10 +289,12 @@ function makeFakePrisma({
     photo,
     event,
     eventMoment,
+    privateAsset,
     $transaction,
     _sessions: sessionsStore,
     _photos: photosStore,
     _events: eventsStore,
+    _assets: privateAssetsStore,
   }
 }
 
@@ -855,5 +880,572 @@ describe('blobUploadSessionCompleteSchema', () => {
     expect(() =>
       blobUploadSessionCompleteSchema.parse({}),
     ).toThrow()
+  })
+})
+
+// ─── Private Asset fixtures ────────────────────────────────────────────────────
+
+const PRIVATE_PATHNAME = 'private-delivery/event-1/uuid-doc.jpg'
+const PRIVATE_BLOB_URL =
+  `https://abc123.public.blob.vercel-storage.com/${PRIVATE_PATHNAME}`
+
+function makePrivateSession(overrides = {}) {
+  return makeSession({
+    uploadKind: BlobUploadKind.PRIVATE_DELIVERY,
+    expectedPathname: PRIVATE_PATHNAME,
+    mimeType: 'image/jpeg',
+    expectedSize: 512000,
+    ...overrides,
+  })
+}
+
+function makePrivateAsset(overrides = {}) {
+  return {
+    id: 'asset-1',
+    eventId: 'event-1',
+    originalName: 'photo.jpg',
+    storedName: 'uuid-doc.jpg',
+    mimeType: 'image/jpeg',
+    size: 512000,
+    url: PRIVATE_BLOB_URL,
+    uploadedByRole: 'owner',
+    createdAt: NOW,
+    updatedAt: NOW,
+    ...overrides,
+  }
+}
+
+function makePrivateHeadResult(session = {}, overrides = {}) {
+  const pathname = session.expectedPathname ?? PRIVATE_PATHNAME
+  const url = `https://abc123.public.blob.vercel-storage.com/${pathname}`
+  return {
+    url,
+    pathname,
+    size: session.expectedSize ?? 512000,
+    contentType: session.mimeType ?? 'image/jpeg',
+    ...overrides,
+  }
+}
+
+function makeDefaultPrivateArgs(overrides = {}) {
+  const session = makePrivateSession()
+  const event = makeEvent()
+  const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+  return {
+    prisma,
+    sessionId: session.id,
+    expectedEventId: event.id,
+    expectedEventSlug: event.slug,
+    expectedUploadKind: BlobUploadKind.PRIVATE_DELIVERY,
+    headBlob: vi.fn(async () => makePrivateHeadResult(session)),
+    deleteBlob: vi.fn(async () => {}),
+    checkEntitlement: vi.fn(async () => ({
+      allowed: true,
+      upgradePath: null,
+    })),
+    now: () => NOW,
+    ...overrides,
+  }
+}
+
+// ─── Private Delivery tests ───────────────────────────────────────────────────
+
+describe('Private Delivery', () => {
+  it('41. PRIVATE_DELIVERY valido → PrivateAsset con uploadedByRole=owner', async () => {
+    const result = await completePrivateAssetBlobUpload(makeDefaultPrivateArgs())
+    expect(result.asset).toBeDefined()
+    expect(result.asset.uploadedByRole).toBe('owner')
+    expect(result.idempotent).toBe(false)
+  })
+
+  it('42. headBlob viene chiamato con session.expectedPathname', async () => {
+    const args = makeDefaultPrivateArgs()
+    await completePrivateAssetBlobUpload(args)
+    expect(args.headBlob).toHaveBeenCalledWith(PRIVATE_PATHNAME)
+  })
+
+  it('43. url del PrivateAsset proviene da headResult, non dalla sessione', async () => {
+    const session = makePrivateSession()
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    // URL con stesso pathname (obbligatorio per claim) ma dominio diverso
+    const canonicalUrl =
+      `https://canonical-domain.public.blob.vercel-storage.com/${PRIVATE_PATHNAME}`
+    const headBlob = vi.fn(async () => ({
+      url: canonicalUrl,
+      pathname: PRIVATE_PATHNAME,
+      size: 512000,
+      contentType: 'image/jpeg',
+    }))
+    const result = await completePrivateAssetBlobUpload({
+      ...makeDefaultPrivateArgs(),
+      prisma,
+      headBlob,
+    })
+    expect(result.asset.url).toBe(canonicalUrl)
+  })
+
+  it('44. size del PrivateAsset proviene da headResult', async () => {
+    const session = makePrivateSession({ expectedSize: 512000 })
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const headBlob = vi.fn(async () =>
+      makePrivateHeadResult(session, { size: 123456 }),
+    )
+    const result = await completePrivateAssetBlobUpload({
+      ...makeDefaultPrivateArgs(),
+      prisma,
+      headBlob,
+    })
+    expect(result.asset.size).toBe(123456)
+  })
+
+  it('45. mimeType del PrivateAsset deriva da contentType normalizzato di headResult', async () => {
+    const session = makePrivateSession({ mimeType: 'image/jpeg' })
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const headBlob = vi.fn(async () =>
+      makePrivateHeadResult(session, { contentType: 'IMAGE/JPEG; charset=utf-8' }),
+    )
+    const result = await completePrivateAssetBlobUpload({
+      ...makeDefaultPrivateArgs(),
+      prisma,
+      headBlob,
+    })
+    expect(result.asset.mimeType).toBe('image/jpeg')
+  })
+
+  it('46. originalName del PrivateAsset proviene dalla sessione', async () => {
+    const session = makePrivateSession({ originalName: 'wedding-shoot.jpg' })
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const result = await completePrivateAssetBlobUpload({
+      ...makeDefaultPrivateArgs(),
+      prisma,
+    })
+    expect(result.asset.originalName).toBe('wedding-shoot.jpg')
+  })
+
+  it('47. storedName deriva da session.expectedPathname', async () => {
+    const result = await completePrivateAssetBlobUpload(makeDefaultPrivateArgs())
+    expect(result.asset.storedName).toBe('uuid-doc.jpg')
+  })
+
+  it('48. PRIVATE_DELIVERY → uploadedByRole scritto in DB è owner', async () => {
+    const args = makeDefaultPrivateArgs()
+    const result = await completePrivateAssetBlobUpload(args)
+    const [asset] = [...args.prisma._assets.values()]
+    expect(asset.uploadedByRole).toBe('owner')
+  })
+
+  it('49. sessione diventa COMPLETED con resultId corretto', async () => {
+    const args = makeDefaultPrivateArgs()
+    const result = await completePrivateAssetBlobUpload(args)
+    const session = args.prisma._sessions.get('session-1')
+    expect(session.status).toBe(BlobUploadSessionStatus.COMPLETED)
+    expect(session.resultId).toBe(result.asset.id)
+  })
+
+  it('50. retry COMPLETED restituisce stesso PrivateAsset senza chiamare headBlob', async () => {
+    const args = makeDefaultPrivateArgs()
+    const first = await completePrivateAssetBlobUpload(args)
+    const headBlobSpy = vi.fn()
+    const second = await completePrivateAssetBlobUpload({
+      ...args,
+      headBlob: headBlobSpy,
+    })
+    expect(second.idempotent).toBe(true)
+    expect(second.asset.id).toBe(first.asset.id)
+    expect(headBlobSpy).not.toHaveBeenCalled()
+  })
+
+  it('51. sessione di altro evento → session_event_mismatch (403)', async () => {
+    const session = makePrivateSession({
+      eventId: 'other-event-id',
+      eventSlug: 'other-event',
+    })
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    await expect(
+      completePrivateAssetBlobUpload({ ...makeDefaultPrivateArgs(), prisma }),
+    ).rejects.toMatchObject({ code: 'session_event_mismatch', status: 403 })
+  })
+
+  it('52. sessione PHOTOGRAPHER_UPLOAD passata come PRIVATE_DELIVERY → invalid_upload_kind (409)', async () => {
+    const session = makePrivateSession({
+      uploadKind: BlobUploadKind.PHOTOGRAPHER_UPLOAD,
+    })
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    await expect(
+      completePrivateAssetBlobUpload({ ...makeDefaultPrivateArgs(), prisma }),
+    ).rejects.toMatchObject({ code: 'invalid_upload_kind', status: 409 })
+  })
+
+  it('53. entitlement non consentito → private_delivery_unavailable (403) + delete', async () => {
+    const session = makePrivateSession()
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const deleteBlob = vi.fn()
+    const checkEntitlement = vi.fn(async () => ({
+      allowed: false,
+      upgradePath: 'wedding_pro',
+    }))
+    await expect(
+      completePrivateAssetBlobUpload({
+        ...makeDefaultPrivateArgs(),
+        prisma,
+        deleteBlob,
+        checkEntitlement,
+      }),
+    ).rejects.toMatchObject({ code: 'private_delivery_unavailable', status: 403 })
+    expect(deleteBlob).toHaveBeenCalled()
+  })
+
+  it('54. entitlement.error → database_unavailable (503), Blob non eliminato', async () => {
+    const session = makePrivateSession()
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const deleteBlob = vi.fn()
+    const checkEntitlement = vi.fn(async () => ({
+      allowed: false,
+      error: 'DB unavailable',
+    }))
+    await expect(
+      completePrivateAssetBlobUpload({
+        ...makeDefaultPrivateArgs(),
+        prisma,
+        deleteBlob,
+        checkEntitlement,
+      }),
+    ).rejects.toMatchObject({ code: 'database_unavailable', status: 503 })
+    expect(deleteBlob).not.toHaveBeenCalled()
+  })
+
+  it('55. MIME mismatch → blob_mime_mismatch (415) + delete', async () => {
+    const session = makePrivateSession({ mimeType: 'image/jpeg' })
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const headBlob = vi.fn(async () =>
+      makePrivateHeadResult(session, { contentType: 'image/png' }),
+    )
+    const deleteBlob = vi.fn()
+    await expect(
+      completePrivateAssetBlobUpload({
+        ...makeDefaultPrivateArgs(),
+        prisma,
+        headBlob,
+        deleteBlob,
+      }),
+    ).rejects.toMatchObject({ code: 'blob_mime_mismatch', status: 415 })
+    expect(deleteBlob).toHaveBeenCalled()
+  })
+
+  it('56. size > expectedSize → blob_too_large (413) + delete', async () => {
+    const session = makePrivateSession({ expectedSize: 100 })
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const headBlob = vi.fn(async () =>
+      makePrivateHeadResult(session, { size: 200 }),
+    )
+    const deleteBlob = vi.fn()
+    await expect(
+      completePrivateAssetBlobUpload({
+        ...makeDefaultPrivateArgs(),
+        prisma,
+        headBlob,
+        deleteBlob,
+      }),
+    ).rejects.toMatchObject({ code: 'blob_too_large', status: 413 })
+    expect(deleteBlob).toHaveBeenCalled()
+  })
+
+  it('57. errore privateAsset.create → rollback consumedAt, nessun delete', async () => {
+    const session = makePrivateSession()
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const dbError = new Error('DB write failed')
+    const original$tx = prisma.$transaction.bind(prisma)
+    prisma.$transaction = async (fn) =>
+      original$tx(async (tx) => {
+        tx.privateAsset.create = async () => { throw dbError }
+        return fn(tx)
+      })
+    const deleteBlob = vi.fn()
+    await expect(
+      completePrivateAssetBlobUpload({ ...makeDefaultPrivateArgs(), prisma, deleteBlob }),
+    ).rejects.toThrow('DB write failed')
+    const s = prisma._sessions.get('session-1')
+    expect(s.consumedAt).toBeNull()
+    expect(deleteBlob).not.toHaveBeenCalled()
+  })
+
+  it('58. blob_url_conflict → nessun delete', async () => {
+    const differentUrl =
+      'https://xyz.public.blob.vercel-storage.com/private-delivery/event-1/other.jpg'
+    const session = makePrivateSession({
+      status: BlobUploadSessionStatus.TOKEN_ISSUED,
+      blobUrl: differentUrl,
+    })
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const deleteBlob = vi.fn()
+    await expect(
+      completePrivateAssetBlobUpload({
+        ...makeDefaultPrivateArgs(),
+        prisma,
+        deleteBlob,
+      }),
+    ).rejects.toMatchObject({ code: 'blob_url_conflict', status: 409 })
+    expect(deleteBlob).not.toHaveBeenCalled()
+  })
+})
+
+// ─── Photographer tests ───────────────────────────────────────────────────────
+
+describe('Photographer', () => {
+  it('59. PHOTOGRAPHER_UPLOAD valido → PrivateAsset creato', async () => {
+    const session = makePrivateSession({ uploadKind: BlobUploadKind.PHOTOGRAPHER_UPLOAD })
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const result = await completePrivateAssetBlobUpload({
+      ...makeDefaultPrivateArgs(),
+      prisma,
+      expectedUploadKind: BlobUploadKind.PHOTOGRAPHER_UPLOAD,
+    })
+    expect(result.asset).toBeDefined()
+    expect(result.idempotent).toBe(false)
+  })
+
+  it('60. PHOTOGRAPHER_UPLOAD → uploadedByRole scritto in DB è photographer', async () => {
+    const session = makePrivateSession({ uploadKind: BlobUploadKind.PHOTOGRAPHER_UPLOAD })
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    await completePrivateAssetBlobUpload({
+      ...makeDefaultPrivateArgs(),
+      prisma,
+      expectedUploadKind: BlobUploadKind.PHOTOGRAPHER_UPLOAD,
+    })
+    const [asset] = [...prisma._assets.values()]
+    expect(asset.uploadedByRole).toBe('photographer')
+  })
+
+  it('61. sessione PRIVATE_DELIVERY passata come PHOTOGRAPHER_UPLOAD → invalid_upload_kind (409)', async () => {
+    const session = makePrivateSession({ uploadKind: BlobUploadKind.PRIVATE_DELIVERY })
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    await expect(
+      completePrivateAssetBlobUpload({
+        ...makeDefaultPrivateArgs(),
+        prisma,
+        expectedUploadKind: BlobUploadKind.PHOTOGRAPHER_UPLOAD,
+      }),
+    ).rejects.toMatchObject({ code: 'invalid_upload_kind', status: 409 })
+  })
+
+  it('62. expectedEventId diverso da session.eventId → session_event_mismatch (403)', async () => {
+    const session = makePrivateSession({ uploadKind: BlobUploadKind.PHOTOGRAPHER_UPLOAD })
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    await expect(
+      completePrivateAssetBlobUpload({
+        ...makeDefaultPrivateArgs(),
+        prisma,
+        expectedUploadKind: BlobUploadKind.PHOTOGRAPHER_UPLOAD,
+        expectedEventId: 'different-event-id',
+      }),
+    ).rejects.toMatchObject({ code: 'session_event_mismatch', status: 403 })
+  })
+
+  it('63. retry COMPLETED PHOTOGRAPHER_UPLOAD → stesso asset, idempotent=true', async () => {
+    const session = makePrivateSession({ uploadKind: BlobUploadKind.PHOTOGRAPHER_UPLOAD })
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const args = {
+      ...makeDefaultPrivateArgs(),
+      prisma,
+      expectedUploadKind: BlobUploadKind.PHOTOGRAPHER_UPLOAD,
+    }
+    const first = await completePrivateAssetBlobUpload(args)
+    const second = await completePrivateAssetBlobUpload(args)
+    expect(second.idempotent).toBe(true)
+    expect(second.asset.id).toBe(first.asset.id)
+    expect(prisma._assets.size).toBe(1)
+  })
+
+  it('64. asset.id e asset.size provengono dal record server-side, non dal body', async () => {
+    const session = makePrivateSession({
+      uploadKind: BlobUploadKind.PHOTOGRAPHER_UPLOAD,
+      expectedSize: 512000,
+    })
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const headBlob = vi.fn(async () =>
+      makePrivateHeadResult(session, { size: 77777 }),
+    )
+    const result = await completePrivateAssetBlobUpload({
+      ...makeDefaultPrivateArgs(),
+      prisma,
+      expectedUploadKind: BlobUploadKind.PHOTOGRAPHER_UPLOAD,
+      headBlob,
+    })
+    expect(result.asset.size).toBe(77777)
+    expect(result.asset.id).toMatch(/^asset-/)
+  })
+})
+
+// ─── Concorrenza Private Asset ────────────────────────────────────────────────
+
+describe('Concorrenza Private Asset', () => {
+  it('65. due completamenti serializzati producono un solo PrivateAsset', async () => {
+    const args = makeDefaultPrivateArgs()
+    const r1 = await completePrivateAssetBlobUpload(args)
+    const r2 = await completePrivateAssetBlobUpload(args)
+    expect(r1.idempotent).toBe(false)
+    expect(r2.idempotent).toBe(true)
+    expect(args.prisma._assets.size).toBe(1)
+  })
+
+  it('66. completion_in_progress → 409, nessun delete', async () => {
+    // consumedAt già impostato ma resultId null: claim restituisce in_progress
+    const session = makePrivateSession({
+      consumedAt: NOW,
+      blobUrl: null,
+      resultId: null,
+    })
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const deleteBlob = vi.fn()
+    await expect(
+      completePrivateAssetBlobUpload({
+        ...makeDefaultPrivateArgs(),
+        prisma,
+        deleteBlob,
+      }),
+    ).rejects.toMatchObject({ code: 'completion_in_progress', status: 409 })
+    expect(deleteBlob).not.toHaveBeenCalled()
+  })
+
+  it('67. retry dopo COMPLETED è idempotente e non crea duplicati', async () => {
+    const args = makeDefaultPrivateArgs()
+    const first = await completePrivateAssetBlobUpload(args)
+    const second = await completePrivateAssetBlobUpload(args)
+    const third = await completePrivateAssetBlobUpload(args)
+    expect(first.idempotent).toBe(false)
+    expect(second.idempotent).toBe(true)
+    expect(third.idempotent).toBe(true)
+    expect(second.asset.id).toBe(first.asset.id)
+    expect(third.asset.id).toBe(first.asset.id)
+    expect(args.prisma._assets.size).toBe(1)
+  })
+})
+
+// ─── Regression Room ──────────────────────────────────────────────────────────
+
+describe('Regression Room', () => {
+  it('68. completeRoomPhotoBlobUpload funziona invariato dopo l\'aggiunta del service PrivateAsset', async () => {
+    const args = makeDefaultArgs()
+    const result = await completeRoomPhotoBlobUpload(args)
+    expect(result.photo).toBeDefined()
+    expect(result.idempotent).toBe(false)
+    expect(args.prisma._photos.size).toBe(1)
+  })
+})
+
+// ─── Route static checks ─────────────────────────────────────────────────────
+
+describe('Route static checks', () => {
+  let routeContent
+
+  beforeEach(async () => {
+    const { readFileSync } = await import('fs')
+    const { resolve } = await import('path')
+    routeContent = readFileSync(resolve('app/api/[[...path]]/route.js'), 'utf8')
+  })
+
+  it('69. ramo Vercel Private Delivery non usa body.blobUrl', () => {
+    const fnStart = routeContent.indexOf('const completePrivateDeliveryUpload')
+    const fnEnd = routeContent.indexOf('const deletePrivateDeliveryAsset')
+    const fn = routeContent.slice(fnStart, fnEnd)
+    const vercelStart = fn.indexOf("storageDriver.mode === 'vercel-blob'")
+    const vercelEnd = fn.indexOf('// ── Local upload path')
+    const vercelBranch = fn.slice(vercelStart, vercelEnd)
+    expect(vercelBranch).not.toContain('body.blobUrl')
+  })
+
+  it('70. ramo Vercel Photographer non usa body.blobUrl', () => {
+    const fnStart = routeContent.indexOf('const completePhotographerUpload')
+    const fnEnd = routeContent.indexOf('const listPhotographerAssets')
+    const fn = routeContent.slice(fnStart, fnEnd)
+    const vercelStart = fn.indexOf("storageDriver.mode === 'vercel-blob'")
+    const vercelEnd = fn.indexOf('// ── Local upload path')
+    const vercelBranch = fn.slice(vercelStart, vercelEnd)
+    expect(vercelBranch).not.toContain('body.blobUrl')
+  })
+
+  it('71. entrambi i rami Vercel usano blobUploadSessionCompleteSchema', () => {
+    const privFnStart = routeContent.indexOf('const completePrivateDeliveryUpload')
+    const privFnEnd = routeContent.indexOf('const deletePrivateDeliveryAsset')
+    const privFn = routeContent.slice(privFnStart, privFnEnd)
+
+    const photoFnStart = routeContent.indexOf('const completePhotographerUpload')
+    const photoFnEnd = routeContent.indexOf('const listPhotographerAssets')
+    const photoFn = routeContent.slice(photoFnStart, photoFnEnd)
+
+    expect(privFn).toContain('blobUploadSessionCompleteSchema')
+    expect(photoFn).toContain('blobUploadSessionCompleteSchema')
+  })
+
+  it('72. Private Delivery lega il completamento all\'evento autenticato', () => {
+    const fnStart = routeContent.indexOf('const completePrivateDeliveryUpload')
+    const fnEnd = routeContent.indexOf('const deletePrivateDeliveryAsset')
+    const fn = routeContent.slice(fnStart, fnEnd)
+    const vercelStart = fn.indexOf("storageDriver.mode === 'vercel-blob'")
+    const vercelEnd = fn.indexOf('// ── Local upload path')
+    const vercelBranch = fn.slice(vercelStart, vercelEnd)
+    // expectedEventId deve derivare dall'evento autenticato, non dal body
+    expect(vercelBranch).toContain('expectedEventId: event.id')
+    expect(vercelBranch).toContain('expectedEventSlug: event.slug')
+    expect(vercelBranch).toContain('expectedUploadKind: BlobUploadKind.PRIVATE_DELIVERY')
+  })
+
+  it('73. Photographer lega il completamento all\'evento autenticato via token', () => {
+    const fnStart = routeContent.indexOf('const completePhotographerUpload')
+    const fnEnd = routeContent.indexOf('const listPhotographerAssets')
+    const fn = routeContent.slice(fnStart, fnEnd)
+    const vercelStart = fn.indexOf("storageDriver.mode === 'vercel-blob'")
+    const vercelEnd = fn.indexOf('// ── Local upload path')
+    const vercelBranch = fn.slice(vercelStart, vercelEnd)
+    // expectedEventId deve derivare dall'evento autenticato via token fotografo
+    expect(vercelBranch).toContain('expectedEventId: event.id')
+    expect(vercelBranch).toContain('expectedEventSlug: event.slug')
+    expect(vercelBranch).toContain('expectedUploadKind: BlobUploadKind.PHOTOGRAPHER_UPLOAD')
+  })
+})
+
+// ─── Cross-module namespace contract ─────────────────────────────────────────
+
+describe('Cross-module namespace contract', () => {
+  it('74. pathname canonico private-delivery/{slug}/{file} attraversa il completion service senza errori', async () => {
+    // Verifica che il namespace realistico accettato da BlobUploadSession
+    // sia compatibile con completePrivateAssetBlobUpload end-to-end.
+    const realisticPathname = 'private-delivery/event-1/uuid-doc.jpg'
+    const session = makePrivateSession({ expectedPathname: realisticPathname })
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const headBlob = vi.fn(async () => ({
+      url: `https://abc123.public.blob.vercel-storage.com/${realisticPathname}`,
+      pathname: realisticPathname,
+      size: 512000,
+      contentType: 'image/jpeg',
+    }))
+    const result = await completePrivateAssetBlobUpload({
+      ...makeDefaultPrivateArgs(),
+      prisma,
+      headBlob,
+    })
+    expect(result.asset.storedName).toBe('uuid-doc.jpg')
+    expect(result.asset.url).toContain(realisticPathname)
+    expect(result.idempotent).toBe(false)
   })
 })
