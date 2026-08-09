@@ -373,4 +373,101 @@ describe('createServerBoundBlobUploadInit', () => {
       }),
     ).rejects.toThrow('storageDriver must be in vercel-blob mode')
   })
+
+  // ─── Metadata session binding ─────────────────────────────────────────────
+
+  it('ROOM_PHOTO: saves momentId when provided', async () => {
+    const prisma = makeFakePrisma()
+    const driver = makeFakeDriver()
+
+    await createServerBoundBlobUploadInit({
+      prisma,
+      storageDriver: driver,
+      event: EVENT,
+      payload: PAYLOAD,
+      uploadKind: BlobUploadKind.ROOM_PHOTO,
+      handleUploadUrl: '/api/uploads/blob',
+      momentId: 'moment-abc',
+    })
+
+    const record = prisma.blobUploadSession._store[0]
+    expect(record.momentId).toBe('moment-abc')
+  })
+
+  it('ROOM_PHOTO: saves all three metadata fields together', async () => {
+    const prisma = makeFakePrisma()
+    const driver = makeFakeDriver()
+
+    await createServerBoundBlobUploadInit({
+      prisma,
+      storageDriver: driver,
+      event: EVENT,
+      payload: PAYLOAD,
+      uploadKind: BlobUploadKind.ROOM_PHOTO,
+      handleUploadUrl: '/api/uploads/blob',
+      uploaderName: 'Bob',
+      caption: 'Ceremony',
+      momentId: 'moment-xyz',
+    })
+
+    const record = prisma.blobUploadSession._store[0]
+    expect(record.uploaderName).toBe('Bob')
+    expect(record.caption).toBe('Ceremony')
+    expect(record.momentId).toBe('moment-xyz')
+  })
+
+  it('ROOM_PHOTO: momentId null when omitted', async () => {
+    const prisma = makeFakePrisma()
+    const driver = makeFakeDriver()
+
+    await createServerBoundBlobUploadInit({
+      prisma,
+      storageDriver: driver,
+      event: EVENT,
+      payload: PAYLOAD,
+      uploadKind: BlobUploadKind.ROOM_PHOTO,
+      handleUploadUrl: '/api/uploads/blob',
+    })
+
+    const record = prisma.blobUploadSession._store[0]
+    expect(record.momentId).toBeNull()
+  })
+
+  it('PRIVATE_DELIVERY: metadata fields are null when caller does not pass them', async () => {
+    const prisma = makeFakePrisma()
+    const driver = makeFakeDriver()
+
+    await createServerBoundBlobUploadInit({
+      prisma,
+      storageDriver: driver,
+      event: EVENT,
+      payload: PAYLOAD,
+      uploadKind: BlobUploadKind.PRIVATE_DELIVERY,
+      handleUploadUrl: '/api/owner/events/wedding-2026/private-delivery/blob',
+    })
+
+    const record = prisma.blobUploadSession._store[0]
+    expect(record.uploaderName).toBeNull()
+    expect(record.caption).toBeNull()
+    expect(record.momentId).toBeNull()
+  })
+
+  it('PHOTOGRAPHER_UPLOAD: metadata fields are null when caller does not pass them', async () => {
+    const prisma = makeFakePrisma()
+    const driver = makeFakeDriver()
+
+    await createServerBoundBlobUploadInit({
+      prisma,
+      storageDriver: driver,
+      event: EVENT,
+      payload: PAYLOAD,
+      uploadKind: BlobUploadKind.PHOTOGRAPHER_UPLOAD,
+      handleUploadUrl: '/api/photographer-upload/tok-abc/blob',
+    })
+
+    const record = prisma.blobUploadSession._store[0]
+    expect(record.uploaderName).toBeNull()
+    expect(record.caption).toBeNull()
+    expect(record.momentId).toBeNull()
+  })
 })

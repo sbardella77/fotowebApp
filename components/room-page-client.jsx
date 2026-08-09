@@ -398,6 +398,9 @@ export default function RoomPageClient({ slug, isNew }) {
             fileSize: fileToUpload.size,
             mimeType: fileToUpload.type || 'image/jpeg',
             totalChunks,
+            uploaderName: guestName,
+            caption: '',
+            momentId: momentId || undefined,
           }),
         })
         const initPayload = await initResponse.json()
@@ -414,17 +417,15 @@ export default function RoomPageClient({ slug, isNew }) {
 
         if (initPayload.session?.uploadStrategy === 'vercel-blob-client') {
           updateUpload({ progress: 8, status: UPLOAD_STATUS.UPLOADING, detail: t.uploading + ' ' + t.galleryTitle })
-          const blob = await upload(
-            initPayload.session.pathname || fileToUpload.name,
+          const session = initPayload.session
+          await upload(
+            session.pathname,
             fileToUpload,
             {
               access: 'public',
-              handleUploadUrl: initPayload.session.handleUploadUrl || '/api/uploads/blob',
+              handleUploadUrl: session.handleUploadUrl,
               clientPayload: JSON.stringify({
-                eventSlug: activeEvent.slug,
-                fileName: fileToUpload.name,
-                fileSize: fileToUpload.size,
-                mimeType: fileToUpload.type || 'image/jpeg',
+                sessionId: session.sessionId,
               }),
               multipart: fileToUpload.size > 5 * 1024 * 1024,
               onUploadProgress: ({ percentage }) => {
@@ -441,15 +442,7 @@ export default function RoomPageClient({ slug, isNew }) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              eventSlug: activeEvent.slug,
-              blobUrl: blob.url,
-              blobPathname: blob.pathname,
-              originalName: fileToUpload.name,
-              mimeType: fileToUpload.type || 'image/jpeg',
-              size: fileToUpload.size,
-              uploaderName: guestName,
-              caption: '',
-              momentId: momentId || undefined,
+              sessionId: session.sessionId,
             }),
           })
           const completePayload = await completeResponse.json()

@@ -99,14 +99,12 @@ export default function PhotographerUploadPageClient({ token }) {
       }
 
       if (initPayload.session?.uploadStrategy === 'vercel-blob-client') {
-        const blob = await upload(initPayload.session.pathname || file.name, file, {
+        const session = initPayload.session
+        await upload(session.pathname, file, {
           access: 'public',
-          handleUploadUrl: initPayload.session.handleUploadUrl || `/api/photographer-upload/${token}/blob`,
+          handleUploadUrl: session.handleUploadUrl,
           clientPayload: JSON.stringify({
-            eventSlug: event.slug,
-            fileName: file.name,
-            fileSize: file.size,
-            mimeType: file.type || 'image/jpeg',
+            sessionId: session.sessionId,
           }),
           multipart: file.size > 5 * 1024 * 1024,
         })
@@ -115,12 +113,7 @@ export default function PhotographerUploadPageClient({ token }) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            eventSlug: event.slug,
-            blobUrl: blob.url,
-            blobPathname: blob.pathname,
-            originalName: file.name,
-            mimeType: file.type || 'image/jpeg',
-            size: file.size,
+            sessionId: session.sessionId,
           }),
         })
         const completePayload = await completeResponse.json()

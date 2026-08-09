@@ -997,6 +997,9 @@ const initUpload = async (request) => {
       payload,
       uploadKind: BlobUploadKind.ROOM_PHOTO,
       handleUploadUrl: '/api/uploads/blob',
+      uploaderName: payload.uploaderName,
+      caption: payload.caption,
+      momentId: payload.momentId,
     })
 
     return json({ session }, 201)
