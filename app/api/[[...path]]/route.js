@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'crypto'
-import { BlobError } from '@vercel/blob'
+import { BlobError, head } from '@vercel/blob'
 import { handleUpload } from '@vercel/blob/client'
 import {
   generateManagementToken,
@@ -16,7 +16,7 @@ import { Resend } from 'resend'
 import {
   adminModerationSchema,
   adminPasswordSchema,
-  blobUploadCompleteSchema,
+  blobUploadSessionCompleteSchema,
   createEventSchema,
   localUploadCompleteSchema,
   MAX_CHUNK_SIZE_BYTES,
@@ -95,6 +95,10 @@ import {
 } from '@/lib/analytics/events'
 import { BlobUploadKind } from '@prisma/client'
 import { createServerBoundBlobUploadInit } from '@/lib/server/blob-upload-init'
+import {
+  BlobUploadCompletionError,
+  completeRoomPhotoBlobUpload,
+} from '@/lib/server/blob-upload-completion'
 import {
   BlobUploadTokenRequestError,
   createLazyServerBoundBlobUploadCallbacks,
@@ -1150,60 +1154,77 @@ const completeUpload = withTiming('completeUpload', async (request) => {
   }
 
   const body = await request.json()
+  const storageDriver = getStorageDriver()
+
+  if (storageDriver.mode === 'vercel-blob') {
+    // ── Server-bound Vercel Blob path ─────────────────────────────────────
+    let payload
+    try {
+      payload = blobUploadSessionCompleteSchema.parse(body)
+    } catch {
+      return json({ error: 'Invalid request body' }, 400)
+    }
+
+    const prisma = await getPrismaClient()
+    if (
+      !prisma ||
+      typeof prisma.blobUploadSession !== 'object' ||
+      prisma.blobUploadSession === null
+    ) {
+      return json({ error: 'Upload service is temporarily unavailable.', code: 'database_unavailable' }, 503)
+    }
+
+    let result
+    try {
+      result = await completeRoomPhotoBlobUpload({
+        prisma,
+        sessionId: payload.sessionId,
+        headBlob: (pathname) => head(pathname),
+        deleteBlob: (url) => deleteStoredFile(url),
+        checkEntitlement: checkRoomUploadEntitlement,
+      })
+    } catch (error) {
+      if (error instanceof BlobUploadCompletionError) {
+        if (error.code === 'photo_limit' && error.details) {
+          trackServerEvent(
+            EVENT_FREE_PHOTO_LIMIT_HIT,
+            {
+              room_slug: error.details.eventSlug,
+              event_id: error.details.eventId,
+              current_photos: error.details.current,
+              limit: error.details.max,
+            },
+            { distinctId: error.details.eventSlug },
+          )
+        }
+        return json(
+          {
+            error: error.publicMessage,
+            code: error.code,
+            ...(error.details || {}),
+          },
+          error.status,
+        )
+      }
+      throw error
+    }
+
+    const repository = await getGalleryRepository()
+    const freshEvent = await repository.getEventBySlug(result.eventSlug)
+
+    return json(
+      {
+        photo: result.photo,
+        event: freshEvent,
+        idempotent: result.idempotent,
+      },
+      result.idempotent ? 200 : 201,
+    )
+  }
+
+  // ── Local (chunked) upload path ───────────────────────────────────────────
   const repository = await getGalleryRepository()
   const prisma = await getPrismaClient()
-
-  if (body?.blobUrl) {
-    const payload = blobUploadCompleteSchema.parse(body)
-    const event = await repository.getEventBySlug(payload.eventSlug)
-
-    if (!event) {
-      return json({ error: 'Event not found while finalizing upload' }, 404)
-    }
-
-    // Final guard: enforce photo limit for Free rooms
-    if (prisma) {
-      const entitlement = await checkRoomUploadEntitlement(prisma, event)
-      if (!entitlement.allowed) {
-        trackServerEvent(
-          EVENT_FREE_PHOTO_LIMIT_HIT,
-          {
-            room_slug: event.slug,
-            event_id: event.id,
-            current_photos: entitlement.current,
-            limit: entitlement.max,
-          },
-          { distinctId: event.slug }
-        )
-        return json({
-          error: `This room has reached its ${entitlement.max}-photo limit.`,
-          limit: 'photo_count',
-          current: entitlement.current,
-          max: entitlement.max,
-          upgradePath: entitlement.upgradePath,
-        }, 403)
-      }
-    }
-
-    const photo = await repository.createPhoto({
-      eventId: event.id,
-      originalName: payload.originalName,
-      storedName: getStoredNameFromBlobPathname(payload.blobPathname),
-      mimeType: payload.mimeType,
-      size: payload.size,
-      url: payload.blobUrl,
-      uploaderName: payload.uploaderName,
-      caption: payload.caption,
-      momentId: payload.momentId || undefined,
-    })
-
-    const freshEvent = await repository.getEventBySlug(event.slug)
-
-    return json({
-      photo,
-      event: freshEvent,
-    }, 201)
-  }
 
   const payload = localUploadCompleteSchema.parse(body)
   const fileResult = await localStorageDriver.completeUploadSession({
