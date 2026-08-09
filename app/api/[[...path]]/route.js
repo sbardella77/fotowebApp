@@ -114,6 +114,7 @@ import {
   isVercelBlobStorageConfigured,
   localStorageDriver,
 } from '@/lib/server/storage'
+import { deleteEventScopedStoredFile } from '@/lib/server/event-scoped-storage-delete'
 import {
   checkOwnerRoomCreationEntitlement,
   checkPrivateDeliveryEntitlement,
@@ -912,7 +913,7 @@ const deleteEvent = withTiming('deleteEvent', async (request, slug) => {
 
   for (const photo of event.photos || []) {
     try {
-      await deleteStoredFile(photo.url)
+      await deleteEventScopedStoredFile({ url: photo.url, eventSlug: event.slug, kind: 'room-photo', deleteFile: deleteStoredFile })
     } catch (storageError) {
       console.error('[deleteEvent] Storage cleanup failed for photo:', photo.id, storageError)
     }
@@ -929,7 +930,7 @@ const deleteEvent = withTiming('deleteEvent', async (request, slug) => {
   const privateAssets = await repository.listPrivateAssetsByEventId(event.id)
   for (const asset of privateAssets) {
     try {
-      await deleteStoredFile(asset.url)
+      await deleteEventScopedStoredFile({ url: asset.url, eventSlug: event.slug, kind: 'private-asset', deleteFile: deleteStoredFile })
     } catch (storageError) {
       console.error('[deleteEvent] Storage cleanup failed for private asset:', asset.id, storageError)
     }
@@ -1527,7 +1528,7 @@ const deletePrivateDeliveryAsset = async (request, assetId) => {
   }
 
   try {
-    await deleteStoredFile(asset.url)
+    await deleteEventScopedStoredFile({ url: asset.url, eventSlug: event?.slug || '', kind: 'private-asset', deleteFile: deleteStoredFile })
   } catch (storageError) {
     console.error('[deletePrivateDeliveryAsset] Storage cleanup failed:', assetId, storageError)
   }
@@ -2197,7 +2198,7 @@ const deletePhoto = async (request, photoId) => {
 
   // Graceful storage cleanup — do not fail if blob deletion errors
   try {
-    await deleteStoredFile(photo.url)
+    await deleteEventScopedStoredFile({ url: photo.url, eventSlug, kind: 'room-photo', deleteFile: deleteStoredFile })
   } catch (storageError) {
     console.error('[deletePhoto] Storage cleanup failed for photo:', photoId, storageError)
   }
@@ -2897,7 +2898,7 @@ const deleteOwnerEvent = withTiming('deleteOwnerEvent', async (request, slug) =>
 
   for (const photo of event.photos || []) {
     try {
-      await deleteStoredFile(photo.url)
+      await deleteEventScopedStoredFile({ url: photo.url, eventSlug: event.slug, kind: 'room-photo', deleteFile: deleteStoredFile })
     } catch (storageError) {
       console.error('[deleteOwnerEvent] Storage cleanup failed for photo:', photo.id, storageError)
     }
@@ -2914,7 +2915,7 @@ const deleteOwnerEvent = withTiming('deleteOwnerEvent', async (request, slug) =>
   const privateAssets = await repository.listPrivateAssetsByEventId(event.id)
   for (const asset of privateAssets) {
     try {
-      await deleteStoredFile(asset.url)
+      await deleteEventScopedStoredFile({ url: asset.url, eventSlug: event.slug, kind: 'private-asset', deleteFile: deleteStoredFile })
     } catch (storageError) {
       console.error('[deleteOwnerEvent] Storage cleanup failed for private asset:', asset.id, storageError)
     }
@@ -2962,7 +2963,8 @@ const deleteOwnerPhoto = async (request, photoId) => {
   }
 
   try {
-    await deleteStoredFile(photo.url)
+    const ownerPhotoEvent = await repository.getEventById(photo.eventId)
+    await deleteEventScopedStoredFile({ url: photo.url, eventSlug: ownerPhotoEvent?.slug || '', kind: 'room-photo', deleteFile: deleteStoredFile })
   } catch (storageError) {
     console.error('[deleteOwnerPhoto] Storage cleanup failed for photo:', photoId, storageError)
   }
