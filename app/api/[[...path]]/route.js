@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'crypto'
+import { BlobError } from '@vercel/blob'
 import { handleUpload } from '@vercel/blob/client'
 import {
   generateManagementToken,
@@ -15,14 +16,12 @@ import { Resend } from 'resend'
 import {
   adminModerationSchema,
   adminPasswordSchema,
-  blobUploadClientPayloadSchema,
   blobUploadCompleteSchema,
   createEventSchema,
   localUploadCompleteSchema,
   MAX_CHUNK_SIZE_BYTES,
   MAX_FILE_SIZE_BYTES,
   MAX_PRIVATE_DELIVERY_FILE_SIZE_BYTES,
-  privateDeliveryBlobUploadClientPayloadSchema,
   privateDeliveryBlobUploadCompleteSchema,
   privateDeliveryLocalUploadCompleteSchema,
   privateDeliveryUploadInitSchema,
@@ -96,10 +95,14 @@ import {
 } from '@/lib/analytics/events'
 import { BlobUploadKind } from '@prisma/client'
 import { createServerBoundBlobUploadInit } from '@/lib/server/blob-upload-init'
+import {
+  BlobUploadTokenRequestError,
+  createLazyServerBoundBlobUploadCallbacks,
+  getBlobUploadRequestKind,
+  validateBlobUploadCallbackUrl,
+} from '@/lib/server/blob-upload-token'
 import { getAdminAuthDriver, getDataAccessDriver, getPrismaClient } from '@/lib/server/prisma-client'
 import {
-  buildBlobPathname,
-  buildPrivateDeliveryBlobPathname,
   deleteStoredFile,
   getStoredNameFromBlobPathname,
   getStorageDriver,
@@ -999,90 +1002,96 @@ const initUpload = async (request) => {
 }
 
 const issueBlobUploadToken = async (request) => {
-  const clientIp = getClientIp(request)
-  const limit = rateLimit(`upload-blob:ip:${clientIp}`, RATE_LIMITS.uploadBlob.ip.max, RATE_LIMITS.uploadBlob.ip.window)
-  if (limit.limited) {
-    return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
+  // 1. Parse body once — needed for classification and handleUpload
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return json({ error: 'Invalid request body' }, 400)
   }
 
-  // Explicit check for BLOB_READ_WRITE_TOKEN with clear error message
+  // 2. Strict classification — unknown types return 400 without Prisma access
+  let requestKind
+  try {
+    requestKind = getBlobUploadRequestKind(body)
+  } catch (error) {
+    if (error instanceof BlobUploadTokenRequestError) {
+      return json({ error: error.publicMessage, code: error.code }, error.status)
+    }
+    return json({ error: 'Invalid request body' }, 400)
+  }
+  const callbackRequest = requestKind === 'callback'
+
+  // 3. For token-generation requests: rate limit and callbackUrl validation
+  //    before BLOB_READ_WRITE_TOKEN check and any database access
+  if (!callbackRequest) {
+    const clientIp = getClientIp(request)
+    const limit = rateLimit(`upload-blob:ip:${clientIp}`, RATE_LIMITS.uploadBlob.ip.max, RATE_LIMITS.uploadBlob.ip.window)
+    if (limit.limited) {
+      return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
+    }
+
+    try {
+      validateBlobUploadCallbackUrl(body, request.url)
+    } catch (error) {
+      if (error instanceof BlobUploadTokenRequestError) {
+        return json({ error: error.publicMessage, code: error.code }, error.status)
+      }
+      return json({ error: 'Unable to initialize Blob upload' }, 400)
+    }
+  }
+
+  // 4. Verify Blob token is configured
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    console.error('[issueBlobUploadToken] BLOB_READ_WRITE_TOKEN is not defined')
     return json(
       { error: 'Server misconfiguration: BLOB_READ_WRITE_TOKEN is missing' },
-      500
+      500,
     )
   }
 
   if (!isVercelBlobStorageConfigured()) {
-    console.error('[issueBlobUploadToken] Vercel Blob not configured')
     return json({ error: 'Vercel Blob is not configured' }, 500)
   }
 
-  // Parse request body as required by @vercel/blob/client handleUpload
-  let body
-  try {
-    body = await request.json()
-  } catch (parseError) {
-    console.error('[issueBlobUploadToken] Failed to parse request body:', parseError)
-    return json({ error: 'Invalid request body' }, 400)
-  }
+  // 5. Build lazy callbacks — Prisma is resolved only when handleUpload
+  //    invokes onBeforeGenerateToken or onUploadCompleted, never before
+  const callbacks = createLazyServerBoundBlobUploadCallbacks({
+    getPrisma: getPrismaClient,
+  })
 
-  // Call handleUpload with parsed body and request
+  // 6. Delegate to @vercel/blob handleUpload
   try {
     const result = await handleUpload({
       body,
       request,
-      onBeforeGenerateToken: async (pathname, clientPayload) => {
-        const payload = blobUploadClientPayloadSchema.parse(JSON.parse(clientPayload || '{}'))
-        const repository = await getGalleryRepository()
-        const event = await repository.getEventBySlug(payload.eventSlug)
-
-        if (!event) {
-          throw new Error('Event not found')
-        }
-
-        // Enforce photo limit for Free rooms
-        const prisma = await getPrismaClient()
-        if (prisma) {
-          const entitlement = await checkRoomUploadEntitlement(prisma, event)
-          if (!entitlement.allowed) {
-            trackServerEvent(
-              EVENT_FREE_PHOTO_LIMIT_HIT,
-              {
-                room_slug: event.slug,
-                event_id: event.id,
-                current_photos: entitlement.current,
-                limit: entitlement.max,
-              },
-              { distinctId: event.slug }
-            )
-            throw new Error(`This room has reached its ${entitlement.max}-photo limit.`)
-          }
-        }
-
-        return {
-          pathname: buildBlobPathname({ eventSlug: event.slug, fileName: payload.fileName }),
-          allowedContentTypes: ['image/*'],
-          maximumSizeInBytes: MAX_FILE_SIZE_BYTES,
-          addRandomSuffix: true,
-        }
-      },
+      onBeforeGenerateToken: callbacks.onBeforeGenerateToken,
+      onUploadCompleted: callbacks.onUploadCompleted,
     })
-    
-    // Ensure we always return a valid Response
-    if (!result) {
-      console.error('[issueBlobUploadToken] handleUpload returned no result')
-      return json({ error: 'Failed to generate upload token' }, 500)
-    }
-    
+
     return Response.json(result)
   } catch (error) {
-    console.error('[issueBlobUploadToken] Error:', error?.message || error)
-    return json(
-      { error: error?.message || 'Unable to initialize Vercel Blob upload' },
-      400
-    )
+    if (error instanceof BlobUploadTokenRequestError) {
+      // 503 on database_unavailable lets Vercel retry the callback
+      return json({ error: error.publicMessage, code: error.code }, error.status)
+    }
+
+    if (error instanceof BlobError) {
+      // Invalid signature or malformed Blob request — return static 400
+      return json({ error: 'Invalid Blob upload request.' }, 400)
+    }
+
+    if (isDatabaseUnavailableError(error)) {
+      throw error
+    }
+
+    if (callbackRequest) {
+      // Unknown error on callback path: rethrow so Vercel can retry
+      throw error
+    }
+
+    // Unknown error on token-generation path: opaque 400
+    console.error('[issueBlobUploadToken] token generation error')
+    return json({ error: 'Unable to initialize Blob upload' }, 400)
   }
 }
 
@@ -1338,87 +1347,8 @@ const initPrivateDeliveryUpload = async (request, slug) => {
   return json({ session }, 201)
 }
 
-const issuePrivateDeliveryBlobToken = async (request, slug) => {
-  const ownerEmail = await requireOwnerWithCsrf(request)
-  if (typeof ownerEmail !== 'string') return ownerEmail
-
-  const rateLimitCheck = await checkOwnerRateLimit(request, ownerEmail, OWNER_WRITE_LIMITS.privateDeliveryWrite)
-  if (rateLimitCheck) return rateLimitCheck
-
-  const repository = await getGalleryRepository()
-  const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
-  if (!event) {
-    return json({ error: 'Room not found' }, 404)
-  }
-
-  const prisma = await getPrismaClient()
-  if (prisma) {
-    const access = await getEffectiveEventAccessState(prisma, event)
-    if (!access.hasPrivateDelivery) {
-      return json({ error: 'Private delivery is not available for this room', upgradePath: 'wedding_pro' }, 403)
-    }
-  }
-
-  const clientIp = getClientIp(request)
-  const limit = rateLimit(`upload-blob:ip:${clientIp}`, RATE_LIMITS.uploadBlob.ip.max, RATE_LIMITS.uploadBlob.ip.window)
-  if (limit.limited) {
-    return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
-  }
-
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    return json({ error: 'Server misconfiguration: BLOB_READ_WRITE_TOKEN is missing' }, 500)
-  }
-
-  if (!isVercelBlobStorageConfigured()) {
-    return json({ error: 'Vercel Blob is not configured' }, 500)
-  }
-
-  let body
-  try {
-    body = await request.json()
-  } catch {
-    return json({ error: 'Invalid request body' }, 400)
-  }
-
-  try {
-    const result = await handleUpload({
-      body,
-      request,
-      onBeforeGenerateToken: async (pathname, clientPayload) => {
-        const payload = privateDeliveryBlobUploadClientPayloadSchema.parse(JSON.parse(clientPayload || '{}'))
-        if (payload.eventSlug !== slug) {
-          throw new Error('Room slug mismatch')
-        }
-
-        const targetEvent = await repository.getEventBySlugAndOwner(payload.eventSlug, ownerEmail)
-        if (!targetEvent) {
-          throw new Error('Room not found')
-        }
-
-        if (prisma) {
-          const targetAccess = await getEffectiveEventAccessState(prisma, targetEvent)
-          if (!targetAccess.hasPrivateDelivery) {
-            throw new Error('Private delivery is not available for this room')
-          }
-        }
-
-        return {
-          pathname: buildPrivateDeliveryBlobPathname({ eventSlug: targetEvent.slug, fileName: payload.fileName }),
-          allowedContentTypes: ['image/jpeg', 'image/png'],
-          maximumSizeInBytes: MAX_PRIVATE_DELIVERY_FILE_SIZE_BYTES,
-          addRandomSuffix: true,
-        }
-      },
-    })
-
-    if (!result) {
-      return json({ error: 'Failed to generate upload token' }, 500)
-    }
-
-    return Response.json(result)
-  } catch (error) {
-    return json({ error: error?.message || 'Unable to initialize Vercel Blob upload' }, 400)
-  }
+const issuePrivateDeliveryBlobToken = async (request) => {
+  return issueBlobUploadToken(request)
 }
 
 const completePrivateDeliveryUpload = async (request, slug) => {
@@ -1910,75 +1840,8 @@ const initPhotographerUpload = async (request, token) => {
   return json({ session }, 201)
 }
 
-const issuePhotographerBlobToken = async (request, token) => {
-  const event = await getPhotographerEventFromToken(token)
-  if (!event) {
-    return json({ error: 'Invalid or expired link' }, 403)
-  }
-
-  const prisma = await getPrismaClient()
-  if (prisma) {
-    const access = await getEffectiveEventAccessState(prisma, event)
-    if (!access.hasPrivateDelivery) {
-      return json({ error: 'Private delivery is not available for this room' }, 403)
-    }
-  }
-
-  const clientIp = getClientIp(request)
-  const limit = rateLimit(`upload-blob:ip:${clientIp}`, RATE_LIMITS.uploadBlob.ip.max, RATE_LIMITS.uploadBlob.ip.window)
-  if (limit.limited) {
-    return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
-  }
-
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    return json({ error: 'Server misconfiguration: BLOB_READ_WRITE_TOKEN is missing' }, 500)
-  }
-
-  if (!isVercelBlobStorageConfigured()) {
-    return json({ error: 'Vercel Blob is not configured' }, 500)
-  }
-
-  let body
-  try {
-    body = await request.json()
-  } catch {
-    return json({ error: 'Invalid request body' }, 400)
-  }
-
-  try {
-    const result = await handleUpload({
-      body,
-      request,
-      onBeforeGenerateToken: async (pathname, clientPayload) => {
-        const payload = privateDeliveryBlobUploadClientPayloadSchema.parse(JSON.parse(clientPayload || '{}'))
-        if (payload.eventSlug !== event.slug) {
-          throw new Error('Room slug mismatch')
-        }
-
-        if (prisma) {
-          const targetAccess = await getEffectiveEventAccessState(prisma, event)
-          if (!targetAccess.hasPrivateDelivery) {
-            throw new Error('Private delivery is not available for this room')
-          }
-        }
-
-        return {
-          pathname: buildPrivateDeliveryBlobPathname({ eventSlug: event.slug, fileName: payload.fileName }),
-          allowedContentTypes: ['image/jpeg', 'image/png'],
-          maximumSizeInBytes: MAX_PRIVATE_DELIVERY_FILE_SIZE_BYTES,
-          addRandomSuffix: true,
-        }
-      },
-    })
-
-    if (!result) {
-      return json({ error: 'Failed to generate upload token' }, 500)
-    }
-
-    return Response.json(result)
-  } catch (error) {
-    return json({ error: error?.message || 'Unable to initialize Vercel Blob upload' }, 400)
-  }
+const issuePhotographerBlobToken = async (request) => {
+  return issueBlobUploadToken(request)
 }
 
 const completePhotographerUpload = async (request, token) => {
