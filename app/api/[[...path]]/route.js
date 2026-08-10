@@ -1430,13 +1430,6 @@ const completePrivateDeliveryUpload = async (request, slug) => {
     return jsonPrivate({ error: 'Room not found' }, 404)
   }
 
-  if (prisma) {
-    const access = await getEffectiveEventAccessState(prisma, event)
-    if (!access.hasPrivateDelivery) {
-      return jsonPrivate({ error: 'Private delivery is not available for this room', upgradePath: 'wedding_pro' }, 403)
-    }
-  }
-
   const clientIp = getClientIp(request)
   const limit = rateLimit(`upload-complete:ip:${clientIp}`, RATE_LIMITS.uploadComplete.ip.max, RATE_LIMITS.uploadComplete.ip.window)
   if (limit.limited) {
@@ -1446,6 +1439,11 @@ const completePrivateDeliveryUpload = async (request, slug) => {
   const storageDriver = getStorageDriver()
 
   if (storageDriver.mode === 'vercel-blob') {
+    // Entitlement is enforced exclusively by completePrivateAssetBlobUpload's
+    // transaction below (checkPrivateDeliveryEntitlement), which also runs
+    // safeCleanup() on a newly-uploaded blob when entitlement was revoked
+    // between init and complete — a route-level pre-check here would only
+    // duplicate that logic while bypassing its compensating cleanup.
     // ── Server-bound Vercel Blob path ───────────────────────────────────────
     let payload
     try {
@@ -1506,6 +1504,16 @@ const completePrivateDeliveryUpload = async (request, slug) => {
   }
 
   // ── Local upload path ─────────────────────────────────────────────────────
+  // completePrivateAssetBlobUpload (and its entitlement enforcement) is
+  // Vercel-Blob-only, so the local storage path must still check entitlement
+  // itself here — this is not a duplicate of anything above for this branch.
+  if (prisma) {
+    const access = await getEffectiveEventAccessState(prisma, event)
+    if (!access.hasPrivateDelivery) {
+      return jsonPrivate({ error: 'Private delivery is not available for this room', upgradePath: 'wedding_pro' }, 403)
+    }
+  }
+
   const payload = privateDeliveryLocalUploadCompleteSchema.parse(body)
   const fileResult = await localStorageDriver.completeUploadSession({
     sessionId: payload.sessionId,
@@ -1972,13 +1980,6 @@ const completePhotographerUpload = async (request, token) => {
   const repository = await getGalleryRepository()
   const prisma = await getPrismaClient()
 
-  if (prisma) {
-    const access = await getEffectiveEventAccessState(prisma, event)
-    if (!access.hasPrivateDelivery) {
-      return json({ error: 'Private delivery is not available for this room' }, 403)
-    }
-  }
-
   const clientIp = getClientIp(request)
   const limit = rateLimit(`upload-complete:ip:${clientIp}`, RATE_LIMITS.uploadComplete.ip.max, RATE_LIMITS.uploadComplete.ip.window)
   if (limit.limited) {
@@ -1988,6 +1989,11 @@ const completePhotographerUpload = async (request, token) => {
   const storageDriver = getStorageDriver()
 
   if (storageDriver.mode === 'vercel-blob') {
+    // Entitlement is enforced exclusively by completePrivateAssetBlobUpload's
+    // transaction below (checkPrivateDeliveryEntitlement), which also runs
+    // safeCleanup() on a newly-uploaded blob when entitlement was revoked
+    // between init and complete — a route-level pre-check here would only
+    // duplicate that logic while bypassing its compensating cleanup.
     // ── Server-bound Vercel Blob path ───────────────────────────────────────
     let payload
     try {
@@ -2048,6 +2054,16 @@ const completePhotographerUpload = async (request, token) => {
   }
 
   // ── Local upload path ─────────────────────────────────────────────────────
+  // completePrivateAssetBlobUpload (and its entitlement enforcement) is
+  // Vercel-Blob-only, so the local storage path must still check entitlement
+  // itself here — this is not a duplicate of anything above for this branch.
+  if (prisma) {
+    const access = await getEffectiveEventAccessState(prisma, event)
+    if (!access.hasPrivateDelivery) {
+      return json({ error: 'Private delivery is not available for this room' }, 403)
+    }
+  }
+
   const payload = privateDeliveryLocalUploadCompleteSchema.parse(body)
   const fileResult = await localStorageDriver.completeUploadSession({
     sessionId: payload.sessionId,
