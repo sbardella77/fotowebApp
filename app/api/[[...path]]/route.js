@@ -2291,7 +2291,7 @@ const loginOwner = withTiming('loginOwner', async (request) => {
       return jsonPrivate({ error: 'Invalid email or password' }, 401)
     }
     const response = jsonPrivate({ authenticated: true, email })
-    return await setOwnerSessionCookie(response, email)
+    return await setOwnerSessionCookie(response, owner)
   }
 
   // Fallback to management token login (backward compatibility)
@@ -2315,8 +2315,21 @@ const loginOwner = withTiming('loginOwner', async (request) => {
     return jsonPrivate({ error: 'Invalid email or management token' }, 401)
   }
 
+  // Resolve the real Owner record so the session token carries the actual
+  // sessionVersion instead of defaulting to 0 (see getOwnerEmailAndSessionVersion).
+  // resolveCanonicalOwner returns null when Prisma is unavailable or when no
+  // Owner row exists for this email — in either case we cannot issue a
+  // session that will pass verifyOwnerSessionToken's DB check, so we must
+  // not report authenticated:true or set a cookie.
+  const owner = await resolveCanonicalOwner(email)
+
+  if (!owner) {
+    console.error('[api/owner/session] Unable to resolve owner after a valid management token')
+    return jsonPrivate({ error: 'Login temporarily unavailable. Please try again shortly.' }, 503)
+  }
+
   const response = jsonPrivate({ authenticated: true, email })
-  return await setOwnerSessionCookie(response, email)
+  return await setOwnerSessionCookie(response, owner)
 })
 
 const logoutOwner = async (request) => {
