@@ -2259,6 +2259,11 @@ const getOwnerSession = async (request) => {
 }
 
 const loginOwner = withTiming('loginOwner', async (request) => {
+  const originCheck = verifySameOriginRequest(request)
+  if (!originCheck.allowed) {
+    return jsonPrivate({ error: originCheck.message, code: originCheck.code }, 403)
+  }
+
   let body
   try {
     body = await request.json()
@@ -2496,6 +2501,11 @@ const recoverOwnerAccess = async (request) => {
 }
 
 const loginOwnerWithPassword = async (request) => {
+  const originCheck = verifySameOriginRequest(request)
+  if (!originCheck.allowed) {
+    return jsonPrivate({ error: originCheck.message, code: originCheck.code }, 403)
+  }
+
   let body
   try {
     body = await request.json()
