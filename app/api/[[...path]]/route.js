@@ -2774,7 +2774,7 @@ const resetOwnerPassword = async (request) => {
     return jsonPrivate({ error: 'Invalid or expired reset token' }, 400)
   }
 
-  const { salt, hash } = createPasswordHash(password)
+  const { salt, hash } = await createPasswordHash(password)
   try {
     await prisma.$transaction(async (tx) => {
       const fresh = await tx.ownerPasswordResetToken.findUnique({
@@ -2908,7 +2908,7 @@ const setupOwnerPassword = async (request) => {
     return jsonPrivate({ error: 'Invalid or expired setup token' }, 400)
   }
 
-  const { salt, hash } = createPasswordHash(password)
+  const { salt, hash } = await createPasswordHash(password)
   try {
     await prisma.$transaction(async (tx) => {
       const fresh = await tx.ownerPasswordResetToken.findUnique({
