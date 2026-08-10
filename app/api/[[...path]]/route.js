@@ -1709,18 +1709,34 @@ const uploadEventCover = withTiming('uploadEventCover', async (request, slug) =>
       contentType,
     })
 
-    const oldCoverUrl = event.coverUrl
-    const updatedEvent = await repository.updateEvent(slug, { coverUrl: blob.url })
+    try {
+      const oldCoverUrl = event.coverUrl
+      const updatedEvent = await repository.updateEvent(slug, { coverUrl: blob.url })
 
-    if (oldCoverUrl) {
-      await deleteManagedEventCover(oldCoverUrl, slug)
+      if (oldCoverUrl) {
+        await deleteManagedEventCover(oldCoverUrl, slug)
+      }
+
+      console.log(
+        `[uploadEventCover] slug=${slug} input=${buffer.length} output=${uploadBuffer.length} format=${ext}`
+      )
+
+      return jsonPrivate({ event: updatedEvent })
+    } catch (dbError) {
+      // Compensating cleanup: the blob above was written successfully but
+      // never persisted to the event record, so it would otherwise be
+      // permanently orphaned (cover blobs have no BlobUploadSession and are
+      // therefore invisible to the cleanup cron). pathname is unique per
+      // request (Date.now() plus Vercel's own random suffix), so no other
+      // request or session can reference this exact blob.url — safe to
+      // delete unconditionally, without any concurrent-claim check.
+      try {
+        await deleteStoredFile(blob.url)
+      } catch {
+        console.error('[uploadEventCover] Compensating cleanup failed after updateEvent error')
+      }
+      throw dbError
     }
-
-    console.log(
-      `[uploadEventCover] slug=${slug} input=${buffer.length} output=${uploadBuffer.length} format=${ext}`
-    )
-
-    return jsonPrivate({ event: updatedEvent })
   } catch (storageError) {
     console.error('[uploadEventCover] Storage error:', storageError)
     return jsonPrivate({ error: 'Unable to save cover image. Please try again.' }, 500)
