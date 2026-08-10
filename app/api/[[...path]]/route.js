@@ -140,6 +140,27 @@ const json = (payload, status = 200) => {
   return response
 }
 
+// Response helper for SESSION_ONLY (cookie-based admin/owner) endpoints.
+// These are only ever meant to be called same-origin by the SnapRooms
+// frontend, so they must not advertise any cross-origin CORS support.
+const jsonPrivate = (payload, status = 200) => {
+  return NextResponse.json(payload, { status })
+}
+
+// A few SESSION_ONLY admin endpoints delegate their response construction to
+// shared handlers that are also the direct PUBLIC handler for the equivalent
+// guest-facing route (e.g. listAdminEvents delegates to the same listEvents()
+// used by GET /events). Those shared handlers must stay on json() so the
+// PUBLIC route keeps its current CORS behavior; this helper strips the CORS
+// headers back off only at the SESSION_ONLY wrapper, after admin auth has
+// already been verified, without touching the shared PUBLIC handler itself.
+const stripPublicCorsHeaders = (response) => {
+  response.headers.delete('Access-Control-Allow-Origin')
+  response.headers.delete('Access-Control-Allow-Methods')
+  response.headers.delete('Access-Control-Allow-Headers')
+  return response
+}
+
 const formatZodError = (error) => {
   return error.issues?.map((issue) => issue.message).join(', ') || 'Invalid request payload'
 }
@@ -177,7 +198,7 @@ const getAdminAuthentication = async (request) => {
 
 const requireAdmin = async (request) => {
   const authenticated = await getAdminAuthentication(request)
-  return authenticated ? null : json({ error: 'Admin authentication required' }, 401)
+  return authenticated ? null : jsonPrivate({ error: 'Admin authentication required' }, 401)
 }
 
 const setAdminSessionCookie = async (response) => {
@@ -200,7 +221,7 @@ const getOwnerAuthentication = async (request) => {
 
 const requireOwner = async (request) => {
   const email = await getOwnerAuthentication(request)
-  return email ? email : json({ error: 'Owner authentication required' }, 401)
+  return email ? email : jsonPrivate({ error: 'Owner authentication required' }, 401)
 }
 
 const requireOwnerWithCsrf = async (request) => {
@@ -208,7 +229,7 @@ const requireOwnerWithCsrf = async (request) => {
   if (typeof email !== 'string') return email
   const csrf = requireCsrfProtection(request, email)
   if (!csrf.success) {
-    return json({ error: csrf.message, code: csrf.code }, csrf.status)
+    return jsonPrivate({ error: csrf.message, code: csrf.code }, csrf.status)
   }
   return email
 }
@@ -221,7 +242,7 @@ const requireAdminWithCsrf = async (request) => {
   const subject = `admin:${adminSession?.id || adminSession?.email || 'session'}`
   const csrf = requireCsrfProtection(request, subject)
   if (!csrf.success) {
-    return json({ error: csrf.message, code: csrf.code }, csrf.status)
+    return jsonPrivate({ error: csrf.message, code: csrf.code }, csrf.status)
   }
   return null
 }
@@ -1294,19 +1315,19 @@ const listPrivateDeliveryAssets = async (request, slug) => {
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
   if (!event) {
-    return json({ error: 'Room not found' }, 404)
+    return jsonPrivate({ error: 'Room not found' }, 404)
   }
 
   const prisma = await getPrismaClient()
   if (prisma) {
     const access = await getEffectiveEventAccessState(prisma, event)
     if (!access.hasPrivateDelivery) {
-      return json({ error: 'Private delivery is not available for this room', upgradePath: 'wedding_pro' }, 403)
+      return jsonPrivate({ error: 'Private delivery is not available for this room', upgradePath: 'wedding_pro' }, 403)
     }
   }
 
   const assets = await repository.listPrivateAssetsByEventId(event.id)
-  return json({ assets })
+  return jsonPrivate({ assets })
 }
 
 const initPrivateDeliveryUpload = async (request, slug) => {
@@ -1318,27 +1339,27 @@ const initPrivateDeliveryUpload = async (request, slug) => {
 
   const payload = privateDeliveryUploadInitSchema.parse(await request.json())
   if (payload.eventSlug !== slug) {
-    return json({ error: 'Room slug mismatch' }, 400)
+    return jsonPrivate({ error: 'Room slug mismatch' }, 400)
   }
 
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
   if (!event) {
-    return json({ error: 'Room not found' }, 404)
+    return jsonPrivate({ error: 'Room not found' }, 404)
   }
 
   const prisma = await getPrismaClient()
   if (prisma) {
     const access = await getEffectiveEventAccessState(prisma, event)
     if (!access.hasPrivateDelivery) {
-      return json({ error: 'Private delivery is not available for this room', upgradePath: 'wedding_pro' }, 403)
+      return jsonPrivate({ error: 'Private delivery is not available for this room', upgradePath: 'wedding_pro' }, 403)
     }
   }
 
   const clientIp = getClientIp(request)
   const limit = rateLimit(`upload-init:ip:${clientIp}`, RATE_LIMITS.uploadInit.ip.max, RATE_LIMITS.uploadInit.ip.window)
   if (limit.limited) {
-    return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
+    return jsonPrivate({ error: 'Too many upload attempts. Please try again later.' }, 429)
   }
 
   const storageDriver = getStorageDriver()
@@ -1346,7 +1367,7 @@ const initPrivateDeliveryUpload = async (request, slug) => {
 
   if (storageDriver.mode === 'vercel-blob') {
     if (!prisma) {
-      return json(
+      return jsonPrivate(
         { error: 'Database is required for secure Blob uploads' },
         503,
       )
@@ -1370,7 +1391,7 @@ const initPrivateDeliveryUpload = async (request, slug) => {
     { distinctId: ownerEmail }
   )
 
-  return json({ session }, 201)
+  return jsonPrivate({ session }, 201)
 }
 
 const issuePrivateDeliveryBlobToken = async (request) => {
@@ -1390,20 +1411,20 @@ const completePrivateDeliveryUpload = async (request, slug) => {
 
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
   if (!event) {
-    return json({ error: 'Room not found' }, 404)
+    return jsonPrivate({ error: 'Room not found' }, 404)
   }
 
   if (prisma) {
     const access = await getEffectiveEventAccessState(prisma, event)
     if (!access.hasPrivateDelivery) {
-      return json({ error: 'Private delivery is not available for this room', upgradePath: 'wedding_pro' }, 403)
+      return jsonPrivate({ error: 'Private delivery is not available for this room', upgradePath: 'wedding_pro' }, 403)
     }
   }
 
   const clientIp = getClientIp(request)
   const limit = rateLimit(`upload-complete:ip:${clientIp}`, RATE_LIMITS.uploadComplete.ip.max, RATE_LIMITS.uploadComplete.ip.window)
   if (limit.limited) {
-    return json({ error: 'Too many upload completions. Please try again later.' }, 429)
+    return jsonPrivate({ error: 'Too many upload completions. Please try again later.' }, 429)
   }
 
   const storageDriver = getStorageDriver()
@@ -1414,7 +1435,7 @@ const completePrivateDeliveryUpload = async (request, slug) => {
     try {
       payload = blobUploadSessionCompleteSchema.parse(body)
     } catch {
-      return json({ error: 'Invalid request body' }, 400)
+      return jsonPrivate({ error: 'Invalid request body' }, 400)
     }
 
     if (
@@ -1422,7 +1443,7 @@ const completePrivateDeliveryUpload = async (request, slug) => {
       typeof prisma.blobUploadSession !== 'object' ||
       prisma.blobUploadSession === null
     ) {
-      return json({ error: 'Upload service is temporarily unavailable.', code: 'database_unavailable' }, 503)
+      return jsonPrivate({ error: 'Upload service is temporarily unavailable.', code: 'database_unavailable' }, 503)
     }
 
     let result
@@ -1439,7 +1460,7 @@ const completePrivateDeliveryUpload = async (request, slug) => {
       })
     } catch (error) {
       if (error instanceof BlobUploadCompletionError) {
-        return json(
+        return jsonPrivate(
           {
             error: error.publicMessage,
             code: error.code,
@@ -1459,7 +1480,7 @@ const completePrivateDeliveryUpload = async (request, slug) => {
       )
     }
 
-    return json(
+    return jsonPrivate(
       {
         asset: result.asset,
         idempotent: result.idempotent,
@@ -1476,7 +1497,7 @@ const completePrivateDeliveryUpload = async (request, slug) => {
   })
 
   if (fileResult.eventSlug !== slug) {
-    return json({ error: 'Room slug mismatch' }, 400)
+    return jsonPrivate({ error: 'Room slug mismatch' }, 400)
   }
 
   const asset = await repository.createPrivateAsset({
@@ -1494,7 +1515,7 @@ const completePrivateDeliveryUpload = async (request, slug) => {
     { distinctId: ownerEmail }
   )
 
-  return json({ asset }, 201)
+  return jsonPrivate({ asset }, 201)
 }
 
 const deletePrivateDeliveryAsset = async (request, assetId) => {
@@ -1509,12 +1530,12 @@ const deletePrivateDeliveryAsset = async (request, assetId) => {
 
   const asset = await repository.getPrivateAssetById(assetId)
   if (!asset) {
-    return json({ error: 'Asset not found' }, 404)
+    return jsonPrivate({ error: 'Asset not found' }, 404)
   }
 
   const event = await prisma?.event.findUnique({ where: { id: asset.eventId } })
   if (!event) {
-    return json({ error: 'Room not found' }, 404)
+    return jsonPrivate({ error: 'Room not found' }, 404)
   }
 
   const normalizedEmail = ownerEmail.toLowerCase().trim()
@@ -1524,7 +1545,7 @@ const deletePrivateDeliveryAsset = async (request, assetId) => {
     (owner && event?.ownerId === owner.id)
 
   if (!isOwner) {
-    return json({ error: 'Owner authentication required' }, 403)
+    return jsonPrivate({ error: 'Owner authentication required' }, 403)
   }
 
   try {
@@ -1541,7 +1562,7 @@ const deletePrivateDeliveryAsset = async (request, assetId) => {
     { distinctId: ownerEmail }
   )
 
-  return json({ deleted: true })
+  return jsonPrivate({ deleted: true })
 }
 
 const createPhotographerUploadLink = async (request, slug) => {
@@ -1554,14 +1575,14 @@ const createPhotographerUploadLink = async (request, slug) => {
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
   if (!event) {
-    return json({ error: 'Room not found' }, 404)
+    return jsonPrivate({ error: 'Room not found' }, 404)
   }
 
   const prisma = await getPrismaClient()
   if (prisma) {
     const access = await getEffectiveEventAccessState(prisma, event)
     if (!access.hasPrivateDelivery) {
-      return json({ error: 'Private delivery is not available for this room', upgradePath: 'wedding_pro' }, 403)
+      return jsonPrivate({ error: 'Private delivery is not available for this room', upgradePath: 'wedding_pro' }, 403)
     }
   }
 
@@ -1579,9 +1600,9 @@ const createPhotographerUploadLink = async (request, slug) => {
 
   const appUrl = getAppUrl(request)
   if (!appUrl) {
-    return json({ error: 'Unable to create upload link. Please try again later.' }, 500)
+    return jsonPrivate({ error: 'Unable to create upload link. Please try again later.' }, 500)
   }
-  return json({ token, url: `${appUrl}/photographer-upload/${token}` })
+  return jsonPrivate({ token, url: `${appUrl}/photographer-upload/${token}` })
 }
 
 const deletePhotographerUploadLink = async (request, slug) => {
@@ -1594,7 +1615,7 @@ const deletePhotographerUploadLink = async (request, slug) => {
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
   if (!event) {
-    return json({ error: 'Room not found' }, 404)
+    return jsonPrivate({ error: 'Room not found' }, 404)
   }
 
   await repository.setPhotographerUploadToken(slug, { tokenHash: null, expiresAt: null })
@@ -1605,7 +1626,7 @@ const deletePhotographerUploadLink = async (request, slug) => {
     { distinctId: ownerEmail }
   )
 
-  return json({ revoked: true })
+  return jsonPrivate({ revoked: true })
 }
 
 const uploadEventCover = withTiming('uploadEventCover', async (request, slug) => {
@@ -1620,39 +1641,39 @@ const uploadEventCover = withTiming('uploadEventCover', async (request, slug) =>
   const clientIp = getClientIp(request)
   const ipLimit = rateLimit(`cover-upload:ip:${clientIp}`, RATE_LIMITS.coverUpload.ip.max, RATE_LIMITS.coverUpload.ip.window)
   if (ipLimit.limited) {
-    return json({ error: 'Too many cover uploads. Please try again later.' }, 429)
+    return jsonPrivate({ error: 'Too many cover uploads. Please try again later.' }, 429)
   }
   const ownerLimit = rateLimit(`cover-upload:owner:${ownerEmail}`, RATE_LIMITS.coverUpload.owner.max, RATE_LIMITS.coverUpload.owner.window)
   if (ownerLimit.limited) {
-    return json({ error: 'Too many cover uploads for this account. Please try again later.' }, 429)
+    return jsonPrivate({ error: 'Too many cover uploads for this account. Please try again later.' }, 429)
   }
 
   let body
   try {
     body = await request.json()
   } catch {
-    return json({ error: 'Invalid JSON body' }, 400)
+    return jsonPrivate({ error: 'Invalid JSON body' }, 400)
   }
 
   const { coverDataUrl } = body
   if (!coverDataUrl || !coverDataUrl.startsWith('data:image/')) {
-    return json({ error: 'Invalid cover image. Must be a valid image data URL.' }, 400)
+    return jsonPrivate({ error: 'Invalid cover image. Must be a valid image data URL.' }, 400)
   }
 
   const match = coverDataUrl.match(/^data:image\/(jpeg|jpg|png|webp);base64,(.*)$/)
   if (!match) {
-    return json({ error: 'Unsupported image format. Use JPEG, PNG, or WebP.' }, 400)
+    return jsonPrivate({ error: 'Unsupported image format. Use JPEG, PNG, or WebP.' }, 400)
   }
 
   const buffer = Buffer.from(match[2], 'base64')
   if (buffer.length > 10 * 1024 * 1024) {
-    return json({ error: 'Image too large. Max 10MB.' }, 400)
+    return jsonPrivate({ error: 'Image too large. Max 10MB.' }, 400)
   }
 
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
   if (!event) {
-    return json({ error: 'Event not found' }, 404)
+    return jsonPrivate({ error: 'Event not found' }, 404)
   }
 
   try {
@@ -1683,10 +1704,10 @@ const uploadEventCover = withTiming('uploadEventCover', async (request, slug) =>
       `[uploadEventCover] slug=${slug} input=${buffer.length} output=${uploadBuffer.length} format=${ext}`
     )
 
-    return json({ event: updatedEvent })
+    return jsonPrivate({ event: updatedEvent })
   } catch (storageError) {
     console.error('[uploadEventCover] Storage error:', storageError)
-    return json({ error: 'Unable to save cover image. Please try again.' }, 500)
+    return jsonPrivate({ error: 'Unable to save cover image. Please try again.' }, 500)
   }
 })
 
@@ -1702,7 +1723,7 @@ const deleteEventCover = async (request, slug) => {
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
   if (!event) {
-    return json({ error: 'Event not found' }, 404)
+    return jsonPrivate({ error: 'Event not found' }, 404)
   }
 
   if (event.coverUrl) {
@@ -1714,7 +1735,7 @@ const deleteEventCover = async (request, slug) => {
   }
 
   const updatedEvent = await repository.updateEvent(slug, { coverUrl: null })
-  return json({ event: updatedEvent })
+  return jsonPrivate({ event: updatedEvent })
 }
 
 const MAX_MOMENTS_PER_EVENT = 12
@@ -1728,11 +1749,11 @@ const listOwnerEventMoments = async (request, slug) => {
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
   if (!event) {
-    return json({ error: 'Event not found' }, 404)
+    return jsonPrivate({ error: 'Event not found' }, 404)
   }
 
   const moments = await repository.listEventMoments(event.id)
-  return json({ moments })
+  return jsonPrivate({ moments })
 }
 
 const createOwnerEventMoment = async (request, slug) => {
@@ -1747,18 +1768,18 @@ const createOwnerEventMoment = async (request, slug) => {
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
   if (!event) {
-    return json({ error: 'Event not found' }, 404)
+    return jsonPrivate({ error: 'Event not found' }, 404)
   }
 
   const count = await repository.countEventMoments(event.id)
   if (count >= MAX_MOMENTS_PER_EVENT) {
-    return json({ error: `Maximum ${MAX_MOMENTS_PER_EVENT} moments allowed` }, 400)
+    return jsonPrivate({ error: `Maximum ${MAX_MOMENTS_PER_EVENT} moments allowed` }, 400)
   }
 
   const body = await request.json()
   const name = String(body.name || '').trim()
   if (!name || name.length > 40) {
-    return json({ error: 'Moment name must be between 1 and 40 characters' }, 400)
+    return jsonPrivate({ error: 'Moment name must be between 1 and 40 characters' }, 400)
   }
 
   const slugBase = slugify(name)
@@ -1777,7 +1798,7 @@ const createOwnerEventMoment = async (request, slug) => {
     sortOrder,
   })
 
-  return json({ moment }, 201)
+  return jsonPrivate({ moment }, 201)
 }
 
 const updateOwnerEventMoment = async (request, slug, momentId) => {
@@ -1792,7 +1813,7 @@ const updateOwnerEventMoment = async (request, slug, momentId) => {
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
   if (!event) {
-    return json({ error: 'Event not found' }, 404)
+    return jsonPrivate({ error: 'Event not found' }, 404)
   }
 
   const body = await request.json()
@@ -1800,7 +1821,7 @@ const updateOwnerEventMoment = async (request, slug, momentId) => {
   if (body.name !== undefined) {
     const name = String(body.name || '').trim()
     if (!name || name.length > 40) {
-      return json({ error: 'Moment name must be between 1 and 40 characters' }, 400)
+      return jsonPrivate({ error: 'Moment name must be between 1 and 40 characters' }, 400)
     }
     updates.name = name
   }
@@ -1809,7 +1830,7 @@ const updateOwnerEventMoment = async (request, slug, momentId) => {
   }
 
   const moment = await repository.updateEventMoment(momentId, updates)
-  return json({ moment })
+  return jsonPrivate({ moment })
 }
 
 const deleteOwnerEventMoment = async (request, slug, momentId) => {
@@ -1824,11 +1845,11 @@ const deleteOwnerEventMoment = async (request, slug, momentId) => {
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
   if (!event) {
-    return json({ error: 'Event not found' }, 404)
+    return jsonPrivate({ error: 'Event not found' }, 404)
   }
 
   await repository.deleteEventMoment(momentId)
-  return json({ success: true })
+  return jsonPrivate({ success: true })
 }
 
 const getPhotographerUploadEvent = async (request, token) => {
@@ -2037,14 +2058,14 @@ const listPhotographerAssets = async (request, token) => {
 
 const getAdminConfig = async () => {
   const adminStatus = await getAdminAuthStatus()
-  return json(adminStatus)
+  return jsonPrivate(adminStatus)
 }
 
 const getAdminSession = async (request) => {
   const adminStatus = await getAdminAuthStatus()
   const authenticated = await getAdminAuthentication(request)
 
-  return json({
+  return jsonPrivate({
     ...adminStatus,
     authenticated,
   })
@@ -2053,20 +2074,20 @@ const getAdminSession = async (request) => {
 const setupAdmin = async (request) => {
   const originCheck = verifySameOriginRequest(request)
   if (!originCheck.allowed) {
-    return json({ error: originCheck.message, code: originCheck.code }, 403)
+    return jsonPrivate({ error: originCheck.message, code: originCheck.code }, 403)
   }
 
   const clientIp = getClientIp(request)
   const ipLimit = rateLimit(`admin-setup:ip:${clientIp}`, ADMIN_LIMITS.login.ip.max, ADMIN_LIMITS.login.ip.window)
   if (ipLimit.limited) {
-    const response = json({ error: 'Too many attempts. Please try again later.', code: 'rate_limited', retryAfter: ipLimit.retryAfter }, 429)
+    const response = jsonPrivate({ error: 'Too many attempts. Please try again later.', code: 'rate_limited', retryAfter: ipLimit.retryAfter }, 429)
     response.headers.set('Retry-After', String(ipLimit.retryAfter))
     return response
   }
 
   const payload = adminPasswordSchema.parse(await request.json())
   const adminStatus = await setupLocalAdminPassword(payload.password)
-  const response = json({
+  const response = jsonPrivate({
     ...adminStatus,
     authenticated: true,
   }, 201)
@@ -2077,13 +2098,13 @@ const setupAdmin = async (request) => {
 const loginAdmin = async (request) => {
   const originCheck = verifySameOriginRequest(request)
   if (!originCheck.allowed) {
-    return json({ error: originCheck.message, code: originCheck.code }, 403)
+    return jsonPrivate({ error: originCheck.message, code: originCheck.code }, 403)
   }
 
   const clientIp = getClientIp(request)
   const ipLimit = rateLimit(`admin-login:ip:${clientIp}`, ADMIN_LIMITS.login.ip.max, ADMIN_LIMITS.login.ip.window)
   if (ipLimit.limited) {
-    const response = json({ error: 'Too many attempts. Please try again later.', code: 'rate_limited', retryAfter: ipLimit.retryAfter }, 429)
+    const response = jsonPrivate({ error: 'Too many attempts. Please try again later.', code: 'rate_limited', retryAfter: ipLimit.retryAfter }, 429)
     response.headers.set('Retry-After', String(ipLimit.retryAfter))
     return response
   }
@@ -2092,11 +2113,11 @@ const loginAdmin = async (request) => {
   const isValid = await verifyAdminPassword(payload.password)
 
   if (!isValid) {
-    return json({ error: 'Invalid admin password' }, 401)
+    return jsonPrivate({ error: 'Invalid admin password' }, 401)
   }
 
   const adminStatus = await getAdminAuthStatus()
-  const response = json({
+  const response = jsonPrivate({
     ...adminStatus,
     authenticated: true,
   })
@@ -2113,10 +2134,10 @@ const logoutAdmin = async (request) => {
   const subject = `admin:${adminSession?.id || adminSession?.email || 'session'}`
   const csrf = requireCsrfProtection(request, subject)
   if (!csrf.success) {
-    return json({ error: csrf.message, code: csrf.code }, csrf.status)
+    return jsonPrivate({ error: csrf.message, code: csrf.code }, csrf.status)
   }
 
-  return clearAdminSessionCookie(json({ authenticated: false, loggedOut: true }))
+  return clearAdminSessionCookie(jsonPrivate({ authenticated: false, loggedOut: true }))
 }
 
 const listAdminEvents = async (request) => {
@@ -2126,7 +2147,10 @@ const listAdminEvents = async (request) => {
     return authError
   }
 
-  return listEvents()
+  // listEvents() is also the direct PUBLIC handler for GET /events, so it
+  // must stay on json(); strip the CORS headers back off here instead, now
+  // that admin auth has already been verified.
+  return stripPublicCorsHeaders(await listEvents())
 }
 
 const createAdminEvent = async (request) => {
@@ -2136,7 +2160,10 @@ const createAdminEvent = async (request) => {
   const rateLimitCheck = await checkAdminRateLimit(request, ADMIN_LIMITS.write)
   if (rateLimitCheck) return rateLimitCheck
 
-  return createEvent(request)
+  // createEvent() is also the direct PUBLIC handler for POST /events (guest
+  // room creation); see listAdminEvents above for why headers are stripped
+  // here rather than changing the shared handler.
+  return stripPublicCorsHeaders(await createEvent(request))
 }
 
 const getAdminEvent = async (request, slug) => {
@@ -2146,7 +2173,10 @@ const getAdminEvent = async (request, slug) => {
     return authError
   }
 
-  return getEvent(slug, { includeHidden: true })
+  // getEvent() is also the direct PUBLIC handler for GET /events/:slug; see
+  // listAdminEvents above for why headers are stripped here rather than
+  // changing the shared handler.
+  return stripPublicCorsHeaders(await getEvent(slug, { includeHidden: true }))
 }
 
 const moderatePhoto = async (request, photoId) => {
@@ -2161,11 +2191,11 @@ const moderatePhoto = async (request, photoId) => {
   const photo = await repository.setPhotoStatus(photoId, payload.action === 'approve' ? 'VISIBLE' : 'HIDDEN')
 
   if (!photo) {
-    return json({ error: 'Photo not found' }, 404)
+    return jsonPrivate({ error: 'Photo not found' }, 404)
   }
 
   console.log(`[audit] Admin ${payload.action}d photo ${photoId} in event ${photo.eventId}`)
-  return json({ photo })
+  return jsonPrivate({ photo })
 }
 
 const deletePhoto = async (request, photoId) => {
@@ -2179,7 +2209,7 @@ const deletePhoto = async (request, photoId) => {
   const photo = await repository.getPhotoById(photoId)
 
   if (!photo) {
-    return json({ error: 'Photo not found' }, 404)
+    return jsonPrivate({ error: 'Photo not found' }, 404)
   }
 
   // Resolve event slug for audit log
@@ -2220,12 +2250,12 @@ const deletePhoto = async (request, photoId) => {
     console.error('[deletePhoto] Failed to write deletion log:', logError)
   }
 
-  return json({ deleted: true, photo })
+  return jsonPrivate({ deleted: true, photo })
 }
 
 const getOwnerSession = async (request) => {
   const email = await getOwnerAuthentication(request)
-  return json({ authenticated: Boolean(email), email })
+  return jsonPrivate({ authenticated: Boolean(email), email })
 }
 
 const loginOwner = withTiming('loginOwner', async (request) => {
@@ -2233,7 +2263,7 @@ const loginOwner = withTiming('loginOwner', async (request) => {
   try {
     body = await request.json()
   } catch {
-    return json({ error: 'Invalid JSON body' }, 400)
+    return jsonPrivate({ error: 'Invalid JSON body' }, 400)
   }
 
   const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
@@ -2241,14 +2271,14 @@ const loginOwner = withTiming('loginOwner', async (request) => {
   const password = typeof body?.password === 'string' ? body.password : ''
 
   if (!email) {
-    return json({ error: 'Email is required' }, 400)
+    return jsonPrivate({ error: 'Email is required' }, 400)
   }
 
   const clientIp = getClientIp(request)
   const ipLimit = rateLimit(`session:ip:${clientIp}`, AUTH_LIMITS.session.ip.max, AUTH_LIMITS.session.ip.window)
   const emailLimit = rateLimit(`session:email:${email}`, AUTH_LIMITS.session.email.max, AUTH_LIMITS.session.email.window)
   if (ipLimit.limited || emailLimit.limited) {
-    return json({ error: 'Too many attempts. Please try again later.' }, 429)
+    return jsonPrivate({ error: 'Too many attempts. Please try again later.' }, 429)
   }
 
   // Password-based login takes priority
@@ -2258,15 +2288,15 @@ const loginOwner = withTiming('loginOwner', async (request) => {
       verifyPassword(password, candidate.passwordSalt, candidate.passwordHash)
     )
     if (!owner) {
-      return json({ error: 'Invalid email or password' }, 401)
+      return jsonPrivate({ error: 'Invalid email or password' }, 401)
     }
-    const response = json({ authenticated: true, email })
+    const response = jsonPrivate({ authenticated: true, email })
     return await setOwnerSessionCookie(response, email)
   }
 
   // Fallback to management token login (backward compatibility)
   if (!token) {
-    return json({ error: 'Password or management token is required' }, 400)
+    return jsonPrivate({ error: 'Password or management token is required' }, 400)
   }
 
   const repository = await getGalleryRepository()
@@ -2282,10 +2312,10 @@ const loginOwner = withTiming('loginOwner', async (request) => {
   }
 
   if (!valid) {
-    return json({ error: 'Invalid email or management token' }, 401)
+    return jsonPrivate({ error: 'Invalid email or management token' }, 401)
   }
 
-  const response = json({ authenticated: true, email })
+  const response = jsonPrivate({ authenticated: true, email })
   return await setOwnerSessionCookie(response, email)
 })
 
@@ -2296,31 +2326,31 @@ const logoutOwner = async (request) => {
   }
   const csrf = requireCsrfProtection(request, ownerEmail)
   if (!csrf.success) {
-    return json({ error: csrf.message, code: csrf.code }, csrf.status)
+    return jsonPrivate({ error: csrf.message, code: csrf.code }, csrf.status)
   }
-  return clearOwnerSessionCookie(json({ authenticated: false, loggedOut: true }))
+  return clearOwnerSessionCookie(jsonPrivate({ authenticated: false, loggedOut: true }))
 }
 
 const resendOwnerAccess = async (request) => {
   const originCheck = verifySameOriginRequest(request)
   if (!originCheck.allowed) {
-    return json({ error: originCheck.message, code: originCheck.code }, 403)
+    return jsonPrivate({ error: originCheck.message, code: originCheck.code }, 403)
   }
 
   if (!resend) {
-    return json({ error: 'Email service is not configured' }, 503)
+    return jsonPrivate({ error: 'Email service is not configured' }, 503)
   }
 
   let body
   try {
     body = await request.json()
   } catch {
-    return json({ error: 'Invalid JSON body' }, 400)
+    return jsonPrivate({ error: 'Invalid JSON body' }, 400)
   }
 
   const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return json({ error: 'A valid email is required' }, 400)
+    return jsonPrivate({ error: 'A valid email is required' }, 400)
   }
 
   const clientIp = getClientIp(request)
@@ -2328,7 +2358,7 @@ const resendOwnerAccess = async (request) => {
   const emailLimit = rateLimit(`resend:email:${email}`, AUTH_LIMITS.resend.email.max, AUTH_LIMITS.resend.email.window)
   if (ipLimit.limited || emailLimit.limited) {
     const retryAfter = Math.max(ipLimit.retryAfter || 0, emailLimit.retryAfter || 0)
-    const response = json({ error: 'Too many attempts. Please try again later.' }, 429)
+    const response = jsonPrivate({ error: 'Too many attempts. Please try again later.' }, 429)
     if (retryAfter > 0) {
       response.headers.set('Retry-After', String(retryAfter))
     }
@@ -2337,12 +2367,12 @@ const resendOwnerAccess = async (request) => {
 
   const from = process.env.RESEND_FROM_EMAIL
   if (!from) {
-    return json({ error: 'Email sender is not configured' }, 503)
+    return jsonPrivate({ error: 'Email sender is not configured' }, 503)
   }
 
   const prisma = await getPrismaClient()
   if (!prisma) {
-    return json({ error: 'Service temporarily unavailable' }, 503)
+    return jsonPrivate({ error: 'Service temporarily unavailable' }, 503)
   }
 
   const owner = await prisma.owner.findUnique({ where: { email } })
@@ -2351,7 +2381,7 @@ const resendOwnerAccess = async (request) => {
   if (owner) {
     const appUrl = getAppUrl(request)
     if (!appUrl) {
-      return json({ error: 'Service temporarily unavailable' }, 500)
+      return jsonPrivate({ error: 'Service temporarily unavailable' }, 500)
     }
     const purpose = owner.passwordHash ? 'password_reset' : 'setup_password'
     try {
@@ -2391,7 +2421,7 @@ Every guest photo. One room.`,
     }
   }
 
-  return json({ success: true, message: 'If an account with this email exists, a password reset link has been sent.' })
+  return jsonPrivate({ success: true, message: 'If an account with this email exists, a password reset link has been sent.' })
 }
 
 const recoverOwnerAccess = async (request) => {
@@ -2399,12 +2429,12 @@ const recoverOwnerAccess = async (request) => {
   const token = searchParams.get('token')
 
   if (!token) {
-    return json({ error: 'Recovery token required' }, 400)
+    return jsonPrivate({ error: 'Recovery token required' }, 400)
   }
 
   const appUrl = getAppUrl(request)
   if (!appUrl) {
-    return json({ error: 'Service temporarily unavailable' }, 500)
+    return jsonPrivate({ error: 'Service temporarily unavailable' }, 500)
   }
   const prisma = await getPrismaClient()
 
@@ -2426,7 +2456,7 @@ const recoverOwnerAccess = async (request) => {
   // token so old links remain usable until they expire.
   const email = await verifyRecoveryToken(token)
   if (!email) {
-    return json({ error: 'Invalid or expired recovery link' }, 400)
+    return jsonPrivate({ error: 'Invalid or expired recovery link' }, 400)
   }
 
   if (prisma) {
@@ -2457,14 +2487,14 @@ const loginOwnerWithPassword = async (request) => {
   try {
     body = await request.json()
   } catch {
-    return json({ error: 'Invalid JSON body' }, 400)
+    return jsonPrivate({ error: 'Invalid JSON body' }, 400)
   }
 
   const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
   const password = typeof body?.password === 'string' ? body.password : ''
 
   if (!email || !password) {
-    return json({ error: 'Email and password are required' }, 400)
+    return jsonPrivate({ error: 'Email and password are required' }, 400)
   }
 
   const clientIp = getClientIp(request)
@@ -2472,13 +2502,13 @@ const loginOwnerWithPassword = async (request) => {
   const emailLimit = rateLimit(`login:email:${email}`, AUTH_LIMITS.login.email.max, AUTH_LIMITS.login.email.window)
   if (ipLimit.limited || emailLimit.limited) {
     trackServerEvent(EVENT_RATE_LIMIT_HIT, { reason: 'owner_login', client_ip: clientIp }, { distinctId: clientIp })
-    return json({ error: 'Too many attempts. Please try again later.' }, 429)
+    return jsonPrivate({ error: 'Too many attempts. Please try again later.' }, 429)
   }
 
   const prisma = await getPrismaClient()
   if (!prisma) {
     console.error('[api/owner/login] Database unavailable')
-    return json({ error: 'Login temporarily unavailable. Please try again shortly.' }, 503)
+    return jsonPrivate({ error: 'Login temporarily unavailable. Please try again shortly.' }, 503)
   }
 
   try {
@@ -2488,52 +2518,52 @@ const loginOwnerWithPassword = async (request) => {
     )
 
     if (!owner) {
-      return json({ error: 'Invalid email or password' }, 401)
+      return jsonPrivate({ error: 'Invalid email or password' }, 401)
     }
 
     trackServerEvent(EVENT_OWNER_LOGGED_IN, { method: 'password_api' }, { distinctId: email })
 
-    const response = json({ authenticated: true, email })
+    const response = jsonPrivate({ authenticated: true, email })
     return await setOwnerSessionCookie(response, owner)
   } catch (error) {
     if (isDatabaseUnavailableError(error)) {
       logDbError(error, '/api/owner/login', Date.now())
-      return json({ error: getSafeDbErrorMessage(error, '/api/owner/login') }, 503)
+      return jsonPrivate({ error: getSafeDbErrorMessage(error, '/api/owner/login') }, 503)
     }
     console.error('[api/owner/login] Unexpected error:', error)
-    return json({ error: 'Login temporarily unavailable. Please try again shortly.' }, 500)
+    return jsonPrivate({ error: 'Login temporarily unavailable. Please try again shortly.' }, 500)
   }
 }
 
 const forgotOwnerPassword = async (request) => {
   const originCheck = verifySameOriginRequest(request)
   if (!originCheck.allowed) {
-    return json({ error: originCheck.message, code: originCheck.code }, 403)
+    return jsonPrivate({ error: originCheck.message, code: originCheck.code }, 403)
   }
 
   let body
   try {
     body = await request.json()
   } catch {
-    return json({ error: 'Invalid JSON body' }, 400)
+    return jsonPrivate({ error: 'Invalid JSON body' }, 400)
   }
 
   const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return json({ error: 'A valid email is required' }, 400)
+    return jsonPrivate({ error: 'A valid email is required' }, 400)
   }
 
   const clientIp = getClientIp(request)
   const ipLimit = rateLimit(`forgot:ip:${clientIp}`, AUTH_LIMITS.forgotPassword.ip.max, AUTH_LIMITS.forgotPassword.ip.window)
   const emailLimit = rateLimit(`forgot:email:${email}`, AUTH_LIMITS.forgotPassword.email.max, AUTH_LIMITS.forgotPassword.email.window)
   if (ipLimit.limited || emailLimit.limited) {
-    return json({ error: 'Too many attempts. Please try again later.' }, 429)
+    return jsonPrivate({ error: 'Too many attempts. Please try again later.' }, 429)
   }
 
   try {
     const prisma = await getPrismaClient()
     if (!prisma) {
-      return json({ error: 'Service temporarily unavailable' }, 503)
+      return jsonPrivate({ error: 'Service temporarily unavailable' }, 503)
     }
 
     const owner = await prisma.owner.findUnique({ where: { email } })
@@ -2542,7 +2572,7 @@ const forgotOwnerPassword = async (request) => {
       try {
         const appUrl = getAppUrl(request)
         if (!appUrl) {
-          return json({ error: 'Password reset is temporarily unavailable. Please try again later.' }, 500)
+          return jsonPrivate({ error: 'Password reset is temporarily unavailable. Please try again later.' }, 500)
         }
         const purpose = owner.passwordHash ? 'password_reset' : 'setup_password'
         const rawToken = await createPasswordResetTokenForOwner({ prisma, ownerId: owner.id, purpose, clientIp })
@@ -2584,12 +2614,12 @@ If you did not request this, you can safely ignore this email.
     }
   } catch (error) {
     console.error('[forgotOwnerPassword] Unexpected error:', error)
-    return json({ error: 'Password reset is temporarily unavailable. Please try again later.' }, 503)
+    return jsonPrivate({ error: 'Password reset is temporarily unavailable. Please try again later.' }, 503)
   }
 
   // Anti-enumeration: return the same generic message regardless of whether
   // the email exists, the owner has a password, or email sending succeeded.
-  return json({
+  return jsonPrivate({
     success: true,
     message: 'If an account with this email exists, a password reset link has been sent.',
   })
@@ -2598,43 +2628,43 @@ If you did not request this, you can safely ignore this email.
 const resetOwnerPassword = async (request) => {
   const originCheck = verifySameOriginRequest(request)
   if (!originCheck.allowed) {
-    return json({ error: originCheck.message, code: originCheck.code }, 403)
+    return jsonPrivate({ error: originCheck.message, code: originCheck.code }, 403)
   }
 
   let body
   try {
     body = await request.json()
   } catch {
-    return json({ error: 'Invalid JSON body' }, 400)
+    return jsonPrivate({ error: 'Invalid JSON body' }, 400)
   }
 
   const token = typeof body?.token === 'string' ? body.token.trim() : ''
   const password = typeof body?.password === 'string' ? body.password : ''
 
   if (!token || !password) {
-    return json({ error: 'Token and password are required' }, 400)
+    return jsonPrivate({ error: 'Token and password are required' }, 400)
   }
 
   const clientIp = getClientIp(request)
   const ipLimit = rateLimit(`reset:ip:${clientIp}`, AUTH_LIMITS.reset.ip.max, AUTH_LIMITS.reset.ip.window)
   const tokenLimit = rateLimit(`reset:token:${hashPasswordResetToken(token)}`, 10, 15 * 60 * 1000)
   if (ipLimit.limited || tokenLimit.limited) {
-    return json({ error: 'Too many attempts. Please try again later.' }, 429)
+    return jsonPrivate({ error: 'Too many attempts. Please try again later.' }, 429)
   }
 
   const { valid, errors } = validatePassword(password)
   if (!valid) {
-    return json({ error: `Password requirements: ${errors.join(', ')}` }, 400)
+    return jsonPrivate({ error: `Password requirements: ${errors.join(', ')}` }, 400)
   }
 
   const prisma = await getPrismaClient()
   if (!prisma) {
-    return json({ error: 'Service temporarily unavailable' }, 503)
+    return jsonPrivate({ error: 'Service temporarily unavailable' }, 503)
   }
 
   const tokenRecord = await findValidPasswordResetToken({ prisma, rawToken: token, purpose: 'password_reset' })
   if (!tokenRecord) {
-    return json({ error: 'Invalid or expired reset token' }, 400)
+    return jsonPrivate({ error: 'Invalid or expired reset token' }, 400)
   }
 
   const { salt, hash } = createPasswordHash(password)
@@ -2669,14 +2699,14 @@ const resetOwnerPassword = async (request) => {
     })
   } catch (error) {
     if (error.message === 'INVALID_TOKEN') {
-      return json({ error: 'Invalid or expired reset token' }, 400)
+      return jsonPrivate({ error: 'Invalid or expired reset token' }, 400)
     }
     console.error('[resetOwnerPassword] Transaction failed:', error)
-    return json({ error: 'Unable to reset password. Please try again later.' }, 500)
+    return jsonPrivate({ error: 'Unable to reset password. Please try again later.' }, 500)
   }
 
   const owner = await prisma.owner.findUnique({ where: { id: tokenRecord.ownerId } })
-  const response = json({ authenticated: true, email: owner.email })
+  const response = jsonPrivate({ authenticated: true, email: owner.email })
   return await setOwnerSessionCookie(response, owner)
 }
 
@@ -2685,20 +2715,20 @@ const getSetupTokenStatus = async (request) => {
   const token = searchParams.get('token')
 
   if (!token) {
-    return json({ error: 'Setup token required' }, 400)
+    return jsonPrivate({ error: 'Setup token required' }, 400)
   }
 
   const prisma = await getPrismaClient()
   if (!prisma) {
-    return json({ error: 'Service temporarily unavailable' }, 503)
+    return jsonPrivate({ error: 'Service temporarily unavailable' }, 503)
   }
 
   const tokenRecord = await findValidPasswordResetToken({ prisma, rawToken: token, purpose: 'setup_password' })
   if (!tokenRecord || tokenRecord.owner.passwordHash) {
-    return json({ error: 'Invalid or expired setup link' }, 400)
+    return jsonPrivate({ error: 'Invalid or expired setup link' }, 400)
   }
 
-  return json({ valid: true, email: tokenRecord.owner.email })
+  return jsonPrivate({ valid: true, email: tokenRecord.owner.email })
 }
 
 const getResetTokenStatus = async (request) => {
@@ -2706,40 +2736,40 @@ const getResetTokenStatus = async (request) => {
   const token = searchParams.get('token')
 
   if (!token) {
-    return json({ error: 'Reset token required' }, 400)
+    return jsonPrivate({ error: 'Reset token required' }, 400)
   }
 
   const prisma = await getPrismaClient()
   if (!prisma) {
-    return json({ error: 'Service temporarily unavailable' }, 503)
+    return jsonPrivate({ error: 'Service temporarily unavailable' }, 503)
   }
 
   const tokenRecord = await findValidPasswordResetToken({ prisma, rawToken: token, purpose: 'password_reset' })
   if (!tokenRecord) {
-    return json({ error: 'Invalid or expired reset link' }, 400)
+    return jsonPrivate({ error: 'Invalid or expired reset link' }, 400)
   }
 
-  return json({ valid: true, email: tokenRecord.owner.email })
+  return jsonPrivate({ valid: true, email: tokenRecord.owner.email })
 }
 
 const setupOwnerPassword = async (request) => {
   const originCheck = verifySameOriginRequest(request)
   if (!originCheck.allowed) {
-    return json({ error: originCheck.message, code: originCheck.code }, 403)
+    return jsonPrivate({ error: originCheck.message, code: originCheck.code }, 403)
   }
 
   let body
   try {
     body = await request.json()
   } catch {
-    return json({ error: 'Invalid JSON body' }, 400)
+    return jsonPrivate({ error: 'Invalid JSON body' }, 400)
   }
 
   const token = typeof body?.token === 'string' ? body.token.trim() : ''
   const password = typeof body?.password === 'string' ? body.password : ''
 
   if (!token || !password) {
-    return json({ error: 'Token and password are required' }, 400)
+    return jsonPrivate({ error: 'Token and password are required' }, 400)
   }
 
   const clientIp = getClientIp(request)
@@ -2747,22 +2777,22 @@ const setupOwnerPassword = async (request) => {
   const tokenLimit = rateLimit(`setup:token:${hashPasswordResetToken(token)}`, 10, 15 * 60 * 1000)
   if (ipLimit.limited || tokenLimit.limited) {
     trackServerEvent(EVENT_RATE_LIMIT_HIT, { reason: 'setup_password', client_ip: clientIp }, { distinctId: clientIp })
-    return json({ error: 'Too many attempts. Please try again later.' }, 429)
+    return jsonPrivate({ error: 'Too many attempts. Please try again later.' }, 429)
   }
 
   const { valid, errors } = validatePassword(password)
   if (!valid) {
-    return json({ error: `Password requirements: ${errors.join(', ')}` }, 400)
+    return jsonPrivate({ error: `Password requirements: ${errors.join(', ')}` }, 400)
   }
 
   const prisma = await getPrismaClient()
   if (!prisma) {
-    return json({ error: 'Service temporarily unavailable' }, 503)
+    return jsonPrivate({ error: 'Service temporarily unavailable' }, 503)
   }
 
   const tokenRecord = await findValidPasswordResetToken({ prisma, rawToken: token, purpose: 'setup_password' })
   if (!tokenRecord || tokenRecord.owner.passwordHash) {
-    return json({ error: 'Invalid or expired setup token' }, 400)
+    return jsonPrivate({ error: 'Invalid or expired setup token' }, 400)
   }
 
   const { salt, hash } = createPasswordHash(password)
@@ -2797,16 +2827,16 @@ const setupOwnerPassword = async (request) => {
     })
   } catch (error) {
     if (error.message === 'INVALID_TOKEN') {
-      return json({ error: 'Invalid or expired setup token' }, 400)
+      return jsonPrivate({ error: 'Invalid or expired setup token' }, 400)
     }
     console.error('[setupOwnerPassword] Transaction failed:', error)
-    return json({ error: 'Unable to set password. Please try again later.' }, 500)
+    return jsonPrivate({ error: 'Unable to set password. Please try again later.' }, 500)
   }
 
   const owner = await prisma.owner.findUnique({ where: { id: tokenRecord.ownerId } })
   trackServerEvent(EVENT_OWNER_CLAIM_COMPLETED, {}, { distinctId: owner.email })
 
-  const response = json({ authenticated: true, email: owner.email })
+  const response = jsonPrivate({ authenticated: true, email: owner.email })
   return await setOwnerSessionCookie(response, owner)
 }
 
@@ -2818,7 +2848,7 @@ const listOwnerEvents = async (request) => {
 
   const repository = await getGalleryRepository()
   const events = await repository.listEventsByOwnerEmail(ownerEmail)
-  return json({ events: events.map(({ managementTokenHash, ...event }) => event) })
+  return jsonPrivate({ events: events.map(({ managementTokenHash, ...event }) => event) })
 }
 
 const getOwnerEvent = async (request, slug) => {
@@ -2831,11 +2861,11 @@ const getOwnerEvent = async (request, slug) => {
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
 
   if (!event) {
-    return json({ error: 'Event not found' }, 404)
+    return jsonPrivate({ error: 'Event not found' }, 404)
   }
 
   const { managementTokenHash, photographerUploadTokenHash, ...safeEvent } = event
-  return json({ event: { ...safeEvent, hasPhotographerUploadLink: Boolean(photographerUploadTokenHash) } })
+  return jsonPrivate({ event: { ...safeEvent, hasPhotographerUploadLink: Boolean(photographerUploadTokenHash) } })
 }
 
 const updateOwnerEvent = async (request, slug) => {
@@ -2851,21 +2881,21 @@ const updateOwnerEvent = async (request, slug) => {
   try {
     body = await request.json()
   } catch {
-    return json({ error: 'Invalid JSON body' }, 400)
+    return jsonPrivate({ error: 'Invalid JSON body' }, 400)
   }
 
   let payload
   try {
     payload = updateEventSchema.parse(body)
   } catch (zodError) {
-    return json({ error: formatZodError(zodError) }, 400)
+    return jsonPrivate({ error: formatZodError(zodError) }, 400)
   }
 
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
 
   if (!event) {
-    return json({ error: 'Event not found' }, 404)
+    return jsonPrivate({ error: 'Event not found' }, 404)
   }
 
   if (payload.coverUrl === null && event.coverUrl) {
@@ -2877,7 +2907,7 @@ const updateOwnerEvent = async (request, slug) => {
   }
 
   const updatedEvent = await repository.updateEvent(slug, payload)
-  return json({ event: updatedEvent })
+  return jsonPrivate({ event: updatedEvent })
 }
 
 const deleteOwnerEvent = withTiming('deleteOwnerEvent', async (request, slug) => {
@@ -2893,7 +2923,7 @@ const deleteOwnerEvent = withTiming('deleteOwnerEvent', async (request, slug) =>
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
 
   if (!event) {
-    return json({ error: 'Event not found' }, 404)
+    return jsonPrivate({ error: 'Event not found' }, 404)
   }
 
   for (const photo of event.photos || []) {
@@ -2922,7 +2952,7 @@ const deleteOwnerEvent = withTiming('deleteOwnerEvent', async (request, slug) =>
   }
 
   await repository.deleteEvent(slug)
-  return json({ deleted: true })
+  return jsonPrivate({ deleted: true })
 })
 
 const moderateOwnerPhoto = async (request, photoId) => {
@@ -2939,11 +2969,11 @@ const moderateOwnerPhoto = async (request, photoId) => {
   const photo = await repository.setPhotoStatusByOwner(photoId, payload.action === 'approve' ? 'VISIBLE' : 'HIDDEN', ownerEmail)
 
   if (!photo) {
-    return json({ error: 'Photo not found' }, 404)
+    return jsonPrivate({ error: 'Photo not found' }, 404)
   }
 
   console.log(`[audit] Owner ${ownerEmail} ${payload.action}d photo ${photoId} in event ${photo.eventId}`)
-  return json({ photo })
+  return jsonPrivate({ photo })
 }
 
 const deleteOwnerPhoto = async (request, photoId) => {
@@ -2959,7 +2989,7 @@ const deleteOwnerPhoto = async (request, photoId) => {
   const photo = await repository.deletePhotoByOwner(photoId, ownerEmail)
 
   if (!photo) {
-    return json({ error: 'Photo not found' }, 404)
+    return jsonPrivate({ error: 'Photo not found' }, 404)
   }
 
   try {
@@ -2970,7 +3000,7 @@ const deleteOwnerPhoto = async (request, photoId) => {
   }
 
   console.log(`[audit] Owner ${ownerEmail} deleted photo ${photoId} from event ${photo.eventId}`)
-  return json({ deleted: true, photo })
+  return jsonPrivate({ deleted: true, photo })
 }
 
 export async function OPTIONS() {
