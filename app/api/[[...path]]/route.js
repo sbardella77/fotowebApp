@@ -260,6 +260,22 @@ const buildRateLimitResponse = (result) => {
   return response
 }
 
+// AUTH_CRITICAL-only: returned when checkRateLimit() reports backendError,
+// i.e. Redis is configured but failed at runtime for this check. Uses
+// jsonPrivate() (not json()) because every caller of this helper is a
+// SESSION_ONLY endpoint. Never exposes Redis/Upstash or the raw error.
+const buildRateLimitBackendErrorResponse = () => {
+  const response = jsonPrivate(
+    {
+      error: 'Authentication temporarily unavailable. Please try again shortly.',
+      code: 'rate_limit_backend_unavailable',
+    },
+    503,
+  )
+  response.headers.set('Retry-After', '30')
+  return response
+}
+
 const checkOwnerRateLimit = async (request, ownerEmail, limitConfig) => {
   const clientIp = getClientIp(request)
   if (limitConfig.owner && ownerEmail) {
@@ -2078,7 +2094,10 @@ const setupAdmin = async (request) => {
   }
 
   const clientIp = getClientIp(request)
-  const ipLimit = rateLimit(`admin-setup:ip:${clientIp}`, ADMIN_LIMITS.login.ip.max, ADMIN_LIMITS.login.ip.window)
+  const ipLimit = await checkRateLimit(`admin-setup:ip:${clientIp}`, ADMIN_LIMITS.login.ip.max, ADMIN_LIMITS.login.ip.window)
+  if (ipLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
   if (ipLimit.limited) {
     const response = jsonPrivate({ error: 'Too many attempts. Please try again later.', code: 'rate_limited', retryAfter: ipLimit.retryAfter }, 429)
     response.headers.set('Retry-After', String(ipLimit.retryAfter))
@@ -2102,7 +2121,10 @@ const loginAdmin = async (request) => {
   }
 
   const clientIp = getClientIp(request)
-  const ipLimit = rateLimit(`admin-login:ip:${clientIp}`, ADMIN_LIMITS.login.ip.max, ADMIN_LIMITS.login.ip.window)
+  const ipLimit = await checkRateLimit(`admin-login:ip:${clientIp}`, ADMIN_LIMITS.login.ip.max, ADMIN_LIMITS.login.ip.window)
+  if (ipLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
   if (ipLimit.limited) {
     const response = jsonPrivate({ error: 'Too many attempts. Please try again later.', code: 'rate_limited', retryAfter: ipLimit.retryAfter }, 429)
     response.headers.set('Retry-After', String(ipLimit.retryAfter))
@@ -2280,8 +2302,14 @@ const loginOwner = withTiming('loginOwner', async (request) => {
   }
 
   const clientIp = getClientIp(request)
-  const ipLimit = rateLimit(`session:ip:${clientIp}`, AUTH_LIMITS.session.ip.max, AUTH_LIMITS.session.ip.window)
-  const emailLimit = rateLimit(`session:email:${email}`, AUTH_LIMITS.session.email.max, AUTH_LIMITS.session.email.window)
+  const ipLimit = await checkRateLimit(`session:ip:${clientIp}`, AUTH_LIMITS.session.ip.max, AUTH_LIMITS.session.ip.window)
+  if (ipLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
+  const emailLimit = await checkRateLimit(`session:email:${email}`, AUTH_LIMITS.session.email.max, AUTH_LIMITS.session.email.window)
+  if (emailLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
   if (ipLimit.limited || emailLimit.limited) {
     return jsonPrivate({ error: 'Too many attempts. Please try again later.' }, 429)
   }
@@ -2372,8 +2400,14 @@ const resendOwnerAccess = async (request) => {
   }
 
   const clientIp = getClientIp(request)
-  const ipLimit = rateLimit(`resend:ip:${clientIp}`, AUTH_LIMITS.resend.ip.max, AUTH_LIMITS.resend.ip.window)
-  const emailLimit = rateLimit(`resend:email:${email}`, AUTH_LIMITS.resend.email.max, AUTH_LIMITS.resend.email.window)
+  const ipLimit = await checkRateLimit(`resend:ip:${clientIp}`, AUTH_LIMITS.resend.ip.max, AUTH_LIMITS.resend.ip.window)
+  if (ipLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
+  const emailLimit = await checkRateLimit(`resend:email:${email}`, AUTH_LIMITS.resend.email.max, AUTH_LIMITS.resend.email.window)
+  if (emailLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
   if (ipLimit.limited || emailLimit.limited) {
     const retryAfter = Math.max(ipLimit.retryAfter || 0, emailLimit.retryAfter || 0)
     const response = jsonPrivate({ error: 'Too many attempts. Please try again later.' }, 429)
@@ -2521,8 +2555,14 @@ const loginOwnerWithPassword = async (request) => {
   }
 
   const clientIp = getClientIp(request)
-  const ipLimit = rateLimit(`login:ip:${clientIp}`, AUTH_LIMITS.login.ip.max, AUTH_LIMITS.login.ip.window)
-  const emailLimit = rateLimit(`login:email:${email}`, AUTH_LIMITS.login.email.max, AUTH_LIMITS.login.email.window)
+  const ipLimit = await checkRateLimit(`login:ip:${clientIp}`, AUTH_LIMITS.login.ip.max, AUTH_LIMITS.login.ip.window)
+  if (ipLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
+  const emailLimit = await checkRateLimit(`login:email:${email}`, AUTH_LIMITS.login.email.max, AUTH_LIMITS.login.email.window)
+  if (emailLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
   if (ipLimit.limited || emailLimit.limited) {
     trackServerEvent(EVENT_RATE_LIMIT_HIT, { reason: 'owner_login', client_ip: clientIp }, { distinctId: clientIp })
     return jsonPrivate({ error: 'Too many attempts. Please try again later.' }, 429)
@@ -2577,8 +2617,14 @@ const forgotOwnerPassword = async (request) => {
   }
 
   const clientIp = getClientIp(request)
-  const ipLimit = rateLimit(`forgot:ip:${clientIp}`, AUTH_LIMITS.forgotPassword.ip.max, AUTH_LIMITS.forgotPassword.ip.window)
-  const emailLimit = rateLimit(`forgot:email:${email}`, AUTH_LIMITS.forgotPassword.email.max, AUTH_LIMITS.forgotPassword.email.window)
+  const ipLimit = await checkRateLimit(`forgot:ip:${clientIp}`, AUTH_LIMITS.forgotPassword.ip.max, AUTH_LIMITS.forgotPassword.ip.window)
+  if (ipLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
+  const emailLimit = await checkRateLimit(`forgot:email:${email}`, AUTH_LIMITS.forgotPassword.email.max, AUTH_LIMITS.forgotPassword.email.window)
+  if (emailLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
   if (ipLimit.limited || emailLimit.limited) {
     return jsonPrivate({ error: 'Too many attempts. Please try again later.' }, 429)
   }
@@ -2669,8 +2715,14 @@ const resetOwnerPassword = async (request) => {
   }
 
   const clientIp = getClientIp(request)
-  const ipLimit = rateLimit(`reset:ip:${clientIp}`, AUTH_LIMITS.reset.ip.max, AUTH_LIMITS.reset.ip.window)
-  const tokenLimit = rateLimit(`reset:token:${hashPasswordResetToken(token)}`, 10, 15 * 60 * 1000)
+  const ipLimit = await checkRateLimit(`reset:ip:${clientIp}`, AUTH_LIMITS.reset.ip.max, AUTH_LIMITS.reset.ip.window)
+  if (ipLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
+  const tokenLimit = await checkRateLimit(`reset:token:${hashPasswordResetToken(token)}`, 10, 15 * 60 * 1000)
+  if (tokenLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
   if (ipLimit.limited || tokenLimit.limited) {
     return jsonPrivate({ error: 'Too many attempts. Please try again later.' }, 429)
   }
@@ -2796,8 +2848,14 @@ const setupOwnerPassword = async (request) => {
   }
 
   const clientIp = getClientIp(request)
-  const ipLimit = rateLimit(`setup:ip:${clientIp}`, AUTH_LIMITS.setup.ip.max, AUTH_LIMITS.setup.ip.window)
-  const tokenLimit = rateLimit(`setup:token:${hashPasswordResetToken(token)}`, 10, 15 * 60 * 1000)
+  const ipLimit = await checkRateLimit(`setup:ip:${clientIp}`, AUTH_LIMITS.setup.ip.max, AUTH_LIMITS.setup.ip.window)
+  if (ipLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
+  const tokenLimit = await checkRateLimit(`setup:token:${hashPasswordResetToken(token)}`, 10, 15 * 60 * 1000)
+  if (tokenLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
   if (ipLimit.limited || tokenLimit.limited) {
     trackServerEvent(EVENT_RATE_LIMIT_HIT, { reason: 'setup_password', client_ip: clientIp }, { distinctId: clientIp })
     return jsonPrivate({ error: 'Too many attempts. Please try again later.' }, 429)
