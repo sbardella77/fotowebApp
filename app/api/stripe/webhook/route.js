@@ -152,7 +152,7 @@ export async function POST(request) {
       prisma,
       eventId: stripeEventId,
       attempt: processingAttempt,
-      run: () => handleInvoicePaymentFailed({ event, prisma }),
+      run: () => handleInvoicePaymentFailed({ event, prisma, attempt: processingAttempt }),
     })
   }
 
@@ -161,7 +161,7 @@ export async function POST(request) {
       prisma,
       eventId: stripeEventId,
       attempt: processingAttempt,
-      run: () => handleInvoicePaymentSucceeded({ event, prisma }),
+      run: () => handleInvoicePaymentSucceeded({ event, prisma, attempt: processingAttempt }),
     })
   }
 }
@@ -666,54 +666,58 @@ async function handleSubscriptionDeleted({ event, prisma, attempt }) {
 
 // ── invoice.payment_failed ──
 // Professional payment failed: enter past_due with a grace period.
-async function handleInvoicePaymentFailed({ event, prisma }) {
+async function handleInvoicePaymentFailed({ event, prisma, attempt }) {
   const invoice = event.data.object
   const subscriptionId = invoice.subscription
   const customerId = invoice.customer
 
+  const owner = await prisma.owner.findFirst({
+    where: {
+      OR: [
+        { stripeSubscriptionId: subscriptionId || '' },
+        { stripeCustomerId: customerId || '' },
+      ],
+    },
+  })
+
+  if (!owner) {
+    // Nothing to write, so nothing to make atomic: the wrapper's standalone
+    // markStripeWebhookEventProcessed on this legacy response is already
+    // correct and sufficient.
+    console.warn('[stripe/webhook] Owner not found for failed invoice:', { subscriptionId, customerId })
+    await sendOpsAlert({
+      severity: 'warning',
+      type: 'billing:webhook:invoice_failed_owner_not_found',
+      title: 'Owner not found for invoice.payment_failed',
+      message: `Could not match failed invoice to an owner.`,
+      context: { stripeEventId: event?.id, stripeInvoiceId: invoice.id, subscriptionId, customerId },
+    })
+    return NextResponse.json({ received: true })
+  }
+
+  // Idempotency: skip if we already recorded this exact invoice as failed.
+  // Key on invoice ID + paymentFailedAt so retries are deduplicated even if
+  // subscriptionStatus has changed in the meantime. Same standalone-
+  // finalization reasoning: no write happens on this path.
+  if (isPaymentFailureAlreadyHandled(owner, invoice)) {
+    console.log(`[stripe/webhook] Failed invoice ${invoice.id} already recorded for owner ${owner.email}`)
+    return NextResponse.json({ received: true, duplicate: true })
+  }
+
+  const updateData = buildPaymentFailedUpdate(invoice)
+
   try {
-    const owner = await prisma.owner.findFirst({
-      where: {
-        OR: [
-          { stripeSubscriptionId: subscriptionId || '' },
-          { stripeCustomerId: customerId || '' },
-        ],
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.owner.update({ where: { id: owner.id }, data: updateData })
+      await markStripeWebhookEventProcessed({ prisma: tx, eventId: event.id, attempt })
     })
-
-    if (!owner) {
-      console.warn('[stripe/webhook] Owner not found for failed invoice:', { subscriptionId, customerId })
-      await sendOpsAlert({
-        severity: 'warning',
-        type: 'billing:webhook:invoice_failed_owner_not_found',
-        title: 'Owner not found for invoice.payment_failed',
-        message: `Could not match failed invoice to an owner.`,
-        context: { stripeEventId: event?.id, stripeInvoiceId: invoice.id, subscriptionId, customerId },
-      })
-      return NextResponse.json({ received: true })
-    }
-
-    // Idempotency: skip if we already recorded this exact invoice as failed.
-    // Key on invoice ID + paymentFailedAt so retries are deduplicated even if
-    // subscriptionStatus has changed in the meantime.
-    if (isPaymentFailureAlreadyHandled(owner, invoice)) {
-      console.log(`[stripe/webhook] Failed invoice ${invoice.id} already recorded for owner ${owner.email}`)
-      return NextResponse.json({ received: true, duplicate: true })
-    }
-
-    const updateData = buildPaymentFailedUpdate(invoice)
-    await prisma.owner.update({
-      where: { id: owner.id },
-      data: updateData,
-    })
-
-    const access = resolveSubscriptionAccessState({ ...owner, ...updateData })
-    console.log(
-      `[stripe/webhook] Owner ${owner.email} payment failed (invoice: ${invoice.id}, grace active: ${access.graceActive})`
-    )
-
-    await sendProfessionalPaymentFailedEmail({ owner, billingState: access, appUrl: getAppUrl() })
   } catch (dbError) {
+    if (dbError instanceof StripeWebhookFencingError) {
+      // Another worker already reclaimed this delivery; Prisma already
+      // rolled back the owner write above. Let the wrapper handle it
+      // (503, no markFailed with this now-stale attempt).
+      throw dbError
+    }
     console.error('[stripe/webhook] Failed to handle payment failure:', dbError)
     await sendOpsAlert({
       severity: 'warning',
@@ -730,62 +734,70 @@ async function handleInvoicePaymentFailed({ event, prisma }) {
     return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
   }
 
-  return NextResponse.json({ received: true })
+  const access = resolveSubscriptionAccessState({ ...owner, ...updateData })
+  console.log(
+    `[stripe/webhook] Owner ${owner.email} payment failed (invoice: ${invoice.id}, grace active: ${access.graceActive})`
+  )
+
+  await sendProfessionalPaymentFailedEmail({ owner, billingState: access, appUrl: getAppUrl() })
+
+  return {
+    kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
+    response: NextResponse.json({ received: true }),
+  }
 }
 
 // ── invoice.payment_succeeded ──
 // Subscription payment recovered: restore active state.
-async function handleInvoicePaymentSucceeded({ event, prisma }) {
+async function handleInvoicePaymentSucceeded({ event, prisma, attempt }) {
   const invoice = event.data.object
   const subscriptionId = invoice.subscription
   const customerId = invoice.customer
 
-  // Only handle subscription invoices, not one-time event upgrades.
+  // Only handle subscription invoices, not one-time event upgrades. Nothing
+  // to write, so nothing to make atomic.
   if (!subscriptionId) {
     return NextResponse.json({ received: true })
   }
 
+  const owner = await prisma.owner.findFirst({
+    where: {
+      OR: [
+        { stripeSubscriptionId: subscriptionId || '' },
+        { stripeCustomerId: customerId || '' },
+      ],
+    },
+  })
+
+  if (!owner) {
+    console.warn('[stripe/webhook] Owner not found for successful invoice:', { subscriptionId, customerId })
+    await sendOpsAlert({
+      severity: 'warning',
+      type: 'billing:webhook:invoice_succeeded_owner_not_found',
+      title: 'Owner not found for invoice.payment_succeeded',
+      message: `Could not match successful subscription invoice to an owner.`,
+      context: { stripeEventId: event?.id, stripeInvoiceId: invoice.id, subscriptionId, customerId },
+    })
+    return NextResponse.json({ received: true })
+  }
+
+  // Only send a "payment recovered" email when this success resolves a
+  // previous failure or past_due/unpaid state. Normal monthly renewals
+  // should stay silent.
+  const wasRecoverable =
+    !!owner.paymentFailedAt ||
+    owner.subscriptionStatus === 'past_due' ||
+    owner.subscriptionStatus === 'unpaid'
+
   try {
-    const owner = await prisma.owner.findFirst({
-      where: {
-        OR: [
-          { stripeSubscriptionId: subscriptionId || '' },
-          { stripeCustomerId: customerId || '' },
-        ],
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.owner.update({ where: { id: owner.id }, data: buildPaymentSucceededUpdate(invoice) })
+      await markStripeWebhookEventProcessed({ prisma: tx, eventId: event.id, attempt })
     })
-
-    if (!owner) {
-      console.warn('[stripe/webhook] Owner not found for successful invoice:', { subscriptionId, customerId })
-      await sendOpsAlert({
-        severity: 'warning',
-        type: 'billing:webhook:invoice_succeeded_owner_not_found',
-        title: 'Owner not found for invoice.payment_succeeded',
-        message: `Could not match successful subscription invoice to an owner.`,
-        context: { stripeEventId: event?.id, stripeInvoiceId: invoice.id, subscriptionId, customerId },
-      })
-      return NextResponse.json({ received: true })
-    }
-
-    // Only send a "payment recovered" email when this success resolves a
-    // previous failure or past_due/unpaid state. Normal monthly renewals
-    // should stay silent.
-    const wasRecoverable =
-      !!owner.paymentFailedAt ||
-      owner.subscriptionStatus === 'past_due' ||
-      owner.subscriptionStatus === 'unpaid'
-
-    await prisma.owner.update({
-      where: { id: owner.id },
-      data: buildPaymentSucceededUpdate(invoice),
-    })
-
-    if (wasRecoverable) {
-      await sendProfessionalPaymentRecoveredEmail({ owner, appUrl: getAppUrl() })
-    }
-
-    console.log('[stripe/webhook] Owner payment succeeded, subscription restored:', owner.email)
   } catch (dbError) {
+    if (dbError instanceof StripeWebhookFencingError) {
+      throw dbError
+    }
     console.error('[stripe/webhook] Failed to handle payment success:', dbError)
     await sendOpsAlert({
       severity: 'warning',
@@ -802,7 +814,16 @@ async function handleInvoicePaymentSucceeded({ event, prisma }) {
     return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
   }
 
-  return NextResponse.json({ received: true })
+  if (wasRecoverable) {
+    await sendProfessionalPaymentRecoveredEmail({ owner, appUrl: getAppUrl() })
+  }
+
+  console.log('[stripe/webhook] Owner payment succeeded, subscription restored:', owner.email)
+
+  return {
+    kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
+    response: NextResponse.json({ received: true }),
+  }
 }
 
 // ── Helper: Extra Free Event credit fulfillment ──

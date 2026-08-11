@@ -266,17 +266,19 @@ describe('Stripe webhook claim/receipt wiring', () => {
   })
 
   it('I: markProcessed generic failure never returns the original 2xx', async () => {
-    // Uses invoice.payment_succeeded (still on the legacy, non-atomic
-    // contract as of STEP 4.3) specifically to exercise the wrapper's own
-    // external markProcessed-failure branch — subscription.updated/deleted
-    // no longer call markProcessed externally, so they can't drive this path.
-    const stripeEvent = buildStripeEvent('invoice.payment_succeeded', { id: 'in_1', subscription: 'sub_1', customer: 'cus_1', status: 'paid' })
+    // Uses checkout.session.completed/professional — the only handled
+    // branch still on the legacy, non-atomic contract as of STEP 4.4 — to
+    // exercise the wrapper's own external markProcessed-failure branch.
+    // subscription.updated/deleted (STEP 4.3) and both invoice handlers
+    // (STEP 4.4) now finalize inside their own transaction, so they can no
+    // longer drive this path.
+    const session = buildCheckoutSession({ intent: 'professional' })
+    const stripeEvent = buildStripeEvent('checkout.session.completed', session)
     mockConstructEvent(stripeEvent)
     claimStripeWebhookEvent.mockResolvedValue({ action: StripeWebhookClaimAction.PROCESS, receipt: { attempts: 1 } })
     markStripeWebhookEventProcessed.mockRejectedValue(new Error('db blip'))
 
     const prisma = createBusinessPrismaMock()
-    prisma.owner.findFirst.mockResolvedValue({ id: 'owner-1', email: 'o@example.com' })
     getPrismaClient.mockResolvedValue(prisma)
 
     const response = await POST(createWebhookRequest())
