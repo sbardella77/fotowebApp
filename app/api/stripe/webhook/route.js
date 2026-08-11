@@ -32,8 +32,13 @@ import {
   EXTRA_FREE_EVENT_AUTO_CREATE_SUCCESS,
 } from '@/lib/analytics/events'
 import { sendOpsAlert } from '@/lib/server/ops-alerts'
-import { claimStripeWebhookEvent, StripeWebhookClaimAction } from '@/lib/server/stripe-webhook-receipt'
-import { processClaimedStripeWebhookEvent } from '@/lib/server/stripe-webhook-wrapper'
+import {
+  claimStripeWebhookEvent,
+  markStripeWebhookEventProcessed,
+  StripeWebhookClaimAction,
+  StripeWebhookFencingError,
+} from '@/lib/server/stripe-webhook-receipt'
+import { processClaimedStripeWebhookEvent, StripeWebhookRunOutcome } from '@/lib/server/stripe-webhook-wrapper'
 
 export const dynamic = 'force-dynamic'
 
@@ -129,7 +134,7 @@ export async function POST(request) {
       prisma,
       eventId: stripeEventId,
       attempt: processingAttempt,
-      run: () => handleSubscriptionUpdated({ event, prisma }),
+      run: () => handleSubscriptionUpdated({ event, prisma, attempt: processingAttempt }),
     })
   }
 
@@ -138,7 +143,7 @@ export async function POST(request) {
       prisma,
       eventId: stripeEventId,
       attempt: processingAttempt,
-      run: () => handleSubscriptionDeleted({ event, prisma }),
+      run: () => handleSubscriptionDeleted({ event, prisma, attempt: processingAttempt }),
     })
   }
 
@@ -505,62 +510,52 @@ async function handleCheckoutSessionCompleted({ event, prisma }) {
 
 // ── customer.subscription.updated ──
 // Handle status changes and scheduled cancellations for Professional subscriptions
-async function handleSubscriptionUpdated({ event, prisma }) {
+async function handleSubscriptionUpdated({ event, prisma, attempt }) {
   const subscription = event.data.object
   const subscriptionId = subscription.id
   const status = subscription.status
   const cancelAtPeriodEnd = subscription.cancel_at_period_end === true
   const currentPeriodEnd = subscription.current_period_end
 
+  const owner = await prisma.owner.findFirst({
+    where: { stripeSubscriptionId: subscriptionId },
+  })
+
+  if (!owner) {
+    // Nothing to write, so nothing to make atomic: the wrapper's standalone
+    // markStripeWebhookEventProcessed on this legacy response is already
+    // correct and sufficient.
+    console.warn('[stripe/webhook] Owner not found for subscription:', subscriptionId)
+    await sendOpsAlert({
+      severity: 'warning',
+      type: 'billing:webhook:subscription_owner_not_found',
+      title: 'Owner not found for subscription update',
+      message: `Stripe subscription ${subscriptionId} could not be matched to an owner.`,
+      context: { stripeEventId: event?.id, stripeSubscriptionId: subscriptionId, status },
+    })
+    return NextResponse.json({ received: true })
+  }
+
+  const wasScheduled = owner.subscriptionCancelAtPeriodEnd === true
+  const hadSamePeriodEnd =
+    owner.subscriptionCurrentPeriodEnd &&
+    currentPeriodEnd &&
+    new Date(owner.subscriptionCurrentPeriodEnd).getTime() === new Date(currentPeriodEnd * 1000).getTime()
+
+  const updateData = buildSubscriptionUpdatedData({ subscription, owner })
+
   try {
-    const owner = await prisma.owner.findFirst({
-      where: { stripeSubscriptionId: subscriptionId },
+    await prisma.$transaction(async (tx) => {
+      await tx.owner.update({ where: { id: owner.id }, data: updateData })
+      await markStripeWebhookEventProcessed({ prisma: tx, eventId: event.id, attempt })
     })
-
-    if (!owner) {
-      console.warn('[stripe/webhook] Owner not found for subscription:', subscriptionId)
-      await sendOpsAlert({
-        severity: 'warning',
-        type: 'billing:webhook:subscription_owner_not_found',
-        title: 'Owner not found for subscription update',
-        message: `Stripe subscription ${subscriptionId} could not be matched to an owner.`,
-        context: { stripeEventId: event?.id, stripeSubscriptionId: subscriptionId, status },
-      })
-      return NextResponse.json({ received: true })
-    }
-
-    const wasScheduled = owner.subscriptionCancelAtPeriodEnd === true
-    const hadSamePeriodEnd =
-      owner.subscriptionCurrentPeriodEnd &&
-      currentPeriodEnd &&
-      new Date(owner.subscriptionCurrentPeriodEnd).getTime() === new Date(currentPeriodEnd * 1000).getTime()
-
-    const updateData = buildSubscriptionUpdatedData({ subscription, owner })
-    await prisma.owner.update({
-      where: { id: owner.id },
-      data: updateData,
-    })
-    console.log(
-      `[stripe/webhook] Owner ${owner.email} subscription updated (status: ${status}, plan: ${updateData.plan}, cancelAtPeriodEnd: ${cancelAtPeriodEnd})`
-    )
-
-    const appUrl = getAppUrl()
-
-    if (cancelAtPeriodEnd && (!wasScheduled || !hadSamePeriodEnd)) {
-      await sendProfessionalCancellationScheduledEmail({
-        owner,
-        currentPeriodEnd: currentPeriodEnd ? new Date(currentPeriodEnd * 1000) : null,
-        appUrl,
-      })
-    }
-
-    if (!cancelAtPeriodEnd && wasScheduled) {
-      // Reactivation: cancellation schedule was removed (e.g. via Customer Portal).
-      // For V1 we only clear the dashboard state; an optional reactivation email
-      // can be added later.
-      console.log(`[stripe/webhook] Owner ${owner.email} cancellation schedule removed`)
-    }
   } catch (dbError) {
+    if (dbError instanceof StripeWebhookFencingError) {
+      // Another worker already reclaimed this delivery; Prisma already
+      // rolled back the owner write above. Let the wrapper handle it
+      // (503, no markFailed with this now-stale attempt).
+      throw dbError
+    }
     console.error('[stripe/webhook] Failed to handle subscription update:', dbError)
     await sendOpsAlert({
       severity: 'critical',
@@ -577,51 +572,72 @@ async function handleSubscriptionUpdated({ event, prisma }) {
     return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
   }
 
-  return NextResponse.json({ received: true })
+  console.log(
+    `[stripe/webhook] Owner ${owner.email} subscription updated (status: ${status}, plan: ${updateData.plan}, cancelAtPeriodEnd: ${cancelAtPeriodEnd})`
+  )
+
+  const appUrl = getAppUrl()
+
+  if (cancelAtPeriodEnd && (!wasScheduled || !hadSamePeriodEnd)) {
+    await sendProfessionalCancellationScheduledEmail({
+      owner,
+      currentPeriodEnd: currentPeriodEnd ? new Date(currentPeriodEnd * 1000) : null,
+      appUrl,
+    })
+  }
+
+  if (!cancelAtPeriodEnd && wasScheduled) {
+    // Reactivation: cancellation schedule was removed (e.g. via Customer Portal).
+    // For V1 we only clear the dashboard state; an optional reactivation email
+    // can be added later.
+    console.log(`[stripe/webhook] Owner ${owner.email} cancellation schedule removed`)
+  }
+
+  return {
+    kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
+    response: NextResponse.json({ received: true }),
+  }
 }
 
 // ── customer.subscription.deleted ──
 // Professional subscription fully ended
-async function handleSubscriptionDeleted({ event, prisma }) {
+async function handleSubscriptionDeleted({ event, prisma, attempt }) {
   const subscription = event.data.object
   const subscriptionId = subscription.id
 
+  const owner = await prisma.owner.findFirst({
+    where: { stripeSubscriptionId: subscriptionId },
+  })
+
+  if (!owner) {
+    // Nothing to write, so nothing to make atomic: the wrapper's standalone
+    // markStripeWebhookEventProcessed on this legacy response is already
+    // correct and sufficient.
+    console.warn('[stripe/webhook] Owner not found for deleted subscription:', subscriptionId)
+    await sendOpsAlert({
+      severity: 'warning',
+      type: 'billing:webhook:subscription_deleted_owner_not_found',
+      title: 'Owner not found for subscription deletion',
+      message: `Stripe subscription ${subscriptionId} could not be matched to an owner.`,
+      context: { stripeEventId: event?.id, stripeSubscriptionId: subscriptionId },
+    })
+    return NextResponse.json({ received: true })
+  }
+
+  // Avoid duplicate cancellation emails if Stripe retries while the owner
+  // is already marked as canceled.
+  const wasAlreadyCanceled = owner.subscriptionStatus === 'canceled'
+  const cancellationWasScheduled = owner.subscriptionCancelAtPeriodEnd === true
+
   try {
-    const owner = await prisma.owner.findFirst({
-      where: { stripeSubscriptionId: subscriptionId },
+    await prisma.$transaction(async (tx) => {
+      await tx.owner.update({ where: { id: owner.id }, data: buildSubscriptionDeletedData() })
+      await markStripeWebhookEventProcessed({ prisma: tx, eventId: event.id, attempt })
     })
-
-    if (!owner) {
-      console.warn('[stripe/webhook] Owner not found for deleted subscription:', subscriptionId)
-      await sendOpsAlert({
-        severity: 'warning',
-        type: 'billing:webhook:subscription_deleted_owner_not_found',
-        title: 'Owner not found for subscription deletion',
-        message: `Stripe subscription ${subscriptionId} could not be matched to an owner.`,
-        context: { stripeEventId: event?.id, stripeSubscriptionId: subscriptionId },
-      })
-      return NextResponse.json({ received: true })
-    }
-
-    // Avoid duplicate cancellation emails if Stripe retries while the owner
-    // is already marked as canceled.
-    const wasAlreadyCanceled = owner.subscriptionStatus === 'canceled'
-    const cancellationWasScheduled = owner.subscriptionCancelAtPeriodEnd === true
-
-    await prisma.owner.update({
-      where: { id: owner.id },
-      data: buildSubscriptionDeletedData(),
-    })
-
-    // If the user canceled at period end, the scheduled-cancellation email was
-    // already sent when cancel_at_period_end became true. Send the final
-    // cancellation email only for immediate cancellations or legacy cases.
-    if (!wasAlreadyCanceled && !cancellationWasScheduled) {
-      await sendProfessionalCanceledEmail({ owner, appUrl: getAppUrl() })
-    }
-
-    console.log('[stripe/webhook] Owner downgraded to free after subscription deletion:', owner.email)
   } catch (dbError) {
+    if (dbError instanceof StripeWebhookFencingError) {
+      throw dbError
+    }
     console.error('[stripe/webhook] Failed to handle subscription deletion:', dbError)
     await sendOpsAlert({
       severity: 'critical',
@@ -633,7 +649,19 @@ async function handleSubscriptionDeleted({ event, prisma }) {
     return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
   }
 
-  return NextResponse.json({ received: true })
+  // If the user canceled at period end, the scheduled-cancellation email was
+  // already sent when cancel_at_period_end became true. Send the final
+  // cancellation email only for immediate cancellations or legacy cases.
+  if (!wasAlreadyCanceled && !cancellationWasScheduled) {
+    await sendProfessionalCanceledEmail({ owner, appUrl: getAppUrl() })
+  }
+
+  console.log('[stripe/webhook] Owner downgraded to free after subscription deletion:', owner.email)
+
+  return {
+    kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
+    response: NextResponse.json({ received: true }),
+  }
 }
 
 // ── invoice.payment_failed ──

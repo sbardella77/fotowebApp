@@ -266,7 +266,11 @@ describe('Stripe webhook claim/receipt wiring', () => {
   })
 
   it('I: markProcessed generic failure never returns the original 2xx', async () => {
-    const stripeEvent = buildStripeEvent('customer.subscription.updated', { id: 'sub_1', status: 'active' })
+    // Uses invoice.payment_succeeded (still on the legacy, non-atomic
+    // contract as of STEP 4.3) specifically to exercise the wrapper's own
+    // external markProcessed-failure branch — subscription.updated/deleted
+    // no longer call markProcessed externally, so they can't drive this path.
+    const stripeEvent = buildStripeEvent('invoice.payment_succeeded', { id: 'in_1', subscription: 'sub_1', customer: 'cus_1', status: 'paid' })
     mockConstructEvent(stripeEvent)
     claimStripeWebhookEvent.mockResolvedValue({ action: StripeWebhookClaimAction.PROCESS, receipt: { attempts: 1 } })
     markStripeWebhookEventProcessed.mockRejectedValue(new Error('db blip'))
