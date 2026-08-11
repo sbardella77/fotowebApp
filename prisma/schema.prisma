@@ -30,6 +30,13 @@ enum BlobUploadSessionStatus {
   EXPIRED_CLEANED
 }
 
+enum StripeWebhookEventStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
 model Owner {
   id                            String                    @id @default(uuid())
   email                         String                    @unique
@@ -287,4 +294,22 @@ model BlobUploadSession {
   @@index([eventSlug])
   @@index([status, expiresAt])
   @@index([uploadKind, status])
+}
+
+model StripeWebhookEvent {
+  id        String                   @id @default(cuid())
+  eventId   String                   @unique
+  eventType String
+  status    StripeWebhookEventStatus @default(PENDING)
+
+  attempts  Int     @default(0)
+  lastError String?
+
+  receivedAt          DateTime  @default(now())
+  processingStartedAt DateTime?
+  processedAt         DateTime?
+
+  updatedAt DateTime @updatedAt
+
+  @@index([status, processingStartedAt])
 }
