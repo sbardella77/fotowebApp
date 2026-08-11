@@ -314,7 +314,7 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
 
     if (pendingCheckout) {
       if (postPurchaseAction === 'create_event') {
-        return await fulfillExtraFreeEventBuyAndCreate({ prisma, session, ownerId, intent })
+        return await fulfillExtraFreeEventBuyAndCreate({ prisma, session, ownerId, intent, stripeEventId, attempt })
       }
       return await fulfillExtraFreeEventCreditCanonical({ prisma, session, ownerId, intent, pendingCheckout, stripeEventId, attempt })
     }
@@ -1141,7 +1141,7 @@ async function fulfillExtraFreeEventCreditCanonical({ prisma, session, ownerId, 
 }
 
 // ── Helper: "buy and create" auto-creation ──
-async function fulfillExtraFreeEventBuyAndCreate({ prisma, session, ownerId, intent }) {
+async function fulfillExtraFreeEventBuyAndCreate({ prisma, session, ownerId, intent, stripeEventId, attempt }) {
   const pendingCheckoutId = session.metadata?.pendingCheckoutId
   if (!pendingCheckoutId) {
     return NextResponse.json({ received: true })
@@ -1229,6 +1229,8 @@ async function fulfillExtraFreeEventBuyAndCreate({ prisma, session, ownerId, int
         },
       })
 
+      await markStripeWebhookEventProcessed({ prisma: tx, eventId: stripeEventId, attempt })
+
       return { event, updatedPending }
     })
 
@@ -1284,7 +1286,21 @@ async function fulfillExtraFreeEventBuyAndCreate({ prisma, session, ownerId, int
       event: result.event,
       appUrl: getAppUrl(),
     })
+
+    return {
+      kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
+      response: NextResponse.json({ received: true }),
+    }
   } catch (error) {
+    if (error instanceof StripeWebhookFencingError) {
+      // Another worker already reclaimed this delivery; Prisma already
+      // rolled back the Event/association/pendingCheckout writes above.
+      // This worker lost its claim and is no longer authorized to grant a
+      // compensating credit, so the fallback must NOT run here. Let the
+      // wrapper handle it (503, no markFailed with this now-stale attempt).
+      throw error
+    }
+
     console.error('[stripe/webhook] Auto-create event failed, granting fallback credit:', {
       pendingCheckoutId: pending.id,
       sessionId: session.id,
