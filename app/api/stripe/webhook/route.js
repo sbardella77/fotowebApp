@@ -326,87 +326,66 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
       return NextResponse.json({ received: true })
     }
 
+    // `eventId` above is the SnapRooms gallery Event id from checkout
+    // metadata; `stripeEventId` is the Stripe webhook event id used to
+    // fence the receipt — kept explicitly distinct within this branch.
+    const stripeEventId = event.id
+
+    // Idempotency: skip if this exact session already fulfilled
+    const existing = await prisma.event.findFirst({
+      where: { id: eventId, stripeCheckoutSessionId: session.id },
+    })
+    if (existing) {
+      console.log(`[stripe/webhook] Event ${existing.slug} already fulfilled for session ${session.id}`)
+      return NextResponse.json({ received: true })
+    }
+
+    const eventBeforeUpdate = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: { billingTier: true },
+    })
+    if (eventBeforeUpdate?.billingTier === intent) {
+      console.log(`[stripe/webhook] Event ${eventId} already has billingTier=${intent}, skipping`)
+      return NextResponse.json({ received: true })
+    }
+    if (intent === 'pro_event' && eventBeforeUpdate?.billingTier === 'wedding_pro') {
+      console.log(`[stripe/webhook] Event ${eventId} is already Wedding Pro, skipping pro_event downgrade`)
+      return NextResponse.json({ received: true })
+    }
+
+    let updatedEvent
     try {
-      // Idempotency: skip if this exact session already fulfilled
-      const existing = await prisma.event.findFirst({
-        where: { id: eventId, stripeCheckoutSessionId: session.id },
+      await prisma.$transaction(async (tx) => {
+        updatedEvent = await tx.event.update({
+          where: { id: eventId },
+          data: {
+            billingTier: intent,
+            stripeCheckoutSessionId: session.id,
+            billingPurchasedAt: new Date(),
+          },
+        })
+
+        await tx.upsellEvent.create({
+          data: {
+            eventName: EVENT_UPSELL_CONVERSION,
+            upsellType: session.metadata?.upsellType || intent,
+            source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
+            ctaPlan: intent,
+            ownerId: ownerId || null,
+            eventId: eventId || null,
+            eventSlug: session.metadata?.roomSlug || null,
+          },
+        })
+
+        await markStripeWebhookEventProcessed({ prisma: tx, eventId: stripeEventId, attempt })
       })
-      if (existing) {
-        console.log(`[stripe/webhook] Event ${existing.slug} already fulfilled for session ${session.id}`)
-        return NextResponse.json({ received: true })
-      }
-
-      const eventBeforeUpdate = await prisma.event.findUnique({
-        where: { id: eventId },
-        select: { billingTier: true },
-      })
-      if (eventBeforeUpdate?.billingTier === intent) {
-        console.log(`[stripe/webhook] Event ${eventId} already has billingTier=${intent}, skipping`)
-        return NextResponse.json({ received: true })
-      }
-      if (intent === 'pro_event' && eventBeforeUpdate?.billingTier === 'wedding_pro') {
-        console.log(`[stripe/webhook] Event ${eventId} is already Wedding Pro, skipping pro_event downgrade`)
-        return NextResponse.json({ received: true })
-      }
-
-      const updatedEvent = await prisma.event.update({
-        where: { id: eventId },
-        data: {
-          billingTier: intent,
-          stripeCheckoutSessionId: session.id,
-          billingPurchasedAt: new Date(),
-        },
-      })
-
-      const appUrl = getAppUrl()
-      if (intent === 'wedding_pro') {
-        await sendWeddingProPurchasedEmail({ owner: { id: ownerId, email: session.metadata?.ownerEmail }, event: updatedEvent, appUrl })
-      } else {
-        await sendProEventPurchasedEmail({ owner: { id: ownerId, email: session.metadata?.ownerEmail }, event: updatedEvent, appUrl })
-      }
-
-      trackServerEvent(
-        EVENT_CHECKOUT_COMPLETED,
-        {
-          owner_id: ownerId,
-          billing_intent: intent,
-          event_id: eventId,
-          room_slug: session.metadata?.roomSlug || null,
-          stripe_session_id: session.id,
-          stripe_customer_id: session.customer,
-        },
-        { distinctId: session.metadata?.ownerEmail || ownerId }
-      )
-
-      trackServerEvent(
-        EVENT_UPSELL_CONVERSION,
-        {
-          owner_id: ownerId,
-          billing_intent: intent,
-          upsell_type: session.metadata?.upsellType || intent,
-          source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
-          event_id: eventId,
-          room_slug: session.metadata?.roomSlug || null,
-          stripe_session_id: session.id,
-          stripe_customer_id: session.customer,
-        },
-        { distinctId: session.metadata?.ownerEmail || ownerId }
-      )
-
-      await prisma.upsellEvent.create({
-        data: {
-          eventName: EVENT_UPSELL_CONVERSION,
-          upsellType: session.metadata?.upsellType || intent,
-          source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
-          ctaPlan: intent,
-          ownerId: ownerId || null,
-          eventId: eventId || null,
-          eventSlug: session.metadata?.roomSlug || null,
-        },
-      })
-
-      console.log(`[stripe/webhook] Event ${updatedEvent.slug} upgraded to ${intent}`)
     } catch (dbError) {
+      if (dbError instanceof StripeWebhookFencingError) {
+        // Another worker already reclaimed this delivery; Prisma already
+        // rolled back the Event/UpsellEvent writes above. Let the wrapper
+        // handle it (503, no markFailed with this now-stale attempt).
+        throw dbError
+      }
       // If event was deleted, don't retry forever
       if (dbError instanceof Prisma.PrismaClientKnownRequestError && dbError.code === 'P2025') {
         console.warn('[stripe/webhook] Event not found for fulfillment, skipping:', eventId)
@@ -429,77 +408,104 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
       })
       return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
     }
+
+    const appUrl = getAppUrl()
+    if (intent === 'wedding_pro') {
+      await sendWeddingProPurchasedEmail({ owner: { id: ownerId, email: session.metadata?.ownerEmail }, event: updatedEvent, appUrl })
+    } else {
+      await sendProEventPurchasedEmail({ owner: { id: ownerId, email: session.metadata?.ownerEmail }, event: updatedEvent, appUrl })
+    }
+
+    trackServerEvent(
+      EVENT_CHECKOUT_COMPLETED,
+      {
+        owner_id: ownerId,
+        billing_intent: intent,
+        event_id: eventId,
+        room_slug: session.metadata?.roomSlug || null,
+        stripe_session_id: session.id,
+        stripe_customer_id: session.customer,
+      },
+      { distinctId: session.metadata?.ownerEmail || ownerId }
+    )
+
+    trackServerEvent(
+      EVENT_UPSELL_CONVERSION,
+      {
+        owner_id: ownerId,
+        billing_intent: intent,
+        upsell_type: session.metadata?.upsellType || intent,
+        source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
+        event_id: eventId,
+        room_slug: session.metadata?.roomSlug || null,
+        stripe_session_id: session.id,
+        stripe_customer_id: session.customer,
+      },
+      { distinctId: session.metadata?.ownerEmail || ownerId }
+    )
+
+    console.log(`[stripe/webhook] Event ${updatedEvent.slug} upgraded to ${intent}`)
+
+    return {
+      kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
+      response: NextResponse.json({ received: true }),
+    }
   }
 
   // ── Account-level recurring subscription ──
   else if (intent === 'professional') {
+    // Stripe webhook event id, kept explicit and distinct from any
+    // business-entity id to fence the receipt for this branch.
+    const stripeEventId = event.id
+
+    // Idempotency: skip if this exact session already fulfilled
+    const existing = await prisma.owner.findFirst({
+      where: { id: ownerId, stripeCheckoutSessionId: session.id },
+    })
+    if (existing) {
+      console.log(`[stripe/webhook] Owner ${existing.email} already fulfilled for session ${session.id}`)
+      return NextResponse.json({ received: true })
+    }
+
+    let owner
     try {
-      // Idempotency: skip if this exact session already fulfilled
-      const existing = await prisma.owner.findFirst({
-        where: { id: ownerId, stripeCheckoutSessionId: session.id },
+      await prisma.$transaction(async (tx) => {
+        owner = await tx.owner.update({
+          where: { id: ownerId },
+          data: {
+            plan: 'professional',
+            subscriptionStatus: 'active',
+            stripeSubscriptionId: session.subscription || null,
+            stripeCheckoutSessionId: session.id,
+            subscriptionBillingInterval: session.metadata?.billingInterval === 'annual' ? 'annual' : 'monthly',
+            planUpdatedAt: new Date(),
+            // Clear any previous failure/cancellation timestamps on re-subscription.
+            paymentFailedAt: null,
+            subscriptionGraceUntil: null,
+            subscriptionCanceledAt: null,
+            lastPaymentError: null,
+          },
+        })
+
+        await tx.upsellEvent.create({
+          data: {
+            eventName: EVENT_UPSELL_CONVERSION,
+            upsellType: session.metadata?.upsellType || intent,
+            source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
+            ctaPlan: intent,
+            ownerId: owner.id,
+          },
+        })
+
+        await markStripeWebhookEventProcessed({ prisma: tx, eventId: stripeEventId, attempt })
       })
-      if (existing) {
-        console.log(`[stripe/webhook] Owner ${existing.email} already fulfilled for session ${session.id}`)
-        return NextResponse.json({ received: true })
-      }
-
-      const owner = await prisma.owner.update({
-        where: { id: ownerId },
-        data: {
-          plan: 'professional',
-          subscriptionStatus: 'active',
-          stripeSubscriptionId: session.subscription || null,
-          stripeCheckoutSessionId: session.id,
-          subscriptionBillingInterval: session.metadata?.billingInterval === 'annual' ? 'annual' : 'monthly',
-          planUpdatedAt: new Date(),
-          // Clear any previous failure/cancellation timestamps on re-subscription.
-          paymentFailedAt: null,
-          subscriptionGraceUntil: null,
-          subscriptionCanceledAt: null,
-          lastPaymentError: null,
-        },
-      })
-
-      await sendProfessionalActivatedEmail({ owner, appUrl: getAppUrl() })
-
-      trackServerEvent(
-        EVENT_CHECKOUT_COMPLETED,
-        {
-          owner_id: owner.id,
-          billing_intent: intent,
-          stripe_session_id: session.id,
-          stripe_subscription_id: session.subscription,
-          stripe_customer_id: session.customer,
-        },
-        { distinctId: owner.email }
-      )
-
-      trackServerEvent(
-        EVENT_UPSELL_CONVERSION,
-        {
-          owner_id: owner.id,
-          billing_intent: intent,
-          upsell_type: session.metadata?.upsellType || intent,
-          source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
-          stripe_session_id: session.id,
-          stripe_subscription_id: session.subscription,
-          stripe_customer_id: session.customer,
-        },
-        { distinctId: owner.email }
-      )
-
-      await prisma.upsellEvent.create({
-        data: {
-          eventName: EVENT_UPSELL_CONVERSION,
-          upsellType: session.metadata?.upsellType || intent,
-          source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
-          ctaPlan: intent,
-          ownerId: owner.id,
-        },
-      })
-
-      console.log('[stripe/webhook] Owner upgraded to Professional:', owner.email)
     } catch (dbError) {
+      if (dbError instanceof StripeWebhookFencingError) {
+        // Another worker already reclaimed this delivery; Prisma already
+        // rolled back the Owner/UpsellEvent writes above. Let the wrapper
+        // handle it (503, no markFailed with this now-stale attempt).
+        throw dbError
+      }
       if (dbError instanceof Prisma.PrismaClientKnownRequestError && dbError.code === 'P2025') {
         console.warn('[stripe/webhook] Owner not found for fulfillment, skipping:', ownerId)
         return NextResponse.json({ received: true })
@@ -518,6 +524,41 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
         },
       })
       return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
+    }
+
+    await sendProfessionalActivatedEmail({ owner, appUrl: getAppUrl() })
+
+    trackServerEvent(
+      EVENT_CHECKOUT_COMPLETED,
+      {
+        owner_id: owner.id,
+        billing_intent: intent,
+        stripe_session_id: session.id,
+        stripe_subscription_id: session.subscription,
+        stripe_customer_id: session.customer,
+      },
+      { distinctId: owner.email }
+    )
+
+    trackServerEvent(
+      EVENT_UPSELL_CONVERSION,
+      {
+        owner_id: owner.id,
+        billing_intent: intent,
+        upsell_type: session.metadata?.upsellType || intent,
+        source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
+        stripe_session_id: session.id,
+        stripe_subscription_id: session.subscription,
+        stripe_customer_id: session.customer,
+      },
+      { distinctId: owner.email }
+    )
+
+    console.log('[stripe/webhook] Owner upgraded to Professional:', owner.email)
+
+    return {
+      kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
+      response: NextResponse.json({ received: true }),
     }
   }
 

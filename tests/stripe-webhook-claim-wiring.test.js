@@ -266,13 +266,15 @@ describe('Stripe webhook claim/receipt wiring', () => {
   })
 
   it('I: markProcessed generic failure never returns the original 2xx', async () => {
-    // Uses checkout.session.completed/professional — the only handled
-    // branch still on the legacy, non-atomic contract as of STEP 4.4 — to
-    // exercise the wrapper's own external markProcessed-failure branch.
-    // subscription.updated/deleted (STEP 4.3) and both invoice handlers
-    // (STEP 4.4) now finalize inside their own transaction, so they can no
-    // longer drive this path.
-    const session = buildCheckoutSession({ intent: 'professional' })
+    // Uses checkout.session.completed/extra_event (legacy fallback, no
+    // pendingCheckout row) — the only handled branch still on the legacy,
+    // non-atomic contract as of STEP 4.6 — to exercise the wrapper's own
+    // external markProcessed-failure branch. subscription.updated/deleted
+    // (STEP 4.3), both invoice handlers (STEP 4.4), high_quality_download
+    // (STEP 4.5), and pro_event/wedding_pro/professional (STEP 4.6) now all
+    // finalize inside their own transaction, so they can no longer drive
+    // this path.
+    const session = buildCheckoutSession({ intent: 'extra_event' })
     const stripeEvent = buildStripeEvent('checkout.session.completed', session)
     mockConstructEvent(stripeEvent)
     claimStripeWebhookEvent.mockResolvedValue({ action: StripeWebhookClaimAction.PROCESS, receipt: { attempts: 1 } })
