@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
+import { NextResponse } from 'next/server'
 
 vi.mock('@/lib/server/prisma-client', () => ({ getPrismaClient: vi.fn() }))
 vi.mock('@/lib/server/stripe', () => ({ getStripe: vi.fn() }))
@@ -35,6 +36,7 @@ vi.mock('@/lib/server/stripe-webhook-receipt', async (importOriginal) => {
 })
 
 import { POST } from '@/app/api/stripe/webhook/route'
+import { processClaimedStripeWebhookEvent } from '@/lib/server/stripe-webhook-wrapper'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { getStripe } from '@/lib/server/stripe'
 import { sendOpsAlert } from '@/lib/server/ops-alerts'
@@ -280,7 +282,11 @@ describe('Stripe webhook claim/receipt wiring', () => {
     expect(body.code).toBe('webhook_receipt_finalization_failed')
   })
 
-  it('J: a StripeWebhookFencingError on markProcessed returns 503', async () => {
+  it('J: a StripeWebhookFencingError on markProcessed returns 503 without alerting or touching markFailed', async () => {
+    // STEP 4.2: fencing loss is expected system behavior (another worker
+    // already reclaimed), not an infrastructure failure — unlike the
+    // generic-error branch (test I), it no longer pages ops, and it must
+    // never fall back to markFailed with the now-stale attempt token.
     const stripeEvent = buildStripeEvent('customer.subscription.updated', { id: 'sub_1', status: 'active' })
     mockConstructEvent(stripeEvent)
     claimStripeWebhookEvent.mockResolvedValue({ action: StripeWebhookClaimAction.PROCESS, receipt: { attempts: 1 } })
@@ -291,11 +297,12 @@ describe('Stripe webhook claim/receipt wiring', () => {
     getPrismaClient.mockResolvedValue(prisma)
 
     const response = await POST(createWebhookRequest())
+    const body = await response.json()
 
     expect(response.status).toBe(503)
-    expect(sendOpsAlert).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'stripe:webhook:finalize_processed_failed', context: expect.objectContaining({ reason: 'fencing' }) })
-    )
+    expect(body.code).toBe('webhook_processing_in_progress')
+    expect(sendOpsAlert).not.toHaveBeenCalled()
+    expect(markStripeWebhookEventFailed).not.toHaveBeenCalled()
   })
 
   it('K: a legitimate skip (owner not found) still marks the receipt processed and returns 200', async () => {
@@ -506,5 +513,194 @@ describe('Stripe webhook claim/receipt wiring', () => {
     expect(markStripeWebhookEventFailed).toHaveBeenCalledWith(
       expect.objectContaining({ prisma, eventId: stripeEvent.id, attempt: 1, error: expect.any(Error) })
     )
+  })
+})
+
+// STEP 4.2: the RECEIPT_ALREADY_FINALIZED tagged-outcome contract. No real
+// handler produces this yet — these tests drive processClaimedStripeWebhookEvent
+// directly with synthetic `run()` functions, which is the only way to exercise
+// the new branch without migrating a handler (explicitly out of scope here).
+describe('processClaimedStripeWebhookEvent: RECEIPT_ALREADY_FINALIZED tagged outcome (STEP 4.2)', () => {
+  it('A: a legacy 2xx response still finalizes via markProcessed exactly once', async () => {
+    const prisma = createBusinessPrismaMock()
+    markStripeWebhookEventProcessed.mockResolvedValue({})
+    const legacyResponse = NextResponse.json({ received: true })
+
+    const result = await processClaimedStripeWebhookEvent({
+      prisma,
+      eventId: 'evt_a',
+      attempt: 1,
+      run: async () => legacyResponse,
+    })
+
+    expect(result).toBe(legacyResponse)
+    expect(markStripeWebhookEventProcessed).toHaveBeenCalledTimes(1)
+    expect(markStripeWebhookEventProcessed).toHaveBeenCalledWith({ prisma, eventId: 'evt_a', attempt: 1 })
+    expect(markStripeWebhookEventFailed).not.toHaveBeenCalled()
+  })
+
+  it('B: a legacy non-2xx response calls markFailed', async () => {
+    const prisma = createBusinessPrismaMock()
+    markStripeWebhookEventFailed.mockResolvedValue({})
+    const legacyResponse = NextResponse.json({ error: 'boom' }, { status: 500 })
+
+    const result = await processClaimedStripeWebhookEvent({
+      prisma,
+      eventId: 'evt_b',
+      attempt: 1,
+      run: async () => legacyResponse,
+    })
+
+    expect(result.status).toBe(500)
+    expect(markStripeWebhookEventFailed).toHaveBeenCalledWith(
+      expect.objectContaining({ prisma, eventId: 'evt_b', attempt: 1 })
+    )
+    expect(markStripeWebhookEventProcessed).not.toHaveBeenCalled()
+  })
+
+  it('C: a valid RECEIPT_ALREADY_FINALIZED 200 outcome is returned as-is, no further finalization', async () => {
+    const prisma = createBusinessPrismaMock()
+    const atomicResponse = NextResponse.json({ received: true })
+
+    const result = await processClaimedStripeWebhookEvent({
+      prisma,
+      eventId: 'evt_c',
+      attempt: 1,
+      run: async () => ({ kind: 'RECEIPT_ALREADY_FINALIZED', response: atomicResponse }),
+    })
+
+    expect(result).toBe(atomicResponse)
+    expect(markStripeWebhookEventProcessed).not.toHaveBeenCalled()
+    expect(markStripeWebhookEventFailed).not.toHaveBeenCalled()
+  })
+
+  it('D: a valid RECEIPT_ALREADY_FINALIZED 204 outcome is allowed, no further finalization', async () => {
+    const prisma = createBusinessPrismaMock()
+    const atomicResponse = new NextResponse(null, { status: 204 })
+
+    const result = await processClaimedStripeWebhookEvent({
+      prisma,
+      eventId: 'evt_d',
+      attempt: 1,
+      run: async () => ({ kind: 'RECEIPT_ALREADY_FINALIZED', response: atomicResponse }),
+    })
+
+    expect(result).toBe(atomicResponse)
+    expect(markStripeWebhookEventProcessed).not.toHaveBeenCalled()
+    expect(markStripeWebhookEventFailed).not.toHaveBeenCalled()
+  })
+
+  it('E: a RECEIPT_ALREADY_FINALIZED outcome with a non-2xx response is an invariant failure, not atomic success', async () => {
+    const prisma = createBusinessPrismaMock()
+    const badResponse = NextResponse.json({ error: 'should never happen' }, { status: 500 })
+
+    const result = await processClaimedStripeWebhookEvent({
+      prisma,
+      eventId: 'evt_e',
+      attempt: 1,
+      run: async () => ({ kind: 'RECEIPT_ALREADY_FINALIZED', response: badResponse }),
+    })
+
+    expect(result.status).toBe(500)
+    expect(result).not.toBe(badResponse)
+    expect(markStripeWebhookEventProcessed).not.toHaveBeenCalled()
+    expect(markStripeWebhookEventFailed).not.toHaveBeenCalled()
+  })
+
+  it('F: a RECEIPT_ALREADY_FINALIZED outcome with no response attached is an invariant failure', async () => {
+    const prisma = createBusinessPrismaMock()
+
+    const result = await processClaimedStripeWebhookEvent({
+      prisma,
+      eventId: 'evt_f',
+      attempt: 1,
+      run: async () => ({ kind: 'RECEIPT_ALREADY_FINALIZED' }),
+    })
+
+    expect(result.status).toBe(500)
+    expect(markStripeWebhookEventProcessed).not.toHaveBeenCalled()
+    expect(markStripeWebhookEventFailed).not.toHaveBeenCalled()
+  })
+
+  it('G: a RECEIPT_ALREADY_FINALIZED outcome with a malformed response is an invariant failure', async () => {
+    const prisma = createBusinessPrismaMock()
+
+    const result = await processClaimedStripeWebhookEvent({
+      prisma,
+      eventId: 'evt_g',
+      attempt: 1,
+      run: async () => ({ kind: 'RECEIPT_ALREADY_FINALIZED', response: { received: true } }),
+    })
+
+    expect(result.status).toBe(500)
+    expect(markStripeWebhookEventProcessed).not.toHaveBeenCalled()
+    expect(markStripeWebhookEventFailed).not.toHaveBeenCalled()
+  })
+
+  it('H: a non-tagged, non-Response object returned by mistake is an invariant failure, never an accidental success', async () => {
+    const prisma = createBusinessPrismaMock()
+
+    const result = await processClaimedStripeWebhookEvent({
+      prisma,
+      eventId: 'evt_h',
+      attempt: 1,
+      run: async () => ({ received: true }),
+    })
+
+    expect(result.status).toBe(500)
+    expect(markStripeWebhookEventProcessed).not.toHaveBeenCalled()
+    expect(markStripeWebhookEventFailed).not.toHaveBeenCalled()
+  })
+
+  it('I: a handler throwing StripeWebhookFencingError returns 503 without calling markFailed', async () => {
+    const prisma = createBusinessPrismaMock()
+
+    const result = await processClaimedStripeWebhookEvent({
+      prisma,
+      eventId: 'evt_i',
+      attempt: 1,
+      run: async () => { throw new StripeWebhookFencingError('lost the claim mid-transaction') },
+    })
+
+    expect(result.status).toBe(503)
+    const body = await result.json()
+    expect(body.code).toBe('webhook_processing_in_progress')
+    expect(markStripeWebhookEventFailed).not.toHaveBeenCalled()
+    expect(markStripeWebhookEventProcessed).not.toHaveBeenCalled()
+  })
+
+  it('J: a handler throwing a generic error calls markFailed and returns 500', async () => {
+    const prisma = createBusinessPrismaMock()
+    markStripeWebhookEventFailed.mockResolvedValue({})
+
+    const result = await processClaimedStripeWebhookEvent({
+      prisma,
+      eventId: 'evt_j',
+      attempt: 1,
+      run: async () => { throw new Error('unexpected') },
+    })
+
+    expect(result.status).toBe(500)
+    expect(markStripeWebhookEventFailed).toHaveBeenCalledWith(
+      expect.objectContaining({ prisma, eventId: 'evt_j', attempt: 1, error: expect.any(Error) })
+    )
+  })
+
+  it('K: markProcessed itself throwing StripeWebhookFencingError returns 503 without calling markFailed', async () => {
+    const prisma = createBusinessPrismaMock()
+    markStripeWebhookEventProcessed.mockRejectedValue(new StripeWebhookFencingError('lost the claim'))
+    const legacyResponse = NextResponse.json({ received: true })
+
+    const result = await processClaimedStripeWebhookEvent({
+      prisma,
+      eventId: 'evt_k',
+      attempt: 1,
+      run: async () => legacyResponse,
+    })
+
+    expect(result.status).toBe(503)
+    const body = await result.json()
+    expect(body.code).toBe('webhook_processing_in_progress')
+    expect(markStripeWebhookEventFailed).not.toHaveBeenCalled()
   })
 })

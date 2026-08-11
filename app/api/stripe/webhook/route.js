@@ -32,13 +32,8 @@ import {
   EXTRA_FREE_EVENT_AUTO_CREATE_SUCCESS,
 } from '@/lib/analytics/events'
 import { sendOpsAlert } from '@/lib/server/ops-alerts'
-import {
-  claimStripeWebhookEvent,
-  markStripeWebhookEventProcessed,
-  markStripeWebhookEventFailed,
-  StripeWebhookClaimAction,
-  StripeWebhookFencingError,
-} from '@/lib/server/stripe-webhook-receipt'
+import { claimStripeWebhookEvent, StripeWebhookClaimAction } from '@/lib/server/stripe-webhook-receipt'
+import { processClaimedStripeWebhookEvent } from '@/lib/server/stripe-webhook-wrapper'
 
 export const dynamic = 'force-dynamic'
 
@@ -55,67 +50,6 @@ const HANDLED_STRIPE_EVENT_TYPES = new Set([
 
 function getAppUrl() {
   return (process.env.NEXT_PUBLIC_BASE_URL || 'https://snaprooms.app').replace(/\/$/, '')
-}
-
-// Runs `run()` — the existing business handler for one claimed event.type —
-// and finalizes the receipt purely from the HTTP status it returns:
-// 2xx -> PROCESSED, non-2xx or throw -> FAILED. Deliberately does not
-// inspect response bodies, error codes, or business intent; that
-// classification already happened inside `run()`.
-async function processClaimedStripeWebhookEvent({ prisma, eventId, attempt, run }) {
-  let response
-  try {
-    response = await run()
-  } catch (error) {
-    console.error('[stripe/webhook] Handler threw:', error.message)
-    await finalizeStripeWebhookFailure({ prisma, eventId, attempt, error })
-    return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 })
-  }
-
-  if (response.status >= 200 && response.status < 300) {
-    try {
-      await markStripeWebhookEventProcessed({ prisma, eventId, attempt })
-      return response
-    } catch (finalizeError) {
-      const reason = finalizeError instanceof StripeWebhookFencingError ? 'fencing' : 'error'
-      console.error(`[stripe/webhook] Failed to mark receipt PROCESSED (${reason}):`, finalizeError.message)
-      await sendOpsAlert({
-        severity: 'critical',
-        type: 'stripe:webhook:finalize_processed_failed',
-        title: 'Failed to finalize Stripe webhook receipt as PROCESSED',
-        message: finalizeError.message,
-        context: { stripeEventId: eventId, attempt, reason },
-      })
-      // The business action already succeeded but we could not durably
-      // record it. Never return the original 2xx here: ask Stripe to retry
-      // so the receipt eventually reaches PROCESSED (or a fresh worker
-      // reclaims a stale lease and finishes the job).
-      return NextResponse.json({ received: false, code: 'webhook_receipt_finalization_failed' }, { status: 503 })
-    }
-  }
-
-  await finalizeStripeWebhookFailure({
-    prisma,
-    eventId,
-    attempt,
-    error: new Error(`stripe-webhook: business handler returned HTTP ${response.status}`),
-  })
-  return response
-}
-
-async function finalizeStripeWebhookFailure({ prisma, eventId, attempt, error }) {
-  try {
-    await markStripeWebhookEventFailed({ prisma, eventId, attempt, error })
-  } catch (finalizeError) {
-    console.error('[stripe/webhook] Failed to mark receipt FAILED:', finalizeError.message)
-    await sendOpsAlert({
-      severity: 'critical',
-      type: 'stripe:webhook:finalize_failed_failed',
-      title: 'Failed to finalize Stripe webhook receipt as FAILED',
-      message: finalizeError.message,
-      context: { stripeEventId: eventId, attempt, businessError: error?.message },
-    })
-  }
 }
 
 export async function POST(request) {
