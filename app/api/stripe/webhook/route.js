@@ -125,7 +125,7 @@ export async function POST(request) {
       prisma,
       eventId: stripeEventId,
       attempt: processingAttempt,
-      run: () => handleCheckoutSessionCompleted({ event, prisma }),
+      run: () => handleCheckoutSessionCompleted({ event, prisma, attempt: processingAttempt }),
     })
   }
 
@@ -167,7 +167,7 @@ export async function POST(request) {
 }
 
 // ── checkout.session.completed ──
-async function handleCheckoutSessionCompleted({ event, prisma }) {
+async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
   const session = event.data.object
   const intent = session.metadata?.intent
   const ownerId = session.metadata?.ownerId
@@ -176,68 +176,64 @@ async function handleCheckoutSessionCompleted({ event, prisma }) {
   // ── High-quality download unlock (guest or owner, no auth required) ──
   if (intent === 'high_quality_download') {
     if (!eventId) {
+      // Nothing to write, so nothing to make atomic: the wrapper's
+      // standalone markStripeWebhookEventProcessed on this legacy response
+      // is already correct and sufficient.
       console.warn('[stripe/webhook] Missing eventId for high_quality_download')
       return NextResponse.json({ received: true })
     }
 
+    // `eventId` above is the SnapRooms gallery Event id from checkout
+    // metadata; `stripeEventId` is the Stripe webhook event id used to
+    // fence the receipt — kept explicitly distinct within this branch.
+    const stripeEventId = event.id
+
+    const existing = await prisma.event.findFirst({
+      where: { id: eventId, originalDownloadCheckoutSessionId: session.id },
+    })
+    if (existing) {
+      // Already fulfilled: nothing to write, standalone finalization.
+      console.log(`[stripe/webhook] Event ${existing.slug} already fulfilled for download unlock session ${session.id}`)
+      return NextResponse.json({ received: true })
+    }
+
+    let updatedEvent
     try {
-      const existing = await prisma.event.findFirst({
-        where: { id: eventId, originalDownloadCheckoutSessionId: session.id },
+      await prisma.$transaction(async (tx) => {
+        updatedEvent = await tx.event.update({
+          where: { id: eventId },
+          data: {
+            originalDownloadUnlocked: true,
+            originalDownloadCheckoutSessionId: session.id,
+            updatedAt: new Date(),
+          },
+        })
+
+        await tx.upsellEvent.create({
+          data: {
+            eventName: EVENT_UPSELL_CONVERSION,
+            upsellType: session.metadata?.upsellType || 'original_quality_unlock',
+            source: session.metadata?.upsellSource || 'lightbox',
+            ctaPlan: 'unlock',
+            eventId: eventId || null,
+            eventSlug: session.metadata?.roomSlug || null,
+          },
+        })
+
+        await markStripeWebhookEventProcessed({ prisma: tx, eventId: stripeEventId, attempt })
       })
-      if (existing) {
-        console.log(`[stripe/webhook] Event ${existing.slug} already fulfilled for download unlock session ${session.id}`)
-        return NextResponse.json({ received: true })
-      }
-
-      const updatedEvent = await prisma.event.update({
-        where: { id: eventId },
-        data: {
-          originalDownloadUnlocked: true,
-          originalDownloadCheckoutSessionId: session.id,
-          updatedAt: new Date(),
-        },
-      })
-
-      trackServerEvent(
-        EVENT_ORIGINAL_DOWNLOAD_CHECKOUT_COMPLETED,
-        {
-          billing_intent: intent,
-          event_id: eventId,
-          room_slug: session.metadata?.roomSlug || null,
-          stripe_session_id: session.id,
-          stripe_customer_id: session.customer,
-        },
-        { distinctId: session.customer_email || session.customer || eventId }
-      )
-
-      trackServerEvent(
-        EVENT_UPSELL_CONVERSION,
-        {
-          billing_intent: intent,
-          upsell_type: session.metadata?.upsellType || 'original_quality_unlock',
-          source: session.metadata?.upsellSource || 'lightbox',
-          event_id: eventId,
-          room_slug: session.metadata?.roomSlug || null,
-          stripe_session_id: session.id,
-          stripe_customer_id: session.customer,
-        },
-        { distinctId: session.customer_email || session.customer || eventId }
-      )
-
-      await prisma.upsellEvent.create({
-        data: {
-          eventName: EVENT_UPSELL_CONVERSION,
-          upsellType: session.metadata?.upsellType || 'original_quality_unlock',
-          source: session.metadata?.upsellSource || 'lightbox',
-          ctaPlan: 'unlock',
-          eventId: eventId || null,
-          eventSlug: session.metadata?.roomSlug || null,
-        },
-      })
-
-      console.log(`[stripe/webhook] Event ${updatedEvent.slug} unlocked for original quality downloads`)
     } catch (dbError) {
+      if (dbError instanceof StripeWebhookFencingError) {
+        // Another worker already reclaimed this delivery; Prisma already
+        // rolled back the Event/UpsellEvent writes above. Let the wrapper
+        // handle it (503, no markFailed with this now-stale attempt).
+        throw dbError
+      }
       if (dbError instanceof Prisma.PrismaClientKnownRequestError && dbError.code === 'P2025') {
+        // The Event was deleted/unavailable: the transaction rolled back on
+        // its own (no business state committed), so this is a legitimate
+        // skip, not a finalized receipt — legacy response, standalone
+        // finalization by the wrapper, never the tagged outcome.
         console.warn('[stripe/webhook] Event not found for fulfillment, skipping:', eventId)
         return NextResponse.json({ received: true })
       }
@@ -257,7 +253,38 @@ async function handleCheckoutSessionCompleted({ event, prisma }) {
       return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
     }
 
-    return NextResponse.json({ received: true })
+    trackServerEvent(
+      EVENT_ORIGINAL_DOWNLOAD_CHECKOUT_COMPLETED,
+      {
+        billing_intent: intent,
+        event_id: eventId,
+        room_slug: session.metadata?.roomSlug || null,
+        stripe_session_id: session.id,
+        stripe_customer_id: session.customer,
+      },
+      { distinctId: session.customer_email || session.customer || eventId }
+    )
+
+    trackServerEvent(
+      EVENT_UPSELL_CONVERSION,
+      {
+        billing_intent: intent,
+        upsell_type: session.metadata?.upsellType || 'original_quality_unlock',
+        source: session.metadata?.upsellSource || 'lightbox',
+        event_id: eventId,
+        room_slug: session.metadata?.roomSlug || null,
+        stripe_session_id: session.id,
+        stripe_customer_id: session.customer,
+      },
+      { distinctId: session.customer_email || session.customer || eventId }
+    )
+
+    console.log(`[stripe/webhook] Event ${updatedEvent.slug} unlocked for original quality downloads`)
+
+    return {
+      kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
+      response: NextResponse.json({ received: true }),
+    }
   }
 
   if (!ownerId) {
