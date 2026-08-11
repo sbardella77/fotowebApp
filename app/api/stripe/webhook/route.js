@@ -320,7 +320,7 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
     }
 
     // Legacy fallback: sessions created before the pending-row migration.
-    return await fulfillExtraFreeEventCredit({ prisma, session, ownerId, intent })
+    return await fulfillExtraFreeEventCredit({ prisma, session, ownerId, intent, stripeEventId, attempt })
   }
 
   // ── Event-based one-time purchase ──
@@ -898,75 +898,50 @@ async function handleInvoicePaymentSucceeded({ event, prisma, attempt }) {
   }
 }
 
-// ── Helper: Extra Free Event credit fulfillment (legacy path, sessions
-// created before the pending-row migration — no pendingCheckout row) ──
-async function fulfillExtraFreeEventCredit({ prisma, session, ownerId, intent }) {
+// ── Helper: Extra Free Event credit fulfillment (legacy path, atomic —
+// sessions created before the pending-row migration, no pendingCheckout row) ──
+async function fulfillExtraFreeEventCredit({ prisma, session, ownerId, intent, stripeEventId, attempt }) {
+  const existing = await prisma.owner.findFirst({
+    where: { id: ownerId, extraEventCheckoutSessionId: session.id },
+  })
+  if (existing) {
+    console.log(`[stripe/webhook] Owner ${existing.email} already fulfilled for extra free event session ${session.id}`)
+    return NextResponse.json({ received: true })
+  }
+
+  let updatedOwner
   try {
-    const existing = await prisma.owner.findFirst({
-      where: { id: ownerId, extraEventCheckoutSessionId: session.id },
-    })
-    if (existing) {
-      console.log(`[stripe/webhook] Owner ${existing.email} already fulfilled for extra free event session ${session.id}`)
-      return NextResponse.json({ received: true })
-    }
+    updatedOwner = await prisma.$transaction(async (tx) => {
+      const owner = await tx.owner.update({
+        where: { id: ownerId },
+        data: {
+          extraEventCredits: { increment: 1 },
+          extraEventCheckoutSessionId: session.id,
+          updatedAt: new Date(),
+        },
+      })
 
-    const updatedOwner = await prisma.owner.update({
-      where: { id: ownerId },
-      data: {
-        extraEventCredits: { increment: 1 },
-        extraEventCheckoutSessionId: session.id,
-        updatedAt: new Date(),
-      },
-    })
+      await tx.upsellEvent.create({
+        data: {
+          eventName: EVENT_UPSELL_CONVERSION,
+          upsellType: session.metadata?.upsellType || 'extra_event',
+          source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
+          ctaPlan: 'extra_event',
+          ownerId: ownerId || null,
+        },
+      })
 
-    trackServerEvent(
-      EVENT_CHECKOUT_COMPLETED,
-      {
-        owner_id: ownerId,
-        billing_intent: intent,
-        product_type: session.metadata?.productType || 'extra_free_event',
-        restrictions: session.metadata?.restrictions || 'free_plan',
-        stripe_session_id: session.id,
-        stripe_customer_id: session.customer,
-        extra_event_credits: updatedOwner.extraEventCredits,
-      },
-      { distinctId: session.metadata?.ownerEmail || ownerId }
-    )
+      await markStripeWebhookEventProcessed({ prisma: tx, eventId: stripeEventId, attempt })
 
-    trackServerEvent(
-      EVENT_UPSELL_CONVERSION,
-      {
-        owner_id: ownerId,
-        billing_intent: intent,
-        upsell_type: session.metadata?.upsellType || 'extra_event',
-        product_type: session.metadata?.productType || 'extra_free_event',
-        restrictions: session.metadata?.restrictions || 'free_plan',
-        source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
-        stripe_session_id: session.id,
-        stripe_customer_id: session.customer,
-        extra_event_credits: updatedOwner.extraEventCredits,
-      },
-      { distinctId: session.metadata?.ownerEmail || ownerId }
-    )
-
-    await prisma.upsellEvent.create({
-      data: {
-        eventName: EVENT_UPSELL_CONVERSION,
-        upsellType: session.metadata?.upsellType || 'extra_event',
-        source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
-        ctaPlan: 'extra_event',
-        ownerId: ownerId || null,
-      },
-    })
-
-    console.log(`[stripe/webhook] Owner ${updatedOwner.email} granted extra free event credit. Total credits: ${updatedOwner.extraEventCredits}`)
-
-    await sendExtraFreeEventCreditGrantedEmail({
-      owner: updatedOwner,
-      credits: updatedOwner.extraEventCredits,
-      appUrl: getAppUrl(),
+      return owner
     })
   } catch (dbError) {
+    if (dbError instanceof StripeWebhookFencingError) {
+      // Another worker already reclaimed this delivery; Prisma already
+      // rolled back the credit/marker/UpsellEvent writes above. Let the
+      // wrapper handle it (503, no markFailed with this now-stale attempt).
+      throw dbError
+    }
     if (dbError instanceof Prisma.PrismaClientKnownRequestError && dbError.code === 'P2025') {
       console.warn('[stripe/webhook] Owner not found for extra free event fulfillment, skipping:', ownerId)
       return NextResponse.json({ received: true })
@@ -986,7 +961,48 @@ async function fulfillExtraFreeEventCredit({ prisma, session, ownerId, intent })
     return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
   }
 
-  return NextResponse.json({ received: true })
+  trackServerEvent(
+    EVENT_CHECKOUT_COMPLETED,
+    {
+      owner_id: ownerId,
+      billing_intent: intent,
+      product_type: session.metadata?.productType || 'extra_free_event',
+      restrictions: session.metadata?.restrictions || 'free_plan',
+      stripe_session_id: session.id,
+      stripe_customer_id: session.customer,
+      extra_event_credits: updatedOwner.extraEventCredits,
+    },
+    { distinctId: session.metadata?.ownerEmail || ownerId }
+  )
+
+  trackServerEvent(
+    EVENT_UPSELL_CONVERSION,
+    {
+      owner_id: ownerId,
+      billing_intent: intent,
+      upsell_type: session.metadata?.upsellType || 'extra_event',
+      product_type: session.metadata?.productType || 'extra_free_event',
+      restrictions: session.metadata?.restrictions || 'free_plan',
+      source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
+      stripe_session_id: session.id,
+      stripe_customer_id: session.customer,
+      extra_event_credits: updatedOwner.extraEventCredits,
+    },
+    { distinctId: session.metadata?.ownerEmail || ownerId }
+  )
+
+  console.log(`[stripe/webhook] Owner ${updatedOwner.email} granted extra free event credit. Total credits: ${updatedOwner.extraEventCredits}`)
+
+  await sendExtraFreeEventCreditGrantedEmail({
+    owner: updatedOwner,
+    credits: updatedOwner.extraEventCredits,
+    appUrl: getAppUrl(),
+  })
+
+  return {
+    kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
+    response: NextResponse.json({ received: true }),
+  }
 }
 
 // ── Helper: Extra Free Event credit fulfillment (canonical path, atomic —

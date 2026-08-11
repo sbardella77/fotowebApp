@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
+import { Prisma } from '@prisma/client'
 
 vi.mock('@/lib/server/prisma-client', () => ({ getPrismaClient: vi.fn() }))
 vi.mock('@/lib/server/stripe', () => ({ getStripe: vi.fn() }))
@@ -20,12 +21,12 @@ vi.mock('@/lib/server/prisma-gallery-repository', () => ({
   prismaGalleryRepository: { createEvent: vi.fn() },
 }))
 // Only `claimStripeWebhookEvent` is mocked here: these tests are about what
-// the atomic extra_event canonical credit branch does with a *given* claimed
-// attempt, not about the claim/lease mechanism itself (already covered
-// exhaustively in tests/stripe-webhook-receipt.test.js).
-// markStripeWebhookEventProcessed/Failed keep their real implementation —
-// wrapped in vi.fn() so calls are still countable — so fencing/finalization
-// run for real against the fake transactional store below.
+// the atomic legacy extra_event branch does with a *given* claimed attempt,
+// not about the claim/lease mechanism itself (already covered exhaustively
+// in tests/stripe-webhook-receipt.test.js). markStripeWebhookEventProcessed/
+// Failed keep their real implementation — wrapped in vi.fn() so calls are
+// still countable — so fencing/finalization run for real against the fake
+// transactional store below.
 vi.mock('@/lib/server/stripe-webhook-receipt', async (importOriginal) => {
   const actual = await importOriginal()
   return {
@@ -68,10 +69,13 @@ function createWebhookRequest({ payload = '{}', signature = 'sig_test' } = {}) {
 let eventIdSeq = 0
 function buildStripeEvent(type, object, id) {
   eventIdSeq += 1
-  return { id: id || `evt_ex_atomic_${eventIdSeq}`, type, data: { object } }
+  return { id: id || `evt_ex_legacy_atomic_${eventIdSeq}`, type, data: { object } }
 }
 
-function buildSession({ sessionId = 'cs_ex_test', ownerId = 'owner-1', postPurchaseAction = 'credit_only' } = {}) {
+// Legacy sessions carry no pendingCheckoutId in metadata at all — that's
+// exactly what makes the lookup by stripeCheckoutSessionId miss and fall
+// through to this path.
+function buildSession({ sessionId = 'cs_ex_legacy_test', ownerId = 'owner-1' } = {}) {
   return {
     id: sessionId,
     customer: 'cus_test',
@@ -80,7 +84,6 @@ function buildSession({ sessionId = 'cs_ex_test', ownerId = 'owner-1', postPurch
       intent: 'extra_event',
       ownerId,
       ownerEmail: 'owner@example.com',
-      postPurchaseAction,
       upsellType: 'extra_event',
       upsellSource: 'dashboard',
       productType: 'extra_free_event',
@@ -111,36 +114,22 @@ function seedOwner({ id = 'owner-1', extraEventCredits = 0, extraEventCheckoutSe
   return { id, email: 'owner@example.com', extraEventCredits, extraEventCheckoutSessionId }
 }
 
-function seedCheckout({ id = 'checkout-1', ownerId = 'owner-1', sessionId, status = 'checkout_created' } = {}) {
-  return {
-    id,
-    ownerId,
-    stripeCheckoutSessionId: sessionId,
-    eventName: null,
-    status,
-    createdEventId: null,
-    createdEventSlug: null,
-    errorMessage: null,
-    completedAt: null,
-    autoCreatedAt: null,
-  }
-}
-
 beforeEach(() => {
   vi.clearAllMocks()
 })
 
-describe('STEP 4.7: atomic finalization for checkout.session.completed / extra_event canonical credit path', () => {
-  it('A: canonical success — credit incremented, checkout credit_granted, UpsellEvent present, receipt PROCESSED', async () => {
-    const stripeEventId = 'evt_ex_success'
-    const session = buildSession({ sessionId: 'cs_ex_1' })
+describe('STEP 4.8: atomic finalization for checkout.session.completed / extra_event legacy credit path (no pendingCheckout)', () => {
+  it('A: success — credit incremented, marker set, UpsellEvent present, receipt PROCESSED, all atomic', async () => {
+    const stripeEventId = 'evt_exl_success'
+    const session = buildSession({ sessionId: 'cs_exl_1' })
     const stripeEvent = buildStripeEvent('checkout.session.completed', session, stripeEventId)
     mockConstructEvent(stripeEvent)
     claimStripeWebhookEvent.mockResolvedValue({ action: 'PROCESS', receipt: { attempts: 1 } })
 
     const prisma = createFakeTransactionalPrisma({
       owner: [seedOwner()],
-      extraFreeEventCheckout: [seedCheckout({ sessionId: 'cs_ex_1', status: 'checkout_created' })],
+      // No extraFreeEventCheckout row at all: legacy path.
+      extraFreeEventCheckout: [],
       stripeWebhookEvent: [seedReceipt({ eventId: stripeEventId, status: 'PROCESSING', attempts: 1 })],
     })
     getPrismaClient.mockResolvedValue(prisma)
@@ -153,12 +142,7 @@ describe('STEP 4.7: atomic finalization for checkout.session.completed / extra_e
 
     const owner = await prisma.owner.findUnique({ where: { id: 'owner-1' } })
     expect(owner.extraEventCredits).toBe(1)
-    expect(owner.extraEventCheckoutSessionId).toBe('cs_ex_1')
-
-    const checkout = await prisma.extraFreeEventCheckout.findUnique({ where: { id: 'checkout-1' } })
-    expect(checkout.status).toBe('credit_granted')
-    expect(checkout.stripeCheckoutSessionId).toBe('cs_ex_1')
-    expect(checkout.completedAt).not.toBeNull()
+    expect(owner.extraEventCheckoutSessionId).toBe('cs_exl_1')
 
     expect(prisma.upsellEvent._rows).toHaveLength(1)
     expect(prisma.upsellEvent._rows[0].ownerId).toBe('owner-1')
@@ -173,54 +157,16 @@ describe('STEP 4.7: atomic finalization for checkout.session.completed / extra_e
     )
   })
 
-  it('B: fencing rollback — credit, checkout, and UpsellEvent all stay untouched; 503, no stale markFailed', async () => {
-    const stripeEventId = 'evt_ex_fencing'
-    const session = buildSession({ sessionId: 'cs_ex_2' })
-    const stripeEvent = buildStripeEvent('checkout.session.completed', session, stripeEventId)
-    mockConstructEvent(stripeEvent)
-    // This worker believes it holds attempt=1...
-    claimStripeWebhookEvent.mockResolvedValue({ action: 'PROCESS', receipt: { attempts: 1 } })
-
-    const prisma = createFakeTransactionalPrisma({
-      owner: [seedOwner()],
-      extraFreeEventCheckout: [seedCheckout({ sessionId: 'cs_ex_2', status: 'checkout_created' })],
-      // ...but the receipt already shows attempts=2: another worker
-      // reclaimed this delivery's stale lease first.
-      stripeWebhookEvent: [seedReceipt({ eventId: stripeEventId, status: 'PROCESSING', attempts: 2 })],
-    })
-    getPrismaClient.mockResolvedValue(prisma)
-
-    const response = await POST(createWebhookRequest())
-    const body = await response.json()
-
-    expect(response.status).toBe(503)
-    expect(body.code).toBe('webhook_processing_in_progress')
-
-    const owner = await prisma.owner.findUnique({ where: { id: 'owner-1' } })
-    expect(owner.extraEventCredits).toBe(0)
-
-    const checkout = await prisma.extraFreeEventCheckout.findUnique({ where: { id: 'checkout-1' } })
-    expect(checkout.status).toBe('checkout_created')
-
-    expect(prisma.upsellEvent._rows).toHaveLength(0)
-
-    const receipt = await prisma.stripeWebhookEvent.findUnique({ where: { eventId: stripeEventId } })
-    expect(receipt.status).toBe('PROCESSING')
-    expect(receipt.attempts).toBe(2)
-
-    expect(markStripeWebhookEventFailed).not.toHaveBeenCalled()
-  })
-
-  it('C: an UpsellEvent write failure rolls back the credit and checkout status too — no partial fulfillment', async () => {
-    const stripeEventId = 'evt_ex_upsell_fail'
-    const session = buildSession({ sessionId: 'cs_ex_3' })
+  it('B: an UpsellEvent write failure rolls back the credit and marker too — no partial fulfillment', async () => {
+    const stripeEventId = 'evt_exl_upsell_fail'
+    const session = buildSession({ sessionId: 'cs_exl_2' })
     const stripeEvent = buildStripeEvent('checkout.session.completed', session, stripeEventId)
     mockConstructEvent(stripeEvent)
     claimStripeWebhookEvent.mockResolvedValue({ action: 'PROCESS', receipt: { attempts: 1 } })
 
     const prisma = createFakeTransactionalPrisma({
       owner: [seedOwner()],
-      extraFreeEventCheckout: [seedCheckout({ sessionId: 'cs_ex_3', status: 'checkout_created' })],
+      extraFreeEventCheckout: [],
       stripeWebhookEvent: [seedReceipt({ eventId: stripeEventId, status: 'PROCESSING', attempts: 1 })],
     })
     const realTransaction = prisma.$transaction
@@ -240,9 +186,6 @@ describe('STEP 4.7: atomic finalization for checkout.session.completed / extra_e
     expect(owner.extraEventCredits).toBe(0)
     expect(owner.extraEventCheckoutSessionId).toBeNull()
 
-    const checkout = await prisma.extraFreeEventCheckout.findUnique({ where: { id: 'checkout-1' } })
-    expect(checkout.status).toBe('checkout_created')
-
     expect(prisma.upsellEvent._rows).toHaveLength(0)
 
     const receipt = await prisma.stripeWebhookEvent.findUnique({ where: { eventId: stripeEventId } })
@@ -252,63 +195,52 @@ describe('STEP 4.7: atomic finalization for checkout.session.completed / extra_e
     expect(markStripeWebhookEventProcessed).not.toHaveBeenCalled()
   })
 
-  it('D: race lost after FOR UPDATE — re-read inside the transaction finds a terminal status, no new business write', async () => {
-    const stripeEventId = 'evt_ex_race_lost'
-    const session = buildSession({ sessionId: 'cs_ex_4' })
+  it('C: fencing rollback — credit, marker, and UpsellEvent all stay untouched; 503, no stale markFailed', async () => {
+    const stripeEventId = 'evt_exl_fencing'
+    const session = buildSession({ sessionId: 'cs_exl_3' })
     const stripeEvent = buildStripeEvent('checkout.session.completed', session, stripeEventId)
     mockConstructEvent(stripeEvent)
+    // This worker believes it holds attempt=1...
     claimStripeWebhookEvent.mockResolvedValue({ action: 'PROCESS', receipt: { attempts: 1 } })
 
     const prisma = createFakeTransactionalPrisma({
       owner: [seedOwner()],
-      // Non-terminal at the initial (pre-transaction) read...
-      extraFreeEventCheckout: [seedCheckout({ sessionId: 'cs_ex_4', status: 'checkout_created' })],
-      stripeWebhookEvent: [seedReceipt({ eventId: stripeEventId, status: 'PROCESSING', attempts: 1 })],
+      extraFreeEventCheckout: [],
+      // ...but the receipt already shows attempts=2: another worker
+      // reclaimed this delivery's stale lease first.
+      stripeWebhookEvent: [seedReceipt({ eventId: stripeEventId, status: 'PROCESSING', attempts: 2 })],
     })
-    const realTransaction = prisma.$transaction
-    prisma.$transaction = vi.fn((fn) =>
-      realTransaction((tx) => {
-        // ...but another delivery reached a terminal status between the
-        // initial read and this worker's FOR UPDATE lock.
-        tx.extraFreeEventCheckout.findUnique = vi.fn().mockResolvedValue({
-          id: 'checkout-1',
-          ownerId: 'owner-1',
-          stripeCheckoutSessionId: 'cs_ex_4',
-          status: 'credit_granted',
-        })
-        return fn(tx)
-      })
-    )
     getPrismaClient.mockResolvedValue(prisma)
 
     const response = await POST(createWebhookRequest())
     const body = await response.json()
 
-    expect(response.status).toBe(200)
-    expect(body.received).toBe(true)
+    expect(response.status).toBe(503)
+    expect(body.code).toBe('webhook_processing_in_progress')
 
     const owner = await prisma.owner.findUnique({ where: { id: 'owner-1' } })
     expect(owner.extraEventCredits).toBe(0)
+    expect(owner.extraEventCheckoutSessionId).toBeNull()
 
     expect(prisma.upsellEvent._rows).toHaveLength(0)
 
-    // Finalized via the wrapper's standalone markProcessed on the legacy
-    // 200 response, not via a tagged outcome from an uncommitted transaction.
     const receipt = await prisma.stripeWebhookEvent.findUnique({ where: { eventId: stripeEventId } })
-    expect(receipt.status).toBe('PROCESSED')
-    expect(markStripeWebhookEventProcessed).toHaveBeenCalledTimes(1)
+    expect(receipt.status).toBe('PROCESSING')
+    expect(receipt.attempts).toBe(2)
+
+    expect(markStripeWebhookEventFailed).not.toHaveBeenCalled()
   })
 
-  it('E: checkout already terminal before the transaction — fast-path skip, no business tx, no new credit', async () => {
-    const stripeEventId = 'evt_ex_already_terminal'
-    const session = buildSession({ sessionId: 'cs_ex_5' })
+  it('D: already fulfilled (matching extraEventCheckoutSessionId) skips the transaction entirely', async () => {
+    const stripeEventId = 'evt_exl_already'
+    const session = buildSession({ sessionId: 'cs_exl_4' })
     const stripeEvent = buildStripeEvent('checkout.session.completed', session, stripeEventId)
     mockConstructEvent(stripeEvent)
     claimStripeWebhookEvent.mockResolvedValue({ action: 'PROCESS', receipt: { attempts: 1 } })
 
     const prisma = createFakeTransactionalPrisma({
-      owner: [seedOwner({ extraEventCredits: 1, extraEventCheckoutSessionId: 'cs_ex_5' })],
-      extraFreeEventCheckout: [seedCheckout({ sessionId: 'cs_ex_5', status: 'credit_granted' })],
+      owner: [seedOwner({ extraEventCredits: 1, extraEventCheckoutSessionId: 'cs_exl_4' })],
+      extraFreeEventCheckout: [],
       stripeWebhookEvent: [seedReceipt({ eventId: stripeEventId, status: 'PROCESSING', attempts: 1 })],
     })
     getPrismaClient.mockResolvedValue(prisma)
@@ -325,21 +257,61 @@ describe('STEP 4.7: atomic finalization for checkout.session.completed / extra_e
 
     expect(prisma.upsellEvent._rows).toHaveLength(0)
 
+    // Finalized via the wrapper's standalone markProcessed on the legacy
+    // 200 response, not via a tagged outcome from an uncommitted transaction.
     const receipt = await prisma.stripeWebhookEvent.findUnique({ where: { eventId: stripeEventId } })
     expect(receipt.status).toBe('PROCESSED')
     expect(markStripeWebhookEventProcessed).toHaveBeenCalledTimes(1)
   })
 
-  it('F: email and PostHog side effects fire only after the transaction has committed', async () => {
-    const stripeEventId = 'evt_ex_side_effect_order'
-    const session = buildSession({ sessionId: 'cs_ex_6' })
+  it('E: an Owner.update P2025 stays a legitimate skip, never a finalized (tagged) receipt', async () => {
+    const stripeEventId = 'evt_exl_p2025'
+    const session = buildSession({ sessionId: 'cs_exl_5' })
     const stripeEvent = buildStripeEvent('checkout.session.completed', session, stripeEventId)
     mockConstructEvent(stripeEvent)
     claimStripeWebhookEvent.mockResolvedValue({ action: 'PROCESS', receipt: { attempts: 1 } })
 
     const prisma = createFakeTransactionalPrisma({
       owner: [seedOwner()],
-      extraFreeEventCheckout: [seedCheckout({ sessionId: 'cs_ex_6', status: 'checkout_created' })],
+      extraFreeEventCheckout: [],
+      stripeWebhookEvent: [seedReceipt({ eventId: stripeEventId, status: 'PROCESSING', attempts: 1 })],
+    })
+    const realTransaction = prisma.$transaction
+    prisma.$transaction = vi.fn((fn) =>
+      realTransaction((tx) => {
+        tx.owner.update = vi.fn().mockRejectedValue(
+          new Prisma.PrismaClientKnownRequestError('Record to update not found.', { code: 'P2025', clientVersion: '6.9.0' })
+        )
+        return fn(tx)
+      })
+    )
+    getPrismaClient.mockResolvedValue(prisma)
+
+    const response = await POST(createWebhookRequest())
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.received).toBe(true)
+
+    expect(prisma.upsellEvent._rows).toHaveLength(0)
+
+    // Finalized via the wrapper's standalone markProcessed on the legacy
+    // 200 response, not via a tagged outcome from an uncommitted transaction.
+    const receipt = await prisma.stripeWebhookEvent.findUnique({ where: { eventId: stripeEventId } })
+    expect(receipt.status).toBe('PROCESSED')
+    expect(markStripeWebhookEventProcessed).toHaveBeenCalledTimes(1)
+  })
+
+  it('F: email and PostHog side effects fire only after the transaction has committed', async () => {
+    const stripeEventId = 'evt_exl_side_effect_order'
+    const session = buildSession({ sessionId: 'cs_exl_6' })
+    const stripeEvent = buildStripeEvent('checkout.session.completed', session, stripeEventId)
+    mockConstructEvent(stripeEvent)
+    claimStripeWebhookEvent.mockResolvedValue({ action: 'PROCESS', receipt: { attempts: 1 } })
+
+    const prisma = createFakeTransactionalPrisma({
+      owner: [seedOwner()],
+      extraFreeEventCheckout: [],
       stripeWebhookEvent: [seedReceipt({ eventId: stripeEventId, status: 'PROCESSING', attempts: 1 })],
     })
     getPrismaClient.mockResolvedValue(prisma)
@@ -347,11 +319,9 @@ describe('STEP 4.7: atomic finalization for checkout.session.completed / extra_e
     let committedStateWhenEmailed = null
     sendExtraFreeEventCreditGrantedEmail.mockImplementation(async ({ owner }) => {
       const ownerRow = await prisma.owner.findUnique({ where: { id: owner.id } })
-      const checkoutRow = await prisma.extraFreeEventCheckout.findUnique({ where: { id: 'checkout-1' } })
       const receiptRow = await prisma.stripeWebhookEvent.findUnique({ where: { eventId: stripeEventId } })
       committedStateWhenEmailed = {
         extraEventCredits: ownerRow?.extraEventCredits,
-        checkoutStatus: checkoutRow?.status,
         upsellCount: prisma.upsellEvent._rows.length,
         receiptStatus: receiptRow?.status,
       }
@@ -363,11 +333,9 @@ describe('STEP 4.7: atomic finalization for checkout.session.completed / extra_e
     trackServerEvent.mockImplementation(() => {
       if (committedStateWhenTracked === null) {
         const ownerRow = prisma.owner._rows.find((r) => r.id === 'owner-1')
-        const checkoutRow = prisma.extraFreeEventCheckout._rows.find((r) => r.id === 'checkout-1')
         const receiptRow = prisma.stripeWebhookEvent._rows.find((r) => r.eventId === stripeEventId)
         committedStateWhenTracked = {
           extraEventCredits: ownerRow?.extraEventCredits,
-          checkoutStatus: checkoutRow?.status,
           upsellCount: prisma.upsellEvent._rows.length,
           receiptStatus: receiptRow?.status,
         }
@@ -382,7 +350,6 @@ describe('STEP 4.7: atomic finalization for checkout.session.completed / extra_e
 
     const expectedCommittedState = {
       extraEventCredits: 1,
-      checkoutStatus: 'credit_granted',
       upsellCount: 1,
       receiptStatus: 'PROCESSED',
     }
@@ -391,15 +358,15 @@ describe('STEP 4.7: atomic finalization for checkout.session.completed / extra_e
   })
 
   it('G: markStripeWebhookEventProcessed runs exactly once, from inside the transaction — no double finalization', async () => {
-    const stripeEventId = 'evt_ex_no_double_finalize'
-    const session = buildSession({ sessionId: 'cs_ex_7' })
+    const stripeEventId = 'evt_exl_no_double_finalize'
+    const session = buildSession({ sessionId: 'cs_exl_7' })
     const stripeEvent = buildStripeEvent('checkout.session.completed', session, stripeEventId)
     mockConstructEvent(stripeEvent)
     claimStripeWebhookEvent.mockResolvedValue({ action: 'PROCESS', receipt: { attempts: 1 } })
 
     const prisma = createFakeTransactionalPrisma({
       owner: [seedOwner()],
-      extraFreeEventCheckout: [seedCheckout({ sessionId: 'cs_ex_7', status: 'checkout_created' })],
+      extraFreeEventCheckout: [],
       stripeWebhookEvent: [seedReceipt({ eventId: stripeEventId, status: 'PROCESSING', attempts: 1 })],
     })
     getPrismaClient.mockResolvedValue(prisma)
@@ -415,25 +382,31 @@ describe('STEP 4.7: atomic finalization for checkout.session.completed / extra_e
     expect(prisma.$transaction).toHaveBeenCalledTimes(1)
   })
 
-  it('H: legacy extra_event (no pendingCheckout row) never touches ExtraFreeEventCheckout / the canonical state machine', async () => {
-    // As of STEP 4.8 the legacy path (no pendingCheckout row) is also
-    // atomic — see tests/stripe-webhook-extra-event-legacy-atomic.test.js
-    // for its own dedicated transaction/fencing/rollback coverage. What
-    // this test protects here is narrower and specific to this file's
-    // STEP 4.7 scope: a session with no pendingCheckout row must never
-    // read or write ExtraFreeEventCheckout, i.e. it never runs through
-    // fulfillExtraFreeEventCreditCanonical's state machine.
-    const stripeEventId = 'evt_ex_legacy'
-    const session = buildSession({ sessionId: 'cs_ex_legacy' })
+  it('H: canonical extra_event (with pendingCheckout) stays on the STEP 4.7 path — never routes through the legacy transaction', async () => {
+    const stripeEventId = 'evt_exl_canonical_regression'
+    const session = buildSession({ sessionId: 'cs_exl_canonical' })
     const stripeEvent = buildStripeEvent('checkout.session.completed', session, stripeEventId)
     mockConstructEvent(stripeEvent)
     claimStripeWebhookEvent.mockResolvedValue({ action: 'PROCESS', receipt: { attempts: 1 } })
 
     const prisma = createFakeTransactionalPrisma({
       owner: [seedOwner()],
-      // No extraFreeEventCheckout row seeded for this session: the lookup
-      // by stripeCheckoutSessionId falls through to the legacy path.
-      extraFreeEventCheckout: [],
+      // A pendingCheckout row DOES exist for this session: the canonical
+      // STEP 4.7 path must be taken, not this step's legacy transaction.
+      extraFreeEventCheckout: [
+        {
+          id: 'checkout-canonical-1',
+          ownerId: 'owner-1',
+          stripeCheckoutSessionId: 'cs_exl_canonical',
+          eventName: null,
+          status: 'checkout_created',
+          createdEventId: null,
+          createdEventSlug: null,
+          errorMessage: null,
+          completedAt: null,
+          autoCreatedAt: null,
+        },
+      ],
       stripeWebhookEvent: [seedReceipt({ eventId: stripeEventId, status: 'PROCESSING', attempts: 1 })],
     })
     getPrismaClient.mockResolvedValue(prisma)
@@ -446,11 +419,11 @@ describe('STEP 4.7: atomic finalization for checkout.session.completed / extra_e
 
     const owner = await prisma.owner.findUnique({ where: { id: 'owner-1' } })
     expect(owner.extraEventCredits).toBe(1)
-    expect(owner.extraEventCheckoutSessionId).toBe('cs_ex_legacy')
 
-    // No ExtraFreeEventCheckout row was created or touched: the legacy
-    // path never runs the canonical pendingCheckout state machine.
-    expect(prisma.extraFreeEventCheckout._rows).toHaveLength(0)
+    const checkout = await prisma.extraFreeEventCheckout.findUnique({ where: { id: 'checkout-canonical-1' } })
+    // Canonical-path marker: status transitions to credit_granted, the
+    // legacy path never touches ExtraFreeEventCheckout at all.
+    expect(checkout.status).toBe('credit_granted')
 
     expect(prisma.upsellEvent._rows).toHaveLength(1)
 

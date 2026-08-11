@@ -266,21 +266,31 @@ describe('Stripe webhook claim/receipt wiring', () => {
   })
 
   it('I: markProcessed generic failure never returns the original 2xx', async () => {
-    // Uses checkout.session.completed/extra_event (legacy fallback, no
-    // pendingCheckout row) — the only handled branch still on the legacy,
-    // non-atomic contract as of STEP 4.6 — to exercise the wrapper's own
-    // external markProcessed-failure branch. subscription.updated/deleted
-    // (STEP 4.3), both invoice handlers (STEP 4.4), high_quality_download
-    // (STEP 4.5), and pro_event/wedding_pro/professional (STEP 4.6) now all
-    // finalize inside their own transaction, so they can no longer drive
-    // this path.
-    const session = buildCheckoutSession({ intent: 'extra_event' })
+    // Uses checkout.session.completed/extra_event buy-and-create's
+    // fallback-credit branch (auto-create fails, so a credit is granted
+    // instead) — the only handled branch still on the legacy, non-atomic
+    // contract as of STEP 4.8 — to exercise the wrapper's own external
+    // markProcessed-failure branch. subscription.updated/deleted (STEP 4.3),
+    // both invoice handlers (STEP 4.4), high_quality_download (STEP 4.5),
+    // pro_event/wedding_pro/professional (STEP 4.6), the pendingCheckout
+    // credit path (STEP 4.7), and the no-pendingCheckout legacy credit path
+    // (STEP 4.8) now all finalize inside their own transaction, so only
+    // buy-and-create's plain (non-tagged) 2xx can still drive this path.
+    const session = buildCheckoutSession({
+      intent: 'extra_event',
+      sessionId: 'cs_create_fail_wiring',
+      extra: { postPurchaseAction: 'create_event', pendingCheckoutId: 'pending-fail-wiring' },
+    })
     const stripeEvent = buildStripeEvent('checkout.session.completed', session)
     mockConstructEvent(stripeEvent)
     claimStripeWebhookEvent.mockResolvedValue({ action: StripeWebhookClaimAction.PROCESS, receipt: { attempts: 1 } })
     markStripeWebhookEventProcessed.mockRejectedValue(new Error('db blip'))
 
     const prisma = createBusinessPrismaMock()
+    const pending = { id: 'pending-fail-wiring', ownerId: 'owner-1', eventName: 'Birthday Party', status: 'checkout_created' }
+    prisma.extraFreeEventCheckout.findUnique.mockResolvedValue(pending)
+    prisma.extraFreeEventCheckout.findFirst.mockResolvedValue(pending)
+    prismaGalleryRepository.createEvent.mockRejectedValue(new Error('create failed'))
     getPrismaClient.mockResolvedValue(prisma)
 
     const response = await POST(createWebhookRequest())
