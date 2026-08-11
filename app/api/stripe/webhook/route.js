@@ -303,6 +303,10 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
   if (intent === 'extra_event') {
     const postPurchaseAction = session.metadata?.postPurchaseAction
 
+    // Stripe webhook event id, kept explicit and distinct from any
+    // business-entity id to fence the receipt for the canonical credit path.
+    const stripeEventId = event.id
+
     // New canonical path: every extra_event checkout has a unique pending row.
     const pendingCheckout = await prisma.extraFreeEventCheckout.findUnique({
       where: { stripeCheckoutSessionId: session.id },
@@ -312,7 +316,7 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
       if (postPurchaseAction === 'create_event') {
         return await fulfillExtraFreeEventBuyAndCreate({ prisma, session, ownerId, intent })
       }
-      return await fulfillExtraFreeEventCredit({ prisma, session, ownerId, intent, pendingCheckout })
+      return await fulfillExtraFreeEventCreditCanonical({ prisma, session, ownerId, intent, pendingCheckout, stripeEventId, attempt })
     }
 
     // Legacy fallback: sessions created before the pending-row migration.
@@ -894,76 +898,26 @@ async function handleInvoicePaymentSucceeded({ event, prisma, attempt }) {
   }
 }
 
-// ── Helper: Extra Free Event credit fulfillment ──
-async function fulfillExtraFreeEventCredit({ prisma, session, ownerId, intent, pendingCheckout = null }) {
+// ── Helper: Extra Free Event credit fulfillment (legacy path, sessions
+// created before the pending-row migration — no pendingCheckout row) ──
+async function fulfillExtraFreeEventCredit({ prisma, session, ownerId, intent }) {
   try {
-    let updatedOwner
-
-    if (pendingCheckout) {
-      // Canonical path: every extra_event checkout has a unique pending row.
-      if (['credit_granted', 'auto_created', 'failed'].includes(pendingCheckout.status)) {
-        console.log(
-          `[stripe/webhook] Extra free event checkout ${pendingCheckout.id} already processed (status=${pendingCheckout.status}), skipping`
-        )
-        return NextResponse.json({ received: true })
-      }
-
-      const result = await prisma.$transaction(async (tx) => {
-        // Pessimistic lock: serialize concurrent webhook deliveries for the same session.
-        await tx.$queryRaw`SELECT id FROM "ExtraFreeEventCheckout" WHERE id = ${pendingCheckout.id} FOR UPDATE`
-
-        const fresh = await tx.extraFreeEventCheckout.findUnique({
-          where: { id: pendingCheckout.id },
-        })
-        if (!fresh || ['credit_granted', 'auto_created', 'failed'].includes(fresh.status)) {
-          return null
-        }
-
-        const owner = await tx.owner.update({
-          where: { id: ownerId },
-          data: {
-            extraEventCredits: { increment: 1 },
-            extraEventCheckoutSessionId: session.id,
-            updatedAt: new Date(),
-          },
-        })
-
-        await tx.extraFreeEventCheckout.update({
-          where: { id: fresh.id },
-          data: {
-            status: 'credit_granted',
-            stripeCheckoutSessionId: session.id,
-            completedAt: new Date(),
-          },
-        })
-
-        return owner
-      })
-
-      if (!result) {
-        return NextResponse.json({ received: true })
-      }
-
-      updatedOwner = result
-    } else {
-      // Legacy path: sessions created before the pending-row change.
-      const existing = await prisma.owner.findFirst({
-        where: { id: ownerId, extraEventCheckoutSessionId: session.id },
-      })
-      if (existing) {
-        console.log(`[stripe/webhook] Owner ${existing.email} already fulfilled for extra free event session ${session.id}`)
-        return NextResponse.json({ received: true })
-      }
-
-      updatedOwner = await prisma.owner.update({
-        where: { id: ownerId },
-        data: {
-          extraEventCredits: { increment: 1 },
-          extraEventCheckoutSessionId: session.id,
-          updatedAt: new Date(),
-        },
-      })
+    const existing = await prisma.owner.findFirst({
+      where: { id: ownerId, extraEventCheckoutSessionId: session.id },
+    })
+    if (existing) {
+      console.log(`[stripe/webhook] Owner ${existing.email} already fulfilled for extra free event session ${session.id}`)
+      return NextResponse.json({ received: true })
     }
+
+    const updatedOwner = await prisma.owner.update({
+      where: { id: ownerId },
+      data: {
+        extraEventCredits: { increment: 1 },
+        extraEventCheckoutSessionId: session.id,
+        updatedAt: new Date(),
+      },
+    })
 
     trackServerEvent(
       EVENT_CHECKOUT_COMPLETED,
@@ -1026,13 +980,148 @@ async function fulfillExtraFreeEventCredit({ prisma, session, ownerId, intent, p
       context: {
         stripeSessionId: session.id,
         ownerId,
-        pendingCheckoutId: pendingCheckout?.id,
+        pendingCheckoutId: undefined,
       },
     })
     return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
   }
 
   return NextResponse.json({ received: true })
+}
+
+// ── Helper: Extra Free Event credit fulfillment (canonical path, atomic —
+// every extra_event checkout has a unique pending row) ──
+async function fulfillExtraFreeEventCreditCanonical({ prisma, session, ownerId, intent, pendingCheckout, stripeEventId, attempt }) {
+  if (['credit_granted', 'auto_created', 'failed'].includes(pendingCheckout.status)) {
+    console.log(
+      `[stripe/webhook] Extra free event checkout ${pendingCheckout.id} already processed (status=${pendingCheckout.status}), skipping`
+    )
+    return NextResponse.json({ received: true })
+  }
+
+  let updatedOwner
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // Pessimistic lock: serialize concurrent webhook deliveries for the same session.
+      await tx.$queryRaw`SELECT id FROM "ExtraFreeEventCheckout" WHERE id = ${pendingCheckout.id} FOR UPDATE`
+
+      const fresh = await tx.extraFreeEventCheckout.findUnique({
+        where: { id: pendingCheckout.id },
+      })
+      if (!fresh || ['credit_granted', 'auto_created', 'failed'].includes(fresh.status)) {
+        // Lost the race after acquiring the lock: another delivery already
+        // reached a terminal status first. Nothing to write, so nothing to
+        // make atomic.
+        return null
+      }
+
+      const owner = await tx.owner.update({
+        where: { id: ownerId },
+        data: {
+          extraEventCredits: { increment: 1 },
+          extraEventCheckoutSessionId: session.id,
+          updatedAt: new Date(),
+        },
+      })
+
+      await tx.extraFreeEventCheckout.update({
+        where: { id: fresh.id },
+        data: {
+          status: 'credit_granted',
+          stripeCheckoutSessionId: session.id,
+          completedAt: new Date(),
+        },
+      })
+
+      await tx.upsellEvent.create({
+        data: {
+          eventName: EVENT_UPSELL_CONVERSION,
+          upsellType: session.metadata?.upsellType || 'extra_event',
+          source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
+          ctaPlan: 'extra_event',
+          ownerId: ownerId || null,
+        },
+      })
+
+      await markStripeWebhookEventProcessed({ prisma: tx, eventId: stripeEventId, attempt })
+
+      return owner
+    })
+
+    if (!result) {
+      // Nothing committed: legacy response, standalone wrapper finalization.
+      return NextResponse.json({ received: true })
+    }
+
+    updatedOwner = result
+  } catch (dbError) {
+    if (dbError instanceof StripeWebhookFencingError) {
+      // Another worker already reclaimed this delivery; Prisma already
+      // rolled back the credit/checkout/UpsellEvent writes above. Let the
+      // wrapper handle it (503, no markFailed with this now-stale attempt).
+      throw dbError
+    }
+    if (dbError instanceof Prisma.PrismaClientKnownRequestError && dbError.code === 'P2025') {
+      console.warn('[stripe/webhook] Owner not found for extra free event fulfillment, skipping:', ownerId)
+      return NextResponse.json({ received: true })
+    }
+    console.error('[stripe/webhook] Failed to grant extra free event credit:', dbError)
+    await sendOpsAlert({
+      severity: 'critical',
+      type: 'billing:extra_free_event:credit_grant_failed',
+      title: 'Extra Free Event credit grant failed',
+      message: dbError.message,
+      context: {
+        stripeSessionId: session.id,
+        ownerId,
+        pendingCheckoutId: pendingCheckout?.id,
+      },
+    })
+    return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
+  }
+
+  trackServerEvent(
+    EVENT_CHECKOUT_COMPLETED,
+    {
+      owner_id: ownerId,
+      billing_intent: intent,
+      product_type: session.metadata?.productType || 'extra_free_event',
+      restrictions: session.metadata?.restrictions || 'free_plan',
+      stripe_session_id: session.id,
+      stripe_customer_id: session.customer,
+      extra_event_credits: updatedOwner.extraEventCredits,
+    },
+    { distinctId: session.metadata?.ownerEmail || ownerId }
+  )
+
+  trackServerEvent(
+    EVENT_UPSELL_CONVERSION,
+    {
+      owner_id: ownerId,
+      billing_intent: intent,
+      upsell_type: session.metadata?.upsellType || 'extra_event',
+      product_type: session.metadata?.productType || 'extra_free_event',
+      restrictions: session.metadata?.restrictions || 'free_plan',
+      source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
+      stripe_session_id: session.id,
+      stripe_customer_id: session.customer,
+      extra_event_credits: updatedOwner.extraEventCredits,
+    },
+    { distinctId: session.metadata?.ownerEmail || ownerId }
+  )
+
+  console.log(`[stripe/webhook] Owner ${updatedOwner.email} granted extra free event credit. Total credits: ${updatedOwner.extraEventCredits}`)
+
+  await sendExtraFreeEventCreditGrantedEmail({
+    owner: updatedOwner,
+    credits: updatedOwner.extraEventCredits,
+    appUrl: getAppUrl(),
+  })
+
+  return {
+    kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
+    response: NextResponse.json({ received: true }),
+  }
 }
 
 // ── Helper: "buy and create" auto-creation ──
