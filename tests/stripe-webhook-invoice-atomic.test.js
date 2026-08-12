@@ -114,7 +114,10 @@ describe('STEP 4.4: atomic finalization for invoice.payment_failed/succeeded', (
     expect(body.received).toBe(true)
 
     const owner = await prisma.owner.findUnique({ where: { id: 'owner-1' } })
-    expect(owner.subscriptionStatus).toBe('past_due')
+    // STEP 5.2 field ownership: invoice.payment_failed no longer writes
+    // subscriptionStatus (subscription-domain-only field) — it stays at
+    // whatever customer.subscription.updated last set.
+    expect(owner.subscriptionStatus).toBe('active')
     expect(owner.lastInvoiceId).toBe('in_1')
     expect(owner.paymentFailedAt).toBeInstanceOf(Date)
 
@@ -145,7 +148,10 @@ describe('STEP 4.4: atomic finalization for invoice.payment_failed/succeeded', (
     expect(body.received).toBe(true)
 
     const owner = await prisma.owner.findUnique({ where: { id: 'owner-1' } })
-    expect(owner.subscriptionStatus).toBe('active')
+    // STEP 5.2 field ownership: invoice.payment_succeeded no longer writes
+    // subscriptionStatus (subscription-domain-only field) — it stays at
+    // whatever customer.subscription.updated last set.
+    expect(owner.subscriptionStatus).toBe('past_due')
     expect(owner.lastInvoiceId).toBe('in_2')
     expect(owner.paymentFailedAt).toBeNull()
 
@@ -370,19 +376,21 @@ describe('STEP 4.4: atomic finalization for invoice.payment_failed/succeeded', (
     })
     getPrismaClient.mockResolvedValue(prisma)
 
-    let committedStatusWhenEmailSent = null
+    let committedLastInvoiceIdWhenEmailSent = null
     sendProfessionalPaymentFailedEmail.mockImplementation(async () => {
       // Reads the ROOT store (not a transaction snapshot) — only reflects a
-      // committed transaction.
+      // committed transaction. lastInvoiceId (invoice-domain field, still
+      // written by this handler post-STEP-5.2) is the before/after signal
+      // here since subscriptionStatus is no longer touched by this path.
       const owner = await prisma.owner.findUnique({ where: { id: 'owner-1' } })
-      committedStatusWhenEmailSent = owner.subscriptionStatus
+      committedLastInvoiceIdWhenEmailSent = owner.lastInvoiceId
     })
 
     const response = await POST(createWebhookRequest())
 
     expect(response.status).toBe(200)
     expect(sendProfessionalPaymentFailedEmail).toHaveBeenCalledTimes(1)
-    expect(committedStatusWhenEmailSent).toBe('past_due')
+    expect(committedLastInvoiceIdWhenEmailSent).toBe('in_9')
   })
 
   it('J: markStripeWebhookEventProcessed runs exactly once, from inside the transaction — the wrapper never calls it again', async () => {
