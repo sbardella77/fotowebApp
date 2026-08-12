@@ -42,6 +42,7 @@ import { processClaimedStripeWebhookEvent, StripeWebhookRunOutcome } from '@/lib
 import {
   isStripeOrderingGuardEnabled,
   bootstrapStripeSubscriptionOrdering,
+  bootstrapStripeInvoiceOrdering,
 } from '@/lib/server/stripe-billing-ordering'
 
 export const dynamic = 'force-dynamic'
@@ -156,7 +157,7 @@ export async function POST(request) {
       prisma,
       eventId: stripeEventId,
       attempt: processingAttempt,
-      run: () => handleInvoicePaymentFailed({ event, prisma, attempt: processingAttempt }),
+      run: () => handleInvoicePaymentFailed({ event, prisma, stripe, attempt: processingAttempt }),
     })
   }
 
@@ -165,7 +166,7 @@ export async function POST(request) {
       prisma,
       eventId: stripeEventId,
       attempt: processingAttempt,
-      run: () => handleInvoicePaymentSucceeded({ event, prisma, attempt: processingAttempt }),
+      run: () => handleInvoicePaymentSucceeded({ event, prisma, stripe, attempt: processingAttempt }),
     })
   }
 }
@@ -1059,7 +1060,16 @@ async function orderedHandleSubscriptionDeleted({ event, prisma, stripe, attempt
 
 // ── invoice.payment_failed ──
 // Professional payment failed: enter past_due with a grace period.
-async function handleInvoicePaymentFailed({ event, prisma, attempt }) {
+async function handleInvoicePaymentFailed({ event, prisma, stripe, attempt }) {
+  if (!isStripeOrderingGuardEnabled()) {
+    return legacyHandleInvoicePaymentFailed({ event, prisma, attempt })
+  }
+  return orderedHandleInvoicePaymentFailed({ event, prisma, stripe, attempt })
+}
+
+// Unmodified since before STEP 5.8 — this is the exact behavior that must
+// remain byte-for-behavior invariant while the ordering guard is disabled.
+async function legacyHandleInvoicePaymentFailed({ event, prisma, attempt }) {
   const invoice = event.data.object
   const subscriptionId = invoice.subscription
   const customerId = invoice.customer
@@ -1142,7 +1152,16 @@ async function handleInvoicePaymentFailed({ event, prisma, attempt }) {
 
 // ── invoice.payment_succeeded ──
 // Subscription payment recovered: restore active state.
-async function handleInvoicePaymentSucceeded({ event, prisma, attempt }) {
+async function handleInvoicePaymentSucceeded({ event, prisma, stripe, attempt }) {
+  if (!isStripeOrderingGuardEnabled()) {
+    return legacyHandleInvoicePaymentSucceeded({ event, prisma, attempt })
+  }
+  return orderedHandleInvoicePaymentSucceeded({ event, prisma, stripe, attempt })
+}
+
+// Unmodified since before STEP 5.8 — this is the exact behavior that must
+// remain byte-for-behavior invariant while the ordering guard is disabled.
+async function legacyHandleInvoicePaymentSucceeded({ event, prisma, attempt }) {
   const invoice = event.data.object
   const subscriptionId = invoice.subscription
   const customerId = invoice.customer
@@ -1217,6 +1236,273 @@ async function handleInvoicePaymentSucceeded({ event, prisma, attempt }) {
     kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
     response: NextResponse.json({ received: true }),
   }
+}
+
+// ── STEP 5.8: invoice-domain ordering (guard-gated) ──
+//
+// Discovery vs. authorization (item 3): the existing OR(stripeSubscriptionId,
+// stripeCustomerId) lookup is kept for *finding* a candidate owner — a
+// customer can have many historical subscriptions — but stripeCustomerId
+// never *authorizes* a write on its own. Authorization requires the
+// owner's scope to already equal invoiceSubscriptionId, or (the one-time
+// legacy bootstrap exception) scope to be null with stripeSubscriptionId
+// matching directly.
+//   AUTHORIZED       — case A (scope matches) or case B (never-bootstrapped
+//                       legacy owner, direct subscriptionId match).
+//   STALE_OR_FOREIGN — case C (scope points elsewhere) or case D (only a
+//                       customerId match, scope null, subscriptionId
+//                       doesn't match) — always a terminal no-op, never
+//                       retryable. No metadata.ownerId-equivalent
+//                       correlation exists for invoices (STEP 5.3b finding:
+//                       Invoice objects don't inherit Subscription
+//                       metadata), so no pre-checkout race policy here.
+//   NOT_FOUND         — no owner correlates at all (same as legacy).
+async function resolveInvoiceEventOwner({ prisma, invoiceSubscriptionId, customerId }) {
+  const owner = await prisma.owner.findFirst({
+    where: {
+      OR: [
+        { stripeSubscriptionId: invoiceSubscriptionId || '' },
+        { stripeCustomerId: customerId || '' },
+      ],
+    },
+  })
+
+  if (!owner) {
+    return { classification: 'NOT_FOUND', owner: null }
+  }
+
+  const scope = owner.stripeBillingCursorSubscriptionId
+  if (scope === invoiceSubscriptionId) {
+    return { classification: 'AUTHORIZED', owner }
+  }
+  if (scope === null && owner.stripeSubscriptionId === invoiceSubscriptionId) {
+    return { classification: 'AUTHORIZED', owner }
+  }
+
+  return { classification: 'STALE_OR_FOREIGN', owner: null }
+}
+
+const INVOICE_ORDERING_MAX_CAS_RETRIES = 5
+
+// Shared recency/CAS engine for both invoice.payment_failed and
+// .payment_succeeded once identity + bootstrap have already been resolved.
+// Never writes stripeBillingCursorSubscriptionId — invoice ordering only
+// ever operates *within* an already-established scope; it never sets or
+// advances it (that is exclusively checkout/subscription-domain's job).
+async function applyInvoiceOrderedUpdate({
+  event, prisma, stripe, attempt, owner, invoiceSubscriptionId,
+  buildNewerUpdate, afterNewerCommit,
+}) {
+  const incoming = BigInt(event.created)
+
+  for (let i = 0; i < INVOICE_ORDERING_MAX_CAS_RETRIES; i++) {
+    const scope = owner.stripeBillingCursorSubscriptionId
+    if (scope !== invoiceSubscriptionId) {
+      return NextResponse.json({ received: true })
+    }
+
+    const current = owner.lastStripeInvoiceEventCreated
+
+    if (incoming < current) {
+      return NextResponse.json({ received: true, stale: true })
+    }
+
+    if (incoming === current) {
+      // Same-second tie: never apply the incoming payload directly.
+      // Canonical Stripe state (via latest_invoice) is authority — event.id
+      // is never used as a tie-break.
+      const subscription = await stripe.subscriptions.retrieve(invoiceSubscriptionId, { expand: ['latest_invoice'] })
+      const latestInvoice = subscription.latest_invoice
+      const update = {
+        lastInvoiceId: latestInvoice?.id ?? null,
+        lastInvoiceStatus: latestInvoice?.status ?? null,
+      }
+      if (latestInvoice?.status === 'paid') {
+        update.paymentFailedAt = null
+        update.lastPaymentError = null
+      }
+      // Any other status: preserve the existing paymentFailedAt/lastPaymentError
+      // (not included in `update` at all) — cannot be reconstructed with
+      // certainty (STEP 5.3b finding).
+      await prisma.$transaction(async (tx) => {
+        await tx.owner.update({
+          where: { id: owner.id },
+          data: { ...update, lastStripeInvoiceEventCreated: incoming },
+        })
+        await markStripeWebhookEventProcessed({ prisma: tx, eventId: event.id, attempt })
+      })
+      return {
+        kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
+        response: NextResponse.json({ received: true }),
+      }
+    }
+
+    // incoming > current: unambiguously newer. Atomic CAS, guarded on the
+    // exact scope + marker generation we just observed.
+    const preOwner = owner
+    const update = buildNewerUpdate()
+    let casCount = 0
+    await prisma.$transaction(async (tx) => {
+      const result = await tx.owner.updateMany({
+        where: {
+          id: owner.id,
+          stripeBillingCursorSubscriptionId: invoiceSubscriptionId,
+          lastStripeInvoiceEventCreated: current,
+        },
+        data: { ...update, lastStripeInvoiceEventCreated: incoming },
+      })
+      casCount = result.count
+      if (casCount === 1) {
+        await markStripeWebhookEventProcessed({ prisma: tx, eventId: event.id, attempt })
+      }
+    })
+
+    if (casCount === 1) {
+      const postOwner = await prisma.owner.findUnique({ where: { id: owner.id } })
+      if (afterNewerCommit) await afterNewerCommit(preOwner, postOwner)
+      return {
+        kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
+        response: NextResponse.json({ received: true }),
+      }
+    }
+
+    // count === 0: a concurrent writer advanced (or moved) the cursor
+    // between our read and this CAS attempt. No blind fallback — re-read
+    // and re-classify from scratch on the next loop iteration.
+    owner = await prisma.owner.findUnique({ where: { id: owner.id } })
+  }
+
+  throw new Error(
+    `stripe-webhook: exceeded ${INVOICE_ORDERING_MAX_CAS_RETRIES} CAS retries for invoice ordering on ${invoiceSubscriptionId}`
+  )
+}
+
+async function orderedHandleInvoicePaymentFailed({ event, prisma, stripe, attempt }) {
+  const invoice = event.data.object
+  const invoiceSubscriptionId = invoice.subscription
+  const customerId = invoice.customer
+
+  if (!invoiceSubscriptionId) {
+    // No subscription to establish ordering identity against — do not
+    // invent one (item 2). Safe no-op.
+    return NextResponse.json({ received: true })
+  }
+
+  const resolved = await resolveInvoiceEventOwner({ prisma, invoiceSubscriptionId, customerId })
+
+  if (resolved.classification === 'NOT_FOUND') {
+    console.warn('[stripe/webhook] Owner not found for failed invoice (ordering guard):', { invoiceSubscriptionId, customerId })
+    await sendOpsAlert({
+      severity: 'warning',
+      type: 'billing:webhook:invoice_failed_owner_not_found',
+      title: 'Owner not found for invoice.payment_failed',
+      message: `Could not match failed invoice to an owner.`,
+      context: { stripeEventId: event?.id, stripeInvoiceId: invoice.id, invoiceSubscriptionId, customerId },
+    })
+    return NextResponse.json({ received: true })
+  }
+
+  if (resolved.classification === 'STALE_OR_FOREIGN') {
+    console.warn('[stripe/webhook] Failed invoice references a subscription outside the owner scope (ordering guard):', { invoiceSubscriptionId })
+    return NextResponse.json({ received: true })
+  }
+
+  let owner = resolved.owner
+
+  // Idempotency: same standalone-finalization reasoning as legacy — no
+  // write happens on this path, orthogonal to the ordering marker.
+  if (isPaymentFailureAlreadyHandled(owner, invoice)) {
+    console.log(`[stripe/webhook] Failed invoice ${invoice.id} already recorded for owner ${owner.email}`)
+    return NextResponse.json({ received: true, duplicate: true })
+  }
+
+  if (owner.lastStripeInvoiceEventCreated === null || owner.lastStripeInvoiceEventCreated === undefined) {
+    const bootstrapResult = await bootstrapStripeInvoiceOrdering({
+      stripe, prisma, owner, stripeEvent: event, attempt,
+    })
+    if (bootstrapResult.action === 'BOOTSTRAPPED') {
+      return {
+        kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
+        response: NextResponse.json({ received: true }),
+      }
+    }
+    // ALREADY_BOOTSTRAPPED: refresh from the DB, never continue on the
+    // stale null-marker snapshot.
+    owner = await prisma.owner.findUnique({ where: { id: owner.id } })
+  }
+
+  return applyInvoiceOrderedUpdate({
+    event, prisma, stripe, attempt, owner, invoiceSubscriptionId,
+    buildNewerUpdate: () => buildPaymentFailedUpdate(invoice),
+    afterNewerCommit: async (preOwner, postOwner) => {
+      const access = resolveSubscriptionAccessState(postOwner)
+      console.log(
+        `[stripe/webhook] Owner ${postOwner.email} payment failed (invoice: ${invoice.id}, grace active: ${access.graceActive})`
+      )
+      await sendProfessionalPaymentFailedEmail({ owner: postOwner, billingState: access, appUrl: getAppUrl() })
+    },
+  })
+}
+
+async function orderedHandleInvoicePaymentSucceeded({ event, prisma, stripe, attempt }) {
+  const invoice = event.data.object
+  const invoiceSubscriptionId = invoice.subscription
+  const customerId = invoice.customer
+
+  if (!invoiceSubscriptionId) {
+    return NextResponse.json({ received: true })
+  }
+
+  const resolved = await resolveInvoiceEventOwner({ prisma, invoiceSubscriptionId, customerId })
+
+  if (resolved.classification === 'NOT_FOUND') {
+    console.warn('[stripe/webhook] Owner not found for successful invoice (ordering guard):', { invoiceSubscriptionId, customerId })
+    await sendOpsAlert({
+      severity: 'warning',
+      type: 'billing:webhook:invoice_succeeded_owner_not_found',
+      title: 'Owner not found for invoice.payment_succeeded',
+      message: `Could not match successful subscription invoice to an owner.`,
+      context: { stripeEventId: event?.id, stripeInvoiceId: invoice.id, invoiceSubscriptionId, customerId },
+    })
+    return NextResponse.json({ received: true })
+  }
+
+  if (resolved.classification === 'STALE_OR_FOREIGN') {
+    console.warn('[stripe/webhook] Successful invoice references a subscription outside the owner scope (ordering guard):', { invoiceSubscriptionId })
+    return NextResponse.json({ received: true })
+  }
+
+  let owner = resolved.owner
+
+  if (owner.lastStripeInvoiceEventCreated === null || owner.lastStripeInvoiceEventCreated === undefined) {
+    const bootstrapResult = await bootstrapStripeInvoiceOrdering({
+      stripe, prisma, owner, stripeEvent: event, attempt,
+    })
+    if (bootstrapResult.action === 'BOOTSTRAPPED') {
+      return {
+        kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
+        response: NextResponse.json({ received: true }),
+      }
+    }
+    owner = await prisma.owner.findUnique({ where: { id: owner.id } })
+  }
+
+  return applyInvoiceOrderedUpdate({
+    event, prisma, stripe, attempt, owner, invoiceSubscriptionId,
+    buildNewerUpdate: () => buildPaymentSucceededUpdate(invoice),
+    afterNewerCommit: async (preOwner, postOwner) => {
+      // Same "only notify on genuine recovery" semantics as legacy,
+      // computed from the pre-update owner snapshot.
+      const wasRecoverable =
+        !!preOwner.paymentFailedAt ||
+        preOwner.subscriptionStatus === 'past_due' ||
+        preOwner.subscriptionStatus === 'unpaid'
+      console.log('[stripe/webhook] Owner payment succeeded, subscription restored (ordering guard):', postOwner.email)
+      if (wasRecoverable) {
+        await sendProfessionalPaymentRecoveredEmail({ owner: postOwner, appUrl: getAppUrl() })
+      }
+    },
+  })
 }
 
 // ── Helper: Extra Free Event credit fulfillment (legacy path, atomic —
