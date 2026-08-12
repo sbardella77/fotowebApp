@@ -375,3 +375,205 @@ describe('STEP 4.6: atomic finalization for checkout.session.completed / profess
     expect(markStripeWebhookEventFailed).not.toHaveBeenCalled()
   })
 })
+
+describe('STEP 5.5: billing cursor scope initialization on professional checkout', () => {
+  it('A: success — stripeBillingCursorSubscriptionId matches stripeSubscriptionId, both markers null, all committed', async () => {
+    const stripeEventId = 'evt_cursor_success'
+    const session = buildSession({ sessionId: 'cs_cursor_a' })
+    const stripeEvent = buildStripeEvent('checkout.session.completed', session, stripeEventId)
+    mockConstructEvent(stripeEvent)
+    claimStripeWebhookEvent.mockResolvedValue({ action: 'PROCESS', receipt: { attempts: 1 } })
+
+    const prisma = createFakeTransactionalPrisma({
+      owner: [{
+        id: 'owner-1', email: 'owner@example.com', plan: 'free', subscriptionStatus: null,
+        stripeCheckoutSessionId: null, stripeSubscriptionId: null,
+        stripeBillingCursorSubscriptionId: null,
+        lastStripeSubscriptionEventCreated: null, lastStripeInvoiceEventCreated: null,
+      }],
+      stripeWebhookEvent: [seedReceipt({ eventId: stripeEventId, status: 'PROCESSING', attempts: 1 })],
+    })
+    getPrismaClient.mockResolvedValue(prisma)
+
+    const response = await POST(createWebhookRequest())
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.received).toBe(true)
+
+    const owner = await prisma.owner.findUnique({ where: { id: 'owner-1' } })
+    expect(owner.stripeSubscriptionId).toBe('sub_test_1')
+    expect(owner.stripeBillingCursorSubscriptionId).toBe('sub_test_1')
+    expect(owner.lastStripeSubscriptionEventCreated).toBeNull()
+    expect(owner.lastStripeInvoiceEventCreated).toBeNull()
+
+    const receipt = await prisma.stripeWebhookEvent.findUnique({ where: { eventId: stripeEventId } })
+    expect(receipt.status).toBe('PROCESSED')
+  })
+
+  it('B: fencing rollback — scope/subscription fields stay at their pre-transaction values', async () => {
+    const stripeEventId = 'evt_cursor_fencing'
+    const session = buildSession({ sessionId: 'cs_cursor_b' })
+    const stripeEvent = buildStripeEvent('checkout.session.completed', session, stripeEventId)
+    mockConstructEvent(stripeEvent)
+    claimStripeWebhookEvent.mockResolvedValue({ action: 'PROCESS', receipt: { attempts: 1 } })
+
+    const prisma = createFakeTransactionalPrisma({
+      owner: [{
+        id: 'owner-1', email: 'owner@example.com', plan: 'free', subscriptionStatus: null,
+        stripeCheckoutSessionId: null, stripeSubscriptionId: null,
+        stripeBillingCursorSubscriptionId: null,
+        lastStripeSubscriptionEventCreated: null, lastStripeInvoiceEventCreated: null,
+      }],
+      // Another worker reclaimed this delivery's stale lease first.
+      stripeWebhookEvent: [seedReceipt({ eventId: stripeEventId, status: 'PROCESSING', attempts: 2 })],
+    })
+    getPrismaClient.mockResolvedValue(prisma)
+
+    const response = await POST(createWebhookRequest())
+
+    expect(response.status).toBe(503)
+
+    const owner = await prisma.owner.findUnique({ where: { id: 'owner-1' } })
+    expect(owner.stripeSubscriptionId).toBeNull()
+    expect(owner.stripeBillingCursorSubscriptionId).toBeNull()
+    expect(owner.lastStripeSubscriptionEventCreated).toBeNull()
+    expect(owner.lastStripeInvoiceEventCreated).toBeNull()
+
+    expect(markStripeWebhookEventFailed).not.toHaveBeenCalled()
+  })
+
+  it('C: transaction failure rollback — cursor fields never advance on a failed write', async () => {
+    const stripeEventId = 'evt_cursor_tx_fail'
+    const session = buildSession({ sessionId: 'cs_cursor_c' })
+    const stripeEvent = buildStripeEvent('checkout.session.completed', session, stripeEventId)
+    mockConstructEvent(stripeEvent)
+    claimStripeWebhookEvent.mockResolvedValue({ action: 'PROCESS', receipt: { attempts: 1 } })
+
+    const prisma = createFakeTransactionalPrisma({
+      owner: [{
+        id: 'owner-1', email: 'owner@example.com', plan: 'free', subscriptionStatus: null,
+        stripeCheckoutSessionId: null, stripeSubscriptionId: null,
+        stripeBillingCursorSubscriptionId: null,
+        lastStripeSubscriptionEventCreated: null, lastStripeInvoiceEventCreated: null,
+      }],
+      stripeWebhookEvent: [seedReceipt({ eventId: stripeEventId, status: 'PROCESSING', attempts: 1 })],
+    })
+    const realTransaction = prisma.$transaction
+    prisma.$transaction = vi.fn((fn) =>
+      realTransaction((tx) => {
+        tx.upsellEvent.create = vi.fn().mockRejectedValue(new Error('upsell write failed'))
+        return fn(tx)
+      })
+    )
+    getPrismaClient.mockResolvedValue(prisma)
+
+    const response = await POST(createWebhookRequest())
+
+    expect(response.status).toBe(500)
+
+    const owner = await prisma.owner.findUnique({ where: { id: 'owner-1' } })
+    expect(owner.stripeSubscriptionId).toBeNull()
+    expect(owner.stripeBillingCursorSubscriptionId).toBeNull()
+
+    const receipt = await prisma.stripeWebhookEvent.findUnique({ where: { eventId: stripeEventId } })
+    expect(receipt.status).toBe('FAILED')
+  })
+
+  it('D: duplicate/already-fulfilled delivery does not reset markers already advanced by a later webhook', async () => {
+    const stripeEventId = 'evt_cursor_duplicate'
+    const session = buildSession({ sessionId: 'cs_cursor_d' })
+    const stripeEvent = buildStripeEvent('checkout.session.completed', session, stripeEventId)
+    mockConstructEvent(stripeEvent)
+    claimStripeWebhookEvent.mockResolvedValue({ action: 'PROCESS', receipt: { attempts: 1 } })
+
+    // Owner already fulfilled for this exact session (stripeCheckoutSessionId
+    // match), and a *later* subscription.updated webhook has already
+    // advanced the cursor markers past null. A duplicate delivery of the
+    // original checkout.session.completed must not regress them.
+    const prisma = createFakeTransactionalPrisma({
+      owner: [{
+        id: 'owner-1', email: 'owner@example.com', plan: 'professional', subscriptionStatus: 'active',
+        stripeCheckoutSessionId: 'cs_cursor_d', stripeSubscriptionId: 'sub_test_1',
+        stripeBillingCursorSubscriptionId: 'sub_test_1',
+        lastStripeSubscriptionEventCreated: 500n, lastStripeInvoiceEventCreated: 400n,
+      }],
+      stripeWebhookEvent: [seedReceipt({ eventId: stripeEventId, status: 'PROCESSING', attempts: 1 })],
+    })
+    getPrismaClient.mockResolvedValue(prisma)
+
+    const response = await POST(createWebhookRequest())
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.received).toBe(true)
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+
+    const owner = await prisma.owner.findUnique({ where: { id: 'owner-1' } })
+    expect(owner.stripeBillingCursorSubscriptionId).toBe('sub_test_1')
+    expect(owner.lastStripeSubscriptionEventCreated).toBe(500n)
+    expect(owner.lastStripeInvoiceEventCreated).toBe(400n)
+  })
+
+  it('E: a new professional checkout for a different subscription resets scope and both markers', async () => {
+    const stripeEventId = 'evt_cursor_resub'
+    const session = buildSession({ sessionId: 'cs_cursor_e' })
+    session.subscription = 'sub_B'
+    const stripeEvent = buildStripeEvent('checkout.session.completed', session, stripeEventId)
+    mockConstructEvent(stripeEvent)
+    claimStripeWebhookEvent.mockResolvedValue({ action: 'PROCESS', receipt: { attempts: 1 } })
+
+    // Owner previously had subscription A, fully bootstrapped/advanced.
+    const prisma = createFakeTransactionalPrisma({
+      owner: [{
+        id: 'owner-1', email: 'owner@example.com', plan: 'free', subscriptionStatus: 'canceled',
+        stripeCheckoutSessionId: 'cs_prof_old', stripeSubscriptionId: 'sub_A',
+        stripeBillingCursorSubscriptionId: 'sub_A',
+        lastStripeSubscriptionEventCreated: 700n, lastStripeInvoiceEventCreated: 650n,
+      }],
+      stripeWebhookEvent: [seedReceipt({ eventId: stripeEventId, status: 'PROCESSING', attempts: 1 })],
+    })
+    getPrismaClient.mockResolvedValue(prisma)
+
+    const response = await POST(createWebhookRequest())
+
+    expect(response.status).toBe(200)
+
+    const owner = await prisma.owner.findUnique({ where: { id: 'owner-1' } })
+    expect(owner.stripeSubscriptionId).toBe('sub_B')
+    expect(owner.stripeBillingCursorSubscriptionId).toBe('sub_B')
+    expect(owner.lastStripeSubscriptionEventCreated).toBeNull()
+    expect(owner.lastStripeInvoiceEventCreated).toBeNull()
+  })
+
+  it('F: no double finalization — markStripeWebhookEventProcessed runs exactly once with cursor fields set', async () => {
+    const stripeEventId = 'evt_cursor_no_double_finalize'
+    const session = buildSession({ sessionId: 'cs_cursor_f' })
+    const stripeEvent = buildStripeEvent('checkout.session.completed', session, stripeEventId)
+    mockConstructEvent(stripeEvent)
+    claimStripeWebhookEvent.mockResolvedValue({ action: 'PROCESS', receipt: { attempts: 1 } })
+
+    const prisma = createFakeTransactionalPrisma({
+      owner: [{
+        id: 'owner-1', email: 'owner@example.com', plan: 'free', subscriptionStatus: null,
+        stripeCheckoutSessionId: null, stripeSubscriptionId: null,
+        stripeBillingCursorSubscriptionId: null,
+        lastStripeSubscriptionEventCreated: null, lastStripeInvoiceEventCreated: null,
+      }],
+      stripeWebhookEvent: [seedReceipt({ eventId: stripeEventId, status: 'PROCESSING', attempts: 1 })],
+    })
+    getPrismaClient.mockResolvedValue(prisma)
+
+    const response = await POST(createWebhookRequest())
+
+    expect(response.status).toBe(200)
+    expect(markStripeWebhookEventProcessed).toHaveBeenCalledTimes(1)
+    expect(markStripeWebhookEventProcessed).toHaveBeenCalledWith(
+      expect.objectContaining({ eventId: stripeEventId, attempt: 1 })
+    )
+    expect(markStripeWebhookEventFailed).not.toHaveBeenCalled()
+
+    const owner = await prisma.owner.findUnique({ where: { id: 'owner-1' } })
+    expect(owner.stripeBillingCursorSubscriptionId).toBe('sub_test_1')
+  })
+})

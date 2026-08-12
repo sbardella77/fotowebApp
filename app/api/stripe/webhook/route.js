@@ -488,6 +488,12 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
             subscriptionGraceUntil: null,
             subscriptionCanceledAt: null,
             lastPaymentError: null,
+            // Billing ordering cursor: a new subscription scope starts with no
+            // history — markers stay null until the first real webhook
+            // establishes a Stripe-origin watermark (STEP 5.3b design).
+            stripeBillingCursorSubscriptionId: session.subscription || null,
+            lastStripeSubscriptionEventCreated: null,
+            lastStripeInvoiceEventCreated: null,
           },
         })
 
