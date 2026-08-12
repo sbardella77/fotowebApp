@@ -266,20 +266,23 @@ describe('Stripe webhook claim/receipt wiring', () => {
   })
 
   it('I: markProcessed generic failure never returns the original 2xx', async () => {
-    // Uses checkout.session.completed/extra_event buy-and-create's
-    // fallback-credit branch (auto-create fails, so a credit is granted
-    // instead) — the only handled branch still on the legacy, non-atomic
-    // contract as of STEP 4.8 — to exercise the wrapper's own external
-    // markProcessed-failure branch. subscription.updated/deleted (STEP 4.3),
-    // both invoice handlers (STEP 4.4), high_quality_download (STEP 4.5),
+    // Uses checkout.session.completed/extra_event buy-and-create's "pending
+    // checkout not found" skip — a path with no business write at all, so
+    // it is permanently on the legacy, non-atomic contract by design (see
+    // STEP 4.7/4.9's "no artificial receipt transaction on write-less
+    // paths") — to exercise the wrapper's own external markProcessed-
+    // failure branch. subscription.updated/deleted (STEP 4.3), both invoice
+    // handlers (STEP 4.4), high_quality_download (STEP 4.5),
     // pro_event/wedding_pro/professional (STEP 4.6), the pendingCheckout
-    // credit path (STEP 4.7), and the no-pendingCheckout legacy credit path
-    // (STEP 4.8) now all finalize inside their own transaction, so only
-    // buy-and-create's plain (non-tagged) 2xx can still drive this path.
+    // credit path (STEP 4.7), the no-pendingCheckout legacy credit path
+    // (STEP 4.8), and both the buy-and-create primary (STEP 4.9) and
+    // fallback (STEP 4.10) success paths now all finalize inside their own
+    // transaction, so only a write-less skip like this one can still drive
+    // this path.
     const session = buildCheckoutSession({
       intent: 'extra_event',
-      sessionId: 'cs_create_fail_wiring',
-      extra: { postPurchaseAction: 'create_event', pendingCheckoutId: 'pending-fail-wiring' },
+      sessionId: 'cs_pending_not_found_wiring',
+      extra: { postPurchaseAction: 'create_event', pendingCheckoutId: 'pending-missing-wiring' },
     })
     const stripeEvent = buildStripeEvent('checkout.session.completed', session)
     mockConstructEvent(stripeEvent)
@@ -287,10 +290,12 @@ describe('Stripe webhook claim/receipt wiring', () => {
     markStripeWebhookEventProcessed.mockRejectedValue(new Error('db blip'))
 
     const prisma = createBusinessPrismaMock()
-    const pending = { id: 'pending-fail-wiring', ownerId: 'owner-1', eventName: 'Birthday Party', status: 'checkout_created' }
-    prisma.extraFreeEventCheckout.findUnique.mockResolvedValue(pending)
-    prisma.extraFreeEventCheckout.findFirst.mockResolvedValue(pending)
-    prismaGalleryRepository.createEvent.mockRejectedValue(new Error('create failed'))
+    // Top-level dispatch: a pendingCheckout row exists for this session, so
+    // it routes into the buy-and-create branch...
+    prisma.extraFreeEventCheckout.findUnique.mockResolvedValue({ id: 'pending-missing-wiring', status: 'checkout_created' })
+    // ...but buy-and-create's own lookup by pendingCheckoutId finds nothing
+    // (default createBusinessPrismaMock behavior): a legitimate skip, no
+    // business write.
     getPrismaClient.mockResolvedValue(prisma)
 
     const response = await POST(createWebhookRequest())

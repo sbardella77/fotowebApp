@@ -1339,6 +1339,8 @@ async function fulfillExtraFreeEventBuyAndCreate({ prisma, session, ownerId, int
             completedAt: new Date(),
           },
         })
+
+        await markStripeWebhookEventProcessed({ prisma: tx, eventId: stripeEventId, attempt })
       })
 
       trackServerEvent(
@@ -1358,7 +1360,18 @@ async function fulfillExtraFreeEventBuyAndCreate({ prisma, session, ownerId, int
         pending,
         appUrl: getAppUrl(),
       })
+
+      return {
+        kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
+        response: NextResponse.json({ received: true }),
+      }
     } catch (fallbackError) {
+      if (fallbackError instanceof StripeWebhookFencingError) {
+        // Another worker already reclaimed this delivery; Prisma already
+        // rolled back the fallback credit/checkout writes above. Let the
+        // wrapper handle it (503, no markFailed with this now-stale attempt).
+        throw fallbackError
+      }
       console.error('[stripe/webhook] Fallback credit grant also failed:', fallbackError)
       await sendOpsAlert({
         severity: 'critical',
