@@ -39,6 +39,10 @@ import {
   StripeWebhookFencingError,
 } from '@/lib/server/stripe-webhook-receipt'
 import { processClaimedStripeWebhookEvent, StripeWebhookRunOutcome } from '@/lib/server/stripe-webhook-wrapper'
+import {
+  isStripeOrderingGuardEnabled,
+  bootstrapStripeSubscriptionOrdering,
+} from '@/lib/server/stripe-billing-ordering'
 
 export const dynamic = 'force-dynamic'
 
@@ -134,7 +138,7 @@ export async function POST(request) {
       prisma,
       eventId: stripeEventId,
       attempt: processingAttempt,
-      run: () => handleSubscriptionUpdated({ event, prisma, attempt: processingAttempt }),
+      run: () => handleSubscriptionUpdated({ event, prisma, stripe, attempt: processingAttempt }),
     })
   }
 
@@ -143,7 +147,7 @@ export async function POST(request) {
       prisma,
       eventId: stripeEventId,
       attempt: processingAttempt,
-      run: () => handleSubscriptionDeleted({ event, prisma, attempt: processingAttempt }),
+      run: () => handleSubscriptionDeleted({ event, prisma, stripe, attempt: processingAttempt }),
     })
   }
 
@@ -588,7 +592,16 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
 
 // ── customer.subscription.updated ──
 // Handle status changes and scheduled cancellations for Professional subscriptions
-async function handleSubscriptionUpdated({ event, prisma, attempt }) {
+async function handleSubscriptionUpdated({ event, prisma, stripe, attempt }) {
+  if (!isStripeOrderingGuardEnabled()) {
+    return legacyHandleSubscriptionUpdated({ event, prisma, attempt })
+  }
+  return orderedHandleSubscriptionUpdated({ event, prisma, stripe, attempt })
+}
+
+// Unmodified since before STEP 5.7 — this is the exact behavior that must
+// remain byte-for-behavior invariant while the ordering guard is disabled.
+async function legacyHandleSubscriptionUpdated({ event, prisma, attempt }) {
   const subscription = event.data.object
   const subscriptionId = subscription.id
   const status = subscription.status
@@ -679,7 +692,16 @@ async function handleSubscriptionUpdated({ event, prisma, attempt }) {
 
 // ── customer.subscription.deleted ──
 // Professional subscription fully ended
-async function handleSubscriptionDeleted({ event, prisma, attempt }) {
+async function handleSubscriptionDeleted({ event, prisma, stripe, attempt }) {
+  if (!isStripeOrderingGuardEnabled()) {
+    return legacyHandleSubscriptionDeleted({ event, prisma, attempt })
+  }
+  return orderedHandleSubscriptionDeleted({ event, prisma, stripe, attempt })
+}
+
+// Unmodified since before STEP 5.7 — this is the exact behavior that must
+// remain byte-for-behavior invariant while the ordering guard is disabled.
+async function legacyHandleSubscriptionDeleted({ event, prisma, attempt }) {
   const subscription = event.data.object
   const subscriptionId = subscription.id
 
@@ -740,6 +762,299 @@ async function handleSubscriptionDeleted({ event, prisma, attempt }) {
     kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
     response: NextResponse.json({ received: true }),
   }
+}
+
+// ── STEP 5.7: subscription-domain ordering (guard-gated) ──
+//
+// Resolves the Owner for a subscription-domain event, classifying the
+// identity relationship between the event's subscription id and the
+// owner's billing scope:
+//   FOUND         — normal: owner's stripeSubscriptionId matches directly,
+//                   or the owner's scope still points at this (possibly
+//                   already-tombstoned, stripeSubscriptionId-nulled)
+//                   subscription — lets trailing events for an already
+//                   terminal subscription still resolve to their owner so
+//                   the marker (not a blanket "not found") can classify
+//                   them as stale.
+//   RACE          — no direct/scope match, but Stripe's own
+//                   subscription_data.metadata.ownerId (embedded at
+//                   Checkout creation, STEP 5.1b finding) resolves to a
+//                   real owner whose scope is still null — a plausible
+//                   pre-checkout / not-yet-linked race. Retryable.
+//   SCOPE_MISMATCH — owner found by direct stripeSubscriptionId match but
+//                   its scope points at a third, different subscription.
+//                   Not reachable under the write invariants established
+//                   in STEP 5.1b/5.3b/5.5/5.6; handled conservatively.
+//   NOT_FOUND     — no correlation at all, or a metadata match whose scope
+//                   already points at a different, established
+//                   subscription (genuinely stale/foreign, not a race).
+async function resolveSubscriptionEventOwner({ prisma, eventSubscriptionId, metadataOwnerId }) {
+  let owner = await prisma.owner.findFirst({ where: { stripeSubscriptionId: eventSubscriptionId } })
+
+  if (!owner) {
+    owner = await prisma.owner.findFirst({ where: { stripeBillingCursorSubscriptionId: eventSubscriptionId } })
+  }
+
+  if (owner) {
+    const scope = owner.stripeBillingCursorSubscriptionId
+    if (scope === null || scope === eventSubscriptionId) {
+      return { classification: 'FOUND', owner }
+    }
+    return { classification: 'SCOPE_MISMATCH', owner: null }
+  }
+
+  if (metadataOwnerId) {
+    const candidateOwner = await prisma.owner.findUnique({ where: { id: metadataOwnerId } })
+    if (candidateOwner && candidateOwner.stripeBillingCursorSubscriptionId === null) {
+      return { classification: 'RACE', owner: candidateOwner }
+    }
+  }
+
+  return { classification: 'NOT_FOUND', owner: null }
+}
+
+const SUBSCRIPTION_ORDERING_MAX_CAS_RETRIES = 5
+
+// Shared recency/CAS engine for both customer.subscription.updated and
+// .deleted once identity + bootstrap have already been resolved.
+//
+// `buildNewerUpdate(owner)` — sync, no Stripe call: the fast path business
+//   update for an unambiguously newer event (mirrors legacy behavior, which
+//   never retrieves canonical state for this case either).
+// The same-second tie always does its own canonical retrieve inline below —
+// it's identical for both event types, so it isn't parametrized.
+// `afterNewerCommit(preOwner, postOwner)` — best-effort side effects (the
+//   existing legacy emails), fired only after a successful newer-path
+//   commit — never for bootstrap, stale, same-second, or a CAS-miss retry.
+async function applySubscriptionOrderedUpdate({
+  event, prisma, stripe, attempt, owner, eventSubscriptionId,
+  buildNewerUpdate, afterNewerCommit,
+}) {
+  const incoming = BigInt(event.created)
+
+  for (let i = 0; i < SUBSCRIPTION_ORDERING_MAX_CAS_RETRIES; i++) {
+    const scope = owner.stripeBillingCursorSubscriptionId
+    if (scope !== eventSubscriptionId) {
+      // Scope moved out from under us between our read and now (e.g. a
+      // concurrent resubscribe). Defer to identity policy: no write.
+      return NextResponse.json({ received: true })
+    }
+
+    const current = owner.lastStripeSubscriptionEventCreated
+
+    if (incoming < current) {
+      return NextResponse.json({ received: true, stale: true })
+    }
+
+    if (incoming === current) {
+      // Same-second tie: event.created cannot order these two events.
+      // event.id is never used as a tie-break — canonical Stripe state is
+      // authority instead.
+      const subscription = await stripe.subscriptions.retrieve(eventSubscriptionId)
+      const update = buildSubscriptionUpdatedData({ subscription, owner })
+      await prisma.$transaction(async (tx) => {
+        await tx.owner.update({
+          where: { id: owner.id },
+          data: {
+            ...update,
+            stripeBillingCursorSubscriptionId: eventSubscriptionId,
+            lastStripeSubscriptionEventCreated: incoming,
+          },
+        })
+        await markStripeWebhookEventProcessed({ prisma: tx, eventId: event.id, attempt })
+      })
+      return {
+        kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
+        response: NextResponse.json({ received: true }),
+      }
+    }
+
+    // incoming > current: unambiguously newer. Atomic CAS, guarded on the
+    // exact scope + marker generation we just observed.
+    const preOwner = owner
+    const update = buildNewerUpdate(owner)
+    let casCount = 0
+    await prisma.$transaction(async (tx) => {
+      const result = await tx.owner.updateMany({
+        where: {
+          id: owner.id,
+          stripeBillingCursorSubscriptionId: eventSubscriptionId,
+          lastStripeSubscriptionEventCreated: current,
+        },
+        data: {
+          ...update,
+          stripeBillingCursorSubscriptionId: eventSubscriptionId,
+          lastStripeSubscriptionEventCreated: incoming,
+        },
+      })
+      casCount = result.count
+      if (casCount === 1) {
+        await markStripeWebhookEventProcessed({ prisma: tx, eventId: event.id, attempt })
+      }
+    })
+
+    if (casCount === 1) {
+      const postOwner = await prisma.owner.findUnique({ where: { id: owner.id } })
+      if (afterNewerCommit) await afterNewerCommit(preOwner, postOwner)
+      return {
+        kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
+        response: NextResponse.json({ received: true }),
+      }
+    }
+
+    // count === 0: a concurrent writer advanced (or moved) the cursor
+    // between our read and this CAS attempt. No blind fallback — re-read
+    // and re-classify from scratch on the next loop iteration.
+    owner = await prisma.owner.findUnique({ where: { id: owner.id } })
+  }
+
+  throw new Error(
+    `stripe-webhook: exceeded ${SUBSCRIPTION_ORDERING_MAX_CAS_RETRIES} CAS retries for subscription ordering on ${eventSubscriptionId}`
+  )
+}
+
+async function orderedHandleSubscriptionUpdated({ event, prisma, stripe, attempt }) {
+  const subscription = event.data.object
+  const eventSubscriptionId = subscription.id
+  const status = subscription.status
+  const cancelAtPeriodEnd = subscription.cancel_at_period_end === true
+
+  const resolved = await resolveSubscriptionEventOwner({
+    prisma,
+    eventSubscriptionId,
+    metadataOwnerId: subscription.metadata?.ownerId,
+  })
+
+  if (resolved.classification === 'RACE') {
+    console.warn('[stripe/webhook] Possible pre-checkout race for subscription update:', {
+      eventSubscriptionId,
+      ownerId: resolved.owner.id,
+    })
+    return NextResponse.json(
+      { received: false, code: 'possible_pre_checkout_race' },
+      { status: 503, headers: { 'Retry-After': '5' } }
+    )
+  }
+
+  if (resolved.classification === 'NOT_FOUND' || resolved.classification === 'SCOPE_MISMATCH') {
+    console.warn('[stripe/webhook] Owner not found for subscription (ordering guard):', eventSubscriptionId)
+    await sendOpsAlert({
+      severity: 'warning',
+      type: 'billing:webhook:subscription_owner_not_found',
+      title: 'Owner not found for subscription update',
+      message: `Stripe subscription ${eventSubscriptionId} could not be matched to an owner.`,
+      context: { stripeEventId: event?.id, stripeSubscriptionId: eventSubscriptionId, status },
+    })
+    return NextResponse.json({ received: true })
+  }
+
+  let owner = resolved.owner
+
+  if (owner.lastStripeSubscriptionEventCreated === null || owner.lastStripeSubscriptionEventCreated === undefined) {
+    const bootstrapResult = await bootstrapStripeSubscriptionOrdering({
+      stripe, prisma, owner, stripeEvent: event, attempt,
+    })
+    if (bootstrapResult.action === 'BOOTSTRAPPED') {
+      return {
+        kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
+        response: NextResponse.json({ received: true }),
+      }
+    }
+    // ALREADY_BOOTSTRAPPED: another delivery bootstrapped between our read
+    // and now. Never continue on the stale snapshot — refresh from the DB.
+    owner = await prisma.owner.findUnique({ where: { id: owner.id } })
+  }
+
+  return applySubscriptionOrderedUpdate({
+    event, prisma, stripe, attempt, owner, eventSubscriptionId,
+    buildNewerUpdate: (currentOwner) => buildSubscriptionUpdatedData({ subscription, owner: currentOwner }),
+    afterNewerCommit: async (preOwner, postOwner) => {
+      const currentPeriodEnd = subscription.current_period_end
+      const wasScheduled = preOwner.subscriptionCancelAtPeriodEnd === true
+      const hadSamePeriodEnd =
+        preOwner.subscriptionCurrentPeriodEnd &&
+        currentPeriodEnd &&
+        new Date(preOwner.subscriptionCurrentPeriodEnd).getTime() === new Date(currentPeriodEnd * 1000).getTime()
+
+      console.log(
+        `[stripe/webhook] Owner ${postOwner.email} subscription updated (status: ${status}, plan: ${postOwner.plan}, cancelAtPeriodEnd: ${cancelAtPeriodEnd})`
+      )
+
+      const appUrl = getAppUrl()
+      if (cancelAtPeriodEnd && (!wasScheduled || !hadSamePeriodEnd)) {
+        await sendProfessionalCancellationScheduledEmail({
+          owner: postOwner,
+          currentPeriodEnd: currentPeriodEnd ? new Date(currentPeriodEnd * 1000) : null,
+          appUrl,
+        })
+      }
+      if (!cancelAtPeriodEnd && wasScheduled) {
+        console.log(`[stripe/webhook] Owner ${postOwner.email} cancellation schedule removed`)
+      }
+    },
+  })
+}
+
+async function orderedHandleSubscriptionDeleted({ event, prisma, stripe, attempt }) {
+  const subscription = event.data.object
+  const eventSubscriptionId = subscription.id
+
+  const resolved = await resolveSubscriptionEventOwner({
+    prisma,
+    eventSubscriptionId,
+    metadataOwnerId: subscription.metadata?.ownerId,
+  })
+
+  if (resolved.classification === 'RACE') {
+    console.warn('[stripe/webhook] Possible pre-checkout race for subscription deletion:', {
+      eventSubscriptionId,
+      ownerId: resolved.owner.id,
+    })
+    return NextResponse.json(
+      { received: false, code: 'possible_pre_checkout_race' },
+      { status: 503, headers: { 'Retry-After': '5' } }
+    )
+  }
+
+  if (resolved.classification === 'NOT_FOUND' || resolved.classification === 'SCOPE_MISMATCH') {
+    console.warn('[stripe/webhook] Owner not found for deleted subscription (ordering guard):', eventSubscriptionId)
+    await sendOpsAlert({
+      severity: 'warning',
+      type: 'billing:webhook:subscription_deleted_owner_not_found',
+      title: 'Owner not found for subscription deletion',
+      message: `Stripe subscription ${eventSubscriptionId} could not be matched to an owner.`,
+      context: { stripeEventId: event?.id, stripeSubscriptionId: eventSubscriptionId },
+    })
+    return NextResponse.json({ received: true })
+  }
+
+  let owner = resolved.owner
+
+  if (owner.lastStripeSubscriptionEventCreated === null || owner.lastStripeSubscriptionEventCreated === undefined) {
+    const bootstrapResult = await bootstrapStripeSubscriptionOrdering({
+      stripe, prisma, owner, stripeEvent: event, attempt,
+    })
+    if (bootstrapResult.action === 'BOOTSTRAPPED') {
+      return {
+        kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
+        response: NextResponse.json({ received: true }),
+      }
+    }
+    owner = await prisma.owner.findUnique({ where: { id: owner.id } })
+  }
+
+  return applySubscriptionOrderedUpdate({
+    event, prisma, stripe, attempt, owner, eventSubscriptionId,
+    buildNewerUpdate: () => buildSubscriptionDeletedData(),
+    afterNewerCommit: async (preOwner, postOwner) => {
+      const wasAlreadyCanceled = preOwner.subscriptionStatus === 'canceled'
+      const cancellationWasScheduled = preOwner.subscriptionCancelAtPeriodEnd === true
+      if (!wasAlreadyCanceled && !cancellationWasScheduled) {
+        await sendProfessionalCanceledEmail({ owner: postOwner, appUrl: getAppUrl() })
+      }
+      console.log('[stripe/webhook] Owner downgraded to free after subscription deletion:', postOwner.email)
+    },
+  })
 }
 
 // ── invoice.payment_failed ──
