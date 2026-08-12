@@ -38,35 +38,38 @@ enum StripeWebhookEventStatus {
 }
 
 model Owner {
-  id                            String                    @id @default(uuid())
-  email                         String                    @unique
-  passwordHash                  String?
-  passwordSalt                  String?
-  plan                          String                    @default("free")
-  extraEventCredits             Int                       @default(0)
-  extraEventCheckoutSessionId   String?
-  stripeCustomerId              String?
-  stripeSubscriptionId          String?
-  stripeCheckoutSessionId       String?
-  sessionVersion                Int                       @default(0)
-  passwordChangedAt             DateTime?
-  planUpdatedAt                 DateTime                  @default(now())
-  subscriptionCanceledAt        DateTime?
-  subscriptionCancelAtPeriodEnd Boolean                   @default(false)
-  subscriptionCurrentPeriodEnd  DateTime?
-  subscriptionCancelScheduledAt DateTime?
-  subscriptionBillingInterval   String?
-  subscriptionStatus            String?
-  paymentFailedAt               DateTime?
-  subscriptionGraceUntil        DateTime?
-  lastInvoiceId                 String?
-  lastInvoiceStatus             String?
-  lastPaymentError              String?
-  createdAt                     DateTime                  @default(now())
-  updatedAt                     DateTime                  @updatedAt
-  events                        Event[]
-  extraFreeEventCheckouts       ExtraFreeEventCheckout[]
-  passwordResetTokens           OwnerPasswordResetToken[]
+  id                                 String                    @id @default(uuid())
+  email                              String                    @unique
+  passwordHash                       String?
+  passwordSalt                       String?
+  plan                               String                    @default("free")
+  extraEventCredits                  Int                       @default(0)
+  extraEventCheckoutSessionId        String?
+  stripeCustomerId                   String?
+  stripeSubscriptionId               String?
+  stripeCheckoutSessionId            String?
+  sessionVersion                     Int                       @default(0)
+  passwordChangedAt                  DateTime?
+  planUpdatedAt                      DateTime                  @default(now())
+  subscriptionCanceledAt             DateTime?
+  subscriptionCancelAtPeriodEnd      Boolean                   @default(false)
+  subscriptionCurrentPeriodEnd       DateTime?
+  subscriptionCancelScheduledAt      DateTime?
+  subscriptionBillingInterval        String?
+  subscriptionStatus                 String?
+  paymentFailedAt                    DateTime?
+  subscriptionGraceUntil             DateTime?
+  lastInvoiceId                      String?
+  lastInvoiceStatus                  String?
+  lastPaymentError                   String?
+  stripeBillingCursorSubscriptionId  String?
+  lastStripeSubscriptionEventCreated BigInt?
+  lastStripeInvoiceEventCreated      BigInt?
+  createdAt                          DateTime                  @default(now())
+  updatedAt                          DateTime                  @updatedAt
+  events                             Event[]
+  extraFreeEventCheckouts            ExtraFreeEventCheckout[]
+  passwordResetTokens                OwnerPasswordResetToken[]
 
   @@index([email])
 }
