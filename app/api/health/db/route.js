@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 export async function GET() {
   const prisma = await getPrismaClient()
