@@ -30,36 +30,46 @@ enum BlobUploadSessionStatus {
   EXPIRED_CLEANED
 }
 
+enum StripeWebhookEventStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
 model Owner {
-  id                            String                    @id @default(uuid())
-  email                         String                    @unique
-  passwordHash                  String?
-  passwordSalt                  String?
-  plan                          String                    @default("free")
-  extraEventCredits             Int                       @default(0)
-  extraEventCheckoutSessionId   String?
-  stripeCustomerId              String?
-  stripeSubscriptionId          String?
-  stripeCheckoutSessionId       String?
-  sessionVersion                Int                       @default(0)
-  passwordChangedAt             DateTime?
-  planUpdatedAt                 DateTime                  @default(now())
-  subscriptionCanceledAt        DateTime?
-  subscriptionCancelAtPeriodEnd Boolean                   @default(false)
-  subscriptionCurrentPeriodEnd  DateTime?
-  subscriptionCancelScheduledAt DateTime?
-  subscriptionBillingInterval   String?
-  subscriptionStatus            String?
-  paymentFailedAt               DateTime?
-  subscriptionGraceUntil        DateTime?
-  lastInvoiceId                 String?
-  lastInvoiceStatus             String?
-  lastPaymentError              String?
-  createdAt                     DateTime                  @default(now())
-  updatedAt                     DateTime                  @updatedAt
-  events                        Event[]
-  extraFreeEventCheckouts       ExtraFreeEventCheckout[]
-  passwordResetTokens           OwnerPasswordResetToken[]
+  id                                 String                    @id @default(uuid())
+  email                              String                    @unique
+  passwordHash                       String?
+  passwordSalt                       String?
+  plan                               String                    @default("free")
+  extraEventCredits                  Int                       @default(0)
+  extraEventCheckoutSessionId        String?
+  stripeCustomerId                   String?
+  stripeSubscriptionId               String?
+  stripeCheckoutSessionId            String?
+  sessionVersion                     Int                       @default(0)
+  passwordChangedAt                  DateTime?
+  planUpdatedAt                      DateTime                  @default(now())
+  subscriptionCanceledAt             DateTime?
+  subscriptionCancelAtPeriodEnd      Boolean                   @default(false)
+  subscriptionCurrentPeriodEnd       DateTime?
+  subscriptionCancelScheduledAt      DateTime?
+  subscriptionBillingInterval        String?
+  subscriptionStatus                 String?
+  paymentFailedAt                    DateTime?
+  subscriptionGraceUntil             DateTime?
+  lastInvoiceId                      String?
+  lastInvoiceStatus                  String?
+  lastPaymentError                   String?
+  stripeBillingCursorSubscriptionId  String?
+  lastStripeSubscriptionEventCreated BigInt?
+  lastStripeInvoiceEventCreated      BigInt?
+  createdAt                          DateTime                  @default(now())
+  updatedAt                          DateTime                  @updatedAt
+  events                             Event[]
+  extraFreeEventCheckouts            ExtraFreeEventCheckout[]
+  passwordResetTokens                OwnerPasswordResetToken[]
 
   @@index([email])
 }
@@ -287,4 +297,22 @@ model BlobUploadSession {
   @@index([eventSlug])
   @@index([status, expiresAt])
   @@index([uploadKind, status])
+}
+
+model StripeWebhookEvent {
+  id        String                   @id @default(cuid())
+  eventId   String                   @unique
+  eventType String
+  status    StripeWebhookEventStatus @default(PENDING)
+
+  attempts  Int     @default(0)
+  lastError String?
+
+  receivedAt          DateTime  @default(now())
+  processingStartedAt DateTime?
+  processedAt         DateTime?
+
+  updatedAt DateTime @updatedAt
+
+  @@index([status, processingStartedAt])
 }

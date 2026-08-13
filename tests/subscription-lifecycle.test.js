@@ -140,13 +140,19 @@ describe('isPaymentFailureAlreadyHandled', () => {
 })
 
 describe('buildPaymentFailedUpdate', () => {
-  it('sets past_due, paymentFailedAt and grace window', () => {
+  it('sets paymentFailedAt and invoice bookkeeping fields', () => {
     const update = buildPaymentFailedUpdate({ id: 'in_123', status: 'open' })
-    expect(update.subscriptionStatus).toBe('past_due')
     expect(update.paymentFailedAt).toBeInstanceOf(Date)
-    expect(update.subscriptionGraceUntil).toBeInstanceOf(Date)
     expect(update.lastInvoiceId).toBe('in_123')
     expect(update.lastInvoiceStatus).toBe('open')
+  })
+
+  it('never writes subscription-domain fields (field ownership)', () => {
+    const update = buildPaymentFailedUpdate({ id: 'in_123', status: 'open' })
+    expect(update.subscriptionStatus).toBeUndefined()
+    expect(update.subscriptionGraceUntil).toBeUndefined()
+    expect(update.plan).toBeUndefined()
+    expect(update.subscriptionCanceledAt).toBeUndefined()
   })
 
   it('truncates long payment error messages', () => {
@@ -161,16 +167,20 @@ describe('buildPaymentFailedUpdate', () => {
 })
 
 describe('buildPaymentSucceededUpdate', () => {
-  it('clears failure state and restores active', () => {
+  it('clears invoice-domain failure state and updates invoice bookkeeping', () => {
     const update = buildPaymentSucceededUpdate({ id: 'in_456', status: 'paid' })
-    expect(update.plan).toBe('professional')
-    expect(update.subscriptionStatus).toBe('active')
     expect(update.paymentFailedAt).toBeNull()
-    expect(update.subscriptionGraceUntil).toBeNull()
-    expect(update.subscriptionCanceledAt).toBeNull()
     expect(update.lastInvoiceId).toBe('in_456')
     expect(update.lastInvoiceStatus).toBe('paid')
     expect(update.lastPaymentError).toBeNull()
+  })
+
+  it('never writes subscription-domain fields (field ownership)', () => {
+    const update = buildPaymentSucceededUpdate({ id: 'in_456', status: 'paid' })
+    expect(update.plan).toBeUndefined()
+    expect(update.subscriptionStatus).toBeUndefined()
+    expect(update.subscriptionGraceUntil).toBeUndefined()
+    expect(update.subscriptionCanceledAt).toBeUndefined()
   })
 })
 
@@ -213,21 +223,22 @@ describe('computeOwnerPlanFromSubscriptionStatus', () => {
 })
 
 describe('buildSubscriptionUpdatedData', () => {
-  it('active clears failure state', () => {
+  it('active clears grace, does not touch invoice-domain fields', () => {
     const update = buildSubscriptionUpdatedData({ status: 'active', owner: { plan: 'professional' } })
     expect(update.plan).toBe('professional')
     expect(update.subscriptionStatus).toBe('active')
-    expect(update.paymentFailedAt).toBeNull()
     expect(update.subscriptionGraceUntil).toBeNull()
     expect(update.subscriptionCanceledAt).toBeNull()
+    expect(update.paymentFailedAt).toBeUndefined()
+    expect(update.lastPaymentError).toBeUndefined()
   })
 
-  it('past_due sets grace if missing', () => {
+  it('past_due sets grace if missing, does not touch paymentFailedAt', () => {
     const update = buildSubscriptionUpdatedData({ status: 'past_due', owner: { plan: 'professional' } })
     expect(update.plan).toBe('professional')
     expect(update.subscriptionStatus).toBe('past_due')
-    expect(update.paymentFailedAt).toBeInstanceOf(Date)
     expect(update.subscriptionGraceUntil).toBeInstanceOf(Date)
+    expect(update.paymentFailedAt).toBeUndefined()
   })
 
   it('past_due preserves existing grace timestamp', () => {
@@ -241,13 +252,15 @@ describe('buildSubscriptionUpdatedData', () => {
         subscriptionGraceUntil: existingGrace,
       },
     })
-    // The helper should not overwrite existing timestamps; it omits them from the payload.
+    // The helper omits subscriptionGraceUntil when a value already exists
+    // (does not overwrite it), and never writes paymentFailedAt at all
+    // (invoice-domain-only field).
     expect(update.paymentFailedAt).toBeUndefined()
     expect(update.subscriptionGraceUntil).toBeUndefined()
     expect(update.plan).toBe('professional')
   })
 
-  it('unpaid after grace downgrades to free and clears grace', () => {
+  it('unpaid after grace downgrades to free and clears grace, does not touch paymentFailedAt', () => {
     const update = buildSubscriptionUpdatedData({
       status: 'unpaid',
       owner: {
@@ -256,8 +269,8 @@ describe('buildSubscriptionUpdatedData', () => {
       },
     })
     expect(update.plan).toBe('free')
-    expect(update.paymentFailedAt).toBeNull()
     expect(update.subscriptionGraceUntil).toBeNull()
+    expect(update.paymentFailedAt).toBeUndefined()
   })
 
   it('active + cancel_at_period_end keeps professional and schedules cancellation', () => {
@@ -271,7 +284,7 @@ describe('buildSubscriptionUpdatedData', () => {
     expect(update.subscriptionCancelAtPeriodEnd).toBe(true)
     expect(update.subscriptionCurrentPeriodEnd).toBeInstanceOf(Date)
     expect(update.subscriptionCancelScheduledAt).toBeInstanceOf(Date)
-    expect(update.paymentFailedAt).toBeNull()
+    expect(update.paymentFailedAt).toBeUndefined()
   })
 
   it('derives monthly billing interval from subscription items', () => {
@@ -310,6 +323,9 @@ describe('buildSubscriptionUpdatedData', () => {
     })
     expect(update.plan).toBe('free')
     expect(update.subscriptionBillingInterval).toBeNull()
+    expect(update.subscriptionGraceUntil).toBeNull()
+    expect(update.paymentFailedAt).toBeUndefined()
+    expect(update.lastPaymentError).toBeUndefined()
   })
 
   it('active + cancel_at_period_end false clears scheduled flags', () => {

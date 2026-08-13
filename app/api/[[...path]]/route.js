@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'crypto'
+import { BlobError, head } from '@vercel/blob'
 import { handleUpload } from '@vercel/blob/client'
 import {
   generateManagementToken,
@@ -15,15 +16,12 @@ import { Resend } from 'resend'
 import {
   adminModerationSchema,
   adminPasswordSchema,
-  blobUploadClientPayloadSchema,
-  blobUploadCompleteSchema,
+  blobUploadSessionCompleteSchema,
   createEventSchema,
   localUploadCompleteSchema,
   MAX_CHUNK_SIZE_BYTES,
   MAX_FILE_SIZE_BYTES,
   MAX_PRIVATE_DELIVERY_FILE_SIZE_BYTES,
-  privateDeliveryBlobUploadClientPayloadSchema,
-  privateDeliveryBlobUploadCompleteSchema,
   privateDeliveryLocalUploadCompleteSchema,
   privateDeliveryUploadInitSchema,
   saveOwnerEmailSchema,
@@ -94,10 +92,21 @@ import {
   EVENT_PHOTOGRAPHER_UPLOAD_COMPLETED,
   EVENT_PHOTOGRAPHER_UPLOAD_FAILED,
 } from '@/lib/analytics/events'
+import { BlobUploadKind } from '@prisma/client'
+import { createServerBoundBlobUploadInit } from '@/lib/server/blob-upload-init'
+import {
+  BlobUploadCompletionError,
+  completePrivateAssetBlobUpload,
+  completeRoomPhotoBlobUpload,
+} from '@/lib/server/blob-upload-completion'
+import {
+  BlobUploadTokenRequestError,
+  createLazyServerBoundBlobUploadCallbacks,
+  getBlobUploadRequestKind,
+  validateBlobUploadCallbackUrl,
+} from '@/lib/server/blob-upload-token'
 import { getAdminAuthDriver, getDataAccessDriver, getPrismaClient } from '@/lib/server/prisma-client'
 import {
-  buildBlobPathname,
-  buildPrivateDeliveryBlobPathname,
   deleteStoredFile,
   getStoredNameFromBlobPathname,
   getStorageDriver,
@@ -105,8 +114,10 @@ import {
   isVercelBlobStorageConfigured,
   localStorageDriver,
 } from '@/lib/server/storage'
+import { deleteEventScopedStoredFile } from '@/lib/server/event-scoped-storage-delete'
 import {
   checkOwnerRoomCreationEntitlement,
+  checkPrivateDeliveryEntitlement,
   checkRoomUploadEntitlement,
 } from '@/lib/server/entitlements'
 import { getEffectiveEventAccessState } from '@/lib/server/event-access'
@@ -126,6 +137,27 @@ const json = (payload, status = 200) => {
   response.headers.set('Access-Control-Allow-Origin', process.env.CORS_ORIGINS || '*')
   response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS')
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  return response
+}
+
+// Response helper for SESSION_ONLY (cookie-based admin/owner) endpoints.
+// These are only ever meant to be called same-origin by the SnapRooms
+// frontend, so they must not advertise any cross-origin CORS support.
+const jsonPrivate = (payload, status = 200) => {
+  return NextResponse.json(payload, { status })
+}
+
+// A few SESSION_ONLY admin endpoints delegate their response construction to
+// shared handlers that are also the direct PUBLIC handler for the equivalent
+// guest-facing route (e.g. listAdminEvents delegates to the same listEvents()
+// used by GET /events). Those shared handlers must stay on json() so the
+// PUBLIC route keeps its current CORS behavior; this helper strips the CORS
+// headers back off only at the SESSION_ONLY wrapper, after admin auth has
+// already been verified, without touching the shared PUBLIC handler itself.
+const stripPublicCorsHeaders = (response) => {
+  response.headers.delete('Access-Control-Allow-Origin')
+  response.headers.delete('Access-Control-Allow-Methods')
+  response.headers.delete('Access-Control-Allow-Headers')
   return response
 }
 
@@ -166,7 +198,7 @@ const getAdminAuthentication = async (request) => {
 
 const requireAdmin = async (request) => {
   const authenticated = await getAdminAuthentication(request)
-  return authenticated ? null : json({ error: 'Admin authentication required' }, 401)
+  return authenticated ? null : jsonPrivate({ error: 'Admin authentication required' }, 401)
 }
 
 const setAdminSessionCookie = async (response) => {
@@ -189,7 +221,7 @@ const getOwnerAuthentication = async (request) => {
 
 const requireOwner = async (request) => {
   const email = await getOwnerAuthentication(request)
-  return email ? email : json({ error: 'Owner authentication required' }, 401)
+  return email ? email : jsonPrivate({ error: 'Owner authentication required' }, 401)
 }
 
 const requireOwnerWithCsrf = async (request) => {
@@ -197,7 +229,7 @@ const requireOwnerWithCsrf = async (request) => {
   if (typeof email !== 'string') return email
   const csrf = requireCsrfProtection(request, email)
   if (!csrf.success) {
-    return json({ error: csrf.message, code: csrf.code }, csrf.status)
+    return jsonPrivate({ error: csrf.message, code: csrf.code }, csrf.status)
   }
   return email
 }
@@ -210,7 +242,7 @@ const requireAdminWithCsrf = async (request) => {
   const subject = `admin:${adminSession?.id || adminSession?.email || 'session'}`
   const csrf = requireCsrfProtection(request, subject)
   if (!csrf.success) {
-    return json({ error: csrf.message, code: csrf.code }, csrf.status)
+    return jsonPrivate({ error: csrf.message, code: csrf.code }, csrf.status)
   }
   return null
 }
@@ -225,6 +257,22 @@ const buildRateLimitResponse = (result) => {
     429
   )
   response.headers.set('Retry-After', String(result.retryAfter))
+  return response
+}
+
+// AUTH_CRITICAL-only: returned when checkRateLimit() reports backendError,
+// i.e. Redis is configured but failed at runtime for this check. Uses
+// jsonPrivate() (not json()) because every caller of this helper is a
+// SESSION_ONLY endpoint. Never exposes Redis/Upstash or the raw error.
+const buildRateLimitBackendErrorResponse = () => {
+  const response = jsonPrivate(
+    {
+      error: 'Authentication temporarily unavailable. Please try again shortly.',
+      code: 'rate_limit_backend_unavailable',
+    },
+    503,
+  )
+  response.headers.set('Retry-After', '30')
   return response
 }
 
@@ -902,7 +950,7 @@ const deleteEvent = withTiming('deleteEvent', async (request, slug) => {
 
   for (const photo of event.photos || []) {
     try {
-      await deleteStoredFile(photo.url)
+      await deleteEventScopedStoredFile({ url: photo.url, eventSlug: event.slug, kind: 'room-photo', deleteFile: deleteStoredFile })
     } catch (storageError) {
       console.error('[deleteEvent] Storage cleanup failed for photo:', photo.id, storageError)
     }
@@ -919,7 +967,7 @@ const deleteEvent = withTiming('deleteEvent', async (request, slug) => {
   const privateAssets = await repository.listPrivateAssetsByEventId(event.id)
   for (const asset of privateAssets) {
     try {
-      await deleteStoredFile(asset.url)
+      await deleteEventScopedStoredFile({ url: asset.url, eventSlug: event.slug, kind: 'private-asset', deleteFile: deleteStoredFile })
     } catch (storageError) {
       console.error('[deleteEvent] Storage cleanup failed for private asset:', asset.id, storageError)
     }
@@ -971,95 +1019,125 @@ const initUpload = async (request) => {
   }
 
   const storageDriver = getStorageDriver()
+
+  if (storageDriver.mode === 'vercel-blob') {
+    if (!prisma) {
+      return json(
+        { error: 'Database is required for secure Blob uploads' },
+        503,
+      )
+    }
+
+    const session = await createServerBoundBlobUploadInit({
+      prisma,
+      storageDriver,
+      event,
+      payload,
+      uploadKind: BlobUploadKind.ROOM_PHOTO,
+      handleUploadUrl: '/api/uploads/blob',
+      uploaderName: payload.uploaderName,
+      caption: payload.caption,
+      momentId: payload.momentId,
+    })
+
+    return json({ session }, 201)
+  }
+
   const session = await storageDriver.initUploadSession(payload)
   return json({ session }, 201)
 }
 
 const issueBlobUploadToken = async (request) => {
-  const clientIp = getClientIp(request)
-  const limit = rateLimit(`upload-blob:ip:${clientIp}`, RATE_LIMITS.uploadBlob.ip.max, RATE_LIMITS.uploadBlob.ip.window)
-  if (limit.limited) {
-    return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
+  // 1. Parse body once — needed for classification and handleUpload
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return json({ error: 'Invalid request body' }, 400)
   }
 
-  // Explicit check for BLOB_READ_WRITE_TOKEN with clear error message
+  // 2. Strict classification — unknown types return 400 without Prisma access
+  let requestKind
+  try {
+    requestKind = getBlobUploadRequestKind(body)
+  } catch (error) {
+    if (error instanceof BlobUploadTokenRequestError) {
+      return json({ error: error.publicMessage, code: error.code }, error.status)
+    }
+    return json({ error: 'Invalid request body' }, 400)
+  }
+  const callbackRequest = requestKind === 'callback'
+
+  // 3. For token-generation requests: rate limit and callbackUrl validation
+  //    before BLOB_READ_WRITE_TOKEN check and any database access
+  if (!callbackRequest) {
+    const clientIp = getClientIp(request)
+    const limit = rateLimit(`upload-blob:ip:${clientIp}`, RATE_LIMITS.uploadBlob.ip.max, RATE_LIMITS.uploadBlob.ip.window)
+    if (limit.limited) {
+      return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
+    }
+
+    try {
+      validateBlobUploadCallbackUrl(body, request.url)
+    } catch (error) {
+      if (error instanceof BlobUploadTokenRequestError) {
+        return json({ error: error.publicMessage, code: error.code }, error.status)
+      }
+      return json({ error: 'Unable to initialize Blob upload' }, 400)
+    }
+  }
+
+  // 4. Verify Blob token is configured
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    console.error('[issueBlobUploadToken] BLOB_READ_WRITE_TOKEN is not defined')
     return json(
       { error: 'Server misconfiguration: BLOB_READ_WRITE_TOKEN is missing' },
-      500
+      500,
     )
   }
 
   if (!isVercelBlobStorageConfigured()) {
-    console.error('[issueBlobUploadToken] Vercel Blob not configured')
     return json({ error: 'Vercel Blob is not configured' }, 500)
   }
 
-  // Parse request body as required by @vercel/blob/client handleUpload
-  let body
-  try {
-    body = await request.json()
-  } catch (parseError) {
-    console.error('[issueBlobUploadToken] Failed to parse request body:', parseError)
-    return json({ error: 'Invalid request body' }, 400)
-  }
+  // 5. Build lazy callbacks — Prisma is resolved only when handleUpload
+  //    invokes onBeforeGenerateToken or onUploadCompleted, never before
+  const callbacks = createLazyServerBoundBlobUploadCallbacks({
+    getPrisma: getPrismaClient,
+  })
 
-  // Call handleUpload with parsed body and request
+  // 6. Delegate to @vercel/blob handleUpload
   try {
     const result = await handleUpload({
       body,
       request,
-      onBeforeGenerateToken: async (pathname, clientPayload) => {
-        const payload = blobUploadClientPayloadSchema.parse(JSON.parse(clientPayload || '{}'))
-        const repository = await getGalleryRepository()
-        const event = await repository.getEventBySlug(payload.eventSlug)
-
-        if (!event) {
-          throw new Error('Event not found')
-        }
-
-        // Enforce photo limit for Free rooms
-        const prisma = await getPrismaClient()
-        if (prisma) {
-          const entitlement = await checkRoomUploadEntitlement(prisma, event)
-          if (!entitlement.allowed) {
-            trackServerEvent(
-              EVENT_FREE_PHOTO_LIMIT_HIT,
-              {
-                room_slug: event.slug,
-                event_id: event.id,
-                current_photos: entitlement.current,
-                limit: entitlement.max,
-              },
-              { distinctId: event.slug }
-            )
-            throw new Error(`This room has reached its ${entitlement.max}-photo limit.`)
-          }
-        }
-
-        return {
-          pathname: buildBlobPathname({ eventSlug: event.slug, fileName: payload.fileName }),
-          allowedContentTypes: ['image/*'],
-          maximumSizeInBytes: MAX_FILE_SIZE_BYTES,
-          addRandomSuffix: true,
-        }
-      },
+      onBeforeGenerateToken: callbacks.onBeforeGenerateToken,
+      onUploadCompleted: callbacks.onUploadCompleted,
     })
-    
-    // Ensure we always return a valid Response
-    if (!result) {
-      console.error('[issueBlobUploadToken] handleUpload returned no result')
-      return json({ error: 'Failed to generate upload token' }, 500)
-    }
-    
+
     return Response.json(result)
   } catch (error) {
-    console.error('[issueBlobUploadToken] Error:', error?.message || error)
-    return json(
-      { error: error?.message || 'Unable to initialize Vercel Blob upload' },
-      400
-    )
+    if (error instanceof BlobUploadTokenRequestError) {
+      // 503 on database_unavailable lets Vercel retry the callback
+      return json({ error: error.publicMessage, code: error.code }, error.status)
+    }
+
+    if (error instanceof BlobError) {
+      // Invalid signature or malformed Blob request — return static 400
+      return json({ error: 'Invalid Blob upload request.' }, 400)
+    }
+
+    if (isDatabaseUnavailableError(error)) {
+      throw error
+    }
+
+    if (callbackRequest) {
+      // Unknown error on callback path: rethrow so Vercel can retry
+      throw error
+    }
+
+    // Unknown error on token-generation path: opaque 400
+    console.error('[issueBlobUploadToken] token generation error')
+    return json({ error: 'Unable to initialize Blob upload' }, 400)
   }
 }
 
@@ -1118,60 +1196,77 @@ const completeUpload = withTiming('completeUpload', async (request) => {
   }
 
   const body = await request.json()
+  const storageDriver = getStorageDriver()
+
+  if (storageDriver.mode === 'vercel-blob') {
+    // ── Server-bound Vercel Blob path ─────────────────────────────────────
+    let payload
+    try {
+      payload = blobUploadSessionCompleteSchema.parse(body)
+    } catch {
+      return json({ error: 'Invalid request body' }, 400)
+    }
+
+    const prisma = await getPrismaClient()
+    if (
+      !prisma ||
+      typeof prisma.blobUploadSession !== 'object' ||
+      prisma.blobUploadSession === null
+    ) {
+      return json({ error: 'Upload service is temporarily unavailable.', code: 'database_unavailable' }, 503)
+    }
+
+    let result
+    try {
+      result = await completeRoomPhotoBlobUpload({
+        prisma,
+        sessionId: payload.sessionId,
+        headBlob: (pathname) => head(pathname),
+        deleteBlob: (url) => deleteStoredFile(url),
+        checkEntitlement: checkRoomUploadEntitlement,
+      })
+    } catch (error) {
+      if (error instanceof BlobUploadCompletionError) {
+        if (error.code === 'photo_limit' && error.details) {
+          trackServerEvent(
+            EVENT_FREE_PHOTO_LIMIT_HIT,
+            {
+              room_slug: error.details.eventSlug,
+              event_id: error.details.eventId,
+              current_photos: error.details.current,
+              limit: error.details.max,
+            },
+            { distinctId: error.details.eventSlug },
+          )
+        }
+        return json(
+          {
+            error: error.publicMessage,
+            code: error.code,
+            ...(error.details || {}),
+          },
+          error.status,
+        )
+      }
+      throw error
+    }
+
+    const repository = await getGalleryRepository()
+    const freshEvent = await repository.getEventBySlug(result.eventSlug)
+
+    return json(
+      {
+        photo: result.photo,
+        event: freshEvent,
+        idempotent: result.idempotent,
+      },
+      result.idempotent ? 200 : 201,
+    )
+  }
+
+  // ── Local (chunked) upload path ───────────────────────────────────────────
   const repository = await getGalleryRepository()
   const prisma = await getPrismaClient()
-
-  if (body?.blobUrl) {
-    const payload = blobUploadCompleteSchema.parse(body)
-    const event = await repository.getEventBySlug(payload.eventSlug)
-
-    if (!event) {
-      return json({ error: 'Event not found while finalizing upload' }, 404)
-    }
-
-    // Final guard: enforce photo limit for Free rooms
-    if (prisma) {
-      const entitlement = await checkRoomUploadEntitlement(prisma, event)
-      if (!entitlement.allowed) {
-        trackServerEvent(
-          EVENT_FREE_PHOTO_LIMIT_HIT,
-          {
-            room_slug: event.slug,
-            event_id: event.id,
-            current_photos: entitlement.current,
-            limit: entitlement.max,
-          },
-          { distinctId: event.slug }
-        )
-        return json({
-          error: `This room has reached its ${entitlement.max}-photo limit.`,
-          limit: 'photo_count',
-          current: entitlement.current,
-          max: entitlement.max,
-          upgradePath: entitlement.upgradePath,
-        }, 403)
-      }
-    }
-
-    const photo = await repository.createPhoto({
-      eventId: event.id,
-      originalName: payload.originalName,
-      storedName: getStoredNameFromBlobPathname(payload.blobPathname),
-      mimeType: payload.mimeType,
-      size: payload.size,
-      url: payload.blobUrl,
-      uploaderName: payload.uploaderName,
-      caption: payload.caption,
-      momentId: payload.momentId || undefined,
-    })
-
-    const freshEvent = await repository.getEventBySlug(event.slug)
-
-    return json({
-      photo,
-      event: freshEvent,
-    }, 201)
-  }
 
   const payload = localUploadCompleteSchema.parse(body)
   const fileResult = await localStorageDriver.completeUploadSession({
@@ -1236,19 +1331,19 @@ const listPrivateDeliveryAssets = async (request, slug) => {
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
   if (!event) {
-    return json({ error: 'Room not found' }, 404)
+    return jsonPrivate({ error: 'Room not found' }, 404)
   }
 
   const prisma = await getPrismaClient()
   if (prisma) {
     const access = await getEffectiveEventAccessState(prisma, event)
     if (!access.hasPrivateDelivery) {
-      return json({ error: 'Private delivery is not available for this room', upgradePath: 'wedding_pro' }, 403)
+      return jsonPrivate({ error: 'Private delivery is not available for this room', upgradePath: 'wedding_pro' }, 403)
     }
   }
 
   const assets = await repository.listPrivateAssetsByEventId(event.id)
-  return json({ assets })
+  return jsonPrivate({ assets })
 }
 
 const initPrivateDeliveryUpload = async (request, slug) => {
@@ -1260,31 +1355,51 @@ const initPrivateDeliveryUpload = async (request, slug) => {
 
   const payload = privateDeliveryUploadInitSchema.parse(await request.json())
   if (payload.eventSlug !== slug) {
-    return json({ error: 'Room slug mismatch' }, 400)
+    return jsonPrivate({ error: 'Room slug mismatch' }, 400)
   }
 
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
   if (!event) {
-    return json({ error: 'Room not found' }, 404)
+    return jsonPrivate({ error: 'Room not found' }, 404)
   }
 
   const prisma = await getPrismaClient()
   if (prisma) {
     const access = await getEffectiveEventAccessState(prisma, event)
     if (!access.hasPrivateDelivery) {
-      return json({ error: 'Private delivery is not available for this room', upgradePath: 'wedding_pro' }, 403)
+      return jsonPrivate({ error: 'Private delivery is not available for this room', upgradePath: 'wedding_pro' }, 403)
     }
   }
 
   const clientIp = getClientIp(request)
   const limit = rateLimit(`upload-init:ip:${clientIp}`, RATE_LIMITS.uploadInit.ip.max, RATE_LIMITS.uploadInit.ip.window)
   if (limit.limited) {
-    return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
+    return jsonPrivate({ error: 'Too many upload attempts. Please try again later.' }, 429)
   }
 
   const storageDriver = getStorageDriver()
-  const session = await storageDriver.initUploadSession({ ...payload, directory: 'private-delivery' })
+  let session
+
+  if (storageDriver.mode === 'vercel-blob') {
+    if (!prisma) {
+      return jsonPrivate(
+        { error: 'Database is required for secure Blob uploads' },
+        503,
+      )
+    }
+
+    session = await createServerBoundBlobUploadInit({
+      prisma,
+      storageDriver,
+      event,
+      payload,
+      uploadKind: BlobUploadKind.PRIVATE_DELIVERY,
+      handleUploadUrl: '/api/uploads/blob',
+    })
+  } else {
+    session = await storageDriver.initUploadSession({ ...payload, directory: 'private-delivery' })
+  }
 
   trackServerEvent(
     EVENT_PRIVATE_DELIVERY_UPLOAD_STARTED,
@@ -1292,90 +1407,11 @@ const initPrivateDeliveryUpload = async (request, slug) => {
     { distinctId: ownerEmail }
   )
 
-  return json({ session }, 201)
+  return jsonPrivate({ session }, 201)
 }
 
-const issuePrivateDeliveryBlobToken = async (request, slug) => {
-  const ownerEmail = await requireOwnerWithCsrf(request)
-  if (typeof ownerEmail !== 'string') return ownerEmail
-
-  const rateLimitCheck = await checkOwnerRateLimit(request, ownerEmail, OWNER_WRITE_LIMITS.privateDeliveryWrite)
-  if (rateLimitCheck) return rateLimitCheck
-
-  const repository = await getGalleryRepository()
-  const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
-  if (!event) {
-    return json({ error: 'Room not found' }, 404)
-  }
-
-  const prisma = await getPrismaClient()
-  if (prisma) {
-    const access = await getEffectiveEventAccessState(prisma, event)
-    if (!access.hasPrivateDelivery) {
-      return json({ error: 'Private delivery is not available for this room', upgradePath: 'wedding_pro' }, 403)
-    }
-  }
-
-  const clientIp = getClientIp(request)
-  const limit = rateLimit(`upload-blob:ip:${clientIp}`, RATE_LIMITS.uploadBlob.ip.max, RATE_LIMITS.uploadBlob.ip.window)
-  if (limit.limited) {
-    return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
-  }
-
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    return json({ error: 'Server misconfiguration: BLOB_READ_WRITE_TOKEN is missing' }, 500)
-  }
-
-  if (!isVercelBlobStorageConfigured()) {
-    return json({ error: 'Vercel Blob is not configured' }, 500)
-  }
-
-  let body
-  try {
-    body = await request.json()
-  } catch {
-    return json({ error: 'Invalid request body' }, 400)
-  }
-
-  try {
-    const result = await handleUpload({
-      body,
-      request,
-      onBeforeGenerateToken: async (pathname, clientPayload) => {
-        const payload = privateDeliveryBlobUploadClientPayloadSchema.parse(JSON.parse(clientPayload || '{}'))
-        if (payload.eventSlug !== slug) {
-          throw new Error('Room slug mismatch')
-        }
-
-        const targetEvent = await repository.getEventBySlugAndOwner(payload.eventSlug, ownerEmail)
-        if (!targetEvent) {
-          throw new Error('Room not found')
-        }
-
-        if (prisma) {
-          const targetAccess = await getEffectiveEventAccessState(prisma, targetEvent)
-          if (!targetAccess.hasPrivateDelivery) {
-            throw new Error('Private delivery is not available for this room')
-          }
-        }
-
-        return {
-          pathname: buildPrivateDeliveryBlobPathname({ eventSlug: targetEvent.slug, fileName: payload.fileName }),
-          allowedContentTypes: ['image/jpeg', 'image/png'],
-          maximumSizeInBytes: MAX_PRIVATE_DELIVERY_FILE_SIZE_BYTES,
-          addRandomSuffix: true,
-        }
-      },
-    })
-
-    if (!result) {
-      return json({ error: 'Failed to generate upload token' }, 500)
-    }
-
-    return Response.json(result)
-  } catch (error) {
-    return json({ error: error?.message || 'Unable to initialize Vercel Blob upload' }, 400)
-  }
+const issuePrivateDeliveryBlobToken = async (request) => {
+  return issueBlobUploadToken(request)
 }
 
 const completePrivateDeliveryUpload = async (request, slug) => {
@@ -1391,44 +1427,91 @@ const completePrivateDeliveryUpload = async (request, slug) => {
 
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
   if (!event) {
-    return json({ error: 'Room not found' }, 404)
-  }
-
-  if (prisma) {
-    const access = await getEffectiveEventAccessState(prisma, event)
-    if (!access.hasPrivateDelivery) {
-      return json({ error: 'Private delivery is not available for this room', upgradePath: 'wedding_pro' }, 403)
-    }
+    return jsonPrivate({ error: 'Room not found' }, 404)
   }
 
   const clientIp = getClientIp(request)
   const limit = rateLimit(`upload-complete:ip:${clientIp}`, RATE_LIMITS.uploadComplete.ip.max, RATE_LIMITS.uploadComplete.ip.window)
   if (limit.limited) {
-    return json({ error: 'Too many upload completions. Please try again later.' }, 429)
+    return jsonPrivate({ error: 'Too many upload completions. Please try again later.' }, 429)
   }
 
-  if (body?.blobUrl) {
-    const payload = privateDeliveryBlobUploadCompleteSchema.parse(body)
-    if (payload.eventSlug !== slug) {
-      return json({ error: 'Room slug mismatch' }, 400)
+  const storageDriver = getStorageDriver()
+
+  if (storageDriver.mode === 'vercel-blob') {
+    // Entitlement is enforced exclusively by completePrivateAssetBlobUpload's
+    // transaction below (checkPrivateDeliveryEntitlement), which also runs
+    // safeCleanup() on a newly-uploaded blob when entitlement was revoked
+    // between init and complete — a route-level pre-check here would only
+    // duplicate that logic while bypassing its compensating cleanup.
+    // ── Server-bound Vercel Blob path ───────────────────────────────────────
+    let payload
+    try {
+      payload = blobUploadSessionCompleteSchema.parse(body)
+    } catch {
+      return jsonPrivate({ error: 'Invalid request body' }, 400)
     }
 
-    const asset = await repository.createPrivateAsset({
-      eventId: event.id,
-      originalName: payload.originalName,
-      storedName: getStoredNameFromBlobPathname(payload.blobPathname),
-      mimeType: payload.mimeType,
-      size: payload.size,
-      url: payload.blobUrl,
-    })
+    if (
+      !prisma ||
+      typeof prisma.blobUploadSession !== 'object' ||
+      prisma.blobUploadSession === null
+    ) {
+      return jsonPrivate({ error: 'Upload service is temporarily unavailable.', code: 'database_unavailable' }, 503)
+    }
 
-    trackServerEvent(
-      EVENT_PRIVATE_DELIVERY_UPLOAD_COMPLETED,
-      { room_slug: slug, asset_id: asset.id, file_size: payload.size },
-      { distinctId: ownerEmail }
+    let result
+    try {
+      result = await completePrivateAssetBlobUpload({
+        prisma,
+        sessionId: payload.sessionId,
+        expectedEventId: event.id,
+        expectedEventSlug: event.slug,
+        expectedUploadKind: BlobUploadKind.PRIVATE_DELIVERY,
+        headBlob: (pathname) => head(pathname),
+        deleteBlob: (url) => deleteStoredFile(url),
+        checkEntitlement: checkPrivateDeliveryEntitlement,
+      })
+    } catch (error) {
+      if (error instanceof BlobUploadCompletionError) {
+        return jsonPrivate(
+          {
+            error: error.publicMessage,
+            code: error.code,
+            ...(error.details || {}),
+          },
+          error.status,
+        )
+      }
+      throw error
+    }
+
+    if (!result.idempotent) {
+      trackServerEvent(
+        EVENT_PRIVATE_DELIVERY_UPLOAD_COMPLETED,
+        { room_slug: event.slug, asset_id: result.asset.id, file_size: result.asset.size },
+        { distinctId: ownerEmail }
+      )
+    }
+
+    return jsonPrivate(
+      {
+        asset: result.asset,
+        idempotent: result.idempotent,
+      },
+      result.idempotent ? 200 : 201,
     )
+  }
 
-    return json({ asset }, 201)
+  // ── Local upload path ─────────────────────────────────────────────────────
+  // completePrivateAssetBlobUpload (and its entitlement enforcement) is
+  // Vercel-Blob-only, so the local storage path must still check entitlement
+  // itself here — this is not a duplicate of anything above for this branch.
+  if (prisma) {
+    const access = await getEffectiveEventAccessState(prisma, event)
+    if (!access.hasPrivateDelivery) {
+      return jsonPrivate({ error: 'Private delivery is not available for this room', upgradePath: 'wedding_pro' }, 403)
+    }
   }
 
   const payload = privateDeliveryLocalUploadCompleteSchema.parse(body)
@@ -1438,7 +1521,7 @@ const completePrivateDeliveryUpload = async (request, slug) => {
   })
 
   if (fileResult.eventSlug !== slug) {
-    return json({ error: 'Room slug mismatch' }, 400)
+    return jsonPrivate({ error: 'Room slug mismatch' }, 400)
   }
 
   const asset = await repository.createPrivateAsset({
@@ -1456,7 +1539,7 @@ const completePrivateDeliveryUpload = async (request, slug) => {
     { distinctId: ownerEmail }
   )
 
-  return json({ asset }, 201)
+  return jsonPrivate({ asset }, 201)
 }
 
 const deletePrivateDeliveryAsset = async (request, assetId) => {
@@ -1471,12 +1554,12 @@ const deletePrivateDeliveryAsset = async (request, assetId) => {
 
   const asset = await repository.getPrivateAssetById(assetId)
   if (!asset) {
-    return json({ error: 'Asset not found' }, 404)
+    return jsonPrivate({ error: 'Asset not found' }, 404)
   }
 
   const event = await prisma?.event.findUnique({ where: { id: asset.eventId } })
   if (!event) {
-    return json({ error: 'Room not found' }, 404)
+    return jsonPrivate({ error: 'Room not found' }, 404)
   }
 
   const normalizedEmail = ownerEmail.toLowerCase().trim()
@@ -1486,11 +1569,11 @@ const deletePrivateDeliveryAsset = async (request, assetId) => {
     (owner && event?.ownerId === owner.id)
 
   if (!isOwner) {
-    return json({ error: 'Owner authentication required' }, 403)
+    return jsonPrivate({ error: 'Owner authentication required' }, 403)
   }
 
   try {
-    await deleteStoredFile(asset.url)
+    await deleteEventScopedStoredFile({ url: asset.url, eventSlug: event?.slug || '', kind: 'private-asset', deleteFile: deleteStoredFile })
   } catch (storageError) {
     console.error('[deletePrivateDeliveryAsset] Storage cleanup failed:', assetId, storageError)
   }
@@ -1503,7 +1586,7 @@ const deletePrivateDeliveryAsset = async (request, assetId) => {
     { distinctId: ownerEmail }
   )
 
-  return json({ deleted: true })
+  return jsonPrivate({ deleted: true })
 }
 
 const createPhotographerUploadLink = async (request, slug) => {
@@ -1516,14 +1599,14 @@ const createPhotographerUploadLink = async (request, slug) => {
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
   if (!event) {
-    return json({ error: 'Room not found' }, 404)
+    return jsonPrivate({ error: 'Room not found' }, 404)
   }
 
   const prisma = await getPrismaClient()
   if (prisma) {
     const access = await getEffectiveEventAccessState(prisma, event)
     if (!access.hasPrivateDelivery) {
-      return json({ error: 'Private delivery is not available for this room', upgradePath: 'wedding_pro' }, 403)
+      return jsonPrivate({ error: 'Private delivery is not available for this room', upgradePath: 'wedding_pro' }, 403)
     }
   }
 
@@ -1541,9 +1624,9 @@ const createPhotographerUploadLink = async (request, slug) => {
 
   const appUrl = getAppUrl(request)
   if (!appUrl) {
-    return json({ error: 'Unable to create upload link. Please try again later.' }, 500)
+    return jsonPrivate({ error: 'Unable to create upload link. Please try again later.' }, 500)
   }
-  return json({ token, url: `${appUrl}/photographer-upload/${token}` })
+  return jsonPrivate({ token, url: `${appUrl}/photographer-upload/${token}` })
 }
 
 const deletePhotographerUploadLink = async (request, slug) => {
@@ -1556,7 +1639,7 @@ const deletePhotographerUploadLink = async (request, slug) => {
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
   if (!event) {
-    return json({ error: 'Room not found' }, 404)
+    return jsonPrivate({ error: 'Room not found' }, 404)
   }
 
   await repository.setPhotographerUploadToken(slug, { tokenHash: null, expiresAt: null })
@@ -1567,7 +1650,7 @@ const deletePhotographerUploadLink = async (request, slug) => {
     { distinctId: ownerEmail }
   )
 
-  return json({ revoked: true })
+  return jsonPrivate({ revoked: true })
 }
 
 const uploadEventCover = withTiming('uploadEventCover', async (request, slug) => {
@@ -1582,39 +1665,39 @@ const uploadEventCover = withTiming('uploadEventCover', async (request, slug) =>
   const clientIp = getClientIp(request)
   const ipLimit = rateLimit(`cover-upload:ip:${clientIp}`, RATE_LIMITS.coverUpload.ip.max, RATE_LIMITS.coverUpload.ip.window)
   if (ipLimit.limited) {
-    return json({ error: 'Too many cover uploads. Please try again later.' }, 429)
+    return jsonPrivate({ error: 'Too many cover uploads. Please try again later.' }, 429)
   }
   const ownerLimit = rateLimit(`cover-upload:owner:${ownerEmail}`, RATE_LIMITS.coverUpload.owner.max, RATE_LIMITS.coverUpload.owner.window)
   if (ownerLimit.limited) {
-    return json({ error: 'Too many cover uploads for this account. Please try again later.' }, 429)
+    return jsonPrivate({ error: 'Too many cover uploads for this account. Please try again later.' }, 429)
   }
 
   let body
   try {
     body = await request.json()
   } catch {
-    return json({ error: 'Invalid JSON body' }, 400)
+    return jsonPrivate({ error: 'Invalid JSON body' }, 400)
   }
 
   const { coverDataUrl } = body
   if (!coverDataUrl || !coverDataUrl.startsWith('data:image/')) {
-    return json({ error: 'Invalid cover image. Must be a valid image data URL.' }, 400)
+    return jsonPrivate({ error: 'Invalid cover image. Must be a valid image data URL.' }, 400)
   }
 
   const match = coverDataUrl.match(/^data:image\/(jpeg|jpg|png|webp);base64,(.*)$/)
   if (!match) {
-    return json({ error: 'Unsupported image format. Use JPEG, PNG, or WebP.' }, 400)
+    return jsonPrivate({ error: 'Unsupported image format. Use JPEG, PNG, or WebP.' }, 400)
   }
 
   const buffer = Buffer.from(match[2], 'base64')
   if (buffer.length > 10 * 1024 * 1024) {
-    return json({ error: 'Image too large. Max 10MB.' }, 400)
+    return jsonPrivate({ error: 'Image too large. Max 10MB.' }, 400)
   }
 
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
   if (!event) {
-    return json({ error: 'Event not found' }, 404)
+    return jsonPrivate({ error: 'Event not found' }, 404)
   }
 
   try {
@@ -1634,21 +1717,37 @@ const uploadEventCover = withTiming('uploadEventCover', async (request, slug) =>
       contentType,
     })
 
-    const oldCoverUrl = event.coverUrl
-    const updatedEvent = await repository.updateEvent(slug, { coverUrl: blob.url })
+    try {
+      const oldCoverUrl = event.coverUrl
+      const updatedEvent = await repository.updateEvent(slug, { coverUrl: blob.url })
 
-    if (oldCoverUrl) {
-      await deleteManagedEventCover(oldCoverUrl, slug)
+      if (oldCoverUrl) {
+        await deleteManagedEventCover(oldCoverUrl, slug)
+      }
+
+      console.log(
+        `[uploadEventCover] slug=${slug} input=${buffer.length} output=${uploadBuffer.length} format=${ext}`
+      )
+
+      return jsonPrivate({ event: updatedEvent })
+    } catch (dbError) {
+      // Compensating cleanup: the blob above was written successfully but
+      // never persisted to the event record, so it would otherwise be
+      // permanently orphaned (cover blobs have no BlobUploadSession and are
+      // therefore invisible to the cleanup cron). pathname is unique per
+      // request (Date.now() plus Vercel's own random suffix), so no other
+      // request or session can reference this exact blob.url — safe to
+      // delete unconditionally, without any concurrent-claim check.
+      try {
+        await deleteStoredFile(blob.url)
+      } catch {
+        console.error('[uploadEventCover] Compensating cleanup failed after updateEvent error')
+      }
+      throw dbError
     }
-
-    console.log(
-      `[uploadEventCover] slug=${slug} input=${buffer.length} output=${uploadBuffer.length} format=${ext}`
-    )
-
-    return json({ event: updatedEvent })
   } catch (storageError) {
     console.error('[uploadEventCover] Storage error:', storageError)
-    return json({ error: 'Unable to save cover image. Please try again.' }, 500)
+    return jsonPrivate({ error: 'Unable to save cover image. Please try again.' }, 500)
   }
 })
 
@@ -1664,7 +1763,7 @@ const deleteEventCover = async (request, slug) => {
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
   if (!event) {
-    return json({ error: 'Event not found' }, 404)
+    return jsonPrivate({ error: 'Event not found' }, 404)
   }
 
   if (event.coverUrl) {
@@ -1676,7 +1775,7 @@ const deleteEventCover = async (request, slug) => {
   }
 
   const updatedEvent = await repository.updateEvent(slug, { coverUrl: null })
-  return json({ event: updatedEvent })
+  return jsonPrivate({ event: updatedEvent })
 }
 
 const MAX_MOMENTS_PER_EVENT = 12
@@ -1690,11 +1789,11 @@ const listOwnerEventMoments = async (request, slug) => {
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
   if (!event) {
-    return json({ error: 'Event not found' }, 404)
+    return jsonPrivate({ error: 'Event not found' }, 404)
   }
 
   const moments = await repository.listEventMoments(event.id)
-  return json({ moments })
+  return jsonPrivate({ moments })
 }
 
 const createOwnerEventMoment = async (request, slug) => {
@@ -1709,18 +1808,18 @@ const createOwnerEventMoment = async (request, slug) => {
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
   if (!event) {
-    return json({ error: 'Event not found' }, 404)
+    return jsonPrivate({ error: 'Event not found' }, 404)
   }
 
   const count = await repository.countEventMoments(event.id)
   if (count >= MAX_MOMENTS_PER_EVENT) {
-    return json({ error: `Maximum ${MAX_MOMENTS_PER_EVENT} moments allowed` }, 400)
+    return jsonPrivate({ error: `Maximum ${MAX_MOMENTS_PER_EVENT} moments allowed` }, 400)
   }
 
   const body = await request.json()
   const name = String(body.name || '').trim()
   if (!name || name.length > 40) {
-    return json({ error: 'Moment name must be between 1 and 40 characters' }, 400)
+    return jsonPrivate({ error: 'Moment name must be between 1 and 40 characters' }, 400)
   }
 
   const slugBase = slugify(name)
@@ -1739,7 +1838,7 @@ const createOwnerEventMoment = async (request, slug) => {
     sortOrder,
   })
 
-  return json({ moment }, 201)
+  return jsonPrivate({ moment }, 201)
 }
 
 const updateOwnerEventMoment = async (request, slug, momentId) => {
@@ -1754,7 +1853,7 @@ const updateOwnerEventMoment = async (request, slug, momentId) => {
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
   if (!event) {
-    return json({ error: 'Event not found' }, 404)
+    return jsonPrivate({ error: 'Event not found' }, 404)
   }
 
   const body = await request.json()
@@ -1762,7 +1861,7 @@ const updateOwnerEventMoment = async (request, slug, momentId) => {
   if (body.name !== undefined) {
     const name = String(body.name || '').trim()
     if (!name || name.length > 40) {
-      return json({ error: 'Moment name must be between 1 and 40 characters' }, 400)
+      return jsonPrivate({ error: 'Moment name must be between 1 and 40 characters' }, 400)
     }
     updates.name = name
   }
@@ -1771,7 +1870,7 @@ const updateOwnerEventMoment = async (request, slug, momentId) => {
   }
 
   const moment = await repository.updateEventMoment(momentId, updates)
-  return json({ moment })
+  return jsonPrivate({ moment })
 }
 
 const deleteOwnerEventMoment = async (request, slug, momentId) => {
@@ -1786,11 +1885,11 @@ const deleteOwnerEventMoment = async (request, slug, momentId) => {
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
   if (!event) {
-    return json({ error: 'Event not found' }, 404)
+    return jsonPrivate({ error: 'Event not found' }, 404)
   }
 
   await repository.deleteEventMoment(momentId)
-  return json({ success: true })
+  return jsonPrivate({ success: true })
 }
 
 const getPhotographerUploadEvent = async (request, token) => {
@@ -1836,7 +1935,27 @@ const initPhotographerUpload = async (request, token) => {
   }
 
   const storageDriver = getStorageDriver()
-  const session = await storageDriver.initUploadSession({ ...payload, directory: 'private-delivery' })
+  let session
+
+  if (storageDriver.mode === 'vercel-blob') {
+    if (!prisma) {
+      return json(
+        { error: 'Database is required for secure Blob uploads' },
+        503,
+      )
+    }
+
+    session = await createServerBoundBlobUploadInit({
+      prisma,
+      storageDriver,
+      event,
+      payload,
+      uploadKind: BlobUploadKind.PHOTOGRAPHER_UPLOAD,
+      handleUploadUrl: '/api/uploads/blob',
+    })
+  } else {
+    session = await storageDriver.initUploadSession({ ...payload, directory: 'private-delivery' })
+  }
 
   trackServerEvent(
     EVENT_PHOTOGRAPHER_UPLOAD_STARTED,
@@ -1847,75 +1966,8 @@ const initPhotographerUpload = async (request, token) => {
   return json({ session }, 201)
 }
 
-const issuePhotographerBlobToken = async (request, token) => {
-  const event = await getPhotographerEventFromToken(token)
-  if (!event) {
-    return json({ error: 'Invalid or expired link' }, 403)
-  }
-
-  const prisma = await getPrismaClient()
-  if (prisma) {
-    const access = await getEffectiveEventAccessState(prisma, event)
-    if (!access.hasPrivateDelivery) {
-      return json({ error: 'Private delivery is not available for this room' }, 403)
-    }
-  }
-
-  const clientIp = getClientIp(request)
-  const limit = rateLimit(`upload-blob:ip:${clientIp}`, RATE_LIMITS.uploadBlob.ip.max, RATE_LIMITS.uploadBlob.ip.window)
-  if (limit.limited) {
-    return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
-  }
-
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    return json({ error: 'Server misconfiguration: BLOB_READ_WRITE_TOKEN is missing' }, 500)
-  }
-
-  if (!isVercelBlobStorageConfigured()) {
-    return json({ error: 'Vercel Blob is not configured' }, 500)
-  }
-
-  let body
-  try {
-    body = await request.json()
-  } catch {
-    return json({ error: 'Invalid request body' }, 400)
-  }
-
-  try {
-    const result = await handleUpload({
-      body,
-      request,
-      onBeforeGenerateToken: async (pathname, clientPayload) => {
-        const payload = privateDeliveryBlobUploadClientPayloadSchema.parse(JSON.parse(clientPayload || '{}'))
-        if (payload.eventSlug !== event.slug) {
-          throw new Error('Room slug mismatch')
-        }
-
-        if (prisma) {
-          const targetAccess = await getEffectiveEventAccessState(prisma, event)
-          if (!targetAccess.hasPrivateDelivery) {
-            throw new Error('Private delivery is not available for this room')
-          }
-        }
-
-        return {
-          pathname: buildPrivateDeliveryBlobPathname({ eventSlug: event.slug, fileName: payload.fileName }),
-          allowedContentTypes: ['image/jpeg', 'image/png'],
-          maximumSizeInBytes: MAX_PRIVATE_DELIVERY_FILE_SIZE_BYTES,
-          addRandomSuffix: true,
-        }
-      },
-    })
-
-    if (!result) {
-      return json({ error: 'Failed to generate upload token' }, 500)
-    }
-
-    return Response.json(result)
-  } catch (error) {
-    return json({ error: error?.message || 'Unable to initialize Vercel Blob upload' }, 400)
-  }
+const issuePhotographerBlobToken = async (request) => {
+  return issueBlobUploadToken(request)
 }
 
 const completePhotographerUpload = async (request, token) => {
@@ -1928,42 +1980,88 @@ const completePhotographerUpload = async (request, token) => {
   const repository = await getGalleryRepository()
   const prisma = await getPrismaClient()
 
-  if (prisma) {
-    const access = await getEffectiveEventAccessState(prisma, event)
-    if (!access.hasPrivateDelivery) {
-      return json({ error: 'Private delivery is not available for this room' }, 403)
-    }
-  }
-
   const clientIp = getClientIp(request)
   const limit = rateLimit(`upload-complete:ip:${clientIp}`, RATE_LIMITS.uploadComplete.ip.max, RATE_LIMITS.uploadComplete.ip.window)
   if (limit.limited) {
     return json({ error: 'Too many upload completions. Please try again later.' }, 429)
   }
 
-  if (body?.blobUrl) {
-    const payload = privateDeliveryBlobUploadCompleteSchema.parse(body)
-    if (payload.eventSlug !== event.slug) {
-      return json({ error: 'Room slug mismatch' }, 400)
+  const storageDriver = getStorageDriver()
+
+  if (storageDriver.mode === 'vercel-blob') {
+    // Entitlement is enforced exclusively by completePrivateAssetBlobUpload's
+    // transaction below (checkPrivateDeliveryEntitlement), which also runs
+    // safeCleanup() on a newly-uploaded blob when entitlement was revoked
+    // between init and complete — a route-level pre-check here would only
+    // duplicate that logic while bypassing its compensating cleanup.
+    // ── Server-bound Vercel Blob path ───────────────────────────────────────
+    let payload
+    try {
+      payload = blobUploadSessionCompleteSchema.parse(body)
+    } catch {
+      return json({ error: 'Invalid request body' }, 400)
     }
 
-    const asset = await repository.createPrivateAsset({
-      eventId: event.id,
-      originalName: payload.originalName,
-      storedName: getStoredNameFromBlobPathname(payload.blobPathname),
-      mimeType: payload.mimeType,
-      size: payload.size,
-      url: payload.blobUrl,
-      uploadedByRole: 'photographer',
-    })
+    if (
+      !prisma ||
+      typeof prisma.blobUploadSession !== 'object' ||
+      prisma.blobUploadSession === null
+    ) {
+      return json({ error: 'Upload service is temporarily unavailable.', code: 'database_unavailable' }, 503)
+    }
 
-    trackServerEvent(
-      EVENT_PHOTOGRAPHER_UPLOAD_COMPLETED,
-      { room_slug: event.slug, asset_id: asset.id, file_size: payload.size },
-      { distinctId: `photographer_${event.slug}` }
+    let result
+    try {
+      result = await completePrivateAssetBlobUpload({
+        prisma,
+        sessionId: payload.sessionId,
+        expectedEventId: event.id,
+        expectedEventSlug: event.slug,
+        expectedUploadKind: BlobUploadKind.PHOTOGRAPHER_UPLOAD,
+        headBlob: (pathname) => head(pathname),
+        deleteBlob: (url) => deleteStoredFile(url),
+        checkEntitlement: checkPrivateDeliveryEntitlement,
+      })
+    } catch (error) {
+      if (error instanceof BlobUploadCompletionError) {
+        return json(
+          {
+            error: error.publicMessage,
+            code: error.code,
+            ...(error.details || {}),
+          },
+          error.status,
+        )
+      }
+      throw error
+    }
+
+    if (!result.idempotent) {
+      trackServerEvent(
+        EVENT_PHOTOGRAPHER_UPLOAD_COMPLETED,
+        { room_slug: event.slug, asset_id: result.asset.id, file_size: result.asset.size },
+        { distinctId: `photographer_${event.slug}` }
+      )
+    }
+
+    return json(
+      {
+        asset: result.asset,
+        idempotent: result.idempotent,
+      },
+      result.idempotent ? 200 : 201,
     )
+  }
 
-    return json({ asset }, 201)
+  // ── Local upload path ─────────────────────────────────────────────────────
+  // completePrivateAssetBlobUpload (and its entitlement enforcement) is
+  // Vercel-Blob-only, so the local storage path must still check entitlement
+  // itself here — this is not a duplicate of anything above for this branch.
+  if (prisma) {
+    const access = await getEffectiveEventAccessState(prisma, event)
+    if (!access.hasPrivateDelivery) {
+      return json({ error: 'Private delivery is not available for this room' }, 403)
+    }
   }
 
   const payload = privateDeliveryLocalUploadCompleteSchema.parse(body)
@@ -2008,14 +2106,14 @@ const listPhotographerAssets = async (request, token) => {
 
 const getAdminConfig = async () => {
   const adminStatus = await getAdminAuthStatus()
-  return json(adminStatus)
+  return jsonPrivate(adminStatus)
 }
 
 const getAdminSession = async (request) => {
   const adminStatus = await getAdminAuthStatus()
   const authenticated = await getAdminAuthentication(request)
 
-  return json({
+  return jsonPrivate({
     ...adminStatus,
     authenticated,
   })
@@ -2024,20 +2122,23 @@ const getAdminSession = async (request) => {
 const setupAdmin = async (request) => {
   const originCheck = verifySameOriginRequest(request)
   if (!originCheck.allowed) {
-    return json({ error: originCheck.message, code: originCheck.code }, 403)
+    return jsonPrivate({ error: originCheck.message, code: originCheck.code }, 403)
   }
 
   const clientIp = getClientIp(request)
-  const ipLimit = rateLimit(`admin-setup:ip:${clientIp}`, ADMIN_LIMITS.login.ip.max, ADMIN_LIMITS.login.ip.window)
+  const ipLimit = await checkRateLimit(`admin-setup:ip:${clientIp}`, ADMIN_LIMITS.login.ip.max, ADMIN_LIMITS.login.ip.window)
+  if (ipLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
   if (ipLimit.limited) {
-    const response = json({ error: 'Too many attempts. Please try again later.', code: 'rate_limited', retryAfter: ipLimit.retryAfter }, 429)
+    const response = jsonPrivate({ error: 'Too many attempts. Please try again later.', code: 'rate_limited', retryAfter: ipLimit.retryAfter }, 429)
     response.headers.set('Retry-After', String(ipLimit.retryAfter))
     return response
   }
 
   const payload = adminPasswordSchema.parse(await request.json())
   const adminStatus = await setupLocalAdminPassword(payload.password)
-  const response = json({
+  const response = jsonPrivate({
     ...adminStatus,
     authenticated: true,
   }, 201)
@@ -2048,13 +2149,16 @@ const setupAdmin = async (request) => {
 const loginAdmin = async (request) => {
   const originCheck = verifySameOriginRequest(request)
   if (!originCheck.allowed) {
-    return json({ error: originCheck.message, code: originCheck.code }, 403)
+    return jsonPrivate({ error: originCheck.message, code: originCheck.code }, 403)
   }
 
   const clientIp = getClientIp(request)
-  const ipLimit = rateLimit(`admin-login:ip:${clientIp}`, ADMIN_LIMITS.login.ip.max, ADMIN_LIMITS.login.ip.window)
+  const ipLimit = await checkRateLimit(`admin-login:ip:${clientIp}`, ADMIN_LIMITS.login.ip.max, ADMIN_LIMITS.login.ip.window)
+  if (ipLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
   if (ipLimit.limited) {
-    const response = json({ error: 'Too many attempts. Please try again later.', code: 'rate_limited', retryAfter: ipLimit.retryAfter }, 429)
+    const response = jsonPrivate({ error: 'Too many attempts. Please try again later.', code: 'rate_limited', retryAfter: ipLimit.retryAfter }, 429)
     response.headers.set('Retry-After', String(ipLimit.retryAfter))
     return response
   }
@@ -2063,11 +2167,11 @@ const loginAdmin = async (request) => {
   const isValid = await verifyAdminPassword(payload.password)
 
   if (!isValid) {
-    return json({ error: 'Invalid admin password' }, 401)
+    return jsonPrivate({ error: 'Invalid admin password' }, 401)
   }
 
   const adminStatus = await getAdminAuthStatus()
-  const response = json({
+  const response = jsonPrivate({
     ...adminStatus,
     authenticated: true,
   })
@@ -2084,10 +2188,10 @@ const logoutAdmin = async (request) => {
   const subject = `admin:${adminSession?.id || adminSession?.email || 'session'}`
   const csrf = requireCsrfProtection(request, subject)
   if (!csrf.success) {
-    return json({ error: csrf.message, code: csrf.code }, csrf.status)
+    return jsonPrivate({ error: csrf.message, code: csrf.code }, csrf.status)
   }
 
-  return clearAdminSessionCookie(json({ authenticated: false, loggedOut: true }))
+  return clearAdminSessionCookie(jsonPrivate({ authenticated: false, loggedOut: true }))
 }
 
 const listAdminEvents = async (request) => {
@@ -2097,7 +2201,10 @@ const listAdminEvents = async (request) => {
     return authError
   }
 
-  return listEvents()
+  // listEvents() is also the direct PUBLIC handler for GET /events, so it
+  // must stay on json(); strip the CORS headers back off here instead, now
+  // that admin auth has already been verified.
+  return stripPublicCorsHeaders(await listEvents())
 }
 
 const createAdminEvent = async (request) => {
@@ -2107,7 +2214,10 @@ const createAdminEvent = async (request) => {
   const rateLimitCheck = await checkAdminRateLimit(request, ADMIN_LIMITS.write)
   if (rateLimitCheck) return rateLimitCheck
 
-  return createEvent(request)
+  // createEvent() is also the direct PUBLIC handler for POST /events (guest
+  // room creation); see listAdminEvents above for why headers are stripped
+  // here rather than changing the shared handler.
+  return stripPublicCorsHeaders(await createEvent(request))
 }
 
 const getAdminEvent = async (request, slug) => {
@@ -2117,7 +2227,10 @@ const getAdminEvent = async (request, slug) => {
     return authError
   }
 
-  return getEvent(slug, { includeHidden: true })
+  // getEvent() is also the direct PUBLIC handler for GET /events/:slug; see
+  // listAdminEvents above for why headers are stripped here rather than
+  // changing the shared handler.
+  return stripPublicCorsHeaders(await getEvent(slug, { includeHidden: true }))
 }
 
 const moderatePhoto = async (request, photoId) => {
@@ -2132,11 +2245,11 @@ const moderatePhoto = async (request, photoId) => {
   const photo = await repository.setPhotoStatus(photoId, payload.action === 'approve' ? 'VISIBLE' : 'HIDDEN')
 
   if (!photo) {
-    return json({ error: 'Photo not found' }, 404)
+    return jsonPrivate({ error: 'Photo not found' }, 404)
   }
 
   console.log(`[audit] Admin ${payload.action}d photo ${photoId} in event ${photo.eventId}`)
-  return json({ photo })
+  return jsonPrivate({ photo })
 }
 
 const deletePhoto = async (request, photoId) => {
@@ -2150,7 +2263,7 @@ const deletePhoto = async (request, photoId) => {
   const photo = await repository.getPhotoById(photoId)
 
   if (!photo) {
-    return json({ error: 'Photo not found' }, 404)
+    return jsonPrivate({ error: 'Photo not found' }, 404)
   }
 
   // Resolve event slug for audit log
@@ -2169,7 +2282,7 @@ const deletePhoto = async (request, photoId) => {
 
   // Graceful storage cleanup — do not fail if blob deletion errors
   try {
-    await deleteStoredFile(photo.url)
+    await deleteEventScopedStoredFile({ url: photo.url, eventSlug, kind: 'room-photo', deleteFile: deleteStoredFile })
   } catch (storageError) {
     console.error('[deletePhoto] Storage cleanup failed for photo:', photoId, storageError)
   }
@@ -2191,20 +2304,25 @@ const deletePhoto = async (request, photoId) => {
     console.error('[deletePhoto] Failed to write deletion log:', logError)
   }
 
-  return json({ deleted: true, photo })
+  return jsonPrivate({ deleted: true, photo })
 }
 
 const getOwnerSession = async (request) => {
   const email = await getOwnerAuthentication(request)
-  return json({ authenticated: Boolean(email), email })
+  return jsonPrivate({ authenticated: Boolean(email), email })
 }
 
 const loginOwner = withTiming('loginOwner', async (request) => {
+  const originCheck = verifySameOriginRequest(request)
+  if (!originCheck.allowed) {
+    return jsonPrivate({ error: originCheck.message, code: originCheck.code }, 403)
+  }
+
   let body
   try {
     body = await request.json()
   } catch {
-    return json({ error: 'Invalid JSON body' }, 400)
+    return jsonPrivate({ error: 'Invalid JSON body' }, 400)
   }
 
   const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
@@ -2212,14 +2330,20 @@ const loginOwner = withTiming('loginOwner', async (request) => {
   const password = typeof body?.password === 'string' ? body.password : ''
 
   if (!email) {
-    return json({ error: 'Email is required' }, 400)
+    return jsonPrivate({ error: 'Email is required' }, 400)
   }
 
   const clientIp = getClientIp(request)
-  const ipLimit = rateLimit(`session:ip:${clientIp}`, AUTH_LIMITS.session.ip.max, AUTH_LIMITS.session.ip.window)
-  const emailLimit = rateLimit(`session:email:${email}`, AUTH_LIMITS.session.email.max, AUTH_LIMITS.session.email.window)
+  const ipLimit = await checkRateLimit(`session:ip:${clientIp}`, AUTH_LIMITS.session.ip.max, AUTH_LIMITS.session.ip.window)
+  if (ipLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
+  const emailLimit = await checkRateLimit(`session:email:${email}`, AUTH_LIMITS.session.email.max, AUTH_LIMITS.session.email.window)
+  if (emailLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
   if (ipLimit.limited || emailLimit.limited) {
-    return json({ error: 'Too many attempts. Please try again later.' }, 429)
+    return jsonPrivate({ error: 'Too many attempts. Please try again later.' }, 429)
   }
 
   // Password-based login takes priority
@@ -2229,15 +2353,15 @@ const loginOwner = withTiming('loginOwner', async (request) => {
       verifyPassword(password, candidate.passwordSalt, candidate.passwordHash)
     )
     if (!owner) {
-      return json({ error: 'Invalid email or password' }, 401)
+      return jsonPrivate({ error: 'Invalid email or password' }, 401)
     }
-    const response = json({ authenticated: true, email })
-    return await setOwnerSessionCookie(response, email)
+    const response = jsonPrivate({ authenticated: true, email })
+    return await setOwnerSessionCookie(response, owner)
   }
 
   // Fallback to management token login (backward compatibility)
   if (!token) {
-    return json({ error: 'Password or management token is required' }, 400)
+    return jsonPrivate({ error: 'Password or management token is required' }, 400)
   }
 
   const repository = await getGalleryRepository()
@@ -2253,11 +2377,24 @@ const loginOwner = withTiming('loginOwner', async (request) => {
   }
 
   if (!valid) {
-    return json({ error: 'Invalid email or management token' }, 401)
+    return jsonPrivate({ error: 'Invalid email or management token' }, 401)
   }
 
-  const response = json({ authenticated: true, email })
-  return await setOwnerSessionCookie(response, email)
+  // Resolve the real Owner record so the session token carries the actual
+  // sessionVersion instead of defaulting to 0 (see getOwnerEmailAndSessionVersion).
+  // resolveCanonicalOwner returns null when Prisma is unavailable or when no
+  // Owner row exists for this email — in either case we cannot issue a
+  // session that will pass verifyOwnerSessionToken's DB check, so we must
+  // not report authenticated:true or set a cookie.
+  const owner = await resolveCanonicalOwner(email)
+
+  if (!owner) {
+    console.error('[api/owner/session] Unable to resolve owner after a valid management token')
+    return jsonPrivate({ error: 'Login temporarily unavailable. Please try again shortly.' }, 503)
+  }
+
+  const response = jsonPrivate({ authenticated: true, email })
+  return await setOwnerSessionCookie(response, owner)
 })
 
 const logoutOwner = async (request) => {
@@ -2267,39 +2404,45 @@ const logoutOwner = async (request) => {
   }
   const csrf = requireCsrfProtection(request, ownerEmail)
   if (!csrf.success) {
-    return json({ error: csrf.message, code: csrf.code }, csrf.status)
+    return jsonPrivate({ error: csrf.message, code: csrf.code }, csrf.status)
   }
-  return clearOwnerSessionCookie(json({ authenticated: false, loggedOut: true }))
+  return clearOwnerSessionCookie(jsonPrivate({ authenticated: false, loggedOut: true }))
 }
 
 const resendOwnerAccess = async (request) => {
   const originCheck = verifySameOriginRequest(request)
   if (!originCheck.allowed) {
-    return json({ error: originCheck.message, code: originCheck.code }, 403)
+    return jsonPrivate({ error: originCheck.message, code: originCheck.code }, 403)
   }
 
   if (!resend) {
-    return json({ error: 'Email service is not configured' }, 503)
+    return jsonPrivate({ error: 'Email service is not configured' }, 503)
   }
 
   let body
   try {
     body = await request.json()
   } catch {
-    return json({ error: 'Invalid JSON body' }, 400)
+    return jsonPrivate({ error: 'Invalid JSON body' }, 400)
   }
 
   const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return json({ error: 'A valid email is required' }, 400)
+    return jsonPrivate({ error: 'A valid email is required' }, 400)
   }
 
   const clientIp = getClientIp(request)
-  const ipLimit = rateLimit(`resend:ip:${clientIp}`, AUTH_LIMITS.resend.ip.max, AUTH_LIMITS.resend.ip.window)
-  const emailLimit = rateLimit(`resend:email:${email}`, AUTH_LIMITS.resend.email.max, AUTH_LIMITS.resend.email.window)
+  const ipLimit = await checkRateLimit(`resend:ip:${clientIp}`, AUTH_LIMITS.resend.ip.max, AUTH_LIMITS.resend.ip.window)
+  if (ipLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
+  const emailLimit = await checkRateLimit(`resend:email:${email}`, AUTH_LIMITS.resend.email.max, AUTH_LIMITS.resend.email.window)
+  if (emailLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
   if (ipLimit.limited || emailLimit.limited) {
     const retryAfter = Math.max(ipLimit.retryAfter || 0, emailLimit.retryAfter || 0)
-    const response = json({ error: 'Too many attempts. Please try again later.' }, 429)
+    const response = jsonPrivate({ error: 'Too many attempts. Please try again later.' }, 429)
     if (retryAfter > 0) {
       response.headers.set('Retry-After', String(retryAfter))
     }
@@ -2308,12 +2451,12 @@ const resendOwnerAccess = async (request) => {
 
   const from = process.env.RESEND_FROM_EMAIL
   if (!from) {
-    return json({ error: 'Email sender is not configured' }, 503)
+    return jsonPrivate({ error: 'Email sender is not configured' }, 503)
   }
 
   const prisma = await getPrismaClient()
   if (!prisma) {
-    return json({ error: 'Service temporarily unavailable' }, 503)
+    return jsonPrivate({ error: 'Service temporarily unavailable' }, 503)
   }
 
   const owner = await prisma.owner.findUnique({ where: { email } })
@@ -2322,7 +2465,7 @@ const resendOwnerAccess = async (request) => {
   if (owner) {
     const appUrl = getAppUrl(request)
     if (!appUrl) {
-      return json({ error: 'Service temporarily unavailable' }, 500)
+      return jsonPrivate({ error: 'Service temporarily unavailable' }, 500)
     }
     const purpose = owner.passwordHash ? 'password_reset' : 'setup_password'
     try {
@@ -2362,7 +2505,7 @@ Every guest photo. One room.`,
     }
   }
 
-  return json({ success: true, message: 'If an account with this email exists, a password reset link has been sent.' })
+  return jsonPrivate({ success: true, message: 'If an account with this email exists, a password reset link has been sent.' })
 }
 
 const recoverOwnerAccess = async (request) => {
@@ -2370,12 +2513,12 @@ const recoverOwnerAccess = async (request) => {
   const token = searchParams.get('token')
 
   if (!token) {
-    return json({ error: 'Recovery token required' }, 400)
+    return jsonPrivate({ error: 'Recovery token required' }, 400)
   }
 
   const appUrl = getAppUrl(request)
   if (!appUrl) {
-    return json({ error: 'Service temporarily unavailable' }, 500)
+    return jsonPrivate({ error: 'Service temporarily unavailable' }, 500)
   }
   const prisma = await getPrismaClient()
 
@@ -2397,7 +2540,7 @@ const recoverOwnerAccess = async (request) => {
   // token so old links remain usable until they expire.
   const email = await verifyRecoveryToken(token)
   if (!email) {
-    return json({ error: 'Invalid or expired recovery link' }, 400)
+    return jsonPrivate({ error: 'Invalid or expired recovery link' }, 400)
   }
 
   if (prisma) {
@@ -2424,32 +2567,43 @@ const recoverOwnerAccess = async (request) => {
 }
 
 const loginOwnerWithPassword = async (request) => {
+  const originCheck = verifySameOriginRequest(request)
+  if (!originCheck.allowed) {
+    return jsonPrivate({ error: originCheck.message, code: originCheck.code }, 403)
+  }
+
   let body
   try {
     body = await request.json()
   } catch {
-    return json({ error: 'Invalid JSON body' }, 400)
+    return jsonPrivate({ error: 'Invalid JSON body' }, 400)
   }
 
   const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
   const password = typeof body?.password === 'string' ? body.password : ''
 
   if (!email || !password) {
-    return json({ error: 'Email and password are required' }, 400)
+    return jsonPrivate({ error: 'Email and password are required' }, 400)
   }
 
   const clientIp = getClientIp(request)
-  const ipLimit = rateLimit(`login:ip:${clientIp}`, AUTH_LIMITS.login.ip.max, AUTH_LIMITS.login.ip.window)
-  const emailLimit = rateLimit(`login:email:${email}`, AUTH_LIMITS.login.email.max, AUTH_LIMITS.login.email.window)
+  const ipLimit = await checkRateLimit(`login:ip:${clientIp}`, AUTH_LIMITS.login.ip.max, AUTH_LIMITS.login.ip.window)
+  if (ipLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
+  const emailLimit = await checkRateLimit(`login:email:${email}`, AUTH_LIMITS.login.email.max, AUTH_LIMITS.login.email.window)
+  if (emailLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
   if (ipLimit.limited || emailLimit.limited) {
     trackServerEvent(EVENT_RATE_LIMIT_HIT, { reason: 'owner_login', client_ip: clientIp }, { distinctId: clientIp })
-    return json({ error: 'Too many attempts. Please try again later.' }, 429)
+    return jsonPrivate({ error: 'Too many attempts. Please try again later.' }, 429)
   }
 
   const prisma = await getPrismaClient()
   if (!prisma) {
     console.error('[api/owner/login] Database unavailable')
-    return json({ error: 'Login temporarily unavailable. Please try again shortly.' }, 503)
+    return jsonPrivate({ error: 'Login temporarily unavailable. Please try again shortly.' }, 503)
   }
 
   try {
@@ -2459,52 +2613,58 @@ const loginOwnerWithPassword = async (request) => {
     )
 
     if (!owner) {
-      return json({ error: 'Invalid email or password' }, 401)
+      return jsonPrivate({ error: 'Invalid email or password' }, 401)
     }
 
     trackServerEvent(EVENT_OWNER_LOGGED_IN, { method: 'password_api' }, { distinctId: email })
 
-    const response = json({ authenticated: true, email })
+    const response = jsonPrivate({ authenticated: true, email })
     return await setOwnerSessionCookie(response, owner)
   } catch (error) {
     if (isDatabaseUnavailableError(error)) {
       logDbError(error, '/api/owner/login', Date.now())
-      return json({ error: getSafeDbErrorMessage(error, '/api/owner/login') }, 503)
+      return jsonPrivate({ error: getSafeDbErrorMessage(error, '/api/owner/login') }, 503)
     }
     console.error('[api/owner/login] Unexpected error:', error)
-    return json({ error: 'Login temporarily unavailable. Please try again shortly.' }, 500)
+    return jsonPrivate({ error: 'Login temporarily unavailable. Please try again shortly.' }, 500)
   }
 }
 
 const forgotOwnerPassword = async (request) => {
   const originCheck = verifySameOriginRequest(request)
   if (!originCheck.allowed) {
-    return json({ error: originCheck.message, code: originCheck.code }, 403)
+    return jsonPrivate({ error: originCheck.message, code: originCheck.code }, 403)
   }
 
   let body
   try {
     body = await request.json()
   } catch {
-    return json({ error: 'Invalid JSON body' }, 400)
+    return jsonPrivate({ error: 'Invalid JSON body' }, 400)
   }
 
   const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return json({ error: 'A valid email is required' }, 400)
+    return jsonPrivate({ error: 'A valid email is required' }, 400)
   }
 
   const clientIp = getClientIp(request)
-  const ipLimit = rateLimit(`forgot:ip:${clientIp}`, AUTH_LIMITS.forgotPassword.ip.max, AUTH_LIMITS.forgotPassword.ip.window)
-  const emailLimit = rateLimit(`forgot:email:${email}`, AUTH_LIMITS.forgotPassword.email.max, AUTH_LIMITS.forgotPassword.email.window)
+  const ipLimit = await checkRateLimit(`forgot:ip:${clientIp}`, AUTH_LIMITS.forgotPassword.ip.max, AUTH_LIMITS.forgotPassword.ip.window)
+  if (ipLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
+  const emailLimit = await checkRateLimit(`forgot:email:${email}`, AUTH_LIMITS.forgotPassword.email.max, AUTH_LIMITS.forgotPassword.email.window)
+  if (emailLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
   if (ipLimit.limited || emailLimit.limited) {
-    return json({ error: 'Too many attempts. Please try again later.' }, 429)
+    return jsonPrivate({ error: 'Too many attempts. Please try again later.' }, 429)
   }
 
   try {
     const prisma = await getPrismaClient()
     if (!prisma) {
-      return json({ error: 'Service temporarily unavailable' }, 503)
+      return jsonPrivate({ error: 'Service temporarily unavailable' }, 503)
     }
 
     const owner = await prisma.owner.findUnique({ where: { email } })
@@ -2513,7 +2673,7 @@ const forgotOwnerPassword = async (request) => {
       try {
         const appUrl = getAppUrl(request)
         if (!appUrl) {
-          return json({ error: 'Password reset is temporarily unavailable. Please try again later.' }, 500)
+          return jsonPrivate({ error: 'Password reset is temporarily unavailable. Please try again later.' }, 500)
         }
         const purpose = owner.passwordHash ? 'password_reset' : 'setup_password'
         const rawToken = await createPasswordResetTokenForOwner({ prisma, ownerId: owner.id, purpose, clientIp })
@@ -2555,12 +2715,12 @@ If you did not request this, you can safely ignore this email.
     }
   } catch (error) {
     console.error('[forgotOwnerPassword] Unexpected error:', error)
-    return json({ error: 'Password reset is temporarily unavailable. Please try again later.' }, 503)
+    return jsonPrivate({ error: 'Password reset is temporarily unavailable. Please try again later.' }, 503)
   }
 
   // Anti-enumeration: return the same generic message regardless of whether
   // the email exists, the owner has a password, or email sending succeeded.
-  return json({
+  return jsonPrivate({
     success: true,
     message: 'If an account with this email exists, a password reset link has been sent.',
   })
@@ -2569,46 +2729,52 @@ If you did not request this, you can safely ignore this email.
 const resetOwnerPassword = async (request) => {
   const originCheck = verifySameOriginRequest(request)
   if (!originCheck.allowed) {
-    return json({ error: originCheck.message, code: originCheck.code }, 403)
+    return jsonPrivate({ error: originCheck.message, code: originCheck.code }, 403)
   }
 
   let body
   try {
     body = await request.json()
   } catch {
-    return json({ error: 'Invalid JSON body' }, 400)
+    return jsonPrivate({ error: 'Invalid JSON body' }, 400)
   }
 
   const token = typeof body?.token === 'string' ? body.token.trim() : ''
   const password = typeof body?.password === 'string' ? body.password : ''
 
   if (!token || !password) {
-    return json({ error: 'Token and password are required' }, 400)
+    return jsonPrivate({ error: 'Token and password are required' }, 400)
   }
 
   const clientIp = getClientIp(request)
-  const ipLimit = rateLimit(`reset:ip:${clientIp}`, AUTH_LIMITS.reset.ip.max, AUTH_LIMITS.reset.ip.window)
-  const tokenLimit = rateLimit(`reset:token:${hashPasswordResetToken(token)}`, 10, 15 * 60 * 1000)
+  const ipLimit = await checkRateLimit(`reset:ip:${clientIp}`, AUTH_LIMITS.reset.ip.max, AUTH_LIMITS.reset.ip.window)
+  if (ipLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
+  const tokenLimit = await checkRateLimit(`reset:token:${hashPasswordResetToken(token)}`, 10, 15 * 60 * 1000)
+  if (tokenLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
   if (ipLimit.limited || tokenLimit.limited) {
-    return json({ error: 'Too many attempts. Please try again later.' }, 429)
+    return jsonPrivate({ error: 'Too many attempts. Please try again later.' }, 429)
   }
 
   const { valid, errors } = validatePassword(password)
   if (!valid) {
-    return json({ error: `Password requirements: ${errors.join(', ')}` }, 400)
+    return jsonPrivate({ error: `Password requirements: ${errors.join(', ')}` }, 400)
   }
 
   const prisma = await getPrismaClient()
   if (!prisma) {
-    return json({ error: 'Service temporarily unavailable' }, 503)
+    return jsonPrivate({ error: 'Service temporarily unavailable' }, 503)
   }
 
   const tokenRecord = await findValidPasswordResetToken({ prisma, rawToken: token, purpose: 'password_reset' })
   if (!tokenRecord) {
-    return json({ error: 'Invalid or expired reset token' }, 400)
+    return jsonPrivate({ error: 'Invalid or expired reset token' }, 400)
   }
 
-  const { salt, hash } = createPasswordHash(password)
+  const { salt, hash } = await createPasswordHash(password)
   try {
     await prisma.$transaction(async (tx) => {
       const fresh = await tx.ownerPasswordResetToken.findUnique({
@@ -2640,14 +2806,14 @@ const resetOwnerPassword = async (request) => {
     })
   } catch (error) {
     if (error.message === 'INVALID_TOKEN') {
-      return json({ error: 'Invalid or expired reset token' }, 400)
+      return jsonPrivate({ error: 'Invalid or expired reset token' }, 400)
     }
     console.error('[resetOwnerPassword] Transaction failed:', error)
-    return json({ error: 'Unable to reset password. Please try again later.' }, 500)
+    return jsonPrivate({ error: 'Unable to reset password. Please try again later.' }, 500)
   }
 
   const owner = await prisma.owner.findUnique({ where: { id: tokenRecord.ownerId } })
-  const response = json({ authenticated: true, email: owner.email })
+  const response = jsonPrivate({ authenticated: true, email: owner.email })
   return await setOwnerSessionCookie(response, owner)
 }
 
@@ -2656,20 +2822,20 @@ const getSetupTokenStatus = async (request) => {
   const token = searchParams.get('token')
 
   if (!token) {
-    return json({ error: 'Setup token required' }, 400)
+    return jsonPrivate({ error: 'Setup token required' }, 400)
   }
 
   const prisma = await getPrismaClient()
   if (!prisma) {
-    return json({ error: 'Service temporarily unavailable' }, 503)
+    return jsonPrivate({ error: 'Service temporarily unavailable' }, 503)
   }
 
   const tokenRecord = await findValidPasswordResetToken({ prisma, rawToken: token, purpose: 'setup_password' })
   if (!tokenRecord || tokenRecord.owner.passwordHash) {
-    return json({ error: 'Invalid or expired setup link' }, 400)
+    return jsonPrivate({ error: 'Invalid or expired setup link' }, 400)
   }
 
-  return json({ valid: true, email: tokenRecord.owner.email })
+  return jsonPrivate({ valid: true, email: tokenRecord.owner.email })
 }
 
 const getResetTokenStatus = async (request) => {
@@ -2677,66 +2843,72 @@ const getResetTokenStatus = async (request) => {
   const token = searchParams.get('token')
 
   if (!token) {
-    return json({ error: 'Reset token required' }, 400)
+    return jsonPrivate({ error: 'Reset token required' }, 400)
   }
 
   const prisma = await getPrismaClient()
   if (!prisma) {
-    return json({ error: 'Service temporarily unavailable' }, 503)
+    return jsonPrivate({ error: 'Service temporarily unavailable' }, 503)
   }
 
   const tokenRecord = await findValidPasswordResetToken({ prisma, rawToken: token, purpose: 'password_reset' })
   if (!tokenRecord) {
-    return json({ error: 'Invalid or expired reset link' }, 400)
+    return jsonPrivate({ error: 'Invalid or expired reset link' }, 400)
   }
 
-  return json({ valid: true, email: tokenRecord.owner.email })
+  return jsonPrivate({ valid: true, email: tokenRecord.owner.email })
 }
 
 const setupOwnerPassword = async (request) => {
   const originCheck = verifySameOriginRequest(request)
   if (!originCheck.allowed) {
-    return json({ error: originCheck.message, code: originCheck.code }, 403)
+    return jsonPrivate({ error: originCheck.message, code: originCheck.code }, 403)
   }
 
   let body
   try {
     body = await request.json()
   } catch {
-    return json({ error: 'Invalid JSON body' }, 400)
+    return jsonPrivate({ error: 'Invalid JSON body' }, 400)
   }
 
   const token = typeof body?.token === 'string' ? body.token.trim() : ''
   const password = typeof body?.password === 'string' ? body.password : ''
 
   if (!token || !password) {
-    return json({ error: 'Token and password are required' }, 400)
+    return jsonPrivate({ error: 'Token and password are required' }, 400)
   }
 
   const clientIp = getClientIp(request)
-  const ipLimit = rateLimit(`setup:ip:${clientIp}`, AUTH_LIMITS.setup.ip.max, AUTH_LIMITS.setup.ip.window)
-  const tokenLimit = rateLimit(`setup:token:${hashPasswordResetToken(token)}`, 10, 15 * 60 * 1000)
+  const ipLimit = await checkRateLimit(`setup:ip:${clientIp}`, AUTH_LIMITS.setup.ip.max, AUTH_LIMITS.setup.ip.window)
+  if (ipLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
+  const tokenLimit = await checkRateLimit(`setup:token:${hashPasswordResetToken(token)}`, 10, 15 * 60 * 1000)
+  if (tokenLimit.backendError) {
+    return buildRateLimitBackendErrorResponse()
+  }
   if (ipLimit.limited || tokenLimit.limited) {
     trackServerEvent(EVENT_RATE_LIMIT_HIT, { reason: 'setup_password', client_ip: clientIp }, { distinctId: clientIp })
-    return json({ error: 'Too many attempts. Please try again later.' }, 429)
+    return jsonPrivate({ error: 'Too many attempts. Please try again later.' }, 429)
   }
 
   const { valid, errors } = validatePassword(password)
   if (!valid) {
-    return json({ error: `Password requirements: ${errors.join(', ')}` }, 400)
+    return jsonPrivate({ error: `Password requirements: ${errors.join(', ')}` }, 400)
   }
 
   const prisma = await getPrismaClient()
   if (!prisma) {
-    return json({ error: 'Service temporarily unavailable' }, 503)
+    return jsonPrivate({ error: 'Service temporarily unavailable' }, 503)
   }
 
   const tokenRecord = await findValidPasswordResetToken({ prisma, rawToken: token, purpose: 'setup_password' })
   if (!tokenRecord || tokenRecord.owner.passwordHash) {
-    return json({ error: 'Invalid or expired setup token' }, 400)
+    return jsonPrivate({ error: 'Invalid or expired setup token' }, 400)
   }
 
-  const { salt, hash } = createPasswordHash(password)
+  const { salt, hash } = await createPasswordHash(password)
   try {
     await prisma.$transaction(async (tx) => {
       const fresh = await tx.ownerPasswordResetToken.findUnique({
@@ -2768,16 +2940,16 @@ const setupOwnerPassword = async (request) => {
     })
   } catch (error) {
     if (error.message === 'INVALID_TOKEN') {
-      return json({ error: 'Invalid or expired setup token' }, 400)
+      return jsonPrivate({ error: 'Invalid or expired setup token' }, 400)
     }
     console.error('[setupOwnerPassword] Transaction failed:', error)
-    return json({ error: 'Unable to set password. Please try again later.' }, 500)
+    return jsonPrivate({ error: 'Unable to set password. Please try again later.' }, 500)
   }
 
   const owner = await prisma.owner.findUnique({ where: { id: tokenRecord.ownerId } })
   trackServerEvent(EVENT_OWNER_CLAIM_COMPLETED, {}, { distinctId: owner.email })
 
-  const response = json({ authenticated: true, email: owner.email })
+  const response = jsonPrivate({ authenticated: true, email: owner.email })
   return await setOwnerSessionCookie(response, owner)
 }
 
@@ -2789,7 +2961,7 @@ const listOwnerEvents = async (request) => {
 
   const repository = await getGalleryRepository()
   const events = await repository.listEventsByOwnerEmail(ownerEmail)
-  return json({ events: events.map(({ managementTokenHash, ...event }) => event) })
+  return jsonPrivate({ events: events.map(({ managementTokenHash, ...event }) => event) })
 }
 
 const getOwnerEvent = async (request, slug) => {
@@ -2802,11 +2974,11 @@ const getOwnerEvent = async (request, slug) => {
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
 
   if (!event) {
-    return json({ error: 'Event not found' }, 404)
+    return jsonPrivate({ error: 'Event not found' }, 404)
   }
 
   const { managementTokenHash, photographerUploadTokenHash, ...safeEvent } = event
-  return json({ event: { ...safeEvent, hasPhotographerUploadLink: Boolean(photographerUploadTokenHash) } })
+  return jsonPrivate({ event: { ...safeEvent, hasPhotographerUploadLink: Boolean(photographerUploadTokenHash) } })
 }
 
 const updateOwnerEvent = async (request, slug) => {
@@ -2822,21 +2994,21 @@ const updateOwnerEvent = async (request, slug) => {
   try {
     body = await request.json()
   } catch {
-    return json({ error: 'Invalid JSON body' }, 400)
+    return jsonPrivate({ error: 'Invalid JSON body' }, 400)
   }
 
   let payload
   try {
     payload = updateEventSchema.parse(body)
   } catch (zodError) {
-    return json({ error: formatZodError(zodError) }, 400)
+    return jsonPrivate({ error: formatZodError(zodError) }, 400)
   }
 
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
 
   if (!event) {
-    return json({ error: 'Event not found' }, 404)
+    return jsonPrivate({ error: 'Event not found' }, 404)
   }
 
   if (payload.coverUrl === null && event.coverUrl) {
@@ -2848,7 +3020,7 @@ const updateOwnerEvent = async (request, slug) => {
   }
 
   const updatedEvent = await repository.updateEvent(slug, payload)
-  return json({ event: updatedEvent })
+  return jsonPrivate({ event: updatedEvent })
 }
 
 const deleteOwnerEvent = withTiming('deleteOwnerEvent', async (request, slug) => {
@@ -2864,12 +3036,12 @@ const deleteOwnerEvent = withTiming('deleteOwnerEvent', async (request, slug) =>
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
 
   if (!event) {
-    return json({ error: 'Event not found' }, 404)
+    return jsonPrivate({ error: 'Event not found' }, 404)
   }
 
   for (const photo of event.photos || []) {
     try {
-      await deleteStoredFile(photo.url)
+      await deleteEventScopedStoredFile({ url: photo.url, eventSlug: event.slug, kind: 'room-photo', deleteFile: deleteStoredFile })
     } catch (storageError) {
       console.error('[deleteOwnerEvent] Storage cleanup failed for photo:', photo.id, storageError)
     }
@@ -2886,14 +3058,14 @@ const deleteOwnerEvent = withTiming('deleteOwnerEvent', async (request, slug) =>
   const privateAssets = await repository.listPrivateAssetsByEventId(event.id)
   for (const asset of privateAssets) {
     try {
-      await deleteStoredFile(asset.url)
+      await deleteEventScopedStoredFile({ url: asset.url, eventSlug: event.slug, kind: 'private-asset', deleteFile: deleteStoredFile })
     } catch (storageError) {
       console.error('[deleteOwnerEvent] Storage cleanup failed for private asset:', asset.id, storageError)
     }
   }
 
   await repository.deleteEvent(slug)
-  return json({ deleted: true })
+  return jsonPrivate({ deleted: true })
 })
 
 const moderateOwnerPhoto = async (request, photoId) => {
@@ -2910,11 +3082,11 @@ const moderateOwnerPhoto = async (request, photoId) => {
   const photo = await repository.setPhotoStatusByOwner(photoId, payload.action === 'approve' ? 'VISIBLE' : 'HIDDEN', ownerEmail)
 
   if (!photo) {
-    return json({ error: 'Photo not found' }, 404)
+    return jsonPrivate({ error: 'Photo not found' }, 404)
   }
 
   console.log(`[audit] Owner ${ownerEmail} ${payload.action}d photo ${photoId} in event ${photo.eventId}`)
-  return json({ photo })
+  return jsonPrivate({ photo })
 }
 
 const deleteOwnerPhoto = async (request, photoId) => {
@@ -2930,17 +3102,18 @@ const deleteOwnerPhoto = async (request, photoId) => {
   const photo = await repository.deletePhotoByOwner(photoId, ownerEmail)
 
   if (!photo) {
-    return json({ error: 'Photo not found' }, 404)
+    return jsonPrivate({ error: 'Photo not found' }, 404)
   }
 
   try {
-    await deleteStoredFile(photo.url)
+    const ownerPhotoEvent = await repository.getEventById(photo.eventId)
+    await deleteEventScopedStoredFile({ url: photo.url, eventSlug: ownerPhotoEvent?.slug || '', kind: 'room-photo', deleteFile: deleteStoredFile })
   } catch (storageError) {
     console.error('[deleteOwnerPhoto] Storage cleanup failed for photo:', photoId, storageError)
   }
 
   console.log(`[audit] Owner ${ownerEmail} deleted photo ${photoId} from event ${photo.eventId}`)
-  return json({ deleted: true, photo })
+  return jsonPrivate({ deleted: true, photo })
 }
 
 export async function OPTIONS() {

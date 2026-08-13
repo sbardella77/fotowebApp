@@ -41,8 +41,73 @@ function createWebhookRequest({ payload = '{}', signature = 'sig_test' } = {}) {
   }
 }
 
-function buildStripeEvent(type, object) {
-  return { type, data: { object } }
+let webhookEventIdSeq = 0
+function buildStripeEvent(type, object, id) {
+  webhookEventIdSeq += 1
+  return { id: id || `evt_test_${webhookEventIdSeq}`, type, data: { object } }
+}
+
+// ─── Fake StripeWebhookEvent delegate ───────────────────────────────────────
+// Minimal in-memory store so claimStripeWebhookEvent/markProcessed/markFailed
+// behave like the real state machine (see tests/stripe-webhook-receipt.test.js
+// for the fully-specified version). These tests only need it to get out of
+// the way: fresh event.id -> PROCESS, successful finalize -> PROCESSED.
+
+function matchesStripeWebhookEventWhere(r, where) {
+  if (where.eventId !== undefined && r.eventId !== where.eventId) return false
+  if (where.status !== undefined && r.status !== where.status) return false
+  if (where.attempts !== undefined && r.attempts !== where.attempts) return false
+  return true
+}
+
+function applyStripeWebhookEventData(r, data) {
+  for (const [key, value] of Object.entries(data)) {
+    if (value !== null && typeof value === 'object' && !(value instanceof Date) && 'increment' in value) {
+      r[key] = (r[key] || 0) + value.increment
+    } else {
+      r[key] = value
+    }
+  }
+}
+
+function createFakeStripeWebhookEventDelegate() {
+  const records = []
+  return {
+    findUnique: vi.fn(async ({ where }) => {
+      const found = records.find((r) => r.eventId === where.eventId)
+      return found ? { ...found } : null
+    }),
+    create: vi.fn(async ({ data }) => {
+      if (records.some((r) => r.eventId === data.eventId)) {
+        const err = new Error('Unique constraint failed on the fields: (`eventId`)')
+        err.code = 'P2002'
+        throw err
+      }
+      const row = {
+        id: `swe-${records.length + 1}`,
+        eventId: data.eventId,
+        eventType: data.eventType,
+        status: data.status ?? 'PENDING',
+        attempts: data.attempts ?? 0,
+        lastError: data.lastError ?? null,
+        receivedAt: data.receivedAt ?? new Date(),
+        processingStartedAt: data.processingStartedAt ?? null,
+        processedAt: data.processedAt ?? null,
+        updatedAt: new Date(),
+      }
+      records.push(row)
+      return { ...row }
+    }),
+    updateMany: vi.fn(async ({ where, data }) => {
+      let count = 0
+      for (const r of records) {
+        if (!matchesStripeWebhookEventWhere(r, where)) continue
+        applyStripeWebhookEventData(r, data)
+        count += 1
+      }
+      return { count }
+    }),
+  }
 }
 
 function buildCheckoutSession({ intent, eventId, sessionId = 'cs_test', extra = {} }) {
@@ -84,6 +149,7 @@ function createPrismaMock(overrides = {}) {
       update: vi.fn().mockImplementation(({ data, where }) => Promise.resolve({ id: where?.id || 'pending-1', ...data })),
     },
     upsellEvent: { create: vi.fn().mockResolvedValue({ id: 'upsell-1' }) },
+    stripeWebhookEvent: createFakeStripeWebhookEventDelegate(),
     $queryRaw: vi.fn().mockResolvedValue([]),
     ...overrides,
   }
