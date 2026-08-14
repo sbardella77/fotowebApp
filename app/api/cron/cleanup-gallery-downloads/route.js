@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { cleanupGalleryDownloads } from '@/lib/server/gallery-download-cleanup'
+import { sendOpsAlert } from '@/lib/server/ops-alerts'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,6 +36,17 @@ export async function GET(request) {
     return NextResponse.json({ ok: true, durationMs: duration, ...stats })
   } catch (err) {
     console.error('[cron:cleanup-gallery-downloads] error:', err)
+    try {
+      await sendOpsAlert({
+        severity: 'critical',
+        type: 'ops:cron:gallery_download_cleanup_failed',
+        title: 'Gallery download cleanup cron failed',
+        message: err?.message || 'Unknown error',
+        context: { durationMs: Date.now() - start },
+      })
+    } catch {
+      // Alerting must never mask the original cleanup failure below.
+    }
     return NextResponse.json({ error: err.message || 'Cleanup failed' }, { status: 500 })
   }
 }
@@ -53,6 +65,17 @@ export async function POST(request) {
     return NextResponse.json({ ok: true, durationMs: duration, ...stats })
   } catch (err) {
     console.error('[cron:cleanup-gallery-downloads] error:', err)
+    try {
+      await sendOpsAlert({
+        severity: 'critical',
+        type: 'ops:cron:gallery_download_cleanup_failed',
+        title: 'Gallery download cleanup cron failed',
+        message: err?.message || 'Unknown error',
+        context: { durationMs: Date.now() - start },
+      })
+    } catch {
+      // Alerting must never mask the original cleanup failure below.
+    }
     return NextResponse.json({ error: err.message || 'Cleanup failed' }, { status: 500 })
   }
 }
