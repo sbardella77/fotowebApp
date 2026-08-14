@@ -619,7 +619,7 @@ export default function DashboardPage() {
       const response = await fetch(`/api/download/gallery?eventSlug=${encodeURIComponent(event.slug)}`)
       if (response.status === 403) {
         trackEvent(EVENT_GALLERY_DOWNLOAD_BLOCKED, { room_slug: event.slug, source: 'dashboard', reason: 'free_plan' })
-        alert(t.galleryDownloadLocked)
+        alert(t.galleryDownloadLocked || 'Full gallery downloads require Pro Event, Wedding Pro, or Professional')
         setGalleryDownloadBusy(false)
         return
       }
@@ -641,7 +641,7 @@ export default function DashboardPage() {
       trackEvent(EVENT_GALLERY_DOWNLOAD_COMPLETED, { room_slug: event.slug, source: 'dashboard', photo_count: selectedEvent?.photoCount ?? photos.length })
     } catch (err) {
       console.error('[dashboard] gallery download failed:', err)
-      alert(t.galleryDownloadFailed)
+      alert(t.galleryDownloadFailed || 'Unable to download gallery. Please try again later.')
     } finally {
       setGalleryDownloadBusy(false)
     }
