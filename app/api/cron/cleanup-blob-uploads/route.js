@@ -3,6 +3,7 @@ import { head } from '@vercel/blob'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { deleteStoredFile } from '@/lib/server/storage'
 import { cleanupBlobUploadSessions } from '@/lib/server/blob-upload-cleanup'
+import { sendOpsAlert } from '@/lib/server/ops-alerts'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,8 +41,19 @@ async function runCleanup() {
     const durationMs = Date.now() - start
     console.log(`[cron:cleanup-blob-uploads] durationMs=${durationMs}`, stats)
     return { ok: true, durationMs, ...stats }
-  } catch {
+  } catch (error) {
     console.error('[cron:cleanup-blob-uploads] cleanup failed')
+    try {
+      await sendOpsAlert({
+        severity: 'critical',
+        type: 'ops:cron:blob_upload_cleanup_failed',
+        title: 'Blob upload cleanup cron failed',
+        message: error?.message || 'Unknown error',
+        context: { durationMs: Date.now() - start },
+      })
+    } catch {
+      // Alerting must never mask the original cleanup failure below.
+    }
     return { ok: false, error: 'Blob upload cleanup failed', status: 500 }
   }
 }
