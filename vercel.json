@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/cleanup-blob-uploads",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/check-billing-health",
+      "schedule": "0 5 * * *"
     }
   ]
 }

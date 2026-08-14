@@ -894,4 +894,9 @@ describe('Cron route and vercel.json static checks', () => {
     const entry = vercelJson.crons.find((c) => c.path === '/api/cron/cleanup-blob-uploads')
     expect(entry?.schedule).toBe('0 4 * * *')
   })
+
+  it('56: vercel.json contains check-billing-health with schedule "0 5 * * *"', () => {
+    const entry = vercelJson.crons.find((c) => c.path === '/api/cron/check-billing-health')
+    expect(entry?.schedule).toBe('0 5 * * *')
+  })
 })
