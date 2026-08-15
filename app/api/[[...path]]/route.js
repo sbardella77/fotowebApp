@@ -1372,12 +1372,6 @@ const initPrivateDeliveryUpload = async (request, slug) => {
     }
   }
 
-  const clientIp = getClientIp(request)
-  const limit = rateLimit(`upload-init:ip:${clientIp}`, RATE_LIMITS.uploadInit.ip.max, RATE_LIMITS.uploadInit.ip.window)
-  if (limit.limited) {
-    return jsonPrivate({ error: 'Too many upload attempts. Please try again later.' }, 429)
-  }
-
   const storageDriver = getStorageDriver()
   let session
 
@@ -1428,12 +1422,6 @@ const completePrivateDeliveryUpload = async (request, slug) => {
   const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
   if (!event) {
     return jsonPrivate({ error: 'Room not found' }, 404)
-  }
-
-  const clientIp = getClientIp(request)
-  const limit = rateLimit(`upload-complete:ip:${clientIp}`, RATE_LIMITS.uploadComplete.ip.max, RATE_LIMITS.uploadComplete.ip.window)
-  if (limit.limited) {
-    return jsonPrivate({ error: 'Too many upload completions. Please try again later.' }, 429)
   }
 
   const storageDriver = getStorageDriver()
