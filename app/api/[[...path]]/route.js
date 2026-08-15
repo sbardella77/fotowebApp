@@ -103,6 +103,7 @@ import {
   BlobUploadTokenRequestError,
   createLazyServerBoundBlobUploadCallbacks,
   getBlobUploadRequestKind,
+  parseCanonicalSessionPayload,
   validateBlobUploadCallbackUrl,
 } from '@/lib/server/blob-upload-token'
 import { getAdminAuthDriver, getDataAccessDriver, getPrismaClient } from '@/lib/server/prisma-client'
@@ -1068,13 +1069,69 @@ const issueBlobUploadToken = async (request) => {
   }
   const callbackRequest = requestKind === 'callback'
 
-  // 3. For token-generation requests: rate limit and callbackUrl validation
-  //    before BLOB_READ_WRITE_TOKEN check and any database access
+  // 3. For token-generation requests: rate limiting and callbackUrl
+  //    validation, before BLOB_READ_WRITE_TOKEN check and handleUpload.
+  //    Rate limiting is now two-stage:
+  //      a. A broad, Redis-backed, hashed-IP guard runs first and is the
+  //         ONLY thing that runs before any database access — it exists
+  //         purely to bound pre-lookup DB exposure from a single IP
+  //         sending syntactically-valid-but-arbitrary session ids, and is
+  //         deliberately far above any single flow's own policy.
+  //      b. Once past (a), a read-only BlobUploadSession lookup resolves
+  //         uploadKind/eventId (never mutates — the real claim happens
+  //         later, inside onBeforeGenerateToken, unchanged). Photographer
+  //         sessions get their own eventId-scoped bucket; everything else
+  //         (room-photo, private-delivery, unresolved/malformed) falls
+  //         through to the existing shared legacy IP limiter, unchanged.
   if (!callbackRequest) {
     const clientIp = getClientIp(request)
-    const limit = rateLimit(`upload-blob:ip:${clientIp}`, RATE_LIMITS.uploadBlob.ip.max, RATE_LIMITS.uploadBlob.ip.window)
-    if (limit.limited) {
+
+    const broadGuard = await checkRateLimit(
+      `blob-token-broad:ip:${hashIdentifier(clientIp)}`,
+      RATE_LIMITS.uploadBlobBroad.ip.max,
+      RATE_LIMITS.uploadBlobBroad.ip.window,
+    )
+    if (broadGuard.limited) {
       return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
+    }
+
+    let sessionId = null
+    try {
+      ;({ sessionId } = parseCanonicalSessionPayload(body?.payload?.clientPayload))
+    } catch {
+      // Malformed/absent clientPayload — leave sessionId null, fall
+      // through to the default (legacy) branch below. The authoritative
+      // parse/validation still happens later, unchanged, in
+      // onBeforeGenerateToken.
+    }
+
+    let resolvedSession = null
+    if (sessionId) {
+      const prismaForLookup = await getPrismaClient()
+      if (prismaForLookup) {
+        resolvedSession = await prismaForLookup.blobUploadSession.findUnique({
+          where: { id: sessionId },
+          select: { uploadKind: true, eventId: true },
+        })
+      }
+    }
+
+    if (resolvedSession?.uploadKind === BlobUploadKind.PHOTOGRAPHER_UPLOAD && resolvedSession.eventId) {
+      const photographerBlobLimit = await checkRateLimit(
+        `upload-blob:photographer-event:${resolvedSession.eventId}`,
+        RATE_LIMITS.photographerBlobEvent.event.max,
+        RATE_LIMITS.photographerBlobEvent.event.window,
+      )
+      if (photographerBlobLimit.limited) {
+        return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
+      }
+    } else {
+      // Default branch: room-photo, private-delivery, unresolved, or
+      // malformed — unchanged legacy shared IP limiter.
+      const limit = rateLimit(`upload-blob:ip:${clientIp}`, RATE_LIMITS.uploadBlob.ip.max, RATE_LIMITS.uploadBlob.ip.window)
+      if (limit.limited) {
+        return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
+      }
     }
 
     try {
@@ -1099,8 +1156,9 @@ const issueBlobUploadToken = async (request) => {
     return json({ error: 'Vercel Blob is not configured' }, 500)
   }
 
-  // 5. Build lazy callbacks — Prisma is resolved only when handleUpload
-  //    invokes onBeforeGenerateToken or onUploadCompleted, never before
+  // 5. Build lazy callbacks — independent of step 3b's own eager lookup
+  //    (a plain read, no claim). Prisma is resolved here only when
+  //    handleUpload invokes onBeforeGenerateToken or onUploadCompleted.
   const callbacks = createLazyServerBoundBlobUploadCallbacks({
     getPrisma: getPrismaClient,
   })
@@ -1898,6 +1956,30 @@ const getPhotographerUploadEvent = async (request, token) => {
 }
 
 const initPhotographerUpload = async (request, token) => {
+  // The raw token is attacker-controlled until
+  // getPhotographerEventFromToken() validates it below (a DB lookup) — so
+  // a broad, hashed-IP guard must run BEFORE both the token-hash bucket
+  // and that lookup, bounding arbitrary-token cardinality pre-DB.
+  const clientIp = getClientIp(request)
+  const broadInitLimit = await checkRateLimit(
+    `photographer-init-broad:ip:${hashIdentifier(clientIp)}`,
+    RATE_LIMITS.photographerInitBroad.ip.max,
+    RATE_LIMITS.photographerInitBroad.ip.window,
+  )
+  if (broadInitLimit.limited) {
+    return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
+  }
+
+  const photographerTokenHash = hashPhotographerUploadToken(token)
+  const initLimit = await checkRateLimit(
+    `photographer-init:token:${photographerTokenHash}`,
+    RATE_LIMITS.photographerInit.token.max,
+    RATE_LIMITS.photographerInit.token.window,
+  )
+  if (initLimit.limited) {
+    return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
+  }
+
   const event = await getPhotographerEventFromToken(token)
   if (!event) {
     return json({ error: 'Invalid or expired link' }, 403)
@@ -1914,12 +1996,6 @@ const initPhotographerUpload = async (request, token) => {
     if (!access.hasPrivateDelivery) {
       return json({ error: 'Private delivery is not available for this room' }, 403)
     }
-  }
-
-  const clientIp = getClientIp(request)
-  const limit = rateLimit(`upload-init:ip:${clientIp}`, RATE_LIMITS.uploadInit.ip.max, RATE_LIMITS.uploadInit.ip.window)
-  if (limit.limited) {
-    return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
   }
 
   const storageDriver = getStorageDriver()
@@ -1959,6 +2035,29 @@ const issuePhotographerBlobToken = async (request) => {
 }
 
 const completePhotographerUpload = async (request, token) => {
+  // Same pre-auth cardinality guard as initPhotographerUpload — its own
+  // separate 1000/IP category so a normal one-init-plus-one-complete
+  // upload never double-charges against a single combined ceiling.
+  const clientIp = getClientIp(request)
+  const broadCompleteLimit = await checkRateLimit(
+    `photographer-complete-broad:ip:${hashIdentifier(clientIp)}`,
+    RATE_LIMITS.photographerCompleteBroad.ip.max,
+    RATE_LIMITS.photographerCompleteBroad.ip.window,
+  )
+  if (broadCompleteLimit.limited) {
+    return json({ error: 'Too many upload completions. Please try again later.' }, 429)
+  }
+
+  const photographerTokenHash = hashPhotographerUploadToken(token)
+  const completeLimit = await checkRateLimit(
+    `photographer-complete:token:${photographerTokenHash}`,
+    RATE_LIMITS.photographerComplete.token.max,
+    RATE_LIMITS.photographerComplete.token.window,
+  )
+  if (completeLimit.limited) {
+    return json({ error: 'Too many upload completions. Please try again later.' }, 429)
+  }
+
   const event = await getPhotographerEventFromToken(token)
   if (!event) {
     return json({ error: 'Invalid or expired link' }, 403)
@@ -1967,12 +2066,6 @@ const completePhotographerUpload = async (request, token) => {
   const body = await request.json()
   const repository = await getGalleryRepository()
   const prisma = await getPrismaClient()
-
-  const clientIp = getClientIp(request)
-  const limit = rateLimit(`upload-complete:ip:${clientIp}`, RATE_LIMITS.uploadComplete.ip.max, RATE_LIMITS.uploadComplete.ip.window)
-  if (limit.limited) {
-    return json({ error: 'Too many upload completions. Please try again later.' }, 429)
-  }
 
   const storageDriver = getStorageDriver()
 
