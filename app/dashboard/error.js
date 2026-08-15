@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { resolveErrorBoundaryLocale, getErrorBoundaryCopy } from '@/lib/i18n/error-boundary'
@@ -33,7 +33,12 @@ export default function DashboardError({ error, reset }) {
     }
   }, [error])
 
-  const locale = resolveErrorBoundaryLocale()
+  // First render must match server/browser exactly, so we start with the
+  // English fallback and only resolve the real locale after mount.
+  const [locale, setLocale] = useState('en')
+  useEffect(() => {
+    setLocale(resolveErrorBoundaryLocale())
+  }, [])
   const copy = getErrorBoundaryCopy(locale)
 
   return (

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { resolveErrorBoundaryLocale, getErrorBoundaryCopy } from '@/lib/i18n/error-boundary'
 
 export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
@@ -12,7 +12,12 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
     }
   }, [error])
 
-  const locale = resolveErrorBoundaryLocale()
+  // First render must match server/browser exactly, so we start with the
+  // English fallback and only resolve the real locale after mount.
+  const [locale, setLocale] = useState('en')
+  useEffect(() => {
+    setLocale(resolveErrorBoundaryLocale())
+  }, [])
   const copy = getErrorBoundaryCopy(locale)
 
   return (

@@ -70,6 +70,35 @@ describe('resolveErrorBoundaryLocale', () => {
     expect(resolveErrorBoundaryLocale()).toBe('es')
   })
 
+  it('D3. cookie with standard "; " separator is parsed correctly', () => {
+    stubDocument('foo=1; NEXT_LOCALE=fr')
+    stubNavigator(['en-US'])
+    expect(resolveErrorBoundaryLocale()).toBe('fr')
+  })
+
+  it('D4. cookie with no whitespace after ";" is parsed correctly', () => {
+    stubDocument('foo=1;NEXT_LOCALE=fr')
+    stubNavigator(['en-US'])
+    expect(resolveErrorBoundaryLocale()).toBe('fr')
+  })
+
+  it('D5. trailing-suffix cookie key collision is not matched (exact key match)', () => {
+    stubDocument('NEXT_LOCALE_BACKUP=fr')
+    stubNavigator(['es-ES'])
+    // "NEXT_LOCALE_BACKUP" must not be mistaken for "NEXT_LOCALE".
+    expect(resolveErrorBoundaryLocale()).toBe('es')
+  })
+
+  it('D6. unsupported cookie value falls through to supported navigator, else en', () => {
+    stubDocument('NEXT_LOCALE=xx')
+    stubNavigator(['it-IT'])
+    expect(resolveErrorBoundaryLocale()).toBe('it')
+
+    stubDocument('NEXT_LOCALE=xx')
+    stubNavigator(['xx-XX'])
+    expect(resolveErrorBoundaryLocale()).toBe('en')
+  })
+
   it('E. document undefined falls back to navigator or en', () => {
     delete globalThis.document
     stubNavigator(['de-DE'])
