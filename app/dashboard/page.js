@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslations } from '@/components/i18n-provider'
 import { useRouter } from 'next/navigation'
 import { upload } from '@vercel/blob/client'
@@ -268,38 +268,44 @@ export default function DashboardPage() {
     setEvents((prev) => prev.map((e) => (e.slug === updatedEvent.slug ? updatedEvent : e)))
   }
 
-  // Owner session-expiry UX (Phase 1 — main dashboard call sites only;
-  // nested components and the analytics page are handled separately).
-  const checkOwnerSessionStillValid = async () => {
+  // Owner session-expiry UX (main dashboard call sites + nested components
+  // that receive consumeOwnerSessionFailure as a prop; the analytics page is
+  // handled separately). These three are memoized with a stable identity:
+  // EventMomentsManager's mount-fetch is behind a useCallback+useEffect pair
+  // keyed on this same function, so an unstable reference here would cause a
+  // new /moments fetch on every unrelated parent re-render.
+  const checkOwnerSessionStillValid = useCallback(async () => {
     const response = await fetch('/api/owner/session', { cache: 'no-store' })
     const { payload } = await safeFetchJson(response, { fallback: { authenticated: false } })
     return Boolean(payload.authenticated)
-  }
+  }, [])
 
-  const handleOwnerSessionExpired = () => {
+  const handleOwnerSessionExpired = useCallback(() => {
     setAuthState({ loading: false, authenticated: false, email: '' })
     setSelectedEvent(null)
     setSelectedSlug('')
     setEvents([])
     setMessage(t.sessionExpired)
-  }
+  }, [t.sessionExpired])
 
   // Call right after inspecting response.status, at every fetch/csrfFetch
-  // call site that is genuinely Owner-session-gated. Returns true whenever
-  // the response was a candidate Owner 401 and has now been CONSUMED by the
-  // session-expiry gate — callers must abort the action immediately in every
-  // such case (no further error message, no retry, no mutation replay).
-  // This is deliberately NOT "true only if the user is actually expired":
-  // a stale 401 that the gate confirms is still SESSION_VALID (e.g. it
-  // resolved after a fresh re-login) is also consumed here and must still
-  // abort the action, just without any session-expired transition or error
-  // message — the call site never needs to know which of the gate's three
-  // outcomes (EXPIRED / SESSION_VALID / ALREADY_HANDLED) actually occurred.
-  const consumeOwnerSessionFailure = async (status) => {
+  // call site that is genuinely Owner-session-gated (including nested
+  // components, which receive this exact function as a prop). Returns true
+  // whenever the response was a candidate Owner 401 and has now been
+  // CONSUMED by the session-expiry gate — callers must abort the action
+  // immediately in every such case (no further error message, no retry, no
+  // mutation replay). This is deliberately NOT "true only if the user is
+  // actually expired": a stale 401 that the gate confirms is still
+  // SESSION_VALID (e.g. it resolved after a fresh re-login) is also consumed
+  // here and must still abort the action, just without any session-expired
+  // transition or error message — callers never need to know which of the
+  // gate's three outcomes (EXPIRED / SESSION_VALID / ALREADY_HANDLED)
+  // actually occurred.
+  const consumeOwnerSessionFailure = useCallback(async (status) => {
     if (classifyOwnerApiFailure(status) !== 'SESSION_EXPIRED') return false
     await sessionExpiryGateRef.current.handleCandidate401(checkOwnerSessionStillValid, handleOwnerSessionExpired)
     return true
-  }
+  }, [checkOwnerSessionStillValid, handleOwnerSessionExpired])
 
   const loadSession = async () => {
     setAuthState((c) => ({ ...c, loading: true }))
@@ -1424,6 +1430,7 @@ export default function DashboardPage() {
             onCopyPhotoLink={copyPhotographerLink}
             onRevokePhotoLink={revokePhotographerLink}
             onCoverUpdated={handleCoverUpdated}
+            onOwnerSessionFailure={consumeOwnerSessionFailure}
             t={t}
             tPrivate={tPrivate}
             tCommon={tCommon}

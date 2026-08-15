@@ -5,7 +5,7 @@ import { Loader2, Plus, Trash2, Pencil, Check, X, Clock, Image } from 'lucide-re
 import { Button } from '@/components/ui/button'
 import { csrfFetch } from '@/lib/client/csrf-fetch'
 
-export function EventMomentsManager({ event, t }) {
+export function EventMomentsManager({ event, t, onOwnerSessionFailure }) {
   const [moments, setMoments] = useState(event?.moments || [])
   const [loading, setLoading] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -21,6 +21,7 @@ export function EventMomentsManager({ event, t }) {
     setError('')
     try {
       const res = await fetch(`/api/owner/events/${event.slug}/moments`, { cache: 'no-store', signal })
+      if (onOwnerSessionFailure && (await onOwnerSessionFailure(res.status))) return
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}))
         // If table doesn't exist, surface a clearer message in dev
@@ -39,7 +40,7 @@ export function EventMomentsManager({ event, t }) {
     } finally {
       if (!signal?.aborted) setLoading(false)
     }
-  }, [event?.slug])
+  }, [event?.slug, onOwnerSessionFailure])
 
   // Reset local state when event changes
   useEffect(() => {
@@ -68,6 +69,7 @@ export function EventMomentsManager({ event, t }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
       })
+      if (onOwnerSessionFailure && (await onOwnerSessionFailure(res.status))) return
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         throw new Error(data.error || 'Failed to create moment')
@@ -93,6 +95,7 @@ export function EventMomentsManager({ event, t }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
       })
+      if (onOwnerSessionFailure && (await onOwnerSessionFailure(res.status))) return
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         throw new Error(data.error || 'Failed to rename moment')
@@ -116,6 +119,7 @@ export function EventMomentsManager({ event, t }) {
       const res = await csrfFetch(`/api/owner/events/${event.slug}/moments/${momentId}`, {
         method: 'DELETE',
       })
+      if (onOwnerSessionFailure && (await onOwnerSessionFailure(res.status))) return
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         throw new Error(data.error || 'Failed to delete moment')

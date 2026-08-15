@@ -127,7 +127,7 @@ describe('Covered call-site count', () => {
 
 describe('consumeOwnerSessionFailure returns true for every classified 401 outcome, not only genuine expiry', () => {
   it('17: the definition awaits the gate and unconditionally returns true afterward (stale-but-valid 401s are still consumed)', () => {
-    const marker = 'const consumeOwnerSessionFailure = async (status) => {'
+    const marker = 'const consumeOwnerSessionFailure = useCallback(async (status) => {'
     const startIdx = DASHBOARD_PAGE.indexOf(marker)
     expect(startIdx).toBeGreaterThan(-1)
     const body = DASHBOARD_PAGE.slice(startIdx, DASHBOARD_PAGE.indexOf('\n  }', startIdx))

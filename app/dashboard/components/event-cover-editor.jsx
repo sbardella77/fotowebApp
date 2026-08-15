@@ -65,7 +65,7 @@ async function getCroppedImg(imageSrc, pixelCrop) {
   return canvas.toDataURL('image/jpeg', 0.92)
 }
 
-export function EventCoverEditor({ event, onCoverUpdated, t, tCommon }) {
+export function EventCoverEditor({ event, onCoverUpdated, onOwnerSessionFailure, t, tCommon }) {
   const [open, setOpen] = useState(false)
   const [imageSrc, setImageSrc] = useState(null)
   const [crop, setCrop] = useState({ x: 0, y: 0 })
@@ -143,6 +143,7 @@ export function EventCoverEditor({ event, onCoverUpdated, t, tCommon }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ coverDataUrl: croppedDataUrl }),
       })
+      if (onOwnerSessionFailure && (await onOwnerSessionFailure(response.status))) return
       const payload = await response.json()
       if (!response.ok) {
         throw new Error(payload.error || 'Unable to save cover')
@@ -307,7 +308,7 @@ export function EventCoverEditor({ event, onCoverUpdated, t, tCommon }) {
   )
 }
 
-export function EventCoverRemove({ event, onCoverUpdated, t, tCommon }) {
+export function EventCoverRemove({ event, onCoverUpdated, onOwnerSessionFailure, t, tCommon }) {
   const [busy, setBusy] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
@@ -318,6 +319,7 @@ export function EventCoverRemove({ event, onCoverUpdated, t, tCommon }) {
       const response = await csrfFetch(`/api/owner/events/${event.slug}/cover`, {
         method: 'DELETE',
       })
+      if (onOwnerSessionFailure && (await onOwnerSessionFailure(response.status))) return
       const payload = await response.json()
       if (!response.ok) {
         throw new Error(payload.error || 'Unable to remove cover')
