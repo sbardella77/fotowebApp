@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { resolveErrorBoundaryLocale, getErrorBoundaryCopy } from '@/lib/i18n/error-boundary'
 
 /**
  * Dashboard-specific error boundary.
@@ -32,16 +33,19 @@ export default function DashboardError({ error, reset }) {
     }
   }, [error])
 
+  const locale = resolveErrorBoundaryLocale()
+  const copy = getErrorBoundaryCopy(locale)
+
   return (
     <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center px-4 py-20 text-center">
       <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-destructive/10 text-destructive">
         <AlertTriangle className="h-10 w-10" />
       </div>
       <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">
-        Dashboard nicht verfügbar
+        {copy.dashboardTitle}
       </h1>
       <p className="mt-3 max-w-sm text-sm font-light leading-relaxed text-muted-foreground">
-        Ihr Dashboard konnte leider nicht geladen werden. Bitte versuchen Sie es erneut.
+        {copy.dashboardBody}
       </p>
       <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-center">
         <Button
@@ -55,7 +59,7 @@ export default function DashboardError({ error, reset }) {
           }}
         >
           <RefreshCw className="mr-2 h-4 w-4" />
-          Seite neu laden
+          {copy.reloadPage}
         </Button>
         <Button
           variant="outline"
@@ -66,7 +70,7 @@ export default function DashboardError({ error, reset }) {
             }
           }}
         >
-          Zurück zur Startseite
+          {copy.backToHome}
         </Button>
       </div>
     </div>
