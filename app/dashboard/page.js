@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslations } from '@/components/i18n-provider'
 import { useRouter } from 'next/navigation'
 import { upload } from '@vercel/blob/client'
-import { AlertTriangle, ArrowUpDown, Camera, CheckCircle2, Copy, Download, Eye, EyeOff, FolderHeart, ImagePlus, Info, LinkIcon, Loader2, Lock, LogOut, Pencil, Plus, QrCode, RefreshCw, Search, Share2, Sparkles, Trash2, Upload, Archive } from 'lucide-react'
+import { AlertTriangle, ArrowUpDown, Camera, Copy, Download, Eye, EyeOff, FolderHeart, ImagePlus, Info, LinkIcon, Loader2, Lock, LogOut, Pencil, Plus, QrCode, RefreshCw, Search, Share2, Sparkles, Trash2, Upload, Archive } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import PhotoLightbox from '@/components/photo-lightbox'
@@ -1631,13 +1631,6 @@ export default function DashboardPage() {
                   )}
                 </div>
               </div>
-            </div>
-          )}
-
-          {message && (
-            <div className="rounded-xl border border-border bg-surface p-4 text-sm text-foreground flex items-center gap-2.5 shadow-subtle">
-              <CheckCircle2 className="h-4 w-4 text-accent-dark shrink-0" />
-              {message}
             </div>
           )}
 
