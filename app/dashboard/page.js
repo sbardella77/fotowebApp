@@ -285,13 +285,20 @@ export default function DashboardPage() {
   }
 
   // Call right after inspecting response.status, at every fetch/csrfFetch
-  // call site that is genuinely Owner-session-gated. Returns true when the
-  // failure was classified and handled as a session expiry — callers must
-  // abort the action immediately (no further error message, no retry, no
-  // mutation replay).
-  const handleCandidate401IfExpired = async (status) => {
+  // call site that is genuinely Owner-session-gated. Returns true whenever
+  // the response was a candidate Owner 401 and has now been CONSUMED by the
+  // session-expiry gate — callers must abort the action immediately in every
+  // such case (no further error message, no retry, no mutation replay).
+  // This is deliberately NOT "true only if the user is actually expired":
+  // a stale 401 that the gate confirms is still SESSION_VALID (e.g. it
+  // resolved after a fresh re-login) is also consumed here and must still
+  // abort the action, just without any session-expired transition or error
+  // message — the call site never needs to know which of the gate's three
+  // outcomes (EXPIRED / SESSION_VALID / ALREADY_HANDLED) actually occurred.
+  const consumeOwnerSessionFailure = async (status) => {
     if (classifyOwnerApiFailure(status) !== 'SESSION_EXPIRED') return false
-    return sessionExpiryGateRef.current.handleCandidate401(checkOwnerSessionStillValid, handleOwnerSessionExpired)
+    await sessionExpiryGateRef.current.handleCandidate401(checkOwnerSessionStillValid, handleOwnerSessionExpired)
+    return true
   }
 
   const loadSession = async () => {
@@ -341,7 +348,7 @@ export default function DashboardPage() {
   const loadPlan = async () => {
     try {
       const response = await fetch('/api/owner/plan', { cache: 'no-store' })
-      if (await handleCandidate401IfExpired(response.status)) return
+      if (await consumeOwnerSessionFailure(response.status)) return
       const { ok, payload } = await safeFetchJson(response, { fallback: { plan: 'free', extraEventCredits: 0 } })
       if (!ok) return
       setPlan(payload.plan || 'free')
@@ -371,7 +378,7 @@ export default function DashboardPage() {
     setPortalBusy(true)
     try {
       const response = await csrfFetch('/api/stripe/customer-portal', { method: 'POST' })
-      if (await handleCandidate401IfExpired(response.status)) {
+      if (await consumeOwnerSessionFailure(response.status)) {
         setPortalBusy(false)
         return
       }
@@ -435,7 +442,7 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      if (await handleCandidate401IfExpired(response.status)) {
+      if (await consumeOwnerSessionFailure(response.status)) {
         setCheckoutBusy(false)
         return
       }
@@ -453,7 +460,7 @@ export default function DashboardPage() {
   const loadEvents = async () => {
     try {
       const response = await fetch('/api/owner/events', { cache: 'no-store' })
-      if (await handleCandidate401IfExpired(response.status)) return
+      if (await consumeOwnerSessionFailure(response.status)) return
       const { ok, payload } = await safeFetchJson(response, { fallback: { events: [] } })
       if (!ok) {
         setEvents([])
@@ -476,7 +483,7 @@ export default function DashboardPage() {
     setBusy((c) => ({ ...c, detail: true }))
     try {
       const response = await fetch(`/api/owner/events/${slug}`, { cache: 'no-store' })
-      if (await handleCandidate401IfExpired(response.status)) return
+      if (await consumeOwnerSessionFailure(response.status)) return
       const { ok, payload } = await safeFetchJson(response, { fallback: { event: null } })
       if (!ok || !payload.event?.slug) {
         // The previously selected event no longer exists or the response was malformed.
@@ -504,7 +511,7 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
       })
-      if (await handleCandidate401IfExpired(response.status)) return
+      if (await consumeOwnerSessionFailure(response.status)) return
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || t.unableToUpdatePhoto)
       setMessage(action === 'approve' ? t.photoApproved : t.photoHidden)
@@ -521,7 +528,7 @@ export default function DashboardPage() {
     setBusy((c) => ({ ...c, photoId }))
     try {
       const response = await csrfFetch(`/api/owner/photos/${photoId}`, { method: 'DELETE' })
-      if (await handleCandidate401IfExpired(response.status)) return
+      if (await consumeOwnerSessionFailure(response.status)) return
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || t.unableToDeletePhoto)
       setMessage(t.photoDeleted)
@@ -547,7 +554,7 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: trimmed }),
       })
-      if (await handleCandidate401IfExpired(response.status)) return
+      if (await consumeOwnerSessionFailure(response.status)) return
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || t.unableToRenameRoom)
       if (payload.event?.slug) {
@@ -569,7 +576,7 @@ export default function DashboardPage() {
     setBusy((c) => ({ ...c, detail: true }))
     try {
       const response = await csrfFetch(`/api/owner/events/${selectedSlug}`, { method: 'DELETE' })
-      if (await handleCandidate401IfExpired(response.status)) return
+      if (await consumeOwnerSessionFailure(response.status)) return
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || t.somethingWentWrong)
       setMessage(t.roomDeleted)
@@ -719,7 +726,7 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: trimmed }),
       })
-      if (await handleCandidate401IfExpired(response.status)) return
+      if (await consumeOwnerSessionFailure(response.status)) return
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || t.unableToRenameRoom)
       setMessage(t.roomRenamed)
@@ -846,7 +853,7 @@ export default function DashboardPage() {
     try {
       trackEvent(EVENT_PRIVATE_DELIVERY_VIEWED, { room_slug: slug })
       const response = await fetch(`/api/owner/events/${slug}/private-delivery`, { cache: 'no-store' })
-      if (await handleCandidate401IfExpired(response.status)) return
+      if (await consumeOwnerSessionFailure(response.status)) return
       const payload = await response.json()
       if (!response.ok) {
         if (response.status !== 403) {
@@ -887,7 +894,7 @@ export default function DashboardPage() {
           totalChunks,
         }),
       })
-      if (await handleCandidate401IfExpired(initResponse.status)) return
+      if (await consumeOwnerSessionFailure(initResponse.status)) return
       const initPayload = await initResponse.json()
 
       if (!initResponse.ok) {
@@ -912,7 +919,7 @@ export default function DashboardPage() {
             sessionId: session.sessionId,
           }),
         })
-        if (await handleCandidate401IfExpired(completeResponse.status)) return
+        if (await consumeOwnerSessionFailure(completeResponse.status)) return
         const completePayload = await completeResponse.json()
 
         if (!completeResponse.ok) {
@@ -949,7 +956,7 @@ export default function DashboardPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sessionId: initPayload.session.sessionId }),
         })
-        if (await handleCandidate401IfExpired(completeResponse.status)) return
+        if (await consumeOwnerSessionFailure(completeResponse.status)) return
         const completePayload = await completeResponse.json()
 
         if (!completeResponse.ok) {
@@ -982,7 +989,7 @@ export default function DashboardPage() {
     setBusy((c) => ({ ...c, detail: true }))
     try {
       const response = await csrfFetch(`/api/owner/private-delivery/${assetId}`, { method: 'DELETE' })
-      if (await handleCandidate401IfExpired(response.status)) return
+      if (await consumeOwnerSessionFailure(response.status)) return
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || t.unableToDeleteFile)
       trackEvent(EVENT_PRIVATE_DELIVERY_DELETED, { room_slug: selectedEvent?.slug, asset_id: assetId })
@@ -1006,7 +1013,7 @@ export default function DashboardPage() {
     setPhotographerLinkBusy(true)
     try {
       const response = await csrfFetch(`/api/owner/events/${selectedEvent.slug}/photographer-link`, { method: 'POST' })
-      if (await handleCandidate401IfExpired(response.status)) return
+      if (await consumeOwnerSessionFailure(response.status)) return
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || t.unableToGenerateLink)
       trackEvent(EVENT_PHOTOGRAPHER_UPLOAD_LINK_CREATED, { room_slug: selectedEvent.slug })
@@ -1037,7 +1044,7 @@ export default function DashboardPage() {
     setPhotographerLinkBusy(true)
     try {
       const response = await csrfFetch(`/api/owner/events/${selectedEvent.slug}/photographer-link`, { method: 'DELETE' })
-      if (await handleCandidate401IfExpired(response.status)) return
+      if (await consumeOwnerSessionFailure(response.status)) return
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || t.unableToRevokeLink)
       trackEvent(EVENT_PHOTOGRAPHER_UPLOAD_LINK_REVOKED, { room_slug: selectedEvent.slug })
@@ -1223,7 +1230,7 @@ export default function DashboardPage() {
             `/api/owner/extra-free-event-checkout?session_id=${encodeURIComponent(sessionId)}`,
             { cache: 'no-store' }
           )
-          if (await handleCandidate401IfExpired(res.status)) {
+          if (await consumeOwnerSessionFailure(res.status)) {
             // Genuine session expiry: stop polling immediately, no further
             // retries/setTimeout — the gate has already transitioned the UI.
             setAutoCreateBusy(false)

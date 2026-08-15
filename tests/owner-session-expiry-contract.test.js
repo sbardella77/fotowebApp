@@ -58,7 +58,7 @@ describe('Guest and photographer-token upload clients are untouched by the Owner
 })
 
 describe('/api/uploads/chunk is never globally intercepted', () => {
-  it('8: the chunk-upload fetch call in page.js has no handleCandidate401IfExpired check attached to it', () => {
+  it('8: the chunk-upload fetch call in page.js has no consumeOwnerSessionFailure check attached to it', () => {
     const marker = "fetch('/api/uploads/chunk'"
     const idx = DASHBOARD_PAGE.indexOf(marker)
     expect(idx).toBeGreaterThan(-1)
@@ -66,7 +66,7 @@ describe('/api/uploads/chunk is never globally intercepted', () => {
     // session-expiry check must not appear here, since this endpoint is
     // shared with unauthenticated guest/photographer-token uploads.
     const window_ = DASHBOARD_PAGE.slice(Math.max(0, idx - 200), idx + 300)
-    expect(window_).not.toContain('handleCandidate401IfExpired')
+    expect(window_).not.toContain('consumeOwnerSessionFailure')
   })
 })
 
@@ -94,7 +94,7 @@ describe('createRoom (/api/events) and gallery download (/api/download/gallery) 
     const idx = DASHBOARD_PAGE.indexOf(marker)
     expect(idx).toBeGreaterThan(-1)
     const window_ = DASHBOARD_PAGE.slice(idx, idx + 500)
-    expect(window_).not.toContain('handleCandidate401IfExpired')
+    expect(window_).not.toContain('consumeOwnerSessionFailure')
   })
 
   it('14: the gallery-download fetch has no session-expiry check (server never returns 401 for it)', () => {
@@ -102,7 +102,7 @@ describe('createRoom (/api/events) and gallery download (/api/download/gallery) 
     const idx = DASHBOARD_PAGE.indexOf(marker)
     expect(idx).toBeGreaterThan(-1)
     const window_ = DASHBOARD_PAGE.slice(idx, idx + 500)
-    expect(window_).not.toContain('handleCandidate401IfExpired')
+    expect(window_).not.toContain('consumeOwnerSessionFailure')
   })
 })
 
@@ -112,15 +112,57 @@ describe('logout() is deliberately left untouched (STEP scope: session-expiry UX
     const idx = DASHBOARD_PAGE.indexOf(marker)
     expect(idx).toBeGreaterThan(-1)
     const window_ = DASHBOARD_PAGE.slice(idx, idx + 300)
-    expect(window_).not.toContain('handleCandidate401IfExpired')
+    expect(window_).not.toContain('consumeOwnerSessionFailure')
   })
 })
 
 describe('Covered call-site count', () => {
-  it('16: exactly 18 call sites in page.js invoke handleCandidate401IfExpired', () => {
-    const matches = DASHBOARD_PAGE.match(/handleCandidate401IfExpired\(/g) || []
+  it('16: exactly 18 call sites in page.js invoke consumeOwnerSessionFailure', () => {
+    const matches = DASHBOARD_PAGE.match(/consumeOwnerSessionFailure\(/g) || []
     // 18 call sites + 0 (the definition itself uses "= async (status) =>",
     // not a call, so it is not counted here).
     expect(matches.length).toBe(18)
+  })
+})
+
+describe('consumeOwnerSessionFailure returns true for every classified 401 outcome, not only genuine expiry', () => {
+  it('17: the definition awaits the gate and unconditionally returns true afterward (stale-but-valid 401s are still consumed)', () => {
+    const marker = 'const consumeOwnerSessionFailure = async (status) => {'
+    const startIdx = DASHBOARD_PAGE.indexOf(marker)
+    expect(startIdx).toBeGreaterThan(-1)
+    const body = DASHBOARD_PAGE.slice(startIdx, DASHBOARD_PAGE.indexOf('\n  }', startIdx))
+    expect(body).toContain("if (classifyOwnerApiFailure(status) !== 'SESSION_EXPIRED') return false")
+    expect(body).toContain('await sessionExpiryGateRef.current.handleCandidate401(')
+    // The gate's own outcome ('EXPIRED' | 'SESSION_VALID' | 'ALREADY_HANDLED')
+    // is deliberately NOT inspected here — every one of those three outcomes
+    // means "consumed", so the wrapper always returns true afterward.
+    expect(body.trim().endsWith('return true')).toBe(true)
+  })
+})
+
+describe('Covered call sites structurally abort before the generic raw-error path (stale 401 cannot fall through)', () => {
+  const representativeCallSites = [
+    { name: 'loadEvents', marker: "fetch('/api/owner/events', { cache: 'no-store' })" },
+    { name: 'moderatePhoto', marker: "body: JSON.stringify({ action }),\n      })" },
+    { name: 'deleteEvent', marker: "csrfFetch(`/api/owner/events/${selectedSlug}`, { method: 'DELETE' })" },
+  ]
+
+  it.each(representativeCallSites)('18: $name — consumeOwnerSessionFailure(...) return precedes the generic throw/setMessage raw-error path', ({ marker }) => {
+    const fetchIdx = DASHBOARD_PAGE.indexOf(marker)
+    expect(fetchIdx).toBeGreaterThan(-1)
+    const window_ = DASHBOARD_PAGE.slice(fetchIdx, fetchIdx + 400)
+
+    const consumeIdx = window_.indexOf('consumeOwnerSessionFailure(')
+    const throwIdx = window_.indexOf('throw new Error(payload.error')
+
+    expect(consumeIdx).toBeGreaterThan(-1)
+    expect(throwIdx).toBeGreaterThan(-1)
+    // The consume-check (with its own unconditional `return` on true) must
+    // appear before the generic error throw in source order — since the
+    // guard always returns when the response was a classified 401
+    // (regardless of EXPIRED/SESSION_VALID/ALREADY_HANDLED), the throw is
+    // structurally unreachable for any 401, including a stale-but-valid one.
+    expect(consumeIdx).toBeLessThan(throwIdx)
+    expect(window_.slice(consumeIdx, consumeIdx + 60)).toContain(') return')
   })
 })
