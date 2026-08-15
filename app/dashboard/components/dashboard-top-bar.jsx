@@ -37,7 +37,7 @@ export function DashboardTopBar({ experience, message, onDismissMessage }) {
       </div>
 
       {message && (
-        <div className="hidden sm:flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs text-foreground">
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs text-foreground">
           <CheckCircle2 className="h-3.5 w-3.5 text-accent-dark shrink-0" />
           <span className="truncate max-w-[240px]">{message}</span>
           {onDismissMessage && (
