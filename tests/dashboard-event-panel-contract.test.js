@@ -58,8 +58,9 @@ describe('DashboardShell — responsive rightPanel placement', () => {
     expect(RIGHT_PANEL_BLOCK).not.toMatch(/className="hidden xl:block/)
   })
 
-  it('5: desktop-specific styling (sticky column, fixed width) is scoped to xl:', () => {
+  it('5: desktop-specific styling (sticky column, fixed non-shrinking width) is scoped to xl:', () => {
     expect(RIGHT_PANEL_BLOCK).toContain('xl:w-[420px]')
+    expect(RIGHT_PANEL_BLOCK).toContain('xl:shrink-0')
     expect(RIGHT_PANEL_BLOCK).toContain('xl:sticky')
     expect(RIGHT_PANEL_BLOCK).toContain('xl:top-16')
     expect(RIGHT_PANEL_BLOCK).toContain('xl:overflow-y-auto')

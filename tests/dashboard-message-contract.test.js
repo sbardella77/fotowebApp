@@ -78,17 +78,3 @@ describe('Dashboard page — auth-form inline message renderers preserved', () =
     expect(inlineRenderers.length).toBe(2)
   })
 })
-
-// ─── D. EventDetailPanel call-site count ──────────────────────────────────────
-// This STEP (7.5b) intentionally left the double-mount untouched, so the
-// original assertion here expected 2 call sites. STEP 7.6 (single-instance
-// panel fix) has since removed the redundant mobile-only mount; the current,
-// authoritative assertion for the call-site count now lives in
-// tests/dashboard-event-panel-contract.test.js.
-
-describe('EventDetailPanel — call-site count is covered by dashboard-event-panel-contract.test.js', () => {
-  it('8: at least one <EventDetailPanel call site exists', () => {
-    const callSites = DASHBOARD_PAGE.match(/<EventDetailPanel/g) || []
-    expect(callSites.length).toBeGreaterThan(0)
-  })
-})
