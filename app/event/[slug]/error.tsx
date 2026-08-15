@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Camera, RefreshCcw } from 'lucide-react'
+import { resolveErrorBoundaryLocale, getErrorBoundaryCopy } from '@/lib/i18n/error-boundary'
 
 export default function EventError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
@@ -12,6 +13,14 @@ export default function EventError({ error, reset }: { error: Error & { digest?:
       console.error('[event-error] Public event page crashed:', error.message, 'digest:', error.digest)
     }
   }, [error])
+
+  // First render must match server/browser exactly, so we start with the
+  // English fallback and only resolve the real locale after mount.
+  const [locale, setLocale] = useState('en')
+  useEffect(() => {
+    setLocale(resolveErrorBoundaryLocale())
+  }, [])
+  const copy = getErrorBoundaryCopy(locale)
 
   return (
     <main className="min-h-screen bg-background font-body text-foreground">
@@ -33,10 +42,10 @@ export default function EventError({ error, reset }: { error: Error & { digest?:
 
         <div className="max-w-sm">
           <h1 className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-            Diese Galerie konnte leider nicht geladen werden.
+            {copy.eventTitle}
           </h1>
           <p className="mt-3 text-sm font-light text-muted-foreground leading-relaxed">
-            Bitte versuchen Sie es erneut oder wenden Sie sich an den Gastgeber.
+            {copy.eventBody}
           </p>
         </div>
 
@@ -46,13 +55,13 @@ export default function EventError({ error, reset }: { error: Error & { digest?:
             className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-primary px-6 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             <RefreshCcw className="h-4 w-4" />
-            Seite neu laden
+            {copy.reloadPage}
           </button>
           <a
             href="/"
             className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-border bg-surface px-6 text-sm font-medium text-foreground transition-colors hover:bg-elevated hover:text-foreground"
           >
-            Zurück zur Startseite
+            {copy.backToHome}
           </a>
         </div>
       </div>
