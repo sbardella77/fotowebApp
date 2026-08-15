@@ -78,12 +78,3 @@ describe('Dashboard page — auth-form inline message renderers preserved', () =
     expect(inlineRenderers.length).toBe(2)
   })
 })
-
-// ─── D. EventDetailPanel double-mount is unrelated and untouched by this STEP ─
-
-describe('EventDetailPanel — untouched by this STEP', () => {
-  it('8: exactly two <EventDetailPanel call sites remain (double-mount fix is deferred separately)', () => {
-    const callSites = DASHBOARD_PAGE.match(/<EventDetailPanel/g) || []
-    expect(callSites.length).toBe(2)
-  })
-})

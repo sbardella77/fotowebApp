@@ -1673,59 +1673,6 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
-
-          {/* Mobile / below-xl detail panel */}
-          <div className="xl:hidden">
-            {selectedEvent && (
-              <div className="bg-surface border border-border rounded-xl shadow-subtle">
-                <EventDetailPanel
-                event={selectedEvent}
-                plan={plan}
-                subscriptionCanceledAt={subscriptionCanceledAt}
-                photos={photos}
-                busyDetail={busy.detail}
-                privateAssets={privateAssets}
-                privateDeliveryLoading={privateDeliveryLoading}
-                privateDeliveryUploading={privateDeliveryUploading}
-                photographerLink={photographerLink}
-                photographerLinkBusy={photographerLinkBusy}
-                photographerLinkCopied={photographerLinkCopied}
-                galleryDownloadBusy={galleryDownloadBusy}
-                checkoutBusy={checkoutBusy}
-                photoBusyId={busy.photoId}
-                onShare={shareEvent}
-                onQR={openQR}
-                onGalleryDownload={handleGalleryDownload}
-                onUpgradeProEvent={(upsellType) => startCheckout('pro_event', selectedEvent.id, 'dashboard_room_detail', upsellType, 'dashboard_event_panel')}
-                onUpgradeWeddingPro={(upsellType) => startCheckout('wedding_pro', selectedEvent.id, 'dashboard_room_detail', upsellType, 'dashboard_event_panel')}
-                onUpgradeProfessional={(upsellType) =>
-              openProfessionalUpgradeModal({
-                entryPoint: 'dashboard_room_detail',
-                upsellType,
-                upsellSource: 'dashboard_event_panel',
-              })
-            }
-                onDelete={startDelete}
-                onOpenLightbox={(index) => {
-                  setLightboxIndex(index)
-                  setLightboxOpen(true)
-                }}
-                onModerate={moderatePhoto}
-                onPhotoDelete={deletePhoto}
-                onPrivateUploadClick={() => privateDeliveryFileInputRef.current?.click()}
-                onPrivateDownload={downloadPrivateAsset}
-                onPrivateDelete={deletePrivateAsset}
-                onGeneratePhotoLink={generatePhotographerLink}
-                onCopyPhotoLink={copyPhotographerLink}
-                onRevokePhotoLink={revokePhotographerLink}
-                onCoverUpdated={handleCoverUpdated}
-                t={t}
-                tPrivate={tPrivate}
-                tCommon={tCommon}
-              />
-              </div>
-            )}
-          </div>
         </div>
       )}
 
