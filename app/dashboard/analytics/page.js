@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ArrowLeft,
@@ -20,6 +20,12 @@ import {
 import { Button } from '@/components/ui/button'
 import { useTranslations } from '@/components/i18n-provider'
 import { resolveDashboardExperience } from '@/lib/dashboard-experience'
+import { safeFetchJson } from '@/lib/dashboard-data-helpers'
+import {
+  classifyOwnerApiFailure,
+  createOwnerSessionExpiryGate,
+  OWNER_SESSION_EXPIRED_QUERY_PARAM,
+} from '@/lib/client/owner-session-expiry'
 
 function mapEventName(name) {
   if (name === 'upsell_impression') return 'impressions'
@@ -29,7 +35,7 @@ function mapEventName(name) {
   return name
 }
 
-function useAnalyticsData(days, enabled) {
+function useAnalyticsData(days, enabled, consumeOwnerSessionFailure) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -44,19 +50,25 @@ function useAnalyticsData(days, enabled) {
     const controller = new AbortController()
     setLoading(true)
     setError(null)
-    fetch(`/api/owner/analytics/upsells?days=${days}`, { cache: 'no-store', signal: controller.signal })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`Request failed: ${r.status}`))))
-      .then((d) => setData(d))
-      .catch((err) => {
+    ;(async () => {
+      try {
+        const response = await fetch(`/api/owner/analytics/upsells?days=${days}`, { cache: 'no-store', signal: controller.signal })
+        if (await consumeOwnerSessionFailure(response.status)) return
+        if (!response.ok) {
+          throw new Error(`Request failed: ${response.status}`)
+        }
+        const d = await response.json()
+        setData(d)
+      } catch (err) {
         if (err.name === 'AbortError') return
         setData(null)
         setError(err.message || 'Unable to load analytics')
-      })
-      .finally(() => {
+      } finally {
         if (!controller.signal.aborted) setLoading(false)
-      })
+      }
+    })()
     return () => controller.abort()
-  }, [days, enabled])
+  }, [days, enabled, consumeOwnerSessionFailure])
 
   return { data, loading, error }
 }
@@ -98,10 +110,46 @@ export default function AnalyticsPage() {
   const [auth, setAuth] = useState({ loading: true, ok: false })
   const [days, setDays] = useState(30)
   const [analyticsEnabled, setAnalyticsEnabled] = useState(false)
-  const { data, loading, error } = useAnalyticsData(days, analyticsEnabled)
   const [overview, setOverview] = useState(null)
   const [overviewLoading, setOverviewLoading] = useState(true)
 
+  // Analytics owns its own session-expiry gate — it does not share
+  // page.js's dashboard-level gate/authState/message. One stable instance
+  // per mounted Analytics page, same lazy-useRef pattern as the dashboard.
+  const sessionExpiryGateRef = useRef(null)
+  if (!sessionExpiryGateRef.current) {
+    sessionExpiryGateRef.current = createOwnerSessionExpiryGate()
+  }
+
+  // Verification primitive only — never itself routed through the gate.
+  const checkOwnerSessionStillValid = useCallback(async () => {
+    const response = await fetch('/api/owner/session', { cache: 'no-store' })
+    const { payload } = await safeFetchJson(response, { fallback: { authenticated: false } })
+    return Boolean(payload.authenticated)
+  }, [])
+
+  // Mid-session expiry inside Analytics has no inline login form to fall
+  // back to (unlike the main dashboard) — send the owner back to /dashboard
+  // with a one-shot marker so the existing localized dashboard.sessionExpired
+  // message is shown there. useRouter()'s router identity is stable across
+  // renders, so this callback (and everything that depends on it) stays
+  // referentially stable too.
+  const handleOwnerSessionExpired = useCallback(() => {
+    router.replace(`/dashboard?${OWNER_SESSION_EXPIRED_QUERY_PARAM}=1`, { scroll: false })
+  }, [router])
+
+  const consumeOwnerSessionFailure = useCallback(async (status) => {
+    if (classifyOwnerApiFailure(status) !== 'SESSION_EXPIRED') return false
+    await sessionExpiryGateRef.current.handleCandidate401(checkOwnerSessionStillValid, handleOwnerSessionExpired)
+    return true
+  }, [checkOwnerSessionStillValid, handleOwnerSessionExpired])
+
+  const { data, loading, error } = useAnalyticsData(days, analyticsEnabled, consumeOwnerSessionFailure)
+
+  // Initial auth gate: unauthenticated access to /dashboard/analytics stays
+  // a plain redirect to /dashboard, with NO sessionExpired marker — this is
+  // "never had a session" (or a page load before any Owner action), not a
+  // genuine mid-session expiry, and must stay distinct from it.
   useEffect(() => {
     fetch('/api/owner/session', { cache: 'no-store' })
       .then((r) => r.json())
@@ -113,13 +161,21 @@ export default function AnalyticsPage() {
   }, [router])
 
   useEffect(() => {
-    setOverviewLoading(true)
-    fetch('/api/owner/analytics/overview', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setOverview(d))
-      .catch(() => setOverview(null))
-      .finally(() => setOverviewLoading(false))
-  }, [])
+    const run = async () => {
+      setOverviewLoading(true)
+      try {
+        const response = await fetch('/api/owner/analytics/overview', { cache: 'no-store' })
+        if (await consumeOwnerSessionFailure(response.status)) return
+        const d = response.ok ? await response.json() : null
+        setOverview(d)
+      } catch {
+        setOverview(null)
+      } finally {
+        setOverviewLoading(false)
+      }
+    }
+    run()
+  }, [consumeOwnerSessionFailure])
 
   const totals = useMemo(() => {
     if (!data?.byEventName) return { impressions: 0, clicks: 0, checkoutStarts: 0, conversions: 0 }

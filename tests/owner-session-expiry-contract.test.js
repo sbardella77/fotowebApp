@@ -15,7 +15,6 @@ const PHOTOGRAPHER_CLIENT = readSource('components/photographer-upload-page-clie
 const EVENT_MOMENTS_MANAGER = readSource('app/dashboard/components/event-moments-manager.jsx')
 const EVENT_COVER_EDITOR = readSource('app/dashboard/components/event-cover-editor.jsx')
 const EVENT_DETAIL_PANEL = readSource('app/dashboard/components/event-detail-panel.jsx')
-const ANALYTICS_PAGE = readSource('app/dashboard/analytics/page.js')
 
 describe('Fragile string-matching removed from the main dashboard', () => {
   it('1: page.js no longer contains .includes(\'authentication\')', () => {
@@ -70,7 +69,13 @@ describe('/api/uploads/chunk is never globally intercepted', () => {
   })
 })
 
-describe('Nested components remain unmodified in this Phase 1 commit', () => {
+// Nested widgets (Moments/Cover/DetailPanel) receive the session-expiry
+// callback as a PROP from page.js (see owner-session-expiry-nested-contract
+// test suite) — they never import the module directly themselves. This
+// remains true after STEP 7.7c and is unaffected by Analytics gaining its
+// own, separate import in STEP 7.7c.1 (see
+// owner-session-expiry-analytics-contract.test.js for that page's contract).
+describe('Nested widgets receive the callback as a prop — never import the module directly', () => {
   it('9: event-moments-manager.jsx does not import owner-session-expiry', () => {
     expect(EVENT_MOMENTS_MANAGER).not.toContain('owner-session-expiry')
   })
@@ -81,10 +86,6 @@ describe('Nested components remain unmodified in this Phase 1 commit', () => {
 
   it('11: event-detail-panel.jsx does not import owner-session-expiry', () => {
     expect(EVENT_DETAIL_PANEL).not.toContain('owner-session-expiry')
-  })
-
-  it('12: analytics/page.js does not import owner-session-expiry', () => {
-    expect(ANALYTICS_PAGE).not.toContain('owner-session-expiry')
   })
 })
 

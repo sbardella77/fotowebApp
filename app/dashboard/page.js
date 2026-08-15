@@ -76,7 +76,12 @@ import { EXTRA_EVENT_PRICE_LABEL } from '@/lib/pricing-config'
 import { resolveCreateRoomState } from '@/lib/create-room-state'
 import { safeFetchJson } from '@/lib/dashboard-data-helpers'
 import { csrfFetch } from '@/lib/client/csrf-fetch'
-import { classifyOwnerApiFailure, createOwnerSessionExpiryGate } from '@/lib/client/owner-session-expiry'
+import {
+  classifyOwnerApiFailure,
+  createOwnerSessionExpiryGate,
+  OWNER_SESSION_EXPIRED_QUERY_PARAM,
+  removeQueryParam,
+} from '@/lib/client/owner-session-expiry'
 import {
   savePendingExtraFreeEvent,
   loadPendingExtraFreeEvent,
@@ -1202,6 +1207,32 @@ export default function DashboardPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Consume the one-shot ?sessionExpired=1 marker set by a redirect from a
+  // mid-session Owner 401 elsewhere in the dashboard (currently: the
+  // Analytics page, which has no inline login form of its own to fall back
+  // to). Deliberately a separate effect from the Stripe-return handling
+  // above — it only ever looks at this one param and never touches any
+  // other query string content, so the two effects cannot interfere with
+  // each other even if their param sets ever overlapped in a URL.
+  useEffect(() => {
+    if (authState.loading) return
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    if (!params.has(OWNER_SESSION_EXPIRED_QUERY_PARAM)) return
+
+    // Only show the message for a genuinely unauthenticated session — an
+    // authenticated owner who manually opens this URL (or refreshes it
+    // before cleanup below completes) must never see a false expiry.
+    if (!authState.authenticated) {
+      setMessage(t.sessionExpired)
+    }
+
+    // One-shot: strip only this marker, preserving every other query param.
+    const nextSearch = removeQueryParam(window.location.search, OWNER_SESSION_EXPIRED_QUERY_PARAM)
+    router.replace(`/dashboard${nextSearch}`, { scroll: false })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authState.loading, authState.authenticated])
 
   // Handle the dashboard return after an Extra Free Event "buy and create"
   // purchase. The actual event creation happens server-side in the Stripe
