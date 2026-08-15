@@ -61,6 +61,7 @@ export function EventDetailPanel({
   onCopyPhotoLink,
   onRevokePhotoLink,
   onCoverUpdated,
+  onOwnerSessionFailure,
   t,
   tPrivate,
   tCommon,
@@ -123,8 +124,8 @@ export function EventDetailPanel({
       <div className="flex-1 overflow-y-auto p-5">
         {/* Cover actions */}
         <div className="flex flex-wrap gap-2">
-          <EventCoverEditor event={event} onCoverUpdated={onCoverUpdated} t={t} tCommon={tCommon} />
-          <EventCoverRemove event={event} onCoverUpdated={onCoverUpdated} t={t} tCommon={tCommon} />
+          <EventCoverEditor event={event} onCoverUpdated={onCoverUpdated} onOwnerSessionFailure={onOwnerSessionFailure} t={t} tCommon={tCommon} />
+          <EventCoverRemove event={event} onCoverUpdated={onCoverUpdated} onOwnerSessionFailure={onOwnerSessionFailure} t={t} tCommon={tCommon} />
         </div>
 
         {/* Stats */}
@@ -180,7 +181,7 @@ export function EventDetailPanel({
 
         {/* Moments */}
         <div className="mt-5">
-          <EventMomentsManager event={event} t={t} />
+          <EventMomentsManager event={event} t={t} onOwnerSessionFailure={onOwnerSessionFailure} />
         </div>
 
         {/* Event-level upgrades */}
