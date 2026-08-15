@@ -53,7 +53,7 @@ describe('B. Analytics gate instance is stable across renders and NOT module-lev
 
 describe('C. Overview request: consume-check precedes normal handling', () => {
   it('5: the overview effect awaits consumeOwnerSessionFailure before reading/setting overview data', () => {
-    const body = extractFunctionBody(ANALYTICS_PAGE, "const response = await fetch('/api/owner/analytics/overview'", '\n    }\n  }, [consumeOwnerSessionFailure])')
+    const body = extractFunctionBody(ANALYTICS_PAGE, "const response = await fetch('/api/owner/analytics/overview'", '\n    }\n  }, [auth.ok, consumeOwnerSessionFailure])')
     expect(body).not.toBe('')
     const consumeIdx = body.indexOf('await consumeOwnerSessionFailure(response.status)')
     const setOverviewIdx = body.indexOf('setOverview(d)')
@@ -63,7 +63,7 @@ describe('C. Overview request: consume-check precedes normal handling', () => {
   })
 
   it('6: on a consumed 401 the overview effect returns before calling setOverview at all', () => {
-    const body = extractFunctionBody(ANALYTICS_PAGE, "const response = await fetch('/api/owner/analytics/overview'", '\n    }\n  }, [consumeOwnerSessionFailure])')
+    const body = extractFunctionBody(ANALYTICS_PAGE, "const response = await fetch('/api/owner/analytics/overview'", '\n    }\n  }, [auth.ok, consumeOwnerSessionFailure])')
     expect(body).toMatch(/if \(await consumeOwnerSessionFailure\(response\.status\)\) return/)
   })
 })
@@ -83,7 +83,47 @@ describe('D. Upsells request: consume-check precedes the "Request failed" throw'
 
   it('8: useAnalyticsData receives consumeOwnerSessionFailure as a parameter (not a shared/global closure)', () => {
     expect(ANALYTICS_PAGE).toContain('function useAnalyticsData(days, enabled, consumeOwnerSessionFailure) {')
-    expect(ANALYTICS_PAGE).toContain('useAnalyticsData(days, analyticsEnabled, consumeOwnerSessionFailure)')
+    expect(ANALYTICS_PAGE).toContain('useAnalyticsData(days, analyticsEnabled && auth.ok, consumeOwnerSessionFailure)')
+  })
+})
+
+// ─── Initial-auth race: overview/upsells must never fire before confirmed auth ─
+
+describe('Initial-auth race prevention (STEP 7.7c.2)', () => {
+  it('A1: the overview effect early-returns while auth.ok is not yet confirmed true', () => {
+    const body = extractFunctionBody(ANALYTICS_PAGE, '  useEffect(() => {\n    if (!auth.ok) return', '\n  }, [auth.ok, consumeOwnerSessionFailure])')
+    expect(body).not.toBe('')
+    expect(body).toContain('if (!auth.ok) return')
+  })
+
+  it('A2: the overview effect dependency array includes auth.ok (fires exactly once when it becomes true, never before)', () => {
+    expect(ANALYTICS_PAGE).toContain('}, [auth.ok, consumeOwnerSessionFailure])')
+  })
+
+  it('A3: the overview guard (!auth.ok) appears before the fetch call, not after — no request can be sent while unconfirmed', () => {
+    const body = extractFunctionBody(ANALYTICS_PAGE, '  useEffect(() => {\n    if (!auth.ok) return', '\n  }, [auth.ok, consumeOwnerSessionFailure])')
+    const guardIdx = body.indexOf('if (!auth.ok) return')
+    const fetchIdx = body.indexOf("fetch('/api/owner/analytics/overview'")
+    expect(guardIdx).toBeGreaterThan(-1)
+    expect(fetchIdx).toBeGreaterThan(-1)
+    expect(guardIdx).toBeLessThan(fetchIdx)
+  })
+
+  it('B1: the upsells hook is enabled only when both analyticsEnabled AND auth.ok are true (explicit, not solely transitive)', () => {
+    expect(ANALYTICS_PAGE).toContain('useAnalyticsData(days, analyticsEnabled && auth.ok, consumeOwnerSessionFailure)')
+  })
+
+  it('E: the auth.ok gate itself performs no /owner/session fetch — it only reads existing state (no duplicated session call in the gating condition)', () => {
+    const body = extractFunctionBody(ANALYTICS_PAGE, '  useEffect(() => {\n    if (!auth.ok) return', "fetch('/api/owner/analytics/overview'")
+    expect(body).not.toBe('')
+    expect(body).not.toContain('/api/owner/session')
+  })
+
+  it('F: consumeOwnerSessionFailure (which can trigger the expiry redirect) is never invoked from the initial auth-gate effect itself', () => {
+    const initialGateBody = extractFunctionBody(ANALYTICS_PAGE, "fetch('/api/owner/session', { cache: 'no-store' })\n      .then((r) => r.json())", '\n  }, [router])')
+    expect(initialGateBody).not.toBe('')
+    expect(initialGateBody).not.toContain('consumeOwnerSessionFailure')
+    expect(initialGateBody).not.toContain('sessionExpiryGateRef')
   })
 })
 

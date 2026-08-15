@@ -144,7 +144,14 @@ export default function AnalyticsPage() {
     return true
   }, [checkOwnerSessionStillValid, handleOwnerSessionExpired])
 
-  const { data, loading, error } = useAnalyticsData(days, analyticsEnabled, consumeOwnerSessionFailure)
+  // Owner-scoped analytics data must never be requested before the initial
+  // /owner/session check has confirmed a real, current session — otherwise a
+  // direct unauthenticated visit could produce a genuine Owner 401 that gets
+  // (incorrectly) treated as a mid-session expiry. auth.ok only ever becomes
+  // true after that confirmation, so combining it here makes the dependency
+  // explicit at the call site rather than relying solely on the (also true,
+  // but less obvious) transitive gating via overview -> experience -> analyticsLevel.
+  const { data, loading, error } = useAnalyticsData(days, analyticsEnabled && auth.ok, consumeOwnerSessionFailure)
 
   // Initial auth gate: unauthenticated access to /dashboard/analytics stays
   // a plain redirect to /dashboard, with NO sessionExpired marker — this is
@@ -160,7 +167,13 @@ export default function AnalyticsPage() {
       .catch(() => router.push('/dashboard'))
   }, [router])
 
+  // Gated on auth.ok — never fires while the initial session check is still
+  // loading, and never fires at all if that check comes back unauthenticated
+  // (the effect above is already redirecting away in that case). This is
+  // what prevents a direct unauthenticated visit from ever producing an
+  // Owner 401 here that could be mistaken for a mid-session expiry.
   useEffect(() => {
+    if (!auth.ok) return
     const run = async () => {
       setOverviewLoading(true)
       try {
@@ -175,7 +188,7 @@ export default function AnalyticsPage() {
       }
     }
     run()
-  }, [consumeOwnerSessionFailure])
+  }, [auth.ok, consumeOwnerSessionFailure])
 
   const totals = useMemo(() => {
     if (!data?.byEventName) return { impressions: 0, clicks: 0, checkoutStarts: 0, conversions: 0 }
