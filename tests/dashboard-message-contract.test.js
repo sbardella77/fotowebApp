@@ -79,11 +79,16 @@ describe('Dashboard page — auth-form inline message renderers preserved', () =
   })
 })
 
-// ─── D. EventDetailPanel double-mount is unrelated and untouched by this STEP ─
+// ─── D. EventDetailPanel call-site count ──────────────────────────────────────
+// This STEP (7.5b) intentionally left the double-mount untouched, so the
+// original assertion here expected 2 call sites. STEP 7.6 (single-instance
+// panel fix) has since removed the redundant mobile-only mount; the current,
+// authoritative assertion for the call-site count now lives in
+// tests/dashboard-event-panel-contract.test.js.
 
-describe('EventDetailPanel — untouched by this STEP', () => {
-  it('8: exactly two <EventDetailPanel call sites remain (double-mount fix is deferred separately)', () => {
+describe('EventDetailPanel — call-site count is covered by dashboard-event-panel-contract.test.js', () => {
+  it('8: at least one <EventDetailPanel call site exists', () => {
     const callSites = DASHBOARD_PAGE.match(/<EventDetailPanel/g) || []
-    expect(callSites.length).toBe(2)
+    expect(callSites.length).toBeGreaterThan(0)
   })
 })
