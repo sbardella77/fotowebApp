@@ -980,9 +980,16 @@ const deleteEvent = withTiming('deleteEvent', async (request, slug) => {
 })
 
 const initUpload = async (request) => {
+  // Broad, Redis-backed, hashed-IP guard — the only thing that runs before
+  // any database access, bounding gross pre-DB exposure from a single IP.
+  // Guest-exclusive route: distinct from the shared blob-token-broad guard.
   const clientIp = getClientIp(request)
-  const limit = rateLimit(`upload-init:ip:${clientIp}`, RATE_LIMITS.uploadInit.ip.max, RATE_LIMITS.uploadInit.ip.window)
-  if (limit.limited) {
+  const broadInitLimit = await checkRateLimit(
+    `guest-init-broad:ip:${hashIdentifier(clientIp)}`,
+    RATE_LIMITS.guestInitBroad.ip.max,
+    RATE_LIMITS.guestInitBroad.ip.window,
+  )
+  if (broadInitLimit.limited) {
     return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
   }
 
@@ -992,6 +999,17 @@ const initUpload = async (request) => {
 
   if (!event) {
     return json({ error: 'Event not found' }, 404)
+  }
+
+  // eventId-scoped primary product-level throttle — runs only once the
+  // Event has been resolved, before entitlement checks or session creation.
+  const initEventLimit = await checkRateLimit(
+    `guest-init-event:${event.id}`,
+    RATE_LIMITS.guestInitEvent.event.max,
+    RATE_LIMITS.guestInitEvent.event.window,
+  )
+  if (initEventLimit.limited) {
+    return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
   }
 
   // Enforce photo limit for Free rooms
@@ -1134,9 +1152,22 @@ const issueBlobUploadToken = async (request) => {
       if (privateDeliveryBlobLimit.limited) {
         return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
       }
+    } else if (resolvedSession?.uploadKind === BlobUploadKind.ROOM_PHOTO && resolvedSession.eventId) {
+      // Deliberately set above guestInitEvent/guestCompleteEvent (1500 >
+      // 1000, see RATE_LIMITS.guestBlobEvent) — the Guest client only
+      // reaches this stage after a successful init in the same attempt, so
+      // this bucket cannot bind before init's under normal traffic.
+      const guestBlobLimit = await checkRateLimit(
+        `upload-blob:guest-event:${resolvedSession.eventId}`,
+        RATE_LIMITS.guestBlobEvent.event.max,
+        RATE_LIMITS.guestBlobEvent.event.window,
+      )
+      if (guestBlobLimit.limited) {
+        return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
+      }
     } else {
-      // Default branch: room-photo, unresolved, or malformed — unchanged
-      // legacy shared IP limiter.
+      // Default branch: unresolved or malformed — unchanged legacy shared
+      // IP limiter.
       const limit = rateLimit(`upload-blob:ip:${clientIp}`, RATE_LIMITS.uploadBlob.ip.max, RATE_LIMITS.uploadBlob.ip.window)
       if (limit.limited) {
         return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
@@ -1256,9 +1287,15 @@ const uploadChunk = async (request) => {
 }
 
 const completeUpload = withTiming('completeUpload', async (request) => {
+  // Broad, Redis-backed, hashed-IP guard — runs before any database access.
+  // Guest-exclusive route: distinct from the shared blob-token-broad guard.
   const clientIp = getClientIp(request)
-  const limit = rateLimit(`upload-complete:ip:${clientIp}`, RATE_LIMITS.uploadComplete.ip.max, RATE_LIMITS.uploadComplete.ip.window)
-  if (limit.limited) {
+  const broadCompleteLimit = await checkRateLimit(
+    `guest-complete-broad:ip:${hashIdentifier(clientIp)}`,
+    RATE_LIMITS.guestCompleteBroad.ip.max,
+    RATE_LIMITS.guestCompleteBroad.ip.window,
+  )
+  if (broadCompleteLimit.limited) {
     return json({ error: 'Too many upload completions. Please try again later.' }, 429)
   }
 
@@ -1281,6 +1318,29 @@ const completeUpload = withTiming('completeUpload', async (request) => {
       prisma.blobUploadSession === null
     ) {
       return json({ error: 'Upload service is temporarily unavailable.', code: 'database_unavailable' }, 503)
+    }
+
+    // Read-only pre-resolution lookup, limiter-identity only — never
+    // mutates, never claims the session. completeRoomPhotoBlobUpload below
+    // remains the sole authoritative source for session state/claiming.
+    // The guest-complete-event bucket must be applied ONLY for resolved
+    // ROOM_PHOTO sessions with a real eventId: a Photographer/Private
+    // Delivery/unresolved session presented here must not poison this
+    // bucket (see STEP 7.13c review correction).
+    const resolvedCompleteSession = await prisma.blobUploadSession.findUnique({
+      where: { id: payload.sessionId },
+      select: { eventId: true, uploadKind: true },
+    })
+
+    if (resolvedCompleteSession?.uploadKind === BlobUploadKind.ROOM_PHOTO && resolvedCompleteSession.eventId) {
+      const guestCompleteEventLimit = await checkRateLimit(
+        `guest-complete-event:${resolvedCompleteSession.eventId}`,
+        RATE_LIMITS.guestCompleteEvent.event.max,
+        RATE_LIMITS.guestCompleteEvent.event.window,
+      )
+      if (guestCompleteEventLimit.limited) {
+        return json({ error: 'Too many upload completions. Please try again later.' }, 429)
+      }
     }
 
     let result

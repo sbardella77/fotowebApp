@@ -276,9 +276,15 @@ describe('Private Delivery blob branch — upload-blob:private-event:<eventId>, 
 })
 
 // ─── §23 Guest preservation ─────────────────────────────────────────────────
+// STEP 7.13c — ROOM_PHOTO sessions moved out of the legacy raw-IP branch
+// into their own eventId-scoped bucket (upload-blob:guest-event:<eventId>,
+// 1500/10min) — see tests/rate-limiter-photographer-blob-token.test.js's
+// "Guest (ROOM_PHOTO) blob branch" describe block for full coverage of that
+// dispatch. This block now only asserts ROOM_PHOTO never leaks into the
+// private-event bucket.
 
-describe('Guest (ROOM_PHOTO) preservation — untouched legacy upload-blob:ip, 30/10min', () => {
-  it('ROOM_PHOTO sessions still use the legacy raw-IP key/threshold; the new private-event limiter is never used', async () => {
+describe('Guest (ROOM_PHOTO) preservation — own guest-event bucket, never private-event', () => {
+  it('ROOM_PHOTO sessions use their own guest-event bucket; the private-event limiter is never used, and the legacy IP limiter never runs', async () => {
     const { evalMock, ttlMock } = installHealthyRedisMock()
     await setupRedis({ eval: evalMock, ttl: ttlMock })
     const { prisma } = makePrismaWithSession({ uploadKind: BlobUploadKind.ROOM_PHOTO, eventId: 'event-guest-1' })
@@ -289,8 +295,9 @@ describe('Guest (ROOM_PHOTO) preservation — untouched legacy upload-blob:ip, 3
     const { POST } = await import('@/app/api/[[...path]]/route')
     await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
 
-    expect(rateLimit).toHaveBeenCalledWith(`upload-blob:ip:${IP}`, 30, 10 * 60 * 1000)
+    expect(rateLimit).not.toHaveBeenCalled()
     const keysUsed = evalMock.mock.calls.map((call) => call[1][0])
+    expect(keysUsed).toContain('upload-blob:guest-event:event-guest-1')
     expect(keysUsed.some((k) => k.startsWith('upload-blob:private-event:'))).toBe(false)
   })
 })
