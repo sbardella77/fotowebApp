@@ -280,12 +280,12 @@ const buildRateLimitBackendErrorResponse = () => {
 const checkOwnerRateLimit = async (request, ownerEmail, limitConfig) => {
   const clientIp = getClientIp(request)
   if (limitConfig.owner && ownerEmail) {
-    const key = `owner:${hashIdentifier(ownerEmail)}`
+    const key = `owner:${limitConfig.scope}:${hashIdentifier(ownerEmail)}`
     const result = await checkRateLimit(key, limitConfig.owner.max, limitConfig.owner.window)
     if (result.limited) return buildRateLimitResponse(result)
   }
   if (limitConfig.ip) {
-    const key = `ip:${hashIdentifier(clientIp)}`
+    const key = `ip:${limitConfig.scope}:${hashIdentifier(clientIp)}`
     const result = await checkRateLimit(key, limitConfig.ip.max, limitConfig.ip.window)
     if (result.limited) return buildRateLimitResponse(result)
   }
