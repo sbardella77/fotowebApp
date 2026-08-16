@@ -29,7 +29,7 @@ import PhotoLightbox from '@/components/photo-lightbox'
 import { EventQRModal } from '@/components/event-qr-modal'
 import { getSortedRenderablePhotos, getRenderablePhotos } from '@/lib/photo-utils'
 import { optimizeImage } from '@/lib/client-image-optimizer'
-import { runWithConcurrency } from '@/lib/upload-utils'
+import { runWithConcurrency, isRetryableUploadHttpStatus } from '@/lib/upload-utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -412,7 +412,9 @@ export default function RoomPageClient({ slug, isNew }) {
             err.nonRetryable = true
             throw err
           }
-          throw new Error(initPayload.error || t.uploadError)
+          const err = new Error(initPayload.error || t.uploadError)
+          if (!isRetryableUploadHttpStatus(initResponse.status)) err.nonRetryable = true
+          throw err
         }
 
         if (initPayload.session?.uploadStrategy === 'vercel-blob-client') {
@@ -454,7 +456,9 @@ export default function RoomPageClient({ slug, isNew }) {
               err.nonRetryable = true
               throw err
             }
-            throw new Error(completePayload.error || t.uploadError)
+            const err = new Error(completePayload.error || t.uploadError)
+            if (!isRetryableUploadHttpStatus(completeResponse.status)) err.nonRetryable = true
+            throw err
           }
           updateUpload({ progress: 100, status: UPLOAD_STATUS.DONE })
           setActiveEvent(completePayload.event)
@@ -475,7 +479,9 @@ export default function RoomPageClient({ slug, isNew }) {
           const chunkResponse = await fetch('/api/uploads/chunk', { method: 'POST', body: formData })
           const chunkPayload = await chunkResponse.json()
           if (!chunkResponse.ok) {
-            throw new Error(chunkPayload.error || t.chunkFailed)
+            const err = new Error(chunkPayload.error || t.chunkFailed)
+            if (!isRetryableUploadHttpStatus(chunkResponse.status)) err.nonRetryable = true
+            throw err
           }
           updateUpload({
             progress: 10 + Math.round(((chunkIndex + 1) / totalChunks) * 75),
@@ -497,7 +503,9 @@ export default function RoomPageClient({ slug, isNew }) {
             err.nonRetryable = true
             throw err
           }
-          throw new Error(completePayload.error || t.uploadError)
+          const err = new Error(completePayload.error || t.uploadError)
+          if (!isRetryableUploadHttpStatus(completeResponse.status)) err.nonRetryable = true
+          throw err
         }
         updateUpload({ progress: 100, status: UPLOAD_STATUS.DONE })
         setActiveEvent(completePayload.event)
