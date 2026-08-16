@@ -331,7 +331,7 @@ describe('Guest/Private-Delivery init/complete are untouched by this migration',
     expect(RATE_LIMITS.photographerInit).toEqual({ token: { max: 200, window: 10 * 60 * 1000 } })
     expect(RATE_LIMITS.photographerComplete).toEqual({ token: { max: 200, window: 10 * 60 * 1000 } })
     expect(RATE_LIMITS.photographerBlobEvent).toEqual({ event: { max: 200, window: 10 * 60 * 1000 } })
-    expect(RATE_LIMITS.uploadBlobBroad).toEqual({ ip: { max: 1000, window: 10 * 60 * 1000 } })
+    expect(RATE_LIMITS.uploadBlobBroad).toEqual({ ip: { max: 5000, window: 10 * 60 * 1000 } })
     expect(RATE_LIMITS.photographerInitBroad).toEqual({ ip: { max: 1000, window: 10 * 60 * 1000 } })
     expect(RATE_LIMITS.photographerCompleteBroad).toEqual({ ip: { max: 1000, window: 10 * 60 * 1000 } })
     // Untouched by this STEP:

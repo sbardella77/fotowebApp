@@ -4,9 +4,13 @@ import { BlobUploadKind } from '@prisma/client'
 // STEP 7.10a — /api/uploads/blob (shared by guest, private-delivery, and
 // photographer) gains a two-stage rate-limit design on its token-generation
 // branch:
-//   1. A broad, Redis-backed, hashed-IP guard (1000/10min) runs BEFORE any
-//      database access — it exists purely to bound pre-lookup DB exposure
-//      from arbitrary/random sessionId floods (see STEP 7.10a.0 §C).
+//   1. A broad, Redis-backed, hashed-IP guard runs BEFORE any database
+//      access — it exists purely to bound pre-lookup DB exposure from
+//      arbitrary/random sessionId floods (see STEP 7.10a.0 §C). Raised
+//      1000 -> 5000 in STEP 7.13c to give the Guest init/blob/complete
+//      migration headroom for multiple concurrent events sharing one NAT'd
+//      IP (see STEP 7.13b for the sizing analysis) — this guard is shared
+//      across all three upload kinds.
 //   2. A single read-only BlobUploadSession.findUnique({uploadKind,eventId})
 //      resolves the flow. PHOTOGRAPHER_UPLOAD sessions get their own
 //      eventId-scoped bucket (200/10min, deliberately NOT token-hash-scoped
@@ -122,7 +126,7 @@ afterEach(() => {
 
 // ─── Broad pre-DB guard ──────────────────────────────────────────────────
 
-describe('Broad pre-DB guard — blob-token-broad:ip:<hashed>, 1000/10min', () => {
+describe('Broad pre-DB guard — blob-token-broad:ip:<hashed>, 5000/10min', () => {
   it('sends a hashed IP key to Redis, never the raw IP', async () => {
     const { evalMock, ttlMock } = installHealthyRedisMock()
     await setupRedis({ eval: evalMock, ttl: ttlMock })
@@ -137,13 +141,13 @@ describe('Broad pre-DB guard — blob-token-broad:ip:<hashed>, 1000/10min', () =
     expect(keysUsed[0]).not.toContain(IP)
   })
 
-  it('the 1001st request on one broad bucket is blocked with zero BlobUploadSession lookups', async () => {
+  it('the 5001st request on one broad bucket is blocked with zero BlobUploadSession lookups', async () => {
     const { evalMock, ttlMock, counts } = installHealthyRedisMock()
     await setupRedis({ eval: evalMock, ttl: ttlMock })
-    // Pre-seed the broad bucket to exactly 1000 (already at the ceiling) so
-    // this test needs only ONE additional route call, not 1001.
+    // Pre-seed the broad bucket to exactly 5000 (already at the ceiling) so
+    // this test needs only ONE additional route call, not 5001.
     const { hashIdentifier } = await import('@/lib/server/rate-limiter')
-    counts.set(`blob-token-broad:ip:${hashIdentifier(IP)}`, 1000)
+    counts.set(`blob-token-broad:ip:${hashIdentifier(IP)}`, 5000)
 
     const { prisma, sessionFindUnique } = makePrismaWithSession(null)
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
@@ -161,11 +165,11 @@ describe('Broad pre-DB guard — blob-token-broad:ip:<hashed>, 1000/10min', () =
     expect(sessionFindUnique).not.toHaveBeenCalled()
   })
 
-  it('the 1000th request (exactly at the ceiling) is still allowed through to session resolution', async () => {
+  it('the 5000th request (exactly at the ceiling) is still allowed through to session resolution', async () => {
     const { evalMock, ttlMock, counts } = installHealthyRedisMock()
     await setupRedis({ eval: evalMock, ttl: ttlMock })
     const { hashIdentifier } = await import('@/lib/server/rate-limiter')
-    counts.set(`blob-token-broad:ip:${hashIdentifier(IP)}`, 999)
+    counts.set(`blob-token-broad:ip:${hashIdentifier(IP)}`, 4999)
 
     const { prisma, sessionFindUnique } = makePrismaWithSession(null)
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
@@ -320,13 +324,22 @@ describe('Photographer blob branch — upload-blob:photographer-event:<eventId>,
   })
 })
 
-// ─── Default branch: Guest / Private Delivery / unresolved / malformed ───
+// ─── Guest (ROOM_PHOTO) branch ──────────────────────────────────────────
+// STEP 7.13c — ROOM_PHOTO sessions were moved out of the "everything else"
+// default branch into their own eventId-scoped bucket
+// (upload-blob:guest-event:<eventId>, 1500/10min), mirroring the
+// photographer/private-delivery branches above. The 1500 ceiling is
+// deliberately ABOVE guestInitEvent/guestCompleteEvent's 1000 — see STEP
+// 7.13b/7.13c for the asymmetric-threshold rationale.
 
-describe('Default branch — unchanged legacy upload-blob:ip, 30/10min', () => {
-  it('ROOM_PHOTO sessions fall through to the legacy IP limiter, exact same key/threshold', async () => {
+describe('Guest (ROOM_PHOTO) blob branch — upload-blob:guest-event:<eventId>, 1500/10min', () => {
+  it('resolves the session, dispatches to the eventId-scoped bucket, and never calls the legacy rateLimit()', async () => {
     const { evalMock, ttlMock } = installHealthyRedisMock()
     await setupRedis({ eval: evalMock, ttl: ttlMock })
-    const { prisma } = makePrismaWithSession({ uploadKind: BlobUploadKind.ROOM_PHOTO, eventId: 'event-guest-1' })
+    const { prisma, sessionFindUnique, eventFindUnique, eventFindFirst } = makePrismaWithSession({
+      uploadKind: BlobUploadKind.ROOM_PHOTO,
+      eventId: 'event-guest-1',
+    })
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(prisma)
     const rateLimit = await spyOnLegacyRateLimit()
@@ -334,9 +347,50 @@ describe('Default branch — unchanged legacy upload-blob:ip, 30/10min', () => {
     const { POST } = await import('@/app/api/[[...path]]/route')
     await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
 
-    expect(rateLimit).toHaveBeenCalledWith(`upload-blob:ip:${IP}`, 30, 10 * 60 * 1000)
+    expect(sessionFindUnique).toHaveBeenCalledWith({ where: { id: 'session-id-123' }, select: { uploadKind: true, eventId: true } })
+    const keysUsed = evalMock.mock.calls.map((call) => call[1][0])
+    expect(keysUsed).toContain('upload-blob:guest-event:event-guest-1')
+    // No "double 30": the legacy limiter must never run for a resolved Guest session.
+    expect(rateLimit).not.toHaveBeenCalled()
+    expect(eventFindUnique).not.toHaveBeenCalled()
+    expect(eventFindFirst).not.toHaveBeenCalled()
   })
 
+  it('blocks the 1501st guest-event request with the exact bare 429 contract', async () => {
+    const { evalMock, ttlMock, counts } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock })
+    counts.set('upload-blob:guest-event:event-guest-1', 1500)
+    const { prisma } = makePrismaWithSession({ uploadKind: BlobUploadKind.ROOM_PHOTO, eventId: 'event-guest-1' })
+    const { getPrismaClient } = await import('@/lib/server/prisma-client')
+    getPrismaClient.mockResolvedValue(prisma)
+
+    const { POST } = await import('@/app/api/[[...path]]/route')
+    const response = await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
+    const body = await response.json()
+
+    expect(response.status).toBe(429)
+    expect(body).toEqual({ error: 'Too many upload attempts. Please try again later.' })
+    expect(response.headers.get('Retry-After')).toBeNull()
+  })
+
+  it('the 1500th request (exactly at the ceiling) is still allowed', async () => {
+    const { evalMock, ttlMock, counts } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock })
+    counts.set('upload-blob:guest-event:event-guest-1', 1499)
+    const { prisma } = makePrismaWithSession({ uploadKind: BlobUploadKind.ROOM_PHOTO, eventId: 'event-guest-1' })
+    const { getPrismaClient } = await import('@/lib/server/prisma-client')
+    getPrismaClient.mockResolvedValue(prisma)
+
+    const { POST } = await import('@/app/api/[[...path]]/route')
+    const response = await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
+
+    expect(response.status).not.toBe(429)
+  })
+})
+
+// ─── Default branch: Private Delivery (pre-7.12) / unresolved / malformed ─
+
+describe('Default branch — unchanged legacy upload-blob:ip, 30/10min', () => {
   it('PRIVATE_DELIVERY sessions no longer use this legacy IP limiter as of STEP 7.12 — see tests/rate-limiter-private-delivery-blob-token.test.js', async () => {
     const { evalMock, ttlMock } = installHealthyRedisMock()
     await setupRedis({ eval: evalMock, ttl: ttlMock })
@@ -402,7 +456,7 @@ describe('Default branch — unchanged legacy upload-blob:ip, 30/10min', () => {
   it('legacy 429 body/status/header shape is byte-identical to before this STEP', async () => {
     const { evalMock, ttlMock } = installHealthyRedisMock()
     await setupRedis({ eval: evalMock, ttl: ttlMock })
-    const { prisma } = makePrismaWithSession({ uploadKind: BlobUploadKind.ROOM_PHOTO, eventId: 'event-guest-1' })
+    const { prisma } = makePrismaWithSession(null)
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(prisma)
 
