@@ -53,6 +53,7 @@
         "@upstash/ratelimit": "^2.0.8",
         "@upstash/redis": "^1.38.0",
         "@vercel/blob": "^1.1.1",
+        "@vercel/speed-insights": "^2.0.0",
         "archiver": "^8.0.0",
         "axios": "^1.10.0",
         "class-variance-authority": "^0.7.1",
