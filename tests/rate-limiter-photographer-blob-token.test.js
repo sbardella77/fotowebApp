@@ -11,10 +11,16 @@ import { BlobUploadKind } from '@prisma/client'
 //      resolves the flow. PHOTOGRAPHER_UPLOAD sessions get their own
 //      eventId-scoped bucket (200/10min, deliberately NOT token-hash-scoped
 //      — see STEP 7.10a.0 §H/§J for the token-rotation misattribution this
-//      avoids). Everything else (ROOM_PHOTO, PRIVATE_DELIVERY, unresolved,
-//      malformed) falls through UNCHANGED to the pre-existing legacy
+//      avoids). Everything else (ROOM_PHOTO, unresolved, malformed) falls
+//      through UNCHANGED to the pre-existing legacy
 //      rateLimit('upload-blob:ip:...', 30, 10min).
 // The callback branch (blob.upload-completed) is untouched throughout.
+//
+// STEP 7.12 — PRIVATE_DELIVERY sessions were moved out of the "everything
+// else" default branch into their own eventId-scoped bucket
+// (upload-blob:private-event:<eventId>, 200/10min), mirroring the
+// photographer branch above. See tests/rate-limiter-private-delivery-blob-token.test.js
+// for full coverage of that dispatch.
 
 vi.mock('@upstash/redis', () => ({ Redis: vi.fn() }))
 
@@ -331,7 +337,7 @@ describe('Default branch — unchanged legacy upload-blob:ip, 30/10min', () => {
     expect(rateLimit).toHaveBeenCalledWith(`upload-blob:ip:${IP}`, 30, 10 * 60 * 1000)
   })
 
-  it('PRIVATE_DELIVERY sessions also fall through to the SAME legacy IP limiter (SHARED_BLOB_TOKEN_PRIVATE_DELIVERY_PENDING remains open)', async () => {
+  it('PRIVATE_DELIVERY sessions no longer use this legacy IP limiter as of STEP 7.12 — see tests/rate-limiter-private-delivery-blob-token.test.js', async () => {
     const { evalMock, ttlMock } = installHealthyRedisMock()
     await setupRedis({ eval: evalMock, ttl: ttlMock })
     const { prisma } = makePrismaWithSession({ uploadKind: BlobUploadKind.PRIVATE_DELIVERY, eventId: 'event-owner-1' })
@@ -342,7 +348,7 @@ describe('Default branch — unchanged legacy upload-blob:ip, 30/10min', () => {
     const { POST } = await import('@/app/api/[[...path]]/route')
     await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
 
-    expect(rateLimit).toHaveBeenCalledWith(`upload-blob:ip:${IP}`, 30, 10 * 60 * 1000)
+    expect(rateLimit).not.toHaveBeenCalled()
   })
 
   it('nonexistent session (findUnique resolves null) falls through to the legacy branch, no crash', async () => {

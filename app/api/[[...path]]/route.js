@@ -1080,8 +1080,8 @@ const issueBlobUploadToken = async (request) => {
   //      b. Once past (a), a read-only BlobUploadSession lookup resolves
   //         uploadKind/eventId (never mutates — the real claim happens
   //         later, inside onBeforeGenerateToken, unchanged). Photographer
-  //         sessions get their own eventId-scoped bucket; everything else
-  //         (room-photo, private-delivery, unresolved/malformed) falls
+  //         and private-delivery sessions each get their own eventId-scoped
+  //         bucket; room-photo and unresolved/malformed sessions fall
   //         through to the existing shared legacy IP limiter, unchanged.
   if (!callbackRequest) {
     const clientIp = getClientIp(request)
@@ -1125,9 +1125,18 @@ const issueBlobUploadToken = async (request) => {
       if (photographerBlobLimit.limited) {
         return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
       }
+    } else if (resolvedSession?.uploadKind === BlobUploadKind.PRIVATE_DELIVERY && resolvedSession.eventId) {
+      const privateDeliveryBlobLimit = await checkRateLimit(
+        `upload-blob:private-event:${resolvedSession.eventId}`,
+        RATE_LIMITS.privateDeliveryBlobEvent.event.max,
+        RATE_LIMITS.privateDeliveryBlobEvent.event.window,
+      )
+      if (privateDeliveryBlobLimit.limited) {
+        return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
+      }
     } else {
-      // Default branch: room-photo, private-delivery, unresolved, or
-      // malformed — unchanged legacy shared IP limiter.
+      // Default branch: room-photo, unresolved, or malformed — unchanged
+      // legacy shared IP limiter.
       const limit = rateLimit(`upload-blob:ip:${clientIp}`, RATE_LIMITS.uploadBlob.ip.max, RATE_LIMITS.uploadBlob.ip.window)
       if (limit.limited) {
         return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
