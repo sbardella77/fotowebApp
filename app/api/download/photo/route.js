@@ -1,11 +1,19 @@
 import { NextResponse } from 'next/server'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { getEffectiveEventAccessState } from '@/lib/server/event-access'
-import { processPhotoForDownload, getDownloadFileName } from '@/lib/server/download-utils'
-import { BRANDED_DOWNLOAD_WATERMARK_OPTIONS } from '@/lib/server/watermark'
+import { processPhotoForDownload, getDownloadFileName, getPhotoBuffer } from '@/lib/server/download-utils'
+import {
+  getBrandedDerivative,
+  DerivativeStorageUnavailableError,
+  DerivativePendingError,
+} from '@/lib/server/download-derivative'
 import { checkRateLimit, getClientIp, hashIdentifier, RATE_LIMITS } from '@/lib/server/rate-limiter'
 
 export const dynamic = 'force-dynamic'
+// Explicit winner-lifetime bound. The derivative transform lock TTL (25s) is
+// deliberately larger than this, so a normally-running invocation can never
+// outlive its own lock and duplicate work while still healthy.
+export const maxDuration = 20
 
 // Branded downloads are transcoded to JPEG (see
 // BRANDED_DOWNLOAD_WATERMARK_OPTIONS), so the response contract must
@@ -101,14 +109,18 @@ export async function GET(request) {
 
     console.log(`${logPrefix} event=${event.slug} type=${type} branded=${branded} billingTier=${event.billingTier} unlock=${event.originalDownloadUnlocked}`)
 
-    // Process download: apply watermark if entitlement requires branding.
-    // Branded output is auto-oriented, alpha-flattened, and re-encoded as
-    // JPEG; unbranded output stays an untouched passthrough of the source.
-    const { buffer } = await processPhotoForDownload({
-      photoUrl: photo.url,
-      branded,
-      watermarkOptions: branded ? BRANDED_DOWNLOAD_WATERMARK_OPTIONS : undefined,
-    })
+    // Branded downloads are served from a deterministic, version-scoped Blob
+    // derivative produced at most once per photo (STEP 7.14b); unbranded
+    // output stays an untouched passthrough of the source.
+    let buffer
+    if (branded) {
+      buffer = await getBrandedDerivative({
+        photoId: photo.id,
+        getSourceBuffer: () => getPhotoBuffer(photo.url),
+      })
+    } else {
+      ;({ buffer } = await processPhotoForDownload({ photoUrl: photo.url, branded: false }))
+    }
 
     const fileName = getDownloadFileName(photo, branded ? { extension: BRANDED_EXTENSION } : {})
 
@@ -125,6 +137,29 @@ export async function GET(request) {
     })
   } catch (error) {
     const duration = Date.now() - start
+
+    // The derivative store is degraded (not merely empty). Answering with a
+    // temporary failure is deliberate: falling back to a live transform here
+    // would turn a Blob incident into a transform storm.
+    if (error instanceof DerivativeStorageUnavailableError) {
+      console.error(`${logPrefix} Derivative storage unavailable:`, error.message, `durationMs=${duration}`)
+      return NextResponse.json(
+        { error: 'Download is temporarily unavailable. Please try again.' },
+        { status: 503 }
+      )
+    }
+
+    // Another request holds the transform lock and did not publish in time.
+    // We deliberately do NOT transform — a waiter timeout never grants
+    // permission to run Sharp (see STEP 7.14b §19).
+    if (error instanceof DerivativePendingError) {
+      console.warn(`${logPrefix} Derivative still preparing, durationMs=${duration}`)
+      return NextResponse.json(
+        { error: 'Download is being prepared. Please try again.' },
+        { status: 503 }
+      )
+    }
+
     console.error(`${logPrefix} Unexpected error:`, error, `durationMs=${duration}`)
     return NextResponse.json(
       { error: 'Unable to process download. Please try again later.' },

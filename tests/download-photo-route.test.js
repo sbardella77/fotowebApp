@@ -9,12 +9,38 @@ import sharp from 'sharp'
 //   - the branded response contract (JPEG bytes, image/jpeg, .jpg filename);
 //   - the unbranded passthrough remaining byte-for-byte unchanged;
 //   - that authorization/visibility failures never reach Blob or Sharp.
+//
+// STEP 7.14b — branded downloads now resolve through the derivative cache.
+// The Blob layer is mocked here so the route-level response contract can be
+// asserted for both a cache MISS (winner produces and returns the generated
+// buffer) and a cache HIT (stored bytes served), plus the two new temporary
+// 503 mappings. Derivative/lock concurrency itself is covered in
+// tests/download-photo-derivative.test.js.
 
 vi.mock('@upstash/redis', () => ({ Redis: vi.fn() }))
 vi.mock('@/lib/server/prisma-client', () => ({ getPrismaClient: vi.fn() }))
 
+const blobHeadMock = vi.fn()
+const blobPutMock = vi.fn()
+class FakeBlobNotFoundError extends Error {
+  constructor() {
+    super('The requested blob does not exist')
+    this.name = 'BlobNotFoundError'
+  }
+}
+vi.mock('@vercel/blob', () => ({
+  head: (...args) => blobHeadMock(...args),
+  put: (...args) => blobPutMock(...args),
+  BlobNotFoundError: FakeBlobNotFoundError,
+}))
+
 const fetchMock = vi.fn()
 vi.stubGlobal('fetch', fetchMock)
+
+const DERIVATIVE_URL = 'https://store123.public.blob.vercel-storage.com/derivatives/wm-v1/photo-1.jpg'
+const DERIVATIVE_PATH = 'derivatives/wm-v1/photo-1.jpg'
+/** In-memory stand-in for the Blob store, so a put makes later heads succeed. */
+const storedDerivatives = new Map()
 
 const ALLOWED_ORIGIN = 'https://snaprooms.app'
 const IP = '203.0.113.55'
@@ -75,7 +101,15 @@ function installHealthyRedisMock() {
     counts.set(key, next)
     return next
   })
-  return { evalMock, ttlMock: vi.fn(async () => 300), counts }
+  // SET ... NX semantics, so branded requests exercise the real ACQUIRED
+  // lock path rather than silently degrading to local single-flight.
+  const locks = new Set()
+  const setMock = vi.fn(async (key, _value, opts) => {
+    if (opts?.nx && locks.has(key)) return null
+    locks.add(key)
+    return 'OK'
+  })
+  return { evalMock, ttlMock: vi.fn(async () => 300), setMock, counts, locks }
 }
 
 async function setupRedis(impl) {
@@ -97,6 +131,19 @@ beforeEach(async () => {
     status: 200,
     arrayBuffer: async () => source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength),
   })
+
+  // Stateful Blob store: the derivative starts absent, and a successful put
+  // makes subsequent head calls succeed — so a second request for the same
+  // photo is a genuine cache HIT rather than an endless waiter.
+  storedDerivatives.clear()
+  blobHeadMock.mockImplementation(async (pathname) => {
+    if (!storedDerivatives.has(pathname)) throw new FakeBlobNotFoundError()
+    return { url: DERIVATIVE_URL, size: storedDerivatives.get(pathname).length }
+  })
+  blobPutMock.mockImplementation(async (pathname, body) => {
+    storedDerivatives.set(pathname, Buffer.from(body))
+    return { url: DERIVATIVE_URL, pathname }
+  })
 })
 
 afterEach(() => {
@@ -116,8 +163,8 @@ function dispositionFilename(response) {
 
 describe('parameter validation', () => {
   it('missing photoUrl → 400, unchanged message', async () => {
-    const { evalMock, ttlMock } = installHealthyRedisMock()
-    await setupRedis({ eval: evalMock, ttl: ttlMock })
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
 
     const response = await callRoute({ photoUrl: null })
 
@@ -126,8 +173,8 @@ describe('parameter validation', () => {
   })
 
   it('missing eventSlug → 400, unchanged message', async () => {
-    const { evalMock, ttlMock } = installHealthyRedisMock()
-    await setupRedis({ eval: evalMock, ttl: ttlMock })
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
 
     const response = await callRoute({ eventSlug: null })
 
@@ -138,8 +185,8 @@ describe('parameter validation', () => {
 
 describe('broad pre-DB guard — download-photo-broad:ip:<hashed>, 5000/10min', () => {
   it('sends a hashed IP key to Redis, never the raw IP', async () => {
-    const { evalMock, ttlMock } = installHealthyRedisMock()
-    await setupRedis({ eval: evalMock, ttl: ttlMock })
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(makePrisma({ event: FREE_EVENT, photo: PHOTO }).prisma)
 
@@ -151,8 +198,8 @@ describe('broad pre-DB guard — download-photo-broad:ip:<hashed>, 5000/10min', 
   })
 
   it('a limited request returns the exact bare 429 and never touches DB, Blob, or Sharp', async () => {
-    const { evalMock, ttlMock, counts } = installHealthyRedisMock()
-    await setupRedis({ eval: evalMock, ttl: ttlMock })
+    const { evalMock, ttlMock, setMock, counts } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
     const { hashIdentifier } = await import('@/lib/server/rate-limiter')
     counts.set(`download-photo-broad:ip:${hashIdentifier(IP)}`, 5000)
 
@@ -171,8 +218,8 @@ describe('broad pre-DB guard — download-photo-broad:ip:<hashed>, 5000/10min', 
   })
 
   it('the 5000th request is allowed; the 5001st is blocked', async () => {
-    const { evalMock, ttlMock, counts } = installHealthyRedisMock()
-    await setupRedis({ eval: evalMock, ttl: ttlMock })
+    const { evalMock, ttlMock, setMock, counts } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
     const { hashIdentifier } = await import('@/lib/server/rate-limiter')
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(makePrisma({ event: FREE_EVENT, photo: PHOTO }).prisma)
@@ -186,8 +233,8 @@ describe('broad pre-DB guard — download-photo-broad:ip:<hashed>, 5000/10min', 
   })
 
   it('the 429 body carries no code, retryAfter, or Retry-After header', async () => {
-    const { evalMock, ttlMock, counts } = installHealthyRedisMock()
-    await setupRedis({ eval: evalMock, ttl: ttlMock })
+    const { evalMock, ttlMock, setMock, counts } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
     const { hashIdentifier } = await import('@/lib/server/rate-limiter')
     counts.set(`download-photo-broad:ip:${hashIdentifier(IP)}`, 5000)
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
@@ -242,8 +289,8 @@ describe('broad pre-DB guard — download-photo-broad:ip:<hashed>, 5000/10min', 
 
 describe('authorization / visibility must precede any expensive work', () => {
   it('unknown event → 404, no photo lookup, no Blob fetch, no Sharp', async () => {
-    const { evalMock, ttlMock } = installHealthyRedisMock()
-    await setupRedis({ eval: evalMock, ttl: ttlMock })
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
     const { prisma, photoFindFirst } = makePrisma({ event: null, photo: PHOTO })
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(prisma)
@@ -257,8 +304,8 @@ describe('authorization / visibility must precede any expensive work', () => {
   })
 
   it('photo not found / not VISIBLE → 404, no Blob fetch, no Sharp', async () => {
-    const { evalMock, ttlMock } = installHealthyRedisMock()
-    await setupRedis({ eval: evalMock, ttl: ttlMock })
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
     const { prisma, photoFindFirst } = makePrisma({ event: FREE_EVENT, photo: null })
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(prisma)
@@ -271,8 +318,8 @@ describe('authorization / visibility must precede any expensive work', () => {
   })
 
   it('the visibility filter still requires status VISIBLE and scopes to the event', async () => {
-    const { evalMock, ttlMock } = installHealthyRedisMock()
-    await setupRedis({ eval: evalMock, ttl: ttlMock })
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
     const { prisma, photoFindFirst } = makePrisma({ event: FREE_EVENT, photo: PHOTO })
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(prisma)
@@ -287,8 +334,8 @@ describe('authorization / visibility must precede any expensive work', () => {
   })
 
   it('database unavailable → 503, unchanged', async () => {
-    const { evalMock, ttlMock } = installHealthyRedisMock()
-    await setupRedis({ eval: evalMock, ttl: ttlMock })
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(null)
 
@@ -301,8 +348,8 @@ describe('authorization / visibility must precede any expensive work', () => {
 
 describe('branded response contract (Free event)', () => {
   it('returns 200 with real JPEG bytes, image/jpeg, and a .jpg filename', async () => {
-    const { evalMock, ttlMock } = installHealthyRedisMock()
-    await setupRedis({ eval: evalMock, ttl: ttlMock })
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(makePrisma({ event: FREE_EVENT, photo: PHOTO }).prisma)
 
@@ -318,8 +365,8 @@ describe('branded response contract (Free event)', () => {
   })
 
   it('never advertises the source PNG type or extension for JPEG bytes', async () => {
-    const { evalMock, ttlMock } = installHealthyRedisMock()
-    await setupRedis({ eval: evalMock, ttl: ttlMock })
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(makePrisma({ event: FREE_EVENT, photo: PHOTO }).prisma)
 
@@ -330,8 +377,8 @@ describe('branded response contract (Free event)', () => {
   })
 
   it('preserves the existing Cache-Control contract', async () => {
-    const { evalMock, ttlMock } = installHealthyRedisMock()
-    await setupRedis({ eval: evalMock, ttl: ttlMock })
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(makePrisma({ event: FREE_EVENT, photo: PHOTO }).prisma)
 
@@ -343,8 +390,8 @@ describe('branded response contract (Free event)', () => {
 
 describe('unbranded regression (paid event) — passthrough unchanged', () => {
   it('serves the source bytes untouched with the source Content-Type and extension', async () => {
-    const { evalMock, ttlMock } = installHealthyRedisMock()
-    await setupRedis({ eval: evalMock, ttl: ttlMock })
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(makePrisma({ event: PAID_EVENT, photo: PHOTO }).prisma)
 
@@ -359,8 +406,8 @@ describe('unbranded regression (paid event) — passthrough unchanged', () => {
   })
 
   it('does not transcode — the unbranded body is byte-identical to the source', async () => {
-    const { evalMock, ttlMock } = installHealthyRedisMock()
-    await setupRedis({ eval: evalMock, ttl: ttlMock })
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(makePrisma({ event: PAID_EVENT, photo: PHOTO }).prisma)
 
@@ -380,8 +427,8 @@ describe('unbranded regression (paid event) — passthrough unchanged', () => {
 
 describe('type parameter has no effect on the output contract (unchanged)', () => {
   it('type=original and type=standard produce the same Content-Type and filename', async () => {
-    const { evalMock, ttlMock } = installHealthyRedisMock()
-    await setupRedis({ eval: evalMock, ttl: ttlMock })
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(makePrisma({ event: FREE_EVENT, photo: PHOTO }).prisma)
 
@@ -390,5 +437,175 @@ describe('type parameter has no effect on the output contract (unchanged)', () =
 
     expect(original.headers.get('content-type')).toBe(standard.headers.get('content-type'))
     expect(dispositionFilename(original)).toBe(dispositionFilename(standard))
+  })
+})
+
+// ─── STEP 7.14b — derivative cache at the route level ──────────────────────
+
+describe('branded derivative cache — route behavior', () => {
+  it('a cache MISS produces the derivative once and returns the generated buffer', async () => {
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
+    const { getPrismaClient } = await import('@/lib/server/prisma-client')
+    getPrismaClient.mockResolvedValue(makePrisma({ event: FREE_EVENT, photo: PHOTO }).prisma)
+
+    const response = await callRoute()
+    const body = Buffer.from(await response.arrayBuffer())
+
+    expect(response.status).toBe(200)
+    expect(blobPutMock).toHaveBeenCalledTimes(1)
+    expect(blobPutMock.mock.calls[0][0]).toBe(DERIVATIVE_PATH)
+    // Source was fetched exactly once; the stored object was NOT re-read.
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect((await sharp(body).metadata()).format).toBe('jpeg')
+  })
+
+  it('a second request for the same photo is a cache HIT: no put, no source fetch, no Sharp', async () => {
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
+    const { getPrismaClient } = await import('@/lib/server/prisma-client')
+    getPrismaClient.mockResolvedValue(makePrisma({ event: FREE_EVENT, photo: PHOTO }).prisma)
+
+    const miss = await callRoute()
+    const missBody = Buffer.from(await miss.arrayBuffer())
+
+    // Serve the stored derivative back on the follow-up read.
+    const stored = storedDerivatives.get(DERIVATIVE_PATH)
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      arrayBuffer: async () => stored.buffer.slice(stored.byteOffset, stored.byteOffset + stored.byteLength),
+    })
+    fetchMock.mockClear()
+    blobPutMock.mockClear()
+
+    const hit = await callRoute()
+    const hitBody = Buffer.from(await hit.arrayBuffer())
+
+    expect(blobPutMock).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalledTimes(1) // the derivative read only
+    expect(fetchMock.mock.calls[0][0]).toBe(DERIVATIVE_URL)
+    expect(Buffer.compare(hitBody, missBody)).toBe(0)
+  })
+
+  it('HIT and MISS are user-visible equivalent (status, type, filename, cache-control)', async () => {
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
+    const { getPrismaClient } = await import('@/lib/server/prisma-client')
+    getPrismaClient.mockResolvedValue(makePrisma({ event: FREE_EVENT, photo: PHOTO }).prisma)
+
+    const miss = await callRoute()
+    const stored = storedDerivatives.get(DERIVATIVE_PATH)
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      arrayBuffer: async () => stored.buffer.slice(stored.byteOffset, stored.byteOffset + stored.byteLength),
+    })
+    const hit = await callRoute()
+
+    expect(hit.status).toBe(miss.status)
+    expect(hit.status).toBe(200)
+    expect(hit.headers.get('content-type')).toBe(miss.headers.get('content-type'))
+    expect(hit.headers.get('content-type')).toBe('image/jpeg')
+    expect(dispositionFilename(hit)).toBe(dispositionFilename(miss))
+    expect(dispositionFilename(hit)).toBe('beach.jpg')
+    expect(hit.headers.get('cache-control')).toBe(miss.headers.get('cache-control'))
+    expect(hit.headers.get('cache-control')).toBe('private, max-age=300')
+  })
+
+  it('a degraded derivative store returns a temporary 503 and never transforms', async () => {
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
+    const { getPrismaClient } = await import('@/lib/server/prisma-client')
+    getPrismaClient.mockResolvedValue(makePrisma({ event: FREE_EVENT, photo: PHOTO }).prisma)
+    blobHeadMock.mockRejectedValue(new Error('blob service unavailable'))
+
+    const response = await callRoute()
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({ error: 'Download is temporarily unavailable. Please try again.' })
+    expect(response.headers.get('Retry-After')).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(blobPutMock).not.toHaveBeenCalled()
+  })
+
+  it('a waiter that exhausts its deadline returns the preparing 503 without transforming', async () => {
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
+    const { getPrismaClient } = await import('@/lib/server/prisma-client')
+    getPrismaClient.mockResolvedValue(makePrisma({ event: FREE_EVENT, photo: PHOTO }).prisma)
+
+    // The waiter loop's own timing is proven with an injected clock in
+    // tests/download-photo-derivative.test.js; here we only assert the
+    // route's mapping of that outcome, so no real 10s wait is needed.
+    const actual = await import('@/lib/server/download-derivative')
+    vi.doMock('@/lib/server/download-derivative', () => ({
+      ...actual,
+      getBrandedDerivative: vi.fn().mockRejectedValue(new actual.DerivativePendingError()),
+    }))
+
+    const { GET } = await import('@/app/api/download/photo/route')
+    const response = await GET(makeRequest())
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({ error: 'Download is being prepared. Please try again.' })
+    expect(response.headers.get('Retry-After')).toBeNull()
+    expect(blobPutMock).not.toHaveBeenCalled()
+    vi.doUnmock('@/lib/server/download-derivative')
+  })
+
+  it('the unbranded path never touches the derivative cache', async () => {
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
+    const { getPrismaClient } = await import('@/lib/server/prisma-client')
+    getPrismaClient.mockResolvedValue(makePrisma({ event: PAID_EVENT, photo: PHOTO }).prisma)
+
+    const response = await callRoute()
+
+    expect(response.status).toBe(200)
+    expect(blobHeadMock).not.toHaveBeenCalled()
+    expect(blobPutMock).not.toHaveBeenCalled()
+    expect(setMock).not.toHaveBeenCalled()
+  })
+
+  it('a hidden photo 404s without any derivative lookup', async () => {
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
+    const { getPrismaClient } = await import('@/lib/server/prisma-client')
+    getPrismaClient.mockResolvedValue(makePrisma({ event: FREE_EVENT, photo: null }).prisma)
+
+    const response = await callRoute()
+
+    expect(response.status).toBe(404)
+    expect(blobHeadMock).not.toHaveBeenCalled()
+    expect(blobPutMock).not.toHaveBeenCalled()
+  })
+
+  it('after an entitlement flip to unbranded, the branded derivative is not consulted', async () => {
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
+    const { getPrismaClient } = await import('@/lib/server/prisma-client')
+
+    // Free first: derivative gets created.
+    getPrismaClient.mockResolvedValue(makePrisma({ event: FREE_EVENT, photo: PHOTO }).prisma)
+    await callRoute()
+    expect(storedDerivatives.has(DERIVATIVE_PATH)).toBe(true)
+
+    // Now unlocked/paid: same photo must take the unbranded source path.
+    blobHeadMock.mockClear()
+    getPrismaClient.mockResolvedValue(makePrisma({ event: PAID_EVENT, photo: PHOTO }).prisma)
+    const response = await callRoute()
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toBe('image/png')
+    expect(dispositionFilename(response)).toBe('beach.png')
+    expect(blobHeadMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('route duration contract', () => {
+  it('declares maxDuration = 20, the bound the 25s lock TTL is derived from', async () => {
+    const mod = await import('@/app/api/download/photo/route')
+    expect(mod.maxDuration).toBe(20)
   })
 })
