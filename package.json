@@ -52,7 +52,7 @@
         "@tanstack/react-table": "^8.21.3",
         "@upstash/ratelimit": "^2.0.8",
         "@upstash/redis": "^1.38.0",
-        "@vercel/blob": "^1.1.1",
+        "@vercel/blob": "^2.8.0",
         "archiver": "^8.0.0",
         "axios": "^1.10.0",
         "class-variance-authority": "^0.7.1",
