@@ -445,26 +445,48 @@ describe('storage-error semantics', () => {
 })
 
 describe('dormancy — the primitive is not wired into any product flow', () => {
-  it('no product source calls getDisplayDerivative yet', async () => {
+  // STEP 7.15d narrowed this from "nothing may import the module" to "nothing
+  // may GENERATE". Derivative cleanup legitimately needs the deterministic
+  // pathname, and denying it the exported builder would have forced a
+  // duplicated path literal — the one thing that could silently desynchronise
+  // deletion from production. Generation itself stays dormant until
+  // DISPLAY_DERIVATIVE_GENERATION.
+  const productSources = async () => {
     const { readFileSync, readdirSync, statSync } = await import('fs')
     const { join, resolve } = await import('path')
 
     const roots = ['app', 'lib', 'components', 'hooks'].map((d) => resolve(import.meta.dirname, '..', d))
-    const callers = []
+    const found = []
     const walk = (dir) => {
       for (const entry of readdirSync(dir)) {
         const p = join(dir, entry)
         if (statSync(p).isDirectory()) walk(p)
-        else if (/\.(js|jsx)$/.test(entry)) {
-          const src = readFileSync(p, 'utf8')
-          if (p.endsWith('display-derivative.js')) continue
-          if (/getDisplayDerivative|display-derivative/.test(src)) callers.push(p)
-        }
+        else if (/\.(js|jsx)$/.test(entry)) found.push({ path: p, src: readFileSync(p, 'utf8') })
       }
     }
     roots.forEach(walk)
+    return found
+  }
 
-    expect(callers).toEqual([])
+  it('no product source generates a display derivative', async () => {
+    const offenders = (await productSources())
+      .filter(({ path }) => !path.endsWith('display-derivative.js'))
+      .filter(({ src }) => /getDisplayDerivative\s*\(|transformDisplayImage\s*\(|ensureDisplayDerivative/.test(src))
+      .map(({ path }) => path)
+
+    expect(offenders).toEqual([])
+  })
+
+  it('the only product importer takes the path builder alone', async () => {
+    const importers = (await productSources())
+      .filter(({ path }) => !path.endsWith('display-derivative.js'))
+      .filter(({ src }) => /display-derivative/.test(src))
+
+    expect(importers.map(({ path }) => path.split('/').pop())).toEqual(['derivative-cleanup.js'])
+
+    const [{ src }] = importers
+    const specifiers = /import\s*\{([^}]*)\}\s*from\s*'@\/lib\/server\/display-derivative'/.exec(src)[1]
+    expect(specifiers.split(',').map((s) => s.trim()).filter(Boolean)).toEqual(['buildDisplayDerivativePath'])
   })
 
   it('does not derive a public URL — that belongs to the DTO cutover step', async () => {
