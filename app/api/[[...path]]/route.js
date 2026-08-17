@@ -116,6 +116,7 @@ import {
   localStorageDriver,
 } from '@/lib/server/storage'
 import { deleteEventScopedStoredFile } from '@/lib/server/event-scoped-storage-delete'
+import { deletePhotoDerivatives, deletePhotoDerivativesBatch } from '@/lib/server/derivative-cleanup'
 import {
   checkOwnerRoomCreationEntitlement,
   checkPrivateDeliveryEntitlement,
@@ -949,6 +950,20 @@ const deleteEvent = withTiming('deleteEvent', async (request, slug) => {
     return json({ error: 'Management token required' }, 403)
   }
 
+  // Authoritative, UNTRUNCATED photo-id snapshot, taken while the rows still
+  // exist. `event.photos` is a presentation list capped at 100 and Production
+  // already holds a 186-photo event, so using it here would silently orphan
+  // every derivative past the cap. Ids only — no url, no storedName.
+  //
+  // Best-effort: a failure here must not introduce a new way for event
+  // deletion to fail, so the reconciliation cron becomes the fallback.
+  let derivativePhotoIds = []
+  try {
+    derivativePhotoIds = await repository.listPhotoIdsByEventId(event.id)
+  } catch (snapshotError) {
+    console.error('[deleteEvent] Derivative id snapshot failed for event:', slug, snapshotError?.name)
+  }
+
   for (const photo of event.photos || []) {
     try {
       await deleteEventScopedStoredFile({ url: photo.url, eventSlug: event.slug, kind: 'room-photo', deleteFile: deleteStoredFile })
@@ -975,6 +990,11 @@ const deleteEvent = withTiming('deleteEvent', async (request, slug) => {
   }
 
   await repository.deleteEvent(slug)
+
+  // Only after the event is provably gone: deleting derivatives for an event
+  // that is still alive would be user-visible cache loss for no reason.
+  await deletePhotoDerivativesBatch(derivativePhotoIds, { context: 'deleteEvent' })
+
   console.log(`[audit] Management-token deletion of event ${slug} with ${event.photos?.length || 0} photos and ${privateAssets.length} private assets`)
   return json({ deleted: true })
 })
@@ -2398,6 +2418,15 @@ const moderatePhoto = async (request, photoId) => {
     return jsonPrivate({ error: 'Photo not found' }, 404)
   }
 
+  // A HIDDEN photo has been deliberately withdrawn from public view, so its
+  // public derivatives must not stay reachable. Keyed off the RESULTING
+  // authoritative status, which makes an idempotent re-hide safe to repeat.
+  // Deleting them does not revert moderation if it fails, and HIDDEN→VISIBLE
+  // deliberately regenerates nothing here (see DISPLAY_REGEN_ON_VISIBLE_TRANSITION).
+  if (photo.status === 'HIDDEN') {
+    await deletePhotoDerivatives(photo.id, { context: 'moderatePhoto' })
+  }
+
   console.log(`[audit] Admin ${payload.action}d photo ${photoId} in event ${photo.eventId}`)
   return jsonPrivate({ photo })
 }
@@ -2436,6 +2465,12 @@ const deletePhoto = async (request, photoId) => {
   } catch (storageError) {
     console.error('[deletePhoto] Storage cleanup failed for photo:', photoId, storageError)
   }
+
+  // Public derivative caches (wm-v1 / display-v1) are keyed by photo id and
+  // are removed by nothing else. Best-effort by design: never throws, and a
+  // cache failure must not change the delete contract. Residue is reclaimed
+  // by the cleanup-photo-derivatives reconciliation cron.
+  await deletePhotoDerivatives(photo.id, { context: 'deletePhoto' })
 
   // Audit log after successful deletion
   try {
@@ -3189,6 +3224,14 @@ const deleteOwnerEvent = withTiming('deleteOwnerEvent', async (request, slug) =>
     return jsonPrivate({ error: 'Event not found' }, 404)
   }
 
+  // See deleteEvent: authoritative uncapped id snapshot, ids only, best-effort.
+  let derivativePhotoIds = []
+  try {
+    derivativePhotoIds = await repository.listPhotoIdsByEventId(event.id)
+  } catch (snapshotError) {
+    console.error('[deleteOwnerEvent] Derivative id snapshot failed for event:', slug, snapshotError?.name)
+  }
+
   for (const photo of event.photos || []) {
     try {
       await deleteEventScopedStoredFile({ url: photo.url, eventSlug: event.slug, kind: 'room-photo', deleteFile: deleteStoredFile })
@@ -3215,6 +3258,9 @@ const deleteOwnerEvent = withTiming('deleteOwnerEvent', async (request, slug) =>
   }
 
   await repository.deleteEvent(slug)
+
+  await deletePhotoDerivativesBatch(derivativePhotoIds, { context: 'deleteOwnerEvent' })
+
   return jsonPrivate({ deleted: true })
 })
 
@@ -3233,6 +3279,10 @@ const moderateOwnerPhoto = async (request, photoId) => {
 
   if (!photo) {
     return jsonPrivate({ error: 'Photo not found' }, 404)
+  }
+
+  if (photo.status === 'HIDDEN') {
+    await deletePhotoDerivatives(photo.id, { context: 'moderateOwnerPhoto' })
   }
 
   console.log(`[audit] Owner ${ownerEmail} ${payload.action}d photo ${photoId} in event ${photo.eventId}`)
@@ -3261,6 +3311,10 @@ const deleteOwnerPhoto = async (request, photoId) => {
   } catch (storageError) {
     console.error('[deleteOwnerPhoto] Storage cleanup failed for photo:', photoId, storageError)
   }
+
+  // Same shared helper as the admin path — derivative identity is never
+  // reconstructed at a call site.
+  await deletePhotoDerivatives(photo.id, { context: 'deleteOwnerPhoto' })
 
   console.log(`[audit] Owner ${ownerEmail} deleted photo ${photoId} from event ${photo.eventId}`)
   return jsonPrivate({ deleted: true, photo })
