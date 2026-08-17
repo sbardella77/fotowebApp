@@ -2,8 +2,16 @@ import { NextResponse } from 'next/server'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { getEffectiveEventAccessState } from '@/lib/server/event-access'
 import { processPhotoForDownload, getDownloadFileName } from '@/lib/server/download-utils'
+import { BRANDED_DOWNLOAD_WATERMARK_OPTIONS } from '@/lib/server/watermark'
+import { checkRateLimit, getClientIp, hashIdentifier, RATE_LIMITS } from '@/lib/server/rate-limiter'
 
 export const dynamic = 'force-dynamic'
+
+// Branded downloads are transcoded to JPEG (see
+// BRANDED_DOWNLOAD_WATERMARK_OPTIONS), so the response contract must
+// advertise JPEG rather than the source format.
+const BRANDED_CONTENT_TYPE = 'image/jpeg'
+const BRANDED_EXTENSION = '.jpg'
 
 /**
  * GET /api/download/photo?photoUrl={url}&eventSlug={slug}&type={standard|original}
@@ -26,6 +34,23 @@ export async function GET(request) {
 
     if (!eventSlug || typeof eventSlug !== 'string') {
       return NextResponse.json({ error: 'eventSlug is required' }, { status: 400 })
+    }
+
+    // Broad, Redis-backed, hashed-IP guard. Runs before ANY database work so
+    // invalid-slug / invalid-photo-id floods never reach Prisma, Blob, or
+    // Sharp. Fails open to the in-memory bucket — a Redis outage must not
+    // break public photo downloads.
+    const clientIp = getClientIp(request)
+    const broadLimit = await checkRateLimit(
+      `download-photo-broad:ip:${hashIdentifier(clientIp)}`,
+      RATE_LIMITS.downloadPhotoBroad.ip.max,
+      RATE_LIMITS.downloadPhotoBroad.ip.window,
+    )
+    if (broadLimit.limited) {
+      return NextResponse.json(
+        { error: 'Too many download requests. Please try again later.' },
+        { status: 429 }
+      )
     }
 
     const prisma = await getPrismaClient()
@@ -76,14 +101,16 @@ export async function GET(request) {
 
     console.log(`${logPrefix} event=${event.slug} type=${type} branded=${branded} billingTier=${event.billingTier} unlock=${event.originalDownloadUnlocked}`)
 
-    // Process download: apply watermark if entitlement requires branding
+    // Process download: apply watermark if entitlement requires branding.
+    // Branded output is auto-oriented, alpha-flattened, and re-encoded as
+    // JPEG; unbranded output stays an untouched passthrough of the source.
     const { buffer } = await processPhotoForDownload({
       photoUrl: photo.url,
       branded,
+      watermarkOptions: branded ? BRANDED_DOWNLOAD_WATERMARK_OPTIONS : undefined,
     })
 
-    const suffix = branded ? '' : ''
-    const fileName = getDownloadFileName(photo, { suffix })
+    const fileName = getDownloadFileName(photo, branded ? { extension: BRANDED_EXTENSION } : {})
 
     const duration = Date.now() - start
     console.log(`${logPrefix} event=${event.slug} photo=${photo.id} type=${type} branded=${branded} durationMs=${duration}`)
@@ -91,7 +118,7 @@ export async function GET(request) {
     return new NextResponse(buffer, {
       status: 200,
       headers: {
-        'Content-Type': photo.mimeType || 'image/jpeg',
+        'Content-Type': branded ? BRANDED_CONTENT_TYPE : (photo.mimeType || 'image/jpeg'),
         'Content-Disposition': `attachment; filename="${encodeURIComponent(fileName)}"`,
         'Cache-Control': 'private, max-age=300',
       },
