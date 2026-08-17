@@ -360,9 +360,16 @@ describe('mockGalleryRepository.listPhotoSourcesByEventId — parity', () => {
   })
 })
 
-// ─── §15 / §19 the primitive is inert and server-only ────────────────────────
+// ─── §15 / §19 the primitive is server-only, with ONE reviewed caller ───────
 
-describe('inertness — nothing calls it yet', () => {
+describe('inertness — STEP 7.15d.3 narrows this to "exactly one reviewed caller"', () => {
+  // STEP 7.15d.2 shipped this primitive dead: literally nothing called it,
+  // and that was the point — the destructive route cutover was a separate,
+  // separately-reviewed step. STEP 7.15d.3 IS that step. The invariant this
+  // guards now is narrower but still real: `listPhotoSourcesByEventId` may
+  // be called from exactly the catch-all route (the reviewed cutover) and
+  // nowhere else — no client, no cron, no other server helper reaching for
+  // it as a shortcut.
   const productSources = async () => {
     const { readFileSync, readdirSync, statSync } = await import('fs')
     const { join, resolve } = await import('path')
@@ -380,15 +387,13 @@ describe('inertness — nothing calls it yet', () => {
     return found
   }
 
-  it('no product source calls listPhotoSourcesByEventId', async () => {
-    // The route cutover is a separate, separately-reviewed step: until then
-    // Production event deletion must behave exactly as it does today.
+  it('the only product caller of listPhotoSourcesByEventId is the catch-all route', async () => {
     const callers = (await productSources())
       .filter(({ path }) => !/prisma-gallery-repository\.js$|mock-db\.js$/.test(path))
       .filter(({ src }) => /listPhotoSourcesByEventId/.test(src))
-      .map(({ path }) => path)
+      .map(({ path }) => path.split('/').slice(-4).join('/'))
 
-    expect(callers).toEqual([])
+    expect(callers).toEqual(['app/api/[[...path]]/route.js'])
   })
 
   it('neither repository logs a source url', async () => {

@@ -117,6 +117,7 @@ import {
 } from '@/lib/server/storage'
 import { deleteEventScopedStoredFile } from '@/lib/server/event-scoped-storage-delete'
 import { deletePhotoDerivatives, deletePhotoDerivativesBatch } from '@/lib/server/derivative-cleanup'
+import { sendOpsAlert } from '@/lib/server/ops-alerts'
 import {
   checkOwnerRoomCreationEntitlement,
   checkPrivateDeliveryEntitlement,
@@ -131,6 +132,11 @@ import {
 } from '@/lib/server/event-cover-storage'
 
 export const runtime = 'nodejs'
+// Event deletion can walk the authoritative (uncapped) source inventory
+// sequentially — Production's largest observed event has 186 photos plus
+// private assets and derivatives — so the default duration is too tight.
+// 60s matches the ceiling already proven by app/api/download/gallery/route.js.
+export const maxDuration = 60
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 
@@ -928,6 +934,117 @@ const updateEvent = async (request, slug) => {
   return json({ event: updatedEvent })
 }
 
+/**
+ * Best-effort destructive cleanup for an Event that has ALREADY been deleted
+ * (STEP 7.15d.3). Callers must invoke this only after `repository.deleteEvent`
+ * has resolved successfully, and must pass inventories captured BEFORE that
+ * call — the rows this reads from no longer exist by the time this runs.
+ *
+ * Nothing here may turn a successful Event deletion into an HTTP failure:
+ * the DB row is already gone, so a 500 would invite a retry that can never
+ * reproduce the same operation. Failures/skips are counted and surfaced as
+ * at most one aggregate ops alert instead of failing the response.
+ *
+ * @param {object} params
+ * @param {string} params.eventId              opaque id — safe to log/alert
+ * @param {string} params.eventSlug            authoritative slug for the event-scoped guard
+ * @param {string[]} params.photoSourceUrls    pre-commit HARD-REQUIRED source snapshot
+ * @param {Array<{url: string}>} params.privateAssets  pre-commit HARD-REQUIRED snapshot
+ * @param {string|null} [params.coverUrl]      pre-commit Event.coverUrl value
+ * @param {string[]} params.derivativePhotoIds pre-commit BEST-EFFORT derivative snapshot
+ * @param {string} params.operation            log/alert context label
+ */
+async function cleanupBlobsAfterEventDelete({
+  eventId,
+  eventSlug,
+  photoSourceUrls,
+  privateAssets,
+  coverUrl,
+  derivativePhotoIds,
+  operation,
+}) {
+  let photoFailureCount = 0
+  let photoSkippedCount = 0
+  for (const url of photoSourceUrls) {
+    try {
+      const result = await deleteEventScopedStoredFile({
+        url,
+        eventSlug,
+        kind: 'room-photo',
+        deleteFile: deleteStoredFile,
+      })
+      if (result.skipped) photoSkippedCount += 1
+    } catch (storageError) {
+      photoFailureCount += 1
+      console.error(`[${operation}] Post-delete photo source cleanup failed:`, storageError?.name)
+    }
+  }
+
+  let coverFailure = false
+  if (coverUrl) {
+    try {
+      const cleaned = await deleteManagedEventCover(coverUrl, eventSlug)
+      if (!cleaned) coverFailure = true
+    } catch (storageError) {
+      coverFailure = true
+      console.error(`[${operation}] Post-delete cover cleanup failed:`, storageError?.name)
+    }
+  }
+
+  let privateAssetFailureCount = 0
+  let privateAssetSkippedCount = 0
+  for (const asset of privateAssets) {
+    try {
+      const result = await deleteEventScopedStoredFile({
+        url: asset.url,
+        eventSlug,
+        kind: 'private-asset',
+        deleteFile: deleteStoredFile,
+      })
+      if (result.skipped) privateAssetSkippedCount += 1
+    } catch (storageError) {
+      privateAssetFailureCount += 1
+      console.error(`[${operation}] Post-delete private asset cleanup failed:`, storageError?.name)
+    }
+  }
+
+  // Derivatives are reproducible caches with a reconciliation cron behind
+  // them (lib/server/derivative-cleanup.js), so this stays best-effort and
+  // never throws — its own failures are not folded into the alert below.
+  await deletePhotoDerivativesBatch(derivativePhotoIds, { context: operation })
+
+  const hasPartialFailure =
+    photoFailureCount > 0 ||
+    photoSkippedCount > 0 ||
+    privateAssetFailureCount > 0 ||
+    privateAssetSkippedCount > 0 ||
+    coverFailure
+
+  if (hasPartialFailure) {
+    // sendOpsAlert never throws. Its context is forwarded close to verbatim
+    // (only key-name filtering) to the alert recipient — never pass a URL,
+    // slug or filename here.
+    await sendOpsAlert({
+      severity: 'warning',
+      type: 'ops:event:source_cleanup_partial_failure',
+      title: 'Event deletion: source cleanup partially failed',
+      message:
+        'The event was deleted successfully, but one or more of its source, cover, or private-asset storage objects could not be cleaned up.',
+      context: {
+        eventId,
+        operation,
+        photoCandidateCount: photoSourceUrls.length,
+        photoSkippedCount,
+        photoFailureCount,
+        privateAssetCandidateCount: privateAssets.length,
+        privateAssetSkippedCount,
+        privateAssetFailureCount,
+        coverFailure,
+      },
+    })
+  }
+}
+
 const deleteEvent = withTiming('deleteEvent', async (request, slug) => {
   const clientIp = getClientIp(request)
   const rateLimitCheck = await checkRateLimit(
@@ -950,13 +1067,23 @@ const deleteEvent = withTiming('deleteEvent', async (request, slug) => {
     return json({ error: 'Management token required' }, 403)
   }
 
-  // Authoritative, UNTRUNCATED photo-id snapshot, taken while the rows still
-  // exist. `event.photos` is a presentation list capped at 100 and Production
-  // already holds a 186-photo event, so using it here would silently orphan
-  // every derivative past the cap. Ids only — no url, no storedName.
-  //
-  // Best-effort: a failure here must not introduce a new way for event
-  // deletion to fail, so the reconciliation cron becomes the fallback.
+  // ── PRE-COMMIT snapshots only (STEP 7.15d.3). Zero destructive Blob IO may
+  // occur below this point until the DB delete gate resolves successfully. ──
+
+  // HARD REQUIRED — the authoritative, uncapped source inventory. `event.photos`
+  // is a presentation list capped at 100 and Production already holds a
+  // 186-photo event, so using it here would silently strand every original
+  // past the cap. Deliberately unwrapped: a failure here must abort BEFORE
+  // the Event row is destroyed, so it propagates to the route's top-level
+  // error handler and `repository.deleteEvent` is never reached.
+  const photoSourceUrls = await repository.listPhotoSourcesByEventId(event.id)
+
+  // HARD REQUIRED for the same reason — once the Event cascades away there is
+  // no way to rediscover which PrivateAsset rows belonged to it.
+  const privateAssets = await repository.listPrivateAssetsByEventId(event.id)
+
+  // BEST EFFORT — derivatives are reproducible caches with a reconciliation
+  // cron behind them, so losing this snapshot must not block deletion.
   let derivativePhotoIds = []
   try {
     derivativePhotoIds = await repository.listPhotoIdsByEventId(event.id)
@@ -964,38 +1091,21 @@ const deleteEvent = withTiming('deleteEvent', async (request, slug) => {
     console.error('[deleteEvent] Derivative id snapshot failed for event:', slug, snapshotError?.name)
   }
 
-  for (const photo of event.photos || []) {
-    try {
-      await deleteEventScopedStoredFile({ url: photo.url, eventSlug: event.slug, kind: 'room-photo', deleteFile: deleteStoredFile })
-    } catch (storageError) {
-      console.error('[deleteEvent] Storage cleanup failed for photo:', photo.id, storageError)
-    }
-  }
-
-  if (event.coverUrl) {
-    try {
-      await deleteManagedEventCover(event.coverUrl, slug)
-    } catch (storageError) {
-      console.error('[deleteEvent] Storage cleanup failed for cover:', event.coverUrl, storageError)
-    }
-  }
-
-  const privateAssets = await repository.listPrivateAssetsByEventId(event.id)
-  for (const asset of privateAssets) {
-    try {
-      await deleteEventScopedStoredFile({ url: asset.url, eventSlug: event.slug, kind: 'private-asset', deleteFile: deleteStoredFile })
-    } catch (storageError) {
-      console.error('[deleteEvent] Storage cleanup failed for private asset:', asset.id, storageError)
-    }
-  }
-
+  // ── THE COMMIT GATE. Nothing above this line can delete a Blob; nothing
+  // below runs unless the Event row is provably gone. ────────────────────
   await repository.deleteEvent(slug)
 
-  // Only after the event is provably gone: deleting derivatives for an event
-  // that is still alive would be user-visible cache loss for no reason.
-  await deletePhotoDerivativesBatch(derivativePhotoIds, { context: 'deleteEvent' })
+  await cleanupBlobsAfterEventDelete({
+    eventId: event.id,
+    eventSlug: slug,
+    photoSourceUrls,
+    privateAssets,
+    coverUrl: event.coverUrl,
+    derivativePhotoIds,
+    operation: 'deleteEvent',
+  })
 
-  console.log(`[audit] Management-token deletion of event ${slug} with ${event.photos?.length || 0} photos and ${privateAssets.length} private assets`)
+  console.log(`[audit] Management-token deletion of event ${slug} with ${photoSourceUrls.length} photo sources and ${privateAssets.length} private assets`)
   return json({ deleted: true })
 })
 
@@ -3224,7 +3334,10 @@ const deleteOwnerEvent = withTiming('deleteOwnerEvent', async (request, slug) =>
     return jsonPrivate({ error: 'Event not found' }, 404)
   }
 
-  // See deleteEvent: authoritative uncapped id snapshot, ids only, best-effort.
+  // See deleteEvent for the full rationale — same pre-commit/post-commit split.
+  const photoSourceUrls = await repository.listPhotoSourcesByEventId(event.id)
+  const privateAssets = await repository.listPrivateAssetsByEventId(event.id)
+
   let derivativePhotoIds = []
   try {
     derivativePhotoIds = await repository.listPhotoIdsByEventId(event.id)
@@ -3232,34 +3345,17 @@ const deleteOwnerEvent = withTiming('deleteOwnerEvent', async (request, slug) =>
     console.error('[deleteOwnerEvent] Derivative id snapshot failed for event:', slug, snapshotError?.name)
   }
 
-  for (const photo of event.photos || []) {
-    try {
-      await deleteEventScopedStoredFile({ url: photo.url, eventSlug: event.slug, kind: 'room-photo', deleteFile: deleteStoredFile })
-    } catch (storageError) {
-      console.error('[deleteOwnerEvent] Storage cleanup failed for photo:', photo.id, storageError)
-    }
-  }
-
-  if (event.coverUrl) {
-    try {
-      await deleteManagedEventCover(event.coverUrl, slug)
-    } catch (storageError) {
-      console.error('[deleteOwnerEvent] Storage cleanup failed for cover:', event.coverUrl, storageError)
-    }
-  }
-
-  const privateAssets = await repository.listPrivateAssetsByEventId(event.id)
-  for (const asset of privateAssets) {
-    try {
-      await deleteEventScopedStoredFile({ url: asset.url, eventSlug: event.slug, kind: 'private-asset', deleteFile: deleteStoredFile })
-    } catch (storageError) {
-      console.error('[deleteOwnerEvent] Storage cleanup failed for private asset:', asset.id, storageError)
-    }
-  }
-
   await repository.deleteEvent(slug)
 
-  await deletePhotoDerivativesBatch(derivativePhotoIds, { context: 'deleteOwnerEvent' })
+  await cleanupBlobsAfterEventDelete({
+    eventId: event.id,
+    eventSlug: slug,
+    photoSourceUrls,
+    privateAssets,
+    coverUrl: event.coverUrl,
+    derivativePhotoIds,
+    operation: 'deleteOwnerEvent',
+  })
 
   return jsonPrivate({ deleted: true })
 })
