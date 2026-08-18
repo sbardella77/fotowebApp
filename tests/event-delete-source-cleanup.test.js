@@ -280,6 +280,9 @@ describe('§28 empty source snapshot is valid — deletion proceeds normally', (
     expect(photoCalls).toHaveLength(0)
     expect(deleteStoredFile.mock.calls.some(([url]) => url.includes('/covers/'))).toBe(true)
     expect(deleteStoredFile.mock.calls.some(([url]) => url.includes('/private-delivery/'))).toBe(true)
+    // A fully clean deletion (no skips, no failures) must never fire the
+    // aggregate alert — the condition is failure/skip-driven, not unconditional.
+    expect(sendOpsAlert).not.toHaveBeenCalled()
   })
 })
 
@@ -632,6 +635,71 @@ describe('§38 a derivative-only failure does not affect Event-delete success or
     // Derivative-only failure is recoverable by the reconciliation cron and
     // is deliberately NOT folded into the source-cleanup aggregate alert.
     expect(sendOpsAlert).not.toHaveBeenCalled()
+  })
+})
+
+// ─── STEP 7.15d.3-a: ops alert delivery failure is contained ───────────────
+//
+// sendOpsAlert's own implementation never throws in production (every branch
+// is caught internally and returns a plain result object). This regression
+// exists as a structural boundary anyway: it proves that even if alert
+// DELIVERY itself rejected, that failure could never escape and turn an
+// already-committed Event deletion into a rejected request. The Event row is
+// gone by the time the alert fires, so there is nothing left to roll back —
+// deleteEvent must have been called exactly once, and no destructive call may
+// be retried on account of the alert failing.
+
+describe('STEP 7.15d.3-a: ops alert delivery failure never turns a committed deletion into a failure', () => {
+  it('admin: a partial-failure condition fires the alert, sendOpsAlert rejects → 200/deleted:true, deleteEvent called once, nothing retried', async () => {
+    const failingUrl = roomPhotoUrl(SLUG, 'photo-1')
+    const repository = makeRepository({
+      getEventBySlug: vi.fn().mockResolvedValue(baseEvent()),
+      listPhotoSourcesByEventId: vi.fn().mockResolvedValue([roomPhotoUrl(SLUG, 'photo-0'), failingUrl]),
+    })
+    getGalleryRepository.mockResolvedValue(repository)
+
+    deleteStoredFile.mockImplementation(async (url) => {
+      if (url === failingUrl) throw new Error('photo blob boom')
+    })
+    sendOpsAlert.mockRejectedValue(new Error('resend network timeout'))
+
+    const response = await invoke(managementRequest(`/events/${SLUG}`))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.deleted).toBe(true)
+    expect(repository.deleteEvent).toHaveBeenCalledTimes(1)
+    expect(repository.deleteEvent).toHaveBeenCalledWith(SLUG)
+
+    // Both source candidates were attempted exactly once each — the rejected
+    // alert must not cause any destructive call to be retried.
+    expect(deleteStoredFile).toHaveBeenCalledTimes(2)
+    expect(sendOpsAlert).toHaveBeenCalledTimes(1)
+  })
+
+  it('owner: a partial-failure condition fires the alert, sendOpsAlert rejects → 200/deleted:true, deleteEvent called once, nothing retried', async () => {
+    const failingUrl = roomPhotoUrl(SLUG, 'photo-1')
+    const repository = makeRepository({
+      getEventBySlugAndOwner: vi.fn().mockResolvedValue(baseEvent()),
+      listPhotoSourcesByEventId: vi.fn().mockResolvedValue([roomPhotoUrl(SLUG, 'photo-0'), failingUrl]),
+    })
+    getGalleryRepository.mockResolvedValue(repository)
+
+    deleteStoredFile.mockImplementation(async (url) => {
+      if (url === failingUrl) throw new Error('photo blob boom')
+    })
+    sendOpsAlert.mockRejectedValue(new Error('resend network timeout'))
+
+    const response = await invoke(await ownerRequest(`/owner/events/${SLUG}`))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.deleted).toBe(true)
+    expect(repository.deleteEvent).toHaveBeenCalledTimes(1)
+    expect(repository.deleteEvent).toHaveBeenCalledWith(SLUG)
+
+    expect(deleteStoredFile).toHaveBeenCalledTimes(2)
+    expect(sendOpsAlert).toHaveBeenCalledTimes(1)
   })
 })
 

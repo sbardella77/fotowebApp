@@ -1021,27 +1021,37 @@ async function cleanupBlobsAfterEventDelete({
     coverFailure
 
   if (hasPartialFailure) {
-    // sendOpsAlert never throws. Its context is forwarded close to verbatim
-    // (only key-name filtering) to the alert recipient — never pass a URL,
-    // slug or filename here.
-    await sendOpsAlert({
-      severity: 'warning',
-      type: 'ops:event:source_cleanup_partial_failure',
-      title: 'Event deletion: source cleanup partially failed',
-      message:
-        'The event was deleted successfully, but one or more of its source, cover, or private-asset storage objects could not be cleaned up.',
-      context: {
-        eventId,
-        operation,
-        photoCandidateCount: photoSourceUrls.length,
-        photoSkippedCount,
-        photoFailureCount,
-        privateAssetCandidateCount: privateAssets.length,
-        privateAssetSkippedCount,
-        privateAssetFailureCount,
-        coverFailure,
-      },
-    })
+    // sendOpsAlert's own implementation never throws today (every branch,
+    // including the provider call, is caught and returns a plain result
+    // object). This try/catch is a structural boundary, not a hedge against
+    // a known failure mode: the Event row is already gone by the time we get
+    // here, so alert *delivery* must never be able to turn a committed
+    // deletion into a rejected request, even under a future change to
+    // ops-alerts.js. Its context is forwarded close to verbatim (only
+    // key-name filtering) to the alert recipient — never pass a URL, slug or
+    // filename here.
+    try {
+      await sendOpsAlert({
+        severity: 'warning',
+        type: 'ops:event:source_cleanup_partial_failure',
+        title: 'Event deletion: source cleanup partially failed',
+        message:
+          'The event was deleted successfully, but one or more of its source, cover, or private-asset storage objects could not be cleaned up.',
+        context: {
+          eventId,
+          operation,
+          photoCandidateCount: photoSourceUrls.length,
+          photoSkippedCount,
+          photoFailureCount,
+          privateAssetCandidateCount: privateAssets.length,
+          privateAssetSkippedCount,
+          privateAssetFailureCount,
+          coverFailure,
+        },
+      })
+    } catch (alertError) {
+      console.error(`[${operation}] Post-delete ops alert failed:`, alertError?.name)
+    }
   }
 }
 
