@@ -677,12 +677,16 @@ describe('dormancy — STEP 7.15e narrows this to "no browser/public-response wi
     expect(route.src).toMatch(/ensureDisplayDerivative\s*\(/)
   })
 
-  it('the only product importers are derivative-cleanup.js (path builder only) and the catch-all route (ensure only)', async () => {
+  it('the only product importers are derivative-cleanup.js (path builder only), the catch-all route (ensure only), and the backfill operator (STEP 7.15f.1-c, ensure + path builder)', async () => {
     const importers = (await productSources())
       .filter(({ path }) => !path.endsWith('display-derivative.js'))
       .filter(({ src }) => /display-derivative/.test(src))
 
-    expect(importers.map(({ path }) => path.split('/').pop()).sort()).toEqual(['derivative-cleanup.js', 'route.js'])
+    expect(importers.map(({ path }) => path.split('/').pop()).sort()).toEqual([
+      'derivative-cleanup.js',
+      'display-backfill.js',
+      'route.js',
+    ])
 
     const cleanup = importers.find(({ path }) => path.endsWith('derivative-cleanup.js'))
     const cleanupSpecifiers = /import\s*\{([^}]*)\}\s*from\s*'@\/lib\/server\/display-derivative'/.exec(cleanup.src)[1]
@@ -691,6 +695,19 @@ describe('dormancy — STEP 7.15e narrows this to "no browser/public-response wi
     const route = importers.find(({ path }) => isCatchAllRoute(path))
     const routeSpecifiers = /import\s*\{([^}]*)\}\s*from\s*'@\/lib\/server\/display-derivative'/.exec(route.src)[1]
     expect(routeSpecifiers.split(',').map((s) => s.trim()).filter(Boolean)).toEqual(['ensureDisplayDerivative'])
+
+    // The backfill operator (lib/server/display-backfill.js) is not itself a
+    // route or a route-adjacent file, so it's excluded from isCatchAllRoute
+    // and needs its own explicit check: it may reuse both the ensure API and
+    // the path builder (it needs both — ensure to fill gaps, buildPath to
+    // correlate DB rows against the Blob inventory) but never the
+    // byte-returning `getDisplayDerivative`.
+    const backfill = importers.find(({ path }) => path.endsWith('display-backfill.js'))
+    const backfillSpecifiers = /import\s*\{([^}]*)\}\s*from\s*'@\/lib\/server\/display-derivative'/.exec(backfill.src)[1]
+    expect(backfillSpecifiers.split(',').map((s) => s.trim()).filter(Boolean).sort()).toEqual([
+      'buildDisplayDerivativePath',
+      'ensureDisplayDerivative',
+    ])
   })
 
   it('does not derive a public URL — that belongs to the DTO cutover step', async () => {
