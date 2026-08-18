@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { BlobUploadKind, BlobUploadSessionStatus } from '@prisma/client'
 import { BlobNotFoundError } from '@vercel/blob'
+import sharp from 'sharp'
 import {
   BlobUploadCompletionError,
   completePrivateAssetBlobUpload,
@@ -13,6 +14,23 @@ import { blobUploadSessionCompleteSchema } from '../lib/server/schemas.js'
 const NOW = new Date('2026-08-09T10:00:00.000Z')
 const FUTURE = new Date(NOW.getTime() + 3_600_000)
 const PAST = new Date(NOW.getTime() - 1000)
+
+// ─── Source-integrity fixtures (STEP 7.15g) ────────────────────────────────────
+//
+// A real, Sharp-decodable JPEG — every test that reaches the new
+// source-validation step needs fetchSourceBuffer to resolve to genuinely
+// valid image bytes, or it fails validation exactly as production would.
+// DEFAULT_EXPECTED_SIZE is derived FROM this buffer (not the reverse) so the
+// default headResult.size/session.expectedSize/actual-buffer-length stay
+// mutually consistent everywhere a test doesn't deliberately override them.
+
+const VALID_JPEG_BUFFER = await sharp({
+  create: { width: 4, height: 4, channels: 3, background: { r: 120, g: 140, b: 160 } },
+})
+  .jpeg({ quality: 82 })
+  .toBuffer()
+
+const DEFAULT_EXPECTED_SIZE = VALID_JPEG_BUFFER.length
 
 // ─── Blob URL helpers ─────────────────────────────────────────────────────────
 
@@ -32,7 +50,7 @@ function makeSession(overrides = {}) {
     expectedPathname: EXPECTED_PATHNAME,
     originalName: 'photo.jpg',
     mimeType: 'image/jpeg',
-    expectedSize: 204800,
+    expectedSize: DEFAULT_EXPECTED_SIZE,
     uploaderName: null,
     caption: null,
     momentId: null,
@@ -89,7 +107,7 @@ function makeHeadResult(session = {}, overrides = {}) {
   return {
     url,
     pathname,
-    size: session.expectedSize ?? 204800,
+    size: session.expectedSize ?? DEFAULT_EXPECTED_SIZE,
     contentType: session.mimeType ?? 'image/jpeg',
     ...overrides,
   }
@@ -309,6 +327,7 @@ function makeDefaultArgs(overrides = {}) {
     sessionId: session.id,
     headBlob: vi.fn(async () => makeHeadResult(session)),
     deleteBlob: vi.fn(async () => {}),
+    fetchSourceBuffer: vi.fn(async () => VALID_JPEG_BUFFER),
     checkEntitlement: vi.fn(async () => ({
       allowed: true,
       current: 0,
@@ -500,12 +519,15 @@ describe('head verification', () => {
     expect(result.photo.mimeType).toBe('image/jpeg')
   })
 
-  it('15. URL e size del record Photo provengono da headResult, non dalla sessione', async () => {
+  it('15. URL e size del record Photo provengono da headResult/buffer validato, non dalla sessione', async () => {
+    // headSize must equal the actually-fetched buffer's length (STEP 7.15g
+    // consistency gate), but still deliberately differs from the session's
+    // own expectedSize (204800) to prove Photo.size is not an echo of it.
     const session = makeSession({ expectedSize: 204800 })
     const event = makeEvent()
     const prisma = makeFakePrisma({ sessions: [session], events: [event] })
     const headUrl = `https://abc123.public.blob.vercel-storage.com/${EXPECTED_PATHNAME}`
-    const headSize = 98765
+    const headSize = VALID_JPEG_BUFFER.length
     const headBlob = vi.fn(async () => ({
       url: headUrl,
       pathname: EXPECTED_PATHNAME,
@@ -519,6 +541,206 @@ describe('head verification', () => {
     })
     expect(result.photo.url).toBe(headUrl)
     expect(result.photo.size).toBe(headSize)
+    expect(headSize).not.toBe(204800)
+  })
+})
+
+// ─── Source-integrity validation tests (STEP 7.15g) ────────────────────────────
+
+const PLAIN_TEXT_BUFFER = Buffer.from(
+  'This is not an image, just plain text content declared as a JPEG for testing.',
+  'utf8',
+)
+
+// Truncated deep inside the IDAT stream (not right after IHDR): metadata
+// still parses correctly, but not enough compressed pixel data survives for
+// a real decode — empirically verified to reproduce metadata-succeeds/
+// pixel-decode-fails, the exact split STEP 7.15f.3-b found in the 5 legacy
+// corrupt PNGs. Fully synthetic, no Production bytes.
+async function makeTruncatedPngBuffer() {
+  const full = await sharp({
+    create: { width: 64, height: 64, channels: 3, background: { r: 10, g: 20, b: 30 } },
+  })
+    .png()
+    .toBuffer()
+  return full.subarray(0, Math.floor(full.length * 0.9))
+}
+
+async function makeValidPngBuffer() {
+  return sharp({
+    create: { width: 4, height: 4, channels: 3, background: { r: 200, g: 50, b: 50 } },
+  })
+    .png()
+    .toBuffer()
+}
+
+describe('source-integrity validation (STEP 7.15g)', () => {
+  it('valid upload: source fetched exactly once, before the transaction, buffer reused', async () => {
+    const args = makeDefaultArgs()
+    const result = await completeRoomPhotoBlobUpload(args)
+    expect(args.fetchSourceBuffer).toHaveBeenCalledTimes(1)
+    expect(args.fetchSourceBuffer).toHaveBeenCalledWith(expect.stringContaining(EXPECTED_PATHNAME))
+    expect(result.sourceBuffer).toBe(VALID_JPEG_BUFFER)
+    expect(result.photo.mimeType).toBe('image/jpeg')
+    expect(result.idempotent).toBe(false)
+  })
+
+  it('plain text declared image/jpeg → invalid_image_content (422), Photo not created, cleanup runs', async () => {
+    const session = makeSession()
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const headBlob = vi.fn(async () => makeHeadResult(session, { size: PLAIN_TEXT_BUFFER.length }))
+    const deleteBlob = vi.fn(async () => {})
+    await expect(
+      completeRoomPhotoBlobUpload({
+        ...makeDefaultArgs(),
+        prisma,
+        headBlob,
+        deleteBlob,
+        fetchSourceBuffer: vi.fn(async () => PLAIN_TEXT_BUFFER),
+      }),
+    ).rejects.toMatchObject({ code: 'invalid_image_content', status: 422 })
+    expect(prisma._photos.size).toBe(0)
+    expect(deleteBlob).toHaveBeenCalled()
+    const finalSession = await prisma.blobUploadSession.findUnique({ where: { id: session.id } })
+    expect(finalSession.status).toBe(BlobUploadSessionStatus.REJECTED)
+  })
+
+  it('truncated PNG (valid signature+metadata, pixel decode fails) → invalid_image_content (422), cleanup runs', async () => {
+    const session = makeSession({ mimeType: 'image/png' })
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const truncatedPng = await makeTruncatedPngBuffer()
+    const headBlob = vi.fn(async () => makeHeadResult(session, { contentType: 'image/png', size: truncatedPng.length }))
+    const deleteBlob = vi.fn(async () => {})
+    await expect(
+      completeRoomPhotoBlobUpload({
+        ...makeDefaultArgs(),
+        prisma,
+        headBlob,
+        deleteBlob,
+        fetchSourceBuffer: vi.fn(async () => truncatedPng),
+      }),
+    ).rejects.toMatchObject({ code: 'invalid_image_content', status: 422 })
+    expect(prisma._photos.size).toBe(0)
+    expect(deleteBlob).toHaveBeenCalled()
+  })
+
+  it('declared/provider agree on image/jpeg but real bytes are a valid PNG → image_content_type_mismatch (422)', async () => {
+    const session = makeSession({ mimeType: 'image/jpeg' })
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const realPng = await makeValidPngBuffer()
+    // headBlob's contentType still says image/jpeg — passes the EXISTING
+    // blob_mime_mismatch check — only the new pixel-derived validator can
+    // catch that the actual bytes are a real PNG.
+    const headBlob = vi.fn(async () => makeHeadResult(session, { contentType: 'image/jpeg', size: realPng.length }))
+    const deleteBlob = vi.fn(async () => {})
+    await expect(
+      completeRoomPhotoBlobUpload({
+        ...makeDefaultArgs(),
+        prisma,
+        headBlob,
+        deleteBlob,
+        fetchSourceBuffer: vi.fn(async () => realPng),
+      }),
+    ).rejects.toMatchObject({ code: 'image_content_type_mismatch', status: 422 })
+    expect(prisma._photos.size).toBe(0)
+    expect(deleteBlob).toHaveBeenCalled()
+  })
+
+  it('source fetch fails → image_validation_unavailable (503), no cleanup, session stays retryable', async () => {
+    const session = makeSession()
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const deleteBlob = vi.fn(async () => {})
+    await expect(
+      completeRoomPhotoBlobUpload({
+        ...makeDefaultArgs(),
+        prisma,
+        deleteBlob,
+        fetchSourceBuffer: vi.fn(async () => {
+          throw new Error('network blip')
+        }),
+      }),
+    ).rejects.toMatchObject({ code: 'image_validation_unavailable', status: 503 })
+    expect(prisma._photos.size).toBe(0)
+    expect(deleteBlob).not.toHaveBeenCalled()
+    const finalSession = await prisma.blobUploadSession.findUnique({ where: { id: session.id } })
+    expect(finalSession.status).not.toBe(BlobUploadSessionStatus.REJECTED)
+  })
+
+  it('fetched buffer length disagrees with trusted headResult.size → image_validation_unavailable (503), no cleanup', async () => {
+    const session = makeSession()
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const deleteBlob = vi.fn(async () => {})
+    await expect(
+      completeRoomPhotoBlobUpload({
+        ...makeDefaultArgs(),
+        prisma,
+        deleteBlob,
+        // headResult.size (from makeHeadResult/session default) will not
+        // match this buffer's length.
+        fetchSourceBuffer: vi.fn(async () => Buffer.from('short')),
+      }),
+    ).rejects.toMatchObject({ code: 'image_validation_unavailable', status: 503 })
+    expect(prisma._photos.size).toBe(0)
+    expect(deleteBlob).not.toHaveBeenCalled()
+  })
+
+  it('idempotent COMPLETED session: fetchSourceBuffer is never called', async () => {
+    const existingPhoto = makePhoto()
+    const session = makeSession({
+      status: BlobUploadSessionStatus.COMPLETED,
+      resultId: existingPhoto.id,
+    })
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event], photos: [existingPhoto] })
+    const fetchSourceBuffer = vi.fn(async () => VALID_JPEG_BUFFER)
+    const result = await completeRoomPhotoBlobUpload({
+      ...makeDefaultArgs(),
+      prisma,
+      fetchSourceBuffer,
+    })
+    expect(fetchSourceBuffer).not.toHaveBeenCalled()
+    expect(result.idempotent).toBe(true)
+    expect(result.sourceBuffer).toBeUndefined()
+  })
+
+  it('valid clean synthetic PNG passes end to end (regression against over-broad rejection)', async () => {
+    const session = makeSession({ mimeType: 'image/png' })
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const validPng = await makeValidPngBuffer()
+    const headBlob = vi.fn(async () =>
+      makeHeadResult(session, { contentType: 'image/png', size: validPng.length }),
+    )
+    const result = await completeRoomPhotoBlobUpload({
+      ...makeDefaultArgs(),
+      prisma,
+      headBlob,
+      fetchSourceBuffer: vi.fn(async () => validPng),
+    })
+    expect(result.photo.mimeType).toBe('image/png')
+    expect(result.photo.size).toBe(validPng.length)
+  })
+
+  it('throws before the transaction: no Photo row exists on invalid content', async () => {
+    const session = makeSession()
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const transactionSpy = vi.spyOn(prisma, '$transaction')
+    const headBlob = vi.fn(async () => makeHeadResult(session, { size: PLAIN_TEXT_BUFFER.length }))
+    await expect(
+      completeRoomPhotoBlobUpload({
+        ...makeDefaultArgs(),
+        prisma,
+        headBlob,
+        fetchSourceBuffer: vi.fn(async () => PLAIN_TEXT_BUFFER),
+      }),
+    ).rejects.toMatchObject({ code: 'invalid_image_content' })
+    expect(transactionSpy).not.toHaveBeenCalled()
   })
 })
 

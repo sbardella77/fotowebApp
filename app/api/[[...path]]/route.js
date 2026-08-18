@@ -119,6 +119,7 @@ import { deleteEventScopedStoredFile } from '@/lib/server/event-scoped-storage-d
 import { deletePhotoDerivatives, deletePhotoDerivativesBatch } from '@/lib/server/derivative-cleanup'
 import { ensureDisplayDerivative } from '@/lib/server/display-derivative'
 import { getPhotoBuffer } from '@/lib/server/download-utils'
+import { validateRoomPhotoSource, PhotoSourceValidationError } from '@/lib/server/photo-source-validation'
 import { sendOpsAlert } from '@/lib/server/ops-alerts'
 import {
   checkOwnerRoomCreationEntitlement,
@@ -1448,14 +1449,18 @@ const uploadChunk = async (request) => {
  * always caught here and never rethrown.
  *
  * @param {{id: string, url: string}} photo
- * @param {{operation: string}} context   log label only — never logged verbatim with anything sensitive
+ * @param {{operation: string, sourceBuffer?: Buffer}} context   log label only — never
+ *   logged verbatim with anything sensitive. `sourceBuffer`, when given (STEP
+ *   7.15g — the buffer already fetched+validated during upload completion),
+ *   is reused as-is instead of a second fetch; omitted on every other call
+ *   site (moderation, idempotent retries), which still fetch normally.
  * @returns {Promise<{created: boolean}>} `created:false` on any failure, indistinguishable from a cache HIT
  */
-async function ensurePhotoDisplayDerivative(photo, { operation }) {
+async function ensurePhotoDisplayDerivative(photo, { operation, sourceBuffer }) {
   try {
     return await ensureDisplayDerivative({
       photoId: photo.id,
-      getSourceBuffer: () => getPhotoBuffer(photo.url),
+      getSourceBuffer: sourceBuffer ? async () => sourceBuffer : () => getPhotoBuffer(photo.url),
     })
   } catch (error) {
     // Safe context only: photoId (opaque) and the operation label. Never the
@@ -1529,6 +1534,7 @@ const completeUpload = withTiming('completeUpload', async (request) => {
         sessionId: payload.sessionId,
         headBlob: (pathname) => head(pathname),
         deleteBlob: (url) => deleteStoredFile(url),
+        fetchSourceBuffer: (url) => getPhotoBuffer(url),
         checkEntitlement: checkRoomUploadEntitlement,
       })
     } catch (error) {
@@ -1564,7 +1570,12 @@ const completeUpload = withTiming('completeUpload', async (request) => {
     // deliberate: a retry after a first-attempt generation failure gets
     // another chance for free, and a retry after success costs only one
     // Blob `head` thanks to the ensure-mode cache-HIT path.
-    await ensurePhotoDisplayDerivative(result.photo, { operation: 'completeUpload' })
+    //
+    // result.sourceBuffer (STEP 7.15g) is the exact buffer already fetched
+    // and validated during completion — present only on a fresh (non-
+    // idempotent) success, undefined on the idempotent path, in which case
+    // this falls back to its own fetch exactly as before.
+    await ensurePhotoDisplayDerivative(result.photo, { operation: 'completeUpload', sourceBuffer: result.sourceBuffer })
 
     const repository = await getGalleryRepository()
     const freshEvent = await repository.getEventBySlug(result.eventSlug)
@@ -1619,12 +1630,35 @@ const completeUpload = withTiming('completeUpload', async (request) => {
     }
   }
 
+  // Source-integrity validation (STEP 7.15g) — parity with the Blob path.
+  // Reads the just-assembled file exactly once; reused below for eager
+  // display generation instead of a second read. Dev-only in practice
+  // (localStorageDriver refuses to run under VERCEL), but the same
+  // content-integrity contract applies here as on the Blob path.
+  let localSourceBuffer
+  try {
+    localSourceBuffer = await getPhotoBuffer(fileResult.url)
+  } catch {
+    return json({ error: 'Upload service is temporarily unavailable.', code: 'image_validation_unavailable' }, 503)
+  }
+
+  let validatedLocalSource
+  try {
+    validatedLocalSource = await validateRoomPhotoSource(localSourceBuffer, { declaredMimeType: fileResult.mimeType })
+  } catch (error) {
+    if (error instanceof PhotoSourceValidationError) {
+      const code = error.code === 'IMAGE_CONTENT_TYPE_MISMATCH' ? 'image_content_type_mismatch' : 'invalid_image_content'
+      return json({ error: 'This file could not be processed as an image.', code }, 422)
+    }
+    throw error
+  }
+
   const photo = await repository.createPhoto({
     eventId: event.id,
     originalName: fileResult.originalName,
     storedName: fileResult.storedName,
-    mimeType: fileResult.mimeType,
-    size: fileResult.size,
+    mimeType: validatedLocalSource.actualMimeType,
+    size: validatedLocalSource.size,
     url: fileResult.url,
     uploaderName: payload.uploaderName,
     caption: payload.caption,
@@ -1633,8 +1667,9 @@ const completeUpload = withTiming('completeUpload', async (request) => {
 
   // Eager, best-effort, post-commit (STEP 7.15e) — parity with the Blob path.
   // `createPhoto` has already resolved successfully above, so `photo.id`/
-  // `photo.url` are for a durably-committed row.
-  await ensurePhotoDisplayDerivative(photo, { operation: 'completeUpload' })
+  // `photo.url` are for a durably-committed row. Reuses the same buffer
+  // already fetched and validated above — no second read.
+  await ensurePhotoDisplayDerivative(photo, { operation: 'completeUpload', sourceBuffer: localSourceBuffer })
 
   const freshEvent = await repository.getEventBySlug(event.slug)
 
