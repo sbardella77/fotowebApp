@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import sharp from 'sharp'
 
 // STEP 7.15e — eager, best-effort display-v1 generation for new Photos, and
 // regeneration when a Photo returns to VISIBLE.
@@ -72,6 +73,18 @@ import { getStorageDriver, localStorageDriver } from '@/lib/server/storage'
 import { completeRoomPhotoBlobUpload } from '@/lib/server/blob-upload-completion'
 import { ensureDisplayDerivative } from '@/lib/server/display-derivative'
 import { getPhotoBuffer } from '@/lib/server/download-utils'
+
+// A real, Sharp-decodable JPEG (STEP 7.15g) — the local path's
+// source-integrity validation is real code here (unlike the Blob path,
+// whose completeRoomPhotoBlobUpload — and therefore its own internal
+// validation call — is wholesale-mocked above), so getPhotoBuffer's default
+// resolved value must be a genuinely valid image for local-path tests that
+// expect completion to succeed.
+const VALID_JPEG_BUFFER = await sharp({
+  create: { width: 4, height: 4, channels: 3, background: { r: 90, g: 90, b: 90 } },
+})
+  .jpeg({ quality: 82 })
+  .toBuffer()
 
 const ORIGINAL_ENV = { ...process.env }
 const restoreEnv = () => {
@@ -148,6 +161,34 @@ describe('§44 Blob ROOM_PHOTO completion: eager generation ordering and count',
     expect(response.status).toBe(201)
     expect(body.photo.id).toBe(PHOTO_ID)
     expect(body.idempotent).toBe(false)
+  })
+
+  it('STEP 7.15g: result.sourceBuffer is reused for ensure and never leaks into the HTTP response', async () => {
+    const validatedBuffer = Buffer.from('already-fetched-and-validated-pixel-bytes')
+    completeRoomPhotoBlobUpload.mockResolvedValue({
+      photo: { id: PHOTO_ID, url: PHOTO_URL },
+      eventSlug: SLUG,
+      idempotent: false,
+      sourceBuffer: validatedBuffer,
+    })
+    let capturedGetSourceBuffer
+    ensureDisplayDerivative.mockImplementation(async ({ getSourceBuffer }) => {
+      capturedGetSourceBuffer = getSourceBuffer
+      return { created: true }
+    })
+
+    const response = await doComplete({ sessionId: 'session-abc12345' })
+    const rawBody = await response.text()
+
+    // Reused, not re-fetched.
+    expect(getPhotoBuffer).not.toHaveBeenCalled()
+    expect(await capturedGetSourceBuffer()).toBe(validatedBuffer)
+
+    // Never serialized into the response, in any shape.
+    expect(rawBody).not.toContain('already-fetched-and-validated-pixel-bytes')
+    const body = JSON.parse(rawBody)
+    expect(body.sourceBuffer).toBeUndefined()
+    expect(Object.keys(body)).toEqual(['photo', 'event', 'idempotent'])
   })
 })
 
@@ -233,6 +274,9 @@ describe('§45 local/chunk fallback: eager generation ordering and count', () =>
     // The local path's optional entitlement check only runs `if (prisma)` —
     // skip it here, it is unrelated to display generation.
     getPrismaClient.mockResolvedValue(null)
+    // Real source-integrity validation runs on this path (STEP 7.15g) — the
+    // outer default (plain text) would fail it, so give it real image bytes.
+    getPhotoBuffer.mockResolvedValue(VALID_JPEG_BUFFER)
   })
 
   it('createPhoto resolves BEFORE ensure, exactly one attempt, response contract unchanged', async () => {
@@ -303,6 +347,26 @@ describe('§45 local/chunk fallback: eager generation ordering and count', () =>
 
     expect(response.status).toBe(201)
     expect(body.photo.id).toBe(PHOTO_ID)
+  })
+
+  it('STEP 7.15g: invalid source content → createPhoto and ensure are never called', async () => {
+    localStorageDriver.completeUploadSession.mockResolvedValue({
+      eventSlug: SLUG,
+      originalName: 'photo.jpg',
+      storedName: 'stored-photo.jpg',
+      mimeType: 'image/jpeg',
+      size: 1234,
+      url: '/uploads/stored-photo.jpg',
+    })
+    getPhotoBuffer.mockResolvedValue(Buffer.from('not actually an image'))
+    const createPhoto = vi.fn()
+    getGalleryRepository.mockResolvedValue(makePhotoRepository({ createPhoto }))
+
+    const response = await doComplete({ sessionId: 'session-abc12345' })
+
+    expect(response.status).toBe(422)
+    expect(createPhoto).not.toHaveBeenCalled()
+    expect(ensureDisplayDerivative).not.toHaveBeenCalled()
   })
 })
 
