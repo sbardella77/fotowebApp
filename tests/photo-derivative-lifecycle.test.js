@@ -28,6 +28,15 @@ vi.mock('@/lib/server/derivative-cleanup', () => ({
   deletePhotoDerivativesBatch: vi.fn().mockResolvedValue({ deleted: 0, failed: 0 }),
 }))
 
+// STEP 7.15e: mocked at the module level, same as deletePhotoDerivatives —
+// this file proves the HTTP handlers call the right primitive with the
+// right args at the right time, not that the primitive itself works (that
+// is display-derivative.test.js's job).
+vi.mock('@/lib/server/display-derivative', async (importOriginal) => {
+  const actual = await importOriginal()
+  return { ...actual, ensureDisplayDerivative: vi.fn().mockResolvedValue({ created: false }) }
+})
+
 vi.mock('@/lib/server/storage', async (importOriginal) => {
   const actual = await importOriginal()
   return { ...actual, deleteStoredFile: vi.fn().mockResolvedValue(undefined) }
@@ -55,7 +64,7 @@ import { deleteStoredFile } from '@/lib/server/storage'
 import { getGalleryRepository } from '@/lib/server/gallery-repository'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { buildDerivativePath } from '@/lib/server/download-derivative'
-import { buildDisplayDerivativePath } from '@/lib/server/display-derivative'
+import { buildDisplayDerivativePath, ensureDisplayDerivative } from '@/lib/server/display-derivative'
 
 const ALLOWED_ORIGIN = 'https://snaprooms.app'
 const OWNER_EMAIL = 'owner@example.com'
@@ -195,6 +204,7 @@ beforeEach(async () => {
   process.env.APP_URL = ALLOWED_ORIGIN
   deletePhotoDerivatives.mockResolvedValue({ deleted: 2, failed: 0 })
   deletePhotoDerivativesBatch.mockResolvedValue({ deleted: 0, failed: 0 })
+  ensureDisplayDerivative.mockResolvedValue({ created: false })
 })
 
 afterEach(() => {
@@ -343,6 +353,8 @@ describe('§34 VISIBLE → HIDDEN', () => {
     expect(response.status).toBe(200)
     expect(deletePhotoDerivatives).toHaveBeenCalledTimes(1)
     expect(deletePhotoDerivatives.mock.calls[0][0]).toBe(PHOTO_ID)
+    // §28/§51 (STEP 7.15e): HIDDEN never also generates — no delete-then-ensure.
+    expect(ensureDisplayDerivative).not.toHaveBeenCalled()
   })
 
   it('owner reject deletes derivatives for the hidden photo', async () => {
@@ -354,6 +366,7 @@ describe('§34 VISIBLE → HIDDEN', () => {
 
     expect(response.status).toBe(200)
     expect(deletePhotoDerivatives).toHaveBeenCalledTimes(1)
+    expect(ensureDisplayDerivative).not.toHaveBeenCalled()
   })
 
   it('cleanup failure does not revert the status or the success response', async () => {
@@ -398,23 +411,85 @@ describe('§34 / §12 HIDDEN → VISIBLE', () => {
     expect(deletePhotoDerivatives).not.toHaveBeenCalled()
   })
 
-  it('approve generates nothing — display generation is a later workstream', async () => {
-    // DISPLAY_REGEN_ON_VISIBLE_TRANSITION is deliberately PENDING: this STEP
-    // deletes and reconciles only. If a generation call ever appears on this
-    // path, it must arrive with its own step, not by accident here.
-    const displayModule = await import('@/lib/server/display-derivative')
-    const spy = vi.spyOn(displayModule, 'getDisplayDerivative')
+  // STEP 7.15e: DISPLAY_REGEN_ON_VISIBLE_TRANSITION is now implemented. The
+  // tests below replace the old "approve generates nothing" placeholder,
+  // which is now the wrong behavior — this is the STEP that intentionally
+  // overturns it, not an accidental regression.
 
+  it('§49 admin: approve (resulting VISIBLE) ensures the display derivative exactly once', async () => {
     getGalleryRepository.mockResolvedValue(
       makeRepository({ setPhotoStatus: vi.fn().mockResolvedValue(photoRecord({ status: 'VISIBLE' })) }),
     )
     const request = await adminRequest(`/admin/photos/${PHOTO_ID}`, 'PATCH')
     request.json = async () => ({ action: 'approve' })
 
-    await invoke(PATCH, request)
+    const response = await invoke(PATCH, request)
 
-    expect(spy).not.toHaveBeenCalled()
-    spy.mockRestore()
+    expect(response.status).toBe(200)
+    expect(ensureDisplayDerivative).toHaveBeenCalledTimes(1)
+    expect(ensureDisplayDerivative.mock.calls[0][0].photoId).toBe(PHOTO_ID)
+  })
+
+  it('§50 owner: approve (resulting VISIBLE) ensures the display derivative exactly once', async () => {
+    getGalleryRepository.mockResolvedValue(
+      makeRepository({ setPhotoStatusByOwner: vi.fn().mockResolvedValue(photoRecord({ status: 'VISIBLE' })) }),
+    )
+    const request = await ownerRequest(`/owner/photos/${PHOTO_ID}`, 'PATCH')
+    request.json = async () => ({ action: 'approve' })
+
+    const response = await invoke(PATCH, request)
+
+    expect(response.status).toBe(200)
+    expect(ensureDisplayDerivative).toHaveBeenCalledTimes(1)
+    expect(ensureDisplayDerivative.mock.calls[0][0].photoId).toBe(PHOTO_ID)
+  })
+
+  it('§27 a generation failure does not revert the approval or fail the response (admin)', async () => {
+    ensureDisplayDerivative.mockRejectedValue(new Error('blob boom'))
+    getGalleryRepository.mockResolvedValue(
+      makeRepository({ setPhotoStatus: vi.fn().mockResolvedValue(photoRecord({ status: 'VISIBLE' })) }),
+    )
+    const request = await adminRequest(`/admin/photos/${PHOTO_ID}`, 'PATCH')
+    request.json = async () => ({ action: 'approve' })
+
+    const response = await invoke(PATCH, request)
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.photo.status).toBe('VISIBLE')
+  })
+
+  it('§27 a generation failure does not revert the approval or fail the response (owner)', async () => {
+    ensureDisplayDerivative.mockRejectedValue(new Error('blob boom'))
+    getGalleryRepository.mockResolvedValue(
+      makeRepository({ setPhotoStatusByOwner: vi.fn().mockResolvedValue(photoRecord({ status: 'VISIBLE' })) }),
+    )
+    const request = await ownerRequest(`/owner/photos/${PHOTO_ID}`, 'PATCH')
+    request.json = async () => ({ action: 'approve' })
+
+    const response = await invoke(PATCH, request)
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.photo.status).toBe('VISIBLE')
+  })
+
+  it('§29 an idempotent VISIBLE→VISIBLE re-approve is a safe repair, not treated as an error', async () => {
+    getGalleryRepository.mockResolvedValue(
+      makeRepository({ setPhotoStatus: vi.fn().mockResolvedValue(photoRecord({ status: 'VISIBLE' })) }),
+    )
+    const request1 = await adminRequest(`/admin/photos/${PHOTO_ID}`, 'PATCH')
+    request1.json = async () => ({ action: 'approve' })
+    const request2 = await adminRequest(`/admin/photos/${PHOTO_ID}`, 'PATCH')
+    request2.json = async () => ({ action: 'approve' })
+
+    const response1 = await invoke(PATCH, request1)
+    const response2 = await invoke(PATCH, request2)
+
+    expect(response1.status).toBe(200)
+    expect(response2.status).toBe(200)
+    expect(ensureDisplayDerivative).toHaveBeenCalledTimes(2)
+    expect(deletePhotoDerivatives).not.toHaveBeenCalled()
   })
 })
 

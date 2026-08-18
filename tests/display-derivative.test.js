@@ -444,13 +444,204 @@ describe('storage-error semantics', () => {
   })
 })
 
-describe('dormancy — the primitive is not wired into any product flow', () => {
+// ─── ensureDisplayDerivative — STEP 7.15e ────────────────────────────────
+//
+// Shares the exact same probe/lock/waiter/single-flight/produce/put-race
+// orchestration as getDisplayDerivative above (same mocks, same module) —
+// the only thing under test here is the return-shape/no-bytes contract.
+
+describe('ensure mode — cache HIT (merge-blocking: §36)', () => {
+  it('returns created:false with ZERO byte fetch, ZERO source fetch, ZERO transform, ZERO put', async () => {
+    derivativeExists()
+    const { ensureDisplayDerivative } = await loadDisplay()
+
+    const result = await ensureDisplayDerivative({ photoId: PHOTO_ID, getSourceBuffer })
+
+    expect(result).toEqual({ created: false })
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(getSourceBuffer).not.toHaveBeenCalled()
+    expect(sharpMock).not.toHaveBeenCalled()
+    expect(putMock).not.toHaveBeenCalled()
+    expect(headMock).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('ensure mode — miss, acquired (§37)', () => {
+  it('re-probes, fetches source once, transforms once, puts once, returns created:true', async () => {
+    headMock
+      .mockRejectedValueOnce(new FakeBlobNotFoundError())
+      .mockRejectedValueOnce(new FakeBlobNotFoundError())
+    tryAcquireDistributedLockMock.mockResolvedValue(ACQUIRED)
+    const { ensureDisplayDerivative } = await loadDisplay()
+
+    const result = await ensureDisplayDerivative({ photoId: PHOTO_ID, getSourceBuffer })
+
+    expect(result).toEqual({ created: true })
+    expect(getSourceBuffer).toHaveBeenCalledTimes(1)
+    expect(toBufferMock).toHaveBeenCalledTimes(1)
+    expect(putMock).toHaveBeenCalledWith(DISPLAY_PATH, DISPLAY_BYTES, {
+      access: 'public',
+      contentType: 'image/jpeg',
+      addRandomSuffix: false,
+      allowOverwrite: false,
+      cacheControlMaxAge: 31_536_000,
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('a derivative that appears between probe and lock returns created:false, never transforms', async () => {
+    headMock
+      .mockRejectedValueOnce(new FakeBlobNotFoundError())
+      .mockResolvedValueOnce({ url: DISPLAY_URL })
+    tryAcquireDistributedLockMock.mockResolvedValue(ACQUIRED)
+    const { ensureDisplayDerivative } = await loadDisplay()
+
+    const result = await ensureDisplayDerivative({ photoId: PHOTO_ID, getSourceBuffer })
+
+    expect(result).toEqual({ created: false })
+    expect(sharpMock).not.toHaveBeenCalled()
+    expect(getSourceBuffer).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('ensure mode — healthy concurrency (§38)', () => {
+  it('N concurrent same-photo ensures on first miss produce at most one transform', async () => {
+    derivativeMissing()
+    let granted = false
+    tryAcquireDistributedLockMock.mockImplementation(async () => {
+      if (granted) return HELD
+      granted = true
+      return ACQUIRED
+    })
+    const { ensureDisplayDerivative } = await loadDisplay()
+
+    const settled = await Promise.allSettled(
+      Array.from({ length: 6 }, () =>
+        ensureDisplayDerivative({
+          photoId: PHOTO_ID,
+          getSourceBuffer,
+          now: (() => {
+            let c = 0
+            return () => (c += 20_000)
+          })(),
+        }),
+      ),
+    )
+
+    expect(toBufferMock.mock.calls.length).toBeLessThanOrEqual(1)
+    expect(settled.filter((s) => s.status === 'fulfilled').length).toBeGreaterThanOrEqual(1)
+  })
+})
+
+describe('ensure mode — Redis outage (§39)', () => {
+  it('falls back to local single-flight: one transform, one put, across concurrent ensures', async () => {
+    derivativeMissing()
+    tryAcquireDistributedLockMock.mockResolvedValue(NO_BACKEND)
+    const { ensureDisplayDerivative } = await loadDisplay()
+
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () => ensureDisplayDerivative({ photoId: PHOTO_ID, getSourceBuffer })),
+    )
+
+    expect(results.every((r) => r.created === true)).toBe(true)
+    expect(toBufferMock).toHaveBeenCalledTimes(1)
+    expect(putMock).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('ensure mode — waiter (§40)', () => {
+  it('HELD_BY_OTHER never transforms; created:false once the derivative appears', async () => {
+    headMock
+      .mockRejectedValueOnce(new FakeBlobNotFoundError())
+      .mockResolvedValueOnce({ url: DISPLAY_URL })
+    tryAcquireDistributedLockMock.mockResolvedValue(HELD)
+    const { ensureDisplayDerivative } = await loadDisplay()
+
+    const result = await ensureDisplayDerivative({ photoId: PHOTO_ID, getSourceBuffer })
+
+    expect(result).toEqual({ created: false })
+    expect(sharpMock).not.toHaveBeenCalled()
+    expect(getSourceBuffer).not.toHaveBeenCalled()
+  })
+
+  it('reaching the deadline yields DerivativePendingError, never transforms', async () => {
+    derivativeMissing()
+    tryAcquireDistributedLockMock.mockResolvedValue(HELD)
+    const { ensureDisplayDerivative } = await loadDisplay()
+    const { DerivativePendingError } = await import('@/lib/server/download-derivative')
+
+    let clock = 0
+    const promise = ensureDisplayDerivative({
+      photoId: PHOTO_ID,
+      getSourceBuffer,
+      now: () => {
+        const v = clock
+        clock += 20_000
+        return v
+      },
+    })
+
+    await expect(promise).rejects.toBeInstanceOf(DerivativePendingError)
+    expect(sharpMock).not.toHaveBeenCalled()
+    expect(getSourceBuffer).not.toHaveBeenCalled()
+    expect(putMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('ensure mode — storage failure (§41)', () => {
+  it('a non-BlobNotFound head error is a storage failure, never a transform', async () => {
+    headMock.mockRejectedValue(new Error('service unavailable'))
+    const { ensureDisplayDerivative } = await loadDisplay()
+    const { DerivativeStorageUnavailableError } = await import('@/lib/server/download-derivative')
+
+    await expect(ensureDisplayDerivative({ photoId: PHOTO_ID, getSourceBuffer })).rejects.toBeInstanceOf(
+      DerivativeStorageUnavailableError,
+    )
+    expect(sharpMock).not.toHaveBeenCalled()
+    expect(getSourceBuffer).not.toHaveBeenCalled()
+  })
+})
+
+describe('ensure mode — put race (§42)', () => {
+  it('a raced put (object now exists) is NOT counted as created by this call', async () => {
+    headMock
+      .mockRejectedValueOnce(new FakeBlobNotFoundError())
+      .mockRejectedValueOnce(new FakeBlobNotFoundError())
+      .mockResolvedValueOnce({ url: DISPLAY_URL })
+    tryAcquireDistributedLockMock.mockResolvedValue(ACQUIRED)
+    putMock.mockRejectedValue(new Error('blob already exists'))
+    const { ensureDisplayDerivative } = await loadDisplay()
+
+    const result = await ensureDisplayDerivative({ photoId: PHOTO_ID, getSourceBuffer })
+
+    expect(result).toEqual({ created: false })
+  })
+
+  it('a put failure with the object genuinely absent propagates the ORIGINAL put error', async () => {
+    derivativeMissing()
+    tryAcquireDistributedLockMock.mockResolvedValue(ACQUIRED)
+    const putError = new Error('disk on fire')
+    putMock.mockRejectedValue(putError)
+    const { ensureDisplayDerivative } = await loadDisplay()
+
+    await expect(ensureDisplayDerivative({ photoId: PHOTO_ID, getSourceBuffer })).rejects.toBe(putError)
+  })
+})
+
+describe('dormancy — STEP 7.15e narrows this to "no browser/public-response wiring yet"', () => {
   // STEP 7.15d narrowed this from "nothing may import the module" to "nothing
-  // may GENERATE". Derivative cleanup legitimately needs the deterministic
-  // pathname, and denying it the exported builder would have forced a
-  // duplicated path literal — the one thing that could silently desynchronise
-  // deletion from production. Generation itself stays dormant until
-  // DISPLAY_DERIVATIVE_GENERATION.
+  // may GENERATE". STEP 7.15e narrows it again, deliberately: generation
+  // callers are now allowed — the catch-all route's upload-completion and
+  // moderation handlers, both reviewed in this STEP — because this STEP's
+  // whole point is eager generation. What must STILL be false is any
+  // browser/public-response wiring: no displayUrl field, no public URL
+  // derivation, no Guest DTO/client/OG/room-grid/lightbox consumer of
+  // display-v1. That stays false until GUEST_DISPLAY_CUTOVER. This is a
+  // precise monetization invariant, not a caller-count invariant — the old
+  // "zero callers" version would have made this STEP impossible to land
+  // without weakening the test, which is exactly the kind of casual
+  // weakening that must not happen silently.
   const productSources = async () => {
     const { readFileSync, readdirSync, statSync } = await import('fs')
     const { join, resolve } = await import('path')
@@ -467,26 +658,39 @@ describe('dormancy — the primitive is not wired into any product flow', () => 
     roots.forEach(walk)
     return found
   }
+  const isCatchAllRoute = (path) => path.endsWith('/api/[[...path]]/route.js')
 
-  it('no product source generates a display derivative', async () => {
+  it('generation is called ONLY from display-derivative.js and the reviewed catch-all route', async () => {
     const offenders = (await productSources())
-      .filter(({ path }) => !path.endsWith('display-derivative.js'))
-      .filter(({ src }) => /getDisplayDerivative\s*\(|transformDisplayImage\s*\(|ensureDisplayDerivative/.test(src))
+      .filter(({ path }) => !path.endsWith('display-derivative.js') && !isCatchAllRoute(path))
+      .filter(({ src }) => /getDisplayDerivative\s*\(|transformDisplayImage\s*\(|ensureDisplayDerivative\s*\(/.test(src))
       .map(({ path }) => path)
 
     expect(offenders).toEqual([])
   })
 
-  it('the only product importer takes the path builder alone', async () => {
+  it('the catch-all route calls ONLY ensureDisplayDerivative — never the byte-returning primitive', async () => {
+    const [route] = (await productSources()).filter(({ path }) => isCatchAllRoute(path))
+
+    expect(route.src).not.toMatch(/getDisplayDerivative\s*\(/)
+    expect(route.src).not.toMatch(/transformDisplayImage\s*\(/)
+    expect(route.src).toMatch(/ensureDisplayDerivative\s*\(/)
+  })
+
+  it('the only product importers are derivative-cleanup.js (path builder only) and the catch-all route (ensure only)', async () => {
     const importers = (await productSources())
       .filter(({ path }) => !path.endsWith('display-derivative.js'))
       .filter(({ src }) => /display-derivative/.test(src))
 
-    expect(importers.map(({ path }) => path.split('/').pop())).toEqual(['derivative-cleanup.js'])
+    expect(importers.map(({ path }) => path.split('/').pop()).sort()).toEqual(['derivative-cleanup.js', 'route.js'])
 
-    const [{ src }] = importers
-    const specifiers = /import\s*\{([^}]*)\}\s*from\s*'@\/lib\/server\/display-derivative'/.exec(src)[1]
-    expect(specifiers.split(',').map((s) => s.trim()).filter(Boolean)).toEqual(['buildDisplayDerivativePath'])
+    const cleanup = importers.find(({ path }) => path.endsWith('derivative-cleanup.js'))
+    const cleanupSpecifiers = /import\s*\{([^}]*)\}\s*from\s*'@\/lib\/server\/display-derivative'/.exec(cleanup.src)[1]
+    expect(cleanupSpecifiers.split(',').map((s) => s.trim()).filter(Boolean)).toEqual(['buildDisplayDerivativePath'])
+
+    const route = importers.find(({ path }) => isCatchAllRoute(path))
+    const routeSpecifiers = /import\s*\{([^}]*)\}\s*from\s*'@\/lib\/server\/display-derivative'/.exec(route.src)[1]
+    expect(routeSpecifiers.split(',').map((s) => s.trim()).filter(Boolean)).toEqual(['ensureDisplayDerivative'])
   })
 
   it('does not derive a public URL — that belongs to the DTO cutover step', async () => {
@@ -498,5 +702,13 @@ describe('dormancy — the primitive is not wired into any product flow', () => 
     expect(src).not.toContain('parseStoreIdFromReadWriteToken')
     expect(src).not.toContain('blob.vercel-storage.com')
     expect(src).not.toContain('displayUrl')
+  })
+
+  it('no product source has a displayUrl field, public URL construction, or Guest/OG/room-grid consumer of display-v1', async () => {
+    const offenders = (await productSources())
+      .filter(({ src }) => /displayUrl/.test(src))
+      .map(({ path }) => path)
+
+    expect(offenders).toEqual([])
   })
 })
