@@ -4,8 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslations } from '@/components/i18n-provider'
 import { useRouter } from 'next/navigation'
 import { upload } from '@vercel/blob/client'
-import { AlertTriangle, ArrowUpDown, Camera, Copy, Download, Eye, EyeOff, FolderHeart, ImagePlus, Info, LinkIcon, Loader2, Lock, LogOut, Pencil, Plus, QrCode, RefreshCw, Search, Share2, Sparkles, Trash2, Upload, Archive } from 'lucide-react'
+import { AlertTriangle, ArrowUpDown, Camera, Copy, Download, Eye, EyeOff, FolderHeart, ImagePlus, Info, LinkIcon, Loader2, Lock, LogOut, Pencil, Plus, QrCode, RefreshCw, Search, Share2, Sparkles, Trash2, Upload, Archive, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import PhotoLightbox from '@/components/photo-lightbox'
 import { EventQRModal } from '@/components/event-qr-modal'
@@ -98,6 +99,7 @@ export default function DashboardPage() {
   const [authState, setAuthState] = useState({ loading: true, authenticated: false, email: '' })
   const [email, setEmail] = useState('')
   const [message, setMessage] = useState('')
+  const [billingError, setBillingError] = useState('')
   const [events, setEvents] = useState([])
   const [selectedSlug, setSelectedSlug] = useState('')
   const [selectedEvent, setSelectedEvent] = useState(null)
@@ -387,6 +389,7 @@ export default function DashboardPage() {
   const openCustomerPortal = async () => {
     if (portalBusy) return
     setPortalBusy(true)
+    setBillingError('')
     try {
       const response = await csrfFetch('/api/stripe/customer-portal', { method: 'POST' })
       if (await consumeOwnerSessionFailure(response.status)) {
@@ -395,11 +398,15 @@ export default function DashboardPage() {
       }
       const payload = await response.json()
       if (!response.ok || !payload.url) {
-        throw new Error(payload.error || t.billingPortalError)
+        throw new Error(
+          response.status === 404
+            ? t.billingPortalUnavailable || payload.error || t.billingPortalError
+            : payload.error || t.billingPortalError
+        )
       }
       window.location.href = payload.url
     } catch (error) {
-      setMessage(error.message || t.billingPortalError)
+      setBillingError(error.message || t.billingPortalError)
       setPortalBusy(false)
     }
   }

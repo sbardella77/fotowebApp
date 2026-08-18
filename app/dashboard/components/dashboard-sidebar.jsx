@@ -147,19 +147,22 @@ export function DashboardSidebar({
             type="button"
             onClick={onManageSubscription}
             disabled={portalBusy}
-            className="mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-raised hover:text-foreground transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            aria-busy={portalBusy}
+            className="mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-raised hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <CreditCard className="h-4 w-4" />
-            {portalBusy ? t.openingBillingPortal : t.manageSubscription}
+            <CreditCard className="h-4 w-4 shrink-0" />
+            <span className="truncate text-left">
+              {portalBusy ? t.openingBillingPortal : t.manageSubscription}
+            </span>
           </button>
         )}
         <button
           type="button"
           onClick={onLogout}
-          className="mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-raised hover:text-foreground transition-colors"
+          className="mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-raised hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <LogOut className="h-4 w-4" />
-          {t.signOut}
+          <LogOut className="h-4 w-4 shrink-0" />
+          <span className="truncate text-left">{t.signOut}</span>
         </button>
       </div>
     </div>
