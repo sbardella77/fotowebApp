@@ -360,9 +360,159 @@ describe('mockGalleryRepository.listPhotoSourcesByEventId — parity', () => {
   })
 })
 
-// ─── §15 / §19 the primitive is inert and server-only ────────────────────────
+// ─── STEP 7.15d.3-b: authoritative PrivateAsset inventory for Event deletion ─
+//
+// `listPrivateAssetsByEventId` (above) degrades to [] when Prisma is
+// unavailable. That is the right contract for its own caller — the
+// owner-facing private-delivery listing endpoint, where a transient outage
+// should read as "nothing to show", not a hard failure. Event deletion
+// cannot share that contract: once the Event row cascades away there is no
+// way to rediscover which PrivateAsset rows belonged to it, so "we could not
+// find out" and "there is nothing here" must stay distinguishable — exactly
+// the property `listPhotoSourcesByEventId` already guarantees for Photo
+// sources. `listPrivateAssetsForEventDeletion` exists to give PrivateAssets
+// that same hard-required guarantee without touching the degraded contract
+// the listing endpoint depends on.
 
-describe('inertness — nothing calls it yet', () => {
+const privateAssetRow = (eventId, n) => ({
+  id: `${eventId}-asset-${n}`,
+  eventId,
+  url: `${HOST}/private-delivery/${eventId}-slug/${n}-synthetic.zip`,
+  originalName: `delivery-${n}.zip`,
+  storedName: `${n}-synthetic.zip`,
+  mimeType: 'application/zip',
+  size: 2000 + n,
+  uploadedByRole: 'owner',
+  createdAt: new Date('2026-01-01'),
+  updatedAt: new Date('2026-01-01'),
+})
+
+const privateAssetRowsFor = (eventId, count) => Array.from({ length: count }, (_, i) => privateAssetRow(eventId, i))
+
+/** Prisma double that honours `where.eventId` for privateAsset.findMany. */
+function makePrivateAssetPrisma(rows, { onFindMany, fail } = {}) {
+  return {
+    privateAsset: {
+      findMany: vi.fn(async (args) => {
+        if (onFindMany) onFindMany(args)
+        if (fail) throw fail
+        return rows.filter((r) => r.eventId === args.where.eventId)
+      }),
+    },
+  }
+}
+
+describe('prismaGalleryRepository.listPrivateAssetsForEventDeletion — uncapped', () => {
+  it('returns every PrivateAsset row for the event, no cap', async () => {
+    getPrismaClient.mockResolvedValue(makePrivateAssetPrisma(privateAssetRowsFor(EVENT_A, 50)))
+
+    const assets = await prismaGalleryRepository.listPrivateAssetsForEventDeletion(EVENT_A)
+
+    expect(assets).toHaveLength(50)
+  })
+
+  it('issues no take, skip or cursor', async () => {
+    let captured
+    getPrismaClient.mockResolvedValue(
+      makePrivateAssetPrisma(privateAssetRowsFor(EVENT_A, 5), { onFindMany: (a) => { captured = a } }),
+    )
+
+    await prismaGalleryRepository.listPrivateAssetsForEventDeletion(EVENT_A)
+
+    expect(captured).not.toHaveProperty('take')
+    expect(captured).not.toHaveProperty('skip')
+    expect(captured).not.toHaveProperty('cursor')
+  })
+
+  it('scopes by eventId in the query itself', async () => {
+    let captured
+    getPrismaClient.mockResolvedValue(
+      makePrivateAssetPrisma(
+        [...privateAssetRowsFor(EVENT_A, 2), ...privateAssetRowsFor(EVENT_B, 3)],
+        { onFindMany: (a) => { captured = a } },
+      ),
+    )
+
+    const assets = await prismaGalleryRepository.listPrivateAssetsForEventDeletion(EVENT_B)
+
+    expect(captured.where).toEqual({ eventId: EVENT_B })
+    expect(assets).toHaveLength(3)
+  })
+})
+
+describe('listPrivateAssetsForEventDeletion — empty event', () => {
+  it('returns [] for an event with no PrivateAssets — a valid authoritative zero', async () => {
+    getPrismaClient.mockResolvedValue(makePrivateAssetPrisma([]))
+
+    const assets = await prismaGalleryRepository.listPrivateAssetsForEventDeletion(EVENT_A)
+
+    expect(assets).toEqual([])
+  })
+})
+
+describe('listPrivateAssetsForEventDeletion — failure is NOT an empty event (merge-blocking)', () => {
+  it('throws when the database client is unavailable, instead of degrading to []', async () => {
+    getPrismaClient.mockResolvedValue(null)
+
+    await expect(prismaGalleryRepository.listPrivateAssetsForEventDeletion(EVENT_A)).rejects.toThrow(
+      /DATABASE_URL\/client is unavailable/,
+    )
+  })
+
+  it('propagates a query error instead of swallowing it', async () => {
+    const boom = new Error('connection terminated unexpectedly')
+    getPrismaClient.mockResolvedValue(makePrivateAssetPrisma(privateAssetRowsFor(EVENT_A, 3), { fail: boom }))
+
+    await expect(prismaGalleryRepository.listPrivateAssetsForEventDeletion(EVENT_A)).rejects.toThrow(
+      'connection terminated unexpectedly',
+    )
+  })
+
+  it('a rejected result is distinguishable from a successful empty one', async () => {
+    getPrismaClient.mockResolvedValue(makePrivateAssetPrisma([]))
+    const ok = await prismaGalleryRepository.listPrivateAssetsForEventDeletion(EVENT_A)
+
+    getPrismaClient.mockResolvedValue(null)
+    const failed = await prismaGalleryRepository.listPrivateAssetsForEventDeletion(EVENT_A).catch((e) => e)
+
+    expect(ok).toEqual([])
+    expect(failed).toBeInstanceOf(Error)
+  })
+})
+
+describe('listPrivateAssetsByEventId is UNCHANGED — the private-delivery listing endpoint keeps its degraded contract', () => {
+  it('still returns [] (not a throw) when Prisma is unavailable', async () => {
+    getPrismaClient.mockResolvedValue(null)
+
+    await expect(prismaGalleryRepository.listPrivateAssetsByEventId(EVENT_A)).resolves.toEqual([])
+  })
+
+  it('is a distinct function from listPrivateAssetsForEventDeletion, in both repositories', () => {
+    expect(prismaGalleryRepository.listPrivateAssetsByEventId).not.toBe(
+      prismaGalleryRepository.listPrivateAssetsForEventDeletion,
+    )
+    expect(mockGalleryRepository.listPrivateAssetsByEventId).not.toBe(
+      mockGalleryRepository.listPrivateAssetsForEventDeletion,
+    )
+  })
+})
+
+describe('mockGalleryRepository.listPrivateAssetsForEventDeletion — parity', () => {
+  it('exists and resolves [] — mock mode has no PrivateAsset persistence to lose', async () => {
+    await expect(mockGalleryRepository.listPrivateAssetsForEventDeletion(EVENT_A)).resolves.toEqual([])
+  })
+})
+
+// ─── §15 / §19 the primitive is server-only, with ONE reviewed caller ───────
+
+describe('inertness — STEP 7.15d.3 narrows this to "exactly one reviewed caller"', () => {
+  // STEP 7.15d.2 shipped this primitive dead: literally nothing called it,
+  // and that was the point — the destructive route cutover was a separate,
+  // separately-reviewed step. STEP 7.15d.3 IS that step. The invariant this
+  // guards now is narrower but still real: `listPhotoSourcesByEventId` may
+  // be called from exactly the catch-all route (the reviewed cutover) and
+  // nowhere else — no client, no cron, no other server helper reaching for
+  // it as a shortcut.
   const productSources = async () => {
     const { readFileSync, readdirSync, statSync } = await import('fs')
     const { join, resolve } = await import('path')
@@ -380,15 +530,13 @@ describe('inertness — nothing calls it yet', () => {
     return found
   }
 
-  it('no product source calls listPhotoSourcesByEventId', async () => {
-    // The route cutover is a separate, separately-reviewed step: until then
-    // Production event deletion must behave exactly as it does today.
+  it('the only product caller of listPhotoSourcesByEventId is the catch-all route', async () => {
     const callers = (await productSources())
       .filter(({ path }) => !/prisma-gallery-repository\.js$|mock-db\.js$/.test(path))
       .filter(({ src }) => /listPhotoSourcesByEventId/.test(src))
-      .map(({ path }) => path)
+      .map(({ path }) => path.split('/').slice(-4).join('/'))
 
-    expect(callers).toEqual([])
+    expect(callers).toEqual(['app/api/[[...path]]/route.js'])
   })
 
   it('neither repository logs a source url', async () => {

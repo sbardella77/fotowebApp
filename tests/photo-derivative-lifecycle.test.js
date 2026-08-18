@@ -2,18 +2,20 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // STEP 7.15d §33–§36 — lifecycle integration through the real HTTP handlers.
 //
-// Two things are proven here, and the second matters as much as the first:
+// Every path that removes or hides a Photo attempts derivative cleanup,
+// best-effort, without altering the existing HTTP contract.
 //
-//   1. Every path that removes or hides a Photo now also attempts derivative
-//      cleanup, best-effort, without altering the existing HTTP contract.
-//
-//   2. This change did NOT broaden source-original deletion. Event deletion
-//      still passes exactly the presentation-capped `event.photos` list to
-//      deleteEventScopedStoredFile — the 100-vs-186 truncation stays OPEN as
-//      its own data-safety-reviewed workstream
-//      (EVENT_DELETE_SOURCE_CLEANUP_TRUNCATION). Derivative cleanup uses a
-//      separate, authoritative, uncapped id snapshot and never touches a
-//      source namespace.
+// STEP 7.15d.3 UPDATE: the §35/§36 block below used to assert that Event
+// deletion passed exactly the presentation-capped `event.photos` (100) to
+// deleteEventScopedStoredFile, as SCOPE EVIDENCE that STEP 7.15d had not
+// widened source-original deletion. That was deliberate at the time —
+// EVENT_DELETE_SOURCE_CLEANUP_TRUNCATION was still OPEN. STEP 7.15d.3 fixes
+// it: Event deletion now uses the authoritative, uncapped
+// `listPhotoSourcesByEventId` inventory instead of `event.photos`, so those
+// assertions are UPDATED below from 100 to 186 — the historical scope proof
+// is intentionally invalidated, not accidentally broken. The full behavior
+// matrix for the new pre-commit/post-commit cutover lives in
+// tests/event-delete-source-cleanup.test.js.
 
 vi.mock('@upstash/redis', () => ({ Redis: vi.fn() }))
 vi.mock('@vercel/blob', () => ({
@@ -93,7 +95,8 @@ function makeRepository(overrides = {}) {
     getEventBySlug: vi.fn(),
     getEventBySlugAndOwner: vi.fn(),
     listPhotoIdsByEventId: vi.fn().mockResolvedValue([]),
-    listPrivateAssetsByEventId: vi.fn().mockResolvedValue([]),
+    listPhotoSourcesByEventId: vi.fn().mockResolvedValue([]),
+    listPrivateAssetsForEventDeletion: vi.fn().mockResolvedValue([]),
     deleteEvent: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   }
@@ -419,6 +422,10 @@ describe('§34 / §12 HIDDEN → VISIBLE', () => {
 
 describe('§35 event delete uses an AUTHORITATIVE, untruncated id snapshot', () => {
   const ids186 = Array.from({ length: 186 }, (_, i) => `photo-${i}`)
+  const sourceUrls186 = Array.from(
+    { length: 186 },
+    (_, i) => `https://store.public.blob.vercel-storage.com/events/${SLUG}/source-${i}.jpg`,
+  )
 
   const eventWith = (photos) => ({
     id: EVENT_ID,
@@ -432,6 +439,7 @@ describe('§35 event delete uses an AUTHORITATIVE, untruncated id snapshot', () 
     const repository = makeRepository({
       getEventBySlug: vi.fn().mockResolvedValue(eventWith(cappedPhotos(100))),
       listPhotoIdsByEventId: vi.fn().mockResolvedValue(ids186),
+      listPhotoSourcesByEventId: vi.fn().mockResolvedValue(sourceUrls186),
     })
     getGalleryRepository.mockResolvedValue(repository)
 
@@ -443,9 +451,10 @@ describe('§35 event delete uses an AUTHORITATIVE, untruncated id snapshot', () 
     const scheduled = deletePhotoDerivativesBatch.mock.calls[0][0]
     expect(scheduled).toHaveLength(186)
 
-    // The presentation list the source cleanup still uses is capped at 100 —
-    // 86 photos short of the authoritative snapshot above.
-    expect(deleteStoredFile).toHaveBeenCalledTimes(100)
+    // STEP 7.15d.3: source cleanup now uses the authoritative, uncapped
+    // inventory instead of the 100-capped presentation list — all 186 are
+    // cleaned up, not just the ones event.photos happened to expose.
+    expect(deleteStoredFile).toHaveBeenCalledTimes(186)
   })
 
   it('owner event delete schedules ALL 186 ids for derivative cleanup', async () => {
@@ -466,19 +475,24 @@ describe('§35 event delete uses an AUTHORITATIVE, untruncated id snapshot', () 
     expect(scheduled).toEqual(ids186)
   })
 
-  it('SCOPE EVIDENCE: source cleanup is NOT broadened — still exactly the capped 100', async () => {
+  // STEP 7.15d.3: this test used to be named "SCOPE EVIDENCE: source cleanup
+  // is NOT broadened — still exactly the capped 100" and asserted exactly
+  // 100 deleteStoredFile calls, proving STEP 7.15d had deliberately NOT
+  // fixed EVENT_DELETE_SOURCE_CLEANUP_TRUNCATION. This step fixes it, so the
+  // historical proof is intentionally inverted: the assertion below moves
+  // from 100 to 186, and the test now proves the opposite of what it used to.
+  it('STEP 7.15d.3: source cleanup now uses the complete authoritative inventory (186, not the capped 100)', async () => {
     const repository = makeRepository({
       getEventBySlugAndOwner: vi.fn().mockResolvedValue(eventWith(cappedPhotos(100))),
       listPhotoIdsByEventId: vi.fn().mockResolvedValue(ids186),
+      listPhotoSourcesByEventId: vi.fn().mockResolvedValue(sourceUrls186),
     })
     getGalleryRepository.mockResolvedValue(repository)
 
     await invoke(DELETE, await ownerRequest(`/owner/events/${SLUG}`, 'DELETE'))
 
-    // EVENT_DELETE_SOURCE_CLEANUP_TRUNCATION stays OPEN: this PR must not
-    // quietly fix it, because widening original-source deletion is an
-    // irreversible data operation that needs its own reviewed step.
-    expect(deleteStoredFile).toHaveBeenCalledTimes(100)
+    expect(repository.listPhotoSourcesByEventId).toHaveBeenCalledWith(EVENT_ID)
+    expect(deleteStoredFile).toHaveBeenCalledTimes(186)
     for (const [url] of deleteStoredFile.mock.calls) {
       expect(url).toContain(`/events/${SLUG}/`)
       expect(url).not.toContain('derivatives/')
@@ -505,7 +519,7 @@ describe('§35 event delete uses an AUTHORITATIVE, untruncated id snapshot', () 
     const repository = makeRepository({
       getEventBySlugAndOwner: vi.fn().mockResolvedValue(eventWith(cappedPhotos(2))),
       listPhotoIdsByEventId: vi.fn().mockResolvedValue(['photo-a']),
-      listPrivateAssetsByEventId: vi
+      listPrivateAssetsForEventDeletion: vi
         .fn()
         .mockResolvedValue([
           { id: 'asset-1', url: `https://store.public.blob.vercel-storage.com/private-delivery/${SLUG}/a.zip` },
@@ -519,7 +533,7 @@ describe('§35 event delete uses an AUTHORITATIVE, untruncated id snapshot', () 
     expect(deletePhotoDerivativesBatch.mock.calls[0][0]).not.toContain('asset-1')
   })
 
-  it('a failing id snapshot does not break event deletion', async () => {
+  it('a failing DERIVATIVE id snapshot does not break event deletion (best-effort)', async () => {
     const repository = makeRepository({
       getEventBySlugAndOwner: vi.fn().mockResolvedValue(eventWith(cappedPhotos(3))),
       listPhotoIdsByEventId: vi.fn().mockRejectedValue(new Error('db hiccup')),
@@ -537,7 +551,12 @@ describe('§35 event delete uses an AUTHORITATIVE, untruncated id snapshot', () 
 // ─── §36 event delete failure ───────────────────────────────────────────────
 
 describe('§36 event DB deletion failure', () => {
-  it('does NOT delete derivatives for an event that remains alive', async () => {
+  it('does NOT delete ANY source, private-asset or derivative for an event that remains alive', async () => {
+    // STEP 7.15d.3: the pre-commit snapshots (source, private-asset,
+    // derivative) are all taken before the DB delete is attempted, but NO
+    // destructive Blob call may run until that delete has actually
+    // succeeded. A rejected repository.deleteEvent must leave every source
+    // untouched, not just derivatives.
     const repository = makeRepository({
       getEventBySlugAndOwner: vi.fn().mockResolvedValue({
         id: EVENT_ID,
@@ -545,6 +564,9 @@ describe('§36 event DB deletion failure', () => {
         coverUrl: null,
         photos: cappedPhotos(3),
       }),
+      listPhotoSourcesByEventId: vi
+        .fn()
+        .mockResolvedValue([`https://store.public.blob.vercel-storage.com/events/${SLUG}/a.jpg`]),
       listPhotoIdsByEventId: vi.fn().mockResolvedValue(['photo-a', 'photo-b']),
       deleteEvent: vi.fn().mockRejectedValue(new Error('constraint violation')),
     })
@@ -554,10 +576,11 @@ describe('§36 event DB deletion failure', () => {
       'constraint violation',
     )
 
-    // The snapshot was taken, but the event is still alive — so its
-    // derivatives must survive. Deleting them here would be pure, unrecoverable
-    // cache loss for an event the user still owns.
+    // The pre-commit snapshots were taken (they run before the gate)...
+    expect(repository.listPhotoSourcesByEventId).toHaveBeenCalled()
     expect(repository.listPhotoIdsByEventId).toHaveBeenCalled()
+    // ...but the event is still alive, so NOTHING destructive may have run.
+    expect(deleteStoredFile).not.toHaveBeenCalled()
     expect(deletePhotoDerivativesBatch).not.toHaveBeenCalled()
   })
 })
