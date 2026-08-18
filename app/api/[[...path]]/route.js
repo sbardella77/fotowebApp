@@ -117,6 +117,8 @@ import {
 } from '@/lib/server/storage'
 import { deleteEventScopedStoredFile } from '@/lib/server/event-scoped-storage-delete'
 import { deletePhotoDerivatives, deletePhotoDerivativesBatch } from '@/lib/server/derivative-cleanup'
+import { ensureDisplayDerivative } from '@/lib/server/display-derivative'
+import { getPhotoBuffer } from '@/lib/server/download-utils'
 import { sendOpsAlert } from '@/lib/server/ops-alerts'
 import {
   checkOwnerRoomCreationEntitlement,
@@ -1430,6 +1432,39 @@ const uploadChunk = async (request) => {
   return json({ uploaded: true, chunkIndex: parsed.chunkIndex, totalChunks: parsed.totalChunks })
 }
 
+/**
+ * Best-effort display-v1 generation for one Photo (STEP 7.15e).
+ *
+ * Shared by every call site that needs it — new-photo upload completion AND
+ * moderation transitions back to VISIBLE — so there is exactly one
+ * source-fetch/try-catch/safe-log implementation, not one per caller.
+ *
+ * MUST be called only after the Photo row has already committed: this
+ * function creates a real public Blob object keyed by `photo.id`, so calling
+ * it for a Photo that does not durably exist would be pointless at best and
+ * orphan a display object at worst. A failure here is cache materialization
+ * failing, not the Photo write failing — it must never be allowed to turn a
+ * successful upload or moderation decision into an HTTP failure, so it is
+ * always caught here and never rethrown.
+ *
+ * @param {{id: string, url: string}} photo
+ * @param {{operation: string}} context   log label only — never logged verbatim with anything sensitive
+ * @returns {Promise<{created: boolean}>} `created:false` on any failure, indistinguishable from a cache HIT
+ */
+async function ensurePhotoDisplayDerivative(photo, { operation }) {
+  try {
+    return await ensureDisplayDerivative({
+      photoId: photo.id,
+      getSourceBuffer: () => getPhotoBuffer(photo.url),
+    })
+  } catch (error) {
+    // Safe context only: photoId (opaque) and the operation label. Never the
+    // source URL, storedName, originalName, or the raw error object.
+    console.warn(`[${operation}] Display derivative generation failed for photo:`, photo.id, error?.name)
+    return { created: false }
+  }
+}
+
 const completeUpload = withTiming('completeUpload', async (request) => {
   // Broad, Redis-backed, hashed-IP guard — runs before any database access.
   // Guest-exclusive route: distinct from the shared blob-token-broad guard.
@@ -1522,6 +1557,15 @@ const completeUpload = withTiming('completeUpload', async (request) => {
       throw error
     }
 
+    // Eager, best-effort, post-commit (STEP 7.15e). `result.photo` is only
+    // ever populated once the transaction has committed — including the
+    // idempotent-retry branch, which returns the SAME already-committed
+    // Photo. Calling this unconditionally (not only when `!idempotent`) is
+    // deliberate: a retry after a first-attempt generation failure gets
+    // another chance for free, and a retry after success costs only one
+    // Blob `head` thanks to the ensure-mode cache-HIT path.
+    await ensurePhotoDisplayDerivative(result.photo, { operation: 'completeUpload' })
+
     const repository = await getGalleryRepository()
     const freshEvent = await repository.getEventBySlug(result.eventSlug)
 
@@ -1586,6 +1630,11 @@ const completeUpload = withTiming('completeUpload', async (request) => {
     caption: payload.caption,
     momentId: payload.momentId || undefined,
   })
+
+  // Eager, best-effort, post-commit (STEP 7.15e) — parity with the Blob path.
+  // `createPhoto` has already resolved successfully above, so `photo.id`/
+  // `photo.url` are for a durably-committed row.
+  await ensurePhotoDisplayDerivative(photo, { operation: 'completeUpload' })
 
   const freshEvent = await repository.getEventBySlug(event.slug)
 
@@ -2542,13 +2591,23 @@ const moderatePhoto = async (request, photoId) => {
     return jsonPrivate({ error: 'Photo not found' }, 404)
   }
 
-  // A HIDDEN photo has been deliberately withdrawn from public view, so its
-  // public derivatives must not stay reachable. Keyed off the RESULTING
-  // authoritative status, which makes an idempotent re-hide safe to repeat.
-  // Deleting them does not revert moderation if it fails, and HIDDEN→VISIBLE
-  // deliberately regenerates nothing here (see DISPLAY_REGEN_ON_VISIBLE_TRANSITION).
+  // Keyed off the RESULTING authoritative status, so both branches are safe
+  // to repeat on an idempotent re-moderation.
+  //
+  // HIDDEN: a photo deliberately withdrawn from public view must not keep
+  // its public derivatives reachable. Deleting them does not revert
+  // moderation if it fails.
+  //
+  // VISIBLE (STEP 7.15e): covers both HIDDEN→VISIBLE, where the previous
+  // HIDDEN transition already deleted display-v1 and it needs regenerating
+  // from the original source, and an idempotent VISIBLE→VISIBLE re-approve,
+  // where this is a safe no-op repair (ensure-mode HITs cost one Blob head).
+  // A generation failure never reverts the approval — see
+  // ensurePhotoDisplayDerivative.
   if (photo.status === 'HIDDEN') {
     await deletePhotoDerivatives(photo.id, { context: 'moderatePhoto' })
+  } else if (photo.status === 'VISIBLE') {
+    await ensurePhotoDisplayDerivative(photo, { operation: 'moderatePhoto' })
   }
 
   console.log(`[audit] Admin ${payload.action}d photo ${photoId} in event ${photo.eventId}`)
@@ -3394,8 +3453,11 @@ const moderateOwnerPhoto = async (request, photoId) => {
     return jsonPrivate({ error: 'Photo not found' }, 404)
   }
 
+  // See moderatePhoto for the full rationale — same RESULTING-status split.
   if (photo.status === 'HIDDEN') {
     await deletePhotoDerivatives(photo.id, { context: 'moderateOwnerPhoto' })
+  } else if (photo.status === 'VISIBLE') {
+    await ensurePhotoDisplayDerivative(photo, { operation: 'moderateOwnerPhoto' })
   }
 
   console.log(`[audit] Owner ${ownerEmail} ${payload.action}d photo ${photoId} in event ${photo.eventId}`)
