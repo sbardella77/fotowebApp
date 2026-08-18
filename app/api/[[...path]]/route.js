@@ -1089,8 +1089,12 @@ const deleteEvent = withTiming('deleteEvent', async (request, slug) => {
   const photoSourceUrls = await repository.listPhotoSourcesByEventId(event.id)
 
   // HARD REQUIRED for the same reason — once the Event cascades away there is
-  // no way to rediscover which PrivateAsset rows belonged to it.
-  const privateAssets = await repository.listPrivateAssetsByEventId(event.id)
+  // no way to rediscover which PrivateAsset rows belonged to it. Deliberately
+  // NOT listPrivateAssetsByEventId: that method degrades to [] when Prisma
+  // is unavailable (correct for its own caller, the private-delivery listing
+  // endpoint), which would be indistinguishable from "zero PrivateAssets"
+  // here and silently orphan them (STEP 7.15d.3-b).
+  const privateAssets = await repository.listPrivateAssetsForEventDeletion(event.id)
 
   // BEST EFFORT — derivatives are reproducible caches with a reconciliation
   // cron behind them, so losing this snapshot must not block deletion.
@@ -3345,8 +3349,11 @@ const deleteOwnerEvent = withTiming('deleteOwnerEvent', async (request, slug) =>
   }
 
   // See deleteEvent for the full rationale — same pre-commit/post-commit split.
+  // listPrivateAssetsForEventDeletion (not listPrivateAssetsByEventId): the
+  // latter degrades to [] when Prisma is unavailable, which here would be
+  // indistinguishable from a genuinely empty event.
   const photoSourceUrls = await repository.listPhotoSourcesByEventId(event.id)
-  const privateAssets = await repository.listPrivateAssetsByEventId(event.id)
+  const privateAssets = await repository.listPrivateAssetsForEventDeletion(event.id)
 
   let derivativePhotoIds = []
   try {

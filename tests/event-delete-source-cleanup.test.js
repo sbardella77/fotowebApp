@@ -114,7 +114,7 @@ function makeRepository(overrides = {}) {
     getEventBySlug: vi.fn().mockResolvedValue(baseEvent()),
     getEventBySlugAndOwner: vi.fn().mockResolvedValue(baseEvent()),
     listPhotoSourcesByEventId: vi.fn().mockResolvedValue([]),
-    listPrivateAssetsByEventId: vi.fn().mockResolvedValue([]),
+    listPrivateAssetsForEventDeletion: vi.fn().mockResolvedValue([]),
     listPhotoIdsByEventId: vi.fn().mockResolvedValue([]),
     deleteEvent: vi.fn().mockResolvedValue(undefined),
     ...overrides,
@@ -208,7 +208,7 @@ describe('§39 auth failure — zero inventory exposure, zero destructive IO', (
 
     expect(response.status).toBe(403)
     expect(repository.listPhotoSourcesByEventId).not.toHaveBeenCalled()
-    expect(repository.listPrivateAssetsByEventId).not.toHaveBeenCalled()
+    expect(repository.listPrivateAssetsForEventDeletion).not.toHaveBeenCalled()
     expect(repository.deleteEvent).not.toHaveBeenCalled()
     expect(deleteStoredFile).not.toHaveBeenCalled()
   })
@@ -222,7 +222,7 @@ describe('§39 auth failure — zero inventory exposure, zero destructive IO', (
     expect(response.status).toBe(401)
     expect(repository.getEventBySlugAndOwner).not.toHaveBeenCalled()
     expect(repository.listPhotoSourcesByEventId).not.toHaveBeenCalled()
-    expect(repository.listPrivateAssetsByEventId).not.toHaveBeenCalled()
+    expect(repository.listPrivateAssetsForEventDeletion).not.toHaveBeenCalled()
     expect(repository.deleteEvent).not.toHaveBeenCalled()
     expect(deleteStoredFile).not.toHaveBeenCalled()
   })
@@ -265,7 +265,7 @@ describe('§28 empty source snapshot is valid — deletion proceeds normally', (
     const repository = makeRepository({
       getEventBySlugAndOwner: vi.fn().mockResolvedValue(baseEvent({ coverUrl: coverUrl(SLUG, 'cover') })),
       listPhotoSourcesByEventId: vi.fn().mockResolvedValue([]),
-      listPrivateAssetsByEventId: vi.fn().mockResolvedValue(privateAssets(2)),
+      listPrivateAssetsForEventDeletion: vi.fn().mockResolvedValue(privateAssets(2)),
     })
     getGalleryRepository.mockResolvedValue(repository)
 
@@ -289,10 +289,10 @@ describe('§28 empty source snapshot is valid — deletion proceeds normally', (
 // ─── §29 hard-required PrivateAsset snapshot failure ────────────────────────
 
 describe('§29 PrivateAsset snapshot failure aborts BEFORE any destructive IO', () => {
-  it('admin: listPrivateAssetsByEventId throws → nothing destructive runs, DB delete never called', async () => {
+  it('admin: listPrivateAssetsForEventDeletion throws → nothing destructive runs, DB delete never called', async () => {
     const repository = makeRepository({
       listPhotoSourcesByEventId: vi.fn().mockResolvedValue(sourceUrls(3)),
-      listPrivateAssetsByEventId: vi.fn().mockRejectedValue(new Error('db hiccup')),
+      listPrivateAssetsForEventDeletion: vi.fn().mockRejectedValue(new Error('db hiccup')),
     })
     getGalleryRepository.mockResolvedValue(repository)
 
@@ -306,10 +306,10 @@ describe('§29 PrivateAsset snapshot failure aborts BEFORE any destructive IO', 
     expect(deletePhotoDerivativesBatch).not.toHaveBeenCalled()
   })
 
-  it('owner: listPrivateAssetsByEventId throws → nothing destructive runs, DB delete never called', async () => {
+  it('owner: listPrivateAssetsForEventDeletion throws → nothing destructive runs, DB delete never called', async () => {
     const repository = makeRepository({
       listPhotoSourcesByEventId: vi.fn().mockResolvedValue(sourceUrls(3)),
-      listPrivateAssetsByEventId: vi.fn().mockRejectedValue(new Error('db hiccup')),
+      listPrivateAssetsForEventDeletion: vi.fn().mockRejectedValue(new Error('db hiccup')),
     })
     getGalleryRepository.mockResolvedValue(repository)
 
@@ -328,7 +328,7 @@ describe('§30 DB delete failure leaves EVERY source untouched (merge-blocking)'
     const repository = makeRepository({
       getEventBySlug: vi.fn().mockResolvedValue(baseEvent({ coverUrl: coverUrl(SLUG, 'cover') })),
       listPhotoSourcesByEventId: vi.fn().mockResolvedValue(sourceUrls(5)),
-      listPrivateAssetsByEventId: vi.fn().mockResolvedValue(privateAssets(2)),
+      listPrivateAssetsForEventDeletion: vi.fn().mockResolvedValue(privateAssets(2)),
       listPhotoIdsByEventId: vi.fn().mockResolvedValue(['id-a', 'id-b']),
       deleteEvent: vi.fn().mockRejectedValue(new Error('constraint violation')),
     })
@@ -340,7 +340,7 @@ describe('§30 DB delete failure leaves EVERY source untouched (merge-blocking)'
     // are read-only. Nothing destructive may have run because the event is
     // still alive.
     expect(repository.listPhotoSourcesByEventId).toHaveBeenCalled()
-    expect(repository.listPrivateAssetsByEventId).toHaveBeenCalled()
+    expect(repository.listPrivateAssetsForEventDeletion).toHaveBeenCalled()
     expect(deleteStoredFile).not.toHaveBeenCalled()
     expect(deletePhotoDerivativesBatch).not.toHaveBeenCalled()
   })
@@ -349,7 +349,7 @@ describe('§30 DB delete failure leaves EVERY source untouched (merge-blocking)'
     const repository = makeRepository({
       getEventBySlugAndOwner: vi.fn().mockResolvedValue(baseEvent({ coverUrl: coverUrl(SLUG, 'cover') })),
       listPhotoSourcesByEventId: vi.fn().mockResolvedValue(sourceUrls(5)),
-      listPrivateAssetsByEventId: vi.fn().mockResolvedValue(privateAssets(2)),
+      listPrivateAssetsForEventDeletion: vi.fn().mockResolvedValue(privateAssets(2)),
       listPhotoIdsByEventId: vi.fn().mockResolvedValue(['id-a', 'id-b']),
       deleteEvent: vi.fn().mockRejectedValue(new Error('constraint violation')),
     })
@@ -358,7 +358,7 @@ describe('§30 DB delete failure leaves EVERY source untouched (merge-blocking)'
     await expect(invoke(await ownerRequest(`/owner/events/${SLUG}`))).rejects.toThrow('constraint violation')
 
     expect(repository.listPhotoSourcesByEventId).toHaveBeenCalled()
-    expect(repository.listPrivateAssetsByEventId).toHaveBeenCalled()
+    expect(repository.listPrivateAssetsForEventDeletion).toHaveBeenCalled()
     expect(deleteStoredFile).not.toHaveBeenCalled()
     expect(deletePhotoDerivativesBatch).not.toHaveBeenCalled()
   })
@@ -375,7 +375,7 @@ describe('§31 destructive order — every snapshot before the gate, every delet
         tracer.push('snapshot:photoSources')
         return sourceUrls(2)
       }),
-      listPrivateAssetsByEventId: vi.fn(async () => {
+      listPrivateAssetsForEventDeletion: vi.fn(async () => {
         tracer.push('snapshot:privateAssets')
         return privateAssets(1)
       }),
@@ -523,7 +523,7 @@ describe('§35 cover cleanup failure does not block the rest', () => {
     const failingCover = coverUrl(SLUG, 'cover')
     const repository = makeRepository({
       getEventBySlugAndOwner: vi.fn().mockResolvedValue(baseEvent({ coverUrl: failingCover })),
-      listPrivateAssetsByEventId: vi.fn().mockResolvedValue(privateAssets(2)),
+      listPrivateAssetsForEventDeletion: vi.fn().mockResolvedValue(privateAssets(2)),
       listPhotoIdsByEventId: vi.fn().mockResolvedValue(['id-a']),
     })
     getGalleryRepository.mockResolvedValue(repository)
@@ -556,7 +556,7 @@ describe('§36 a PrivateAsset delete failure does not block the rest', () => {
     const failingUrl = assets[1].url
     const repository = makeRepository({
       getEventBySlugAndOwner: vi.fn().mockResolvedValue(baseEvent()),
-      listPrivateAssetsByEventId: vi.fn().mockResolvedValue(assets),
+      listPrivateAssetsForEventDeletion: vi.fn().mockResolvedValue(assets),
       listPhotoIdsByEventId: vi.fn().mockResolvedValue(['id-a']),
     })
     getGalleryRepository.mockResolvedValue(repository)
@@ -589,7 +589,7 @@ describe('§37 derivative snapshot failure is the ONLY best-effort one — event
     const repository = makeRepository({
       getEventBySlugAndOwner: vi.fn().mockResolvedValue(baseEvent({ coverUrl: coverUrl(SLUG, 'cover') })),
       listPhotoSourcesByEventId: vi.fn().mockResolvedValue(sourceUrls(2)),
-      listPrivateAssetsByEventId: vi.fn().mockResolvedValue(privateAssets(1)),
+      listPrivateAssetsForEventDeletion: vi.fn().mockResolvedValue(privateAssets(1)),
       listPhotoIdsByEventId: vi.fn().mockRejectedValue(new Error('redis down')),
     })
     getGalleryRepository.mockResolvedValue(repository)

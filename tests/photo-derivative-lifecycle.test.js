@@ -96,7 +96,7 @@ function makeRepository(overrides = {}) {
     getEventBySlugAndOwner: vi.fn(),
     listPhotoIdsByEventId: vi.fn().mockResolvedValue([]),
     listPhotoSourcesByEventId: vi.fn().mockResolvedValue([]),
-    listPrivateAssetsByEventId: vi.fn().mockResolvedValue([]),
+    listPrivateAssetsForEventDeletion: vi.fn().mockResolvedValue([]),
     deleteEvent: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   }
@@ -519,7 +519,7 @@ describe('§35 event delete uses an AUTHORITATIVE, untruncated id snapshot', () 
     const repository = makeRepository({
       getEventBySlugAndOwner: vi.fn().mockResolvedValue(eventWith(cappedPhotos(2))),
       listPhotoIdsByEventId: vi.fn().mockResolvedValue(['photo-a']),
-      listPrivateAssetsByEventId: vi
+      listPrivateAssetsForEventDeletion: vi
         .fn()
         .mockResolvedValue([
           { id: 'asset-1', url: `https://store.public.blob.vercel-storage.com/private-delivery/${SLUG}/a.zip` },
