@@ -75,6 +75,7 @@ function buildSession({ sessionId = 'cs_ex_test', ownerId = 'owner-1', postPurch
   return {
     id: sessionId,
     customer: 'cus_test',
+    payment_status: 'paid',
     customer_email: 'owner@example.com',
     metadata: {
       intent: 'extra_event',
@@ -299,7 +300,13 @@ describe('STEP 4.7: atomic finalization for checkout.session.completed / extra_e
     expect(markStripeWebhookEventProcessed).toHaveBeenCalledTimes(1)
   })
 
-  it('E: checkout already terminal before the transaction — fast-path skip, no business tx, no new credit', async () => {
+  it('E: checkout already terminal — guarded skip inside one transaction, no new credit', async () => {
+    // STEP: billing PR 1 unified the fast pre-check into the same
+    // lock+fresh-read transaction used for a real fulfillment, so the
+    // receipt can be finalized atomically with the (no-op) outcome instead
+    // of relying on the wrapper's separate fallback finalization. One
+    // transaction now runs for every terminal branch, fulfilled or skipped
+    // — the assertion here is "no new credit", not "no transaction at all".
     const stripeEventId = 'evt_ex_already_terminal'
     const session = buildSession({ sessionId: 'cs_ex_5' })
     const stripeEvent = buildStripeEvent('checkout.session.completed', session, stripeEventId)
@@ -318,7 +325,7 @@ describe('STEP 4.7: atomic finalization for checkout.session.completed / extra_e
 
     expect(response.status).toBe(200)
     expect(body.received).toBe(true)
-    expect(prisma.$transaction).not.toHaveBeenCalled()
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1)
 
     const owner = await prisma.owner.findUnique({ where: { id: 'owner-1' } })
     expect(owner.extraEventCredits).toBe(1)
