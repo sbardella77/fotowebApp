@@ -44,6 +44,11 @@ import {
   bootstrapStripeSubscriptionOrdering,
   bootstrapStripeInvoiceOrdering,
 } from '@/lib/server/stripe-billing-ordering'
+import {
+  fulfillExtraFreeEventCreditCanonical,
+  fulfillExtraFreeEventBuyAndCreate,
+  expireExtraFreeEventCheckout,
+} from '@/lib/server/extra-free-event-fulfillment'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,6 +57,9 @@ export const dynamic = 'force-dynamic'
 // business action to protect, so claiming it would just grow the table.
 const HANDLED_STRIPE_EVENT_TYPES = new Set([
   'checkout.session.completed',
+  'checkout.session.async_payment_succeeded',
+  'checkout.session.async_payment_failed',
+  'checkout.session.expired',
   'customer.subscription.updated',
   'customer.subscription.deleted',
   'invoice.payment_failed',
@@ -131,6 +139,33 @@ export async function POST(request) {
       eventId: stripeEventId,
       attempt: processingAttempt,
       run: () => handleCheckoutSessionCompleted({ event, prisma, attempt: processingAttempt }),
+    })
+  }
+
+  if (event.type === 'checkout.session.async_payment_succeeded') {
+    return processClaimedStripeWebhookEvent({
+      prisma,
+      eventId: stripeEventId,
+      attempt: processingAttempt,
+      run: () => handleCheckoutSessionAsyncPaymentSucceeded({ event, prisma, attempt: processingAttempt }),
+    })
+  }
+
+  if (event.type === 'checkout.session.async_payment_failed') {
+    return processClaimedStripeWebhookEvent({
+      prisma,
+      eventId: stripeEventId,
+      attempt: processingAttempt,
+      run: () => handleCheckoutSessionAsyncPaymentFailed({ event }),
+    })
+  }
+
+  if (event.type === 'checkout.session.expired') {
+    return processClaimedStripeWebhookEvent({
+      prisma,
+      eventId: stripeEventId,
+      attempt: processingAttempt,
+      run: () => handleCheckoutSessionExpired({ event, prisma, attempt: processingAttempt }),
     })
   }
 
@@ -318,13 +353,41 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
     })
 
     if (pendingCheckout) {
-      if (postPurchaseAction === 'create_event') {
-        return await fulfillExtraFreeEventBuyAndCreate({ prisma, session, ownerId, intent, stripeEventId, attempt })
+      // Payment-safety gate (STEP: billing PR 1) — checkout.session.completed
+      // fires whether or not payment has actually settled. Synchronous
+      // methods (cards) are 'paid' by the time this fires, but delayed/async
+      // methods (e.g. bank debits) can complete this event with
+      // payment_status still 'unpaid', settling later via a separate
+      // checkout.session.async_payment_succeeded event. Fulfillment must
+      // never run ahead of confirmed payment — no code-level restriction to
+      // synchronous-only payment methods exists (checkout-session/route.js
+      // sets no payment_method_types), so this cannot be assumed away.
+      if (session.payment_status !== 'paid') {
+        console.log(
+          `[stripe/webhook] Extra free event checkout ${pendingCheckout.id} completed with payment_status!=paid, deferring fulfillment to async_payment_succeeded`,
+        )
+        return NextResponse.json({ received: true })
       }
-      return await fulfillExtraFreeEventCreditCanonical({ prisma, session, ownerId, intent, pendingCheckout, stripeEventId, attempt })
+
+      const finalizeInTransaction = (tx) => markStripeWebhookEventProcessed({ prisma: tx, eventId: stripeEventId, attempt })
+      const fulfillmentArgs = { prisma, session, ownerId, intent, pendingCheckout, finalizeInTransaction }
+
+      await (postPurchaseAction === 'create_event'
+        ? fulfillExtraFreeEventBuyAndCreate(fulfillmentArgs)
+        : fulfillExtraFreeEventCreditCanonical(fulfillmentArgs))
+
+      return {
+        kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
+        response: NextResponse.json({ received: true }),
+      }
     }
 
-    // Legacy fallback: sessions created before the pending-row migration.
+    // Legacy fallback: sessions created before the pending-row migration —
+    // no local ExtraFreeEventCheckout row exists to gate/correlate against.
+    if (session.payment_status !== 'paid') {
+      console.log('[stripe/webhook] Legacy extra free event session completed with payment_status!=paid, deferring fulfillment')
+      return NextResponse.json({ received: true })
+    }
     return await fulfillExtraFreeEventCredit({ prisma, session, ownerId, intent, stripeEventId, attempt })
   }
 
@@ -589,6 +652,106 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
   }
 
   return NextResponse.json({ received: true })
+}
+
+// ── checkout.session.async_payment_succeeded ──
+// Fires when a delayed/asynchronous payment method (e.g. a bank debit) that
+// was still 'unpaid' at checkout.session.completed time finally settles as
+// paid. Only extra_event's canonical (pendingCheckout-based) path is wired
+// here — the legacy pre-migration fallback has no local row to correlate
+// against and is, by construction, a decaying historical-only path.
+async function handleCheckoutSessionAsyncPaymentSucceeded({ event, prisma, attempt }) {
+  const session = event.data.object
+  const intent = session.metadata?.intent
+  const ownerId = session.metadata?.ownerId
+
+  if (intent !== 'extra_event' || !ownerId) {
+    return NextResponse.json({ received: true })
+  }
+
+  if (session.payment_status !== 'paid') {
+    console.warn('[stripe/webhook] checkout.session.async_payment_succeeded without payment_status=paid, skipping')
+    return NextResponse.json({ received: true })
+  }
+
+  const stripeEventId = event.id
+  const postPurchaseAction = session.metadata?.postPurchaseAction
+
+  const pendingCheckout = await prisma.extraFreeEventCheckout.findUnique({
+    where: { stripeCheckoutSessionId: session.id },
+  })
+  if (!pendingCheckout) {
+    console.warn('[stripe/webhook] async_payment_succeeded: no pending checkout found, skipping')
+    return NextResponse.json({ received: true })
+  }
+
+  const finalizeInTransaction = (tx) => markStripeWebhookEventProcessed({ prisma: tx, eventId: stripeEventId, attempt })
+  const fulfillmentArgs = { prisma, session, ownerId, intent, pendingCheckout, finalizeInTransaction }
+
+  await (postPurchaseAction === 'create_event'
+    ? fulfillExtraFreeEventBuyAndCreate(fulfillmentArgs)
+    : fulfillExtraFreeEventCreditCanonical(fulfillmentArgs))
+
+  return {
+    kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
+    response: NextResponse.json({ received: true }),
+  }
+}
+
+// ── checkout.session.async_payment_failed ──
+// A delayed/asynchronous payment method ultimately failed to settle. This
+// is NOT the same as the existing 'failed' checkout status, which means
+// "payment succeeded, auto-create failed, compensation credit granted" —
+// reusing it here would corrupt that signal. No entitlement is granted, no
+// local status is changed: the checkout stays 'checkout_created' so the
+// customer can retry with a new checkout, or a future authoritative
+// reconciliation pass can resolve any long-lived case against Stripe's own
+// current state. No new terminal state is invented from this event alone.
+async function handleCheckoutSessionAsyncPaymentFailed({ event }) {
+  const session = event.data.object
+  const intent = session.metadata?.intent
+
+  if (intent !== 'extra_event') {
+    return NextResponse.json({ received: true })
+  }
+
+  console.log('[stripe/webhook] Extra free event async payment failed — no local state change, checkout remains checkout_created')
+  return NextResponse.json({ received: true })
+}
+
+// ── checkout.session.expired ──
+// The Checkout Session itself reached Stripe's terminal 'expired' state
+// (unpaid, permanently unpayable — a session cannot later transition to
+// complete once expired). Transitions a local 'checkout_created' row to
+// 'expired'; every other local status is left untouched, never downgraded.
+async function handleCheckoutSessionExpired({ event, prisma, attempt }) {
+  const session = event.data.object
+  const intent = session.metadata?.intent
+
+  if (intent !== 'extra_event') {
+    return NextResponse.json({ received: true })
+  }
+
+  const stripeEventId = event.id
+
+  const pendingCheckout = await prisma.extraFreeEventCheckout.findFirst({
+    where: { stripeCheckoutSessionId: session.id },
+  })
+  if (!pendingCheckout) {
+    return NextResponse.json({ received: true })
+  }
+
+  const finalizeInTransaction = (tx) => markStripeWebhookEventProcessed({ prisma: tx, eventId: stripeEventId, attempt })
+  const result = await expireExtraFreeEventCheckout({ prisma, pendingCheckout, finalizeInTransaction })
+
+  console.log(
+    `[stripe/webhook] Extra free event checkout ${pendingCheckout.id}: ${result.status}${result.reason ? ` (${result.reason})` : ''}`,
+  )
+
+  return {
+    kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
+    response: NextResponse.json({ received: true }),
+  }
 }
 
 // ── customer.subscription.updated ──
@@ -1610,391 +1773,4 @@ async function fulfillExtraFreeEventCredit({ prisma, session, ownerId, intent, s
     kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
     response: NextResponse.json({ received: true }),
   }
-}
-
-// ── Helper: Extra Free Event credit fulfillment (canonical path, atomic —
-// every extra_event checkout has a unique pending row) ──
-async function fulfillExtraFreeEventCreditCanonical({ prisma, session, ownerId, intent, pendingCheckout, stripeEventId, attempt }) {
-  if (['credit_granted', 'auto_created', 'failed'].includes(pendingCheckout.status)) {
-    console.log(
-      `[stripe/webhook] Extra free event checkout ${pendingCheckout.id} already processed (status=${pendingCheckout.status}), skipping`
-    )
-    return NextResponse.json({ received: true })
-  }
-
-  let updatedOwner
-  try {
-    const result = await prisma.$transaction(async (tx) => {
-      // Pessimistic lock: serialize concurrent webhook deliveries for the same session.
-      await tx.$queryRaw`SELECT id FROM "ExtraFreeEventCheckout" WHERE id = ${pendingCheckout.id} FOR UPDATE`
-
-      const fresh = await tx.extraFreeEventCheckout.findUnique({
-        where: { id: pendingCheckout.id },
-      })
-      if (!fresh || ['credit_granted', 'auto_created', 'failed'].includes(fresh.status)) {
-        // Lost the race after acquiring the lock: another delivery already
-        // reached a terminal status first. Nothing to write, so nothing to
-        // make atomic.
-        return null
-      }
-
-      const owner = await tx.owner.update({
-        where: { id: ownerId },
-        data: {
-          extraEventCredits: { increment: 1 },
-          extraEventCheckoutSessionId: session.id,
-          updatedAt: new Date(),
-        },
-      })
-
-      await tx.extraFreeEventCheckout.update({
-        where: { id: fresh.id },
-        data: {
-          status: 'credit_granted',
-          stripeCheckoutSessionId: session.id,
-          completedAt: new Date(),
-        },
-      })
-
-      await tx.upsellEvent.create({
-        data: {
-          eventName: EVENT_UPSELL_CONVERSION,
-          upsellType: session.metadata?.upsellType || 'extra_event',
-          source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
-          ctaPlan: 'extra_event',
-          ownerId: ownerId || null,
-        },
-      })
-
-      await markStripeWebhookEventProcessed({ prisma: tx, eventId: stripeEventId, attempt })
-
-      return owner
-    })
-
-    if (!result) {
-      // Nothing committed: legacy response, standalone wrapper finalization.
-      return NextResponse.json({ received: true })
-    }
-
-    updatedOwner = result
-  } catch (dbError) {
-    if (dbError instanceof StripeWebhookFencingError) {
-      // Another worker already reclaimed this delivery; Prisma already
-      // rolled back the credit/checkout/UpsellEvent writes above. Let the
-      // wrapper handle it (503, no markFailed with this now-stale attempt).
-      throw dbError
-    }
-    if (dbError instanceof Prisma.PrismaClientKnownRequestError && dbError.code === 'P2025') {
-      console.warn('[stripe/webhook] Owner not found for extra free event fulfillment, skipping:', ownerId)
-      return NextResponse.json({ received: true })
-    }
-    console.error('[stripe/webhook] Failed to grant extra free event credit:', dbError)
-    await sendOpsAlert({
-      severity: 'critical',
-      type: 'billing:extra_free_event:credit_grant_failed',
-      title: 'Extra Free Event credit grant failed',
-      message: dbError.message,
-      context: {
-        stripeSessionId: session.id,
-        ownerId,
-        pendingCheckoutId: pendingCheckout?.id,
-      },
-    })
-    return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
-  }
-
-  trackServerEvent(
-    EVENT_CHECKOUT_COMPLETED,
-    {
-      owner_id: ownerId,
-      billing_intent: intent,
-      product_type: session.metadata?.productType || 'extra_free_event',
-      restrictions: session.metadata?.restrictions || 'free_plan',
-      stripe_session_id: session.id,
-      stripe_customer_id: session.customer,
-      extra_event_credits: updatedOwner.extraEventCredits,
-    },
-    { distinctId: session.metadata?.ownerEmail || ownerId }
-  )
-
-  trackServerEvent(
-    EVENT_UPSELL_CONVERSION,
-    {
-      owner_id: ownerId,
-      billing_intent: intent,
-      upsell_type: session.metadata?.upsellType || 'extra_event',
-      product_type: session.metadata?.productType || 'extra_free_event',
-      restrictions: session.metadata?.restrictions || 'free_plan',
-      source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
-      stripe_session_id: session.id,
-      stripe_customer_id: session.customer,
-      extra_event_credits: updatedOwner.extraEventCredits,
-    },
-    { distinctId: session.metadata?.ownerEmail || ownerId }
-  )
-
-  console.log(`[stripe/webhook] Owner ${updatedOwner.email} granted extra free event credit. Total credits: ${updatedOwner.extraEventCredits}`)
-
-  await sendExtraFreeEventCreditGrantedEmail({
-    owner: updatedOwner,
-    credits: updatedOwner.extraEventCredits,
-    appUrl: getAppUrl(),
-  })
-
-  return {
-    kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
-    response: NextResponse.json({ received: true }),
-  }
-}
-
-// ── Helper: "buy and create" auto-creation ──
-async function fulfillExtraFreeEventBuyAndCreate({ prisma, session, ownerId, intent, stripeEventId, attempt }) {
-  const pendingCheckoutId = session.metadata?.pendingCheckoutId
-  if (!pendingCheckoutId) {
-    return NextResponse.json({ received: true })
-  }
-
-  let pending
-  try {
-    pending = await prisma.extraFreeEventCheckout.findFirst({
-      where: { id: pendingCheckoutId },
-    })
-  } catch (lookupError) {
-    console.error('[stripe/webhook] Failed to lookup pending checkout:', lookupError)
-    return NextResponse.json({ error: 'Database lookup failed' }, { status: 500 })
-  }
-
-  if (!pending) {
-    console.warn('[stripe/webhook] Pending checkout not found, skipping auto-create:', pendingCheckoutId)
-    return NextResponse.json({ received: true })
-  }
-
-  if (pending.ownerId !== ownerId) {
-    console.warn('[stripe/webhook] Pending checkout owner mismatch, skipping:', {
-      pendingCheckoutId,
-      expectedOwnerId: pending.ownerId,
-      actualOwnerId: ownerId,
-    })
-    return NextResponse.json({ received: true })
-  }
-
-  if (pending.status === 'auto_created') {
-    console.log(`[stripe/webhook] Pending checkout ${pendingCheckoutId} already auto-created, skipping`)
-    return NextResponse.json({ received: true })
-  }
-
-  if (pending.status === 'failed') {
-    console.log(`[stripe/webhook] Pending checkout ${pendingCheckoutId} already failed, leaving fallback credit in place`)
-    return NextResponse.json({ received: true })
-  }
-
-  const owner = await prisma.owner.findUnique({
-    where: { id: ownerId },
-    select: { id: true, email: true },
-  })
-  if (!owner) {
-    console.warn('[stripe/webhook] Owner not found for auto-create, skipping:', ownerId)
-    return NextResponse.json({ received: true })
-  }
-
-  try {
-    const { prismaGalleryRepository } = await import('@/lib/server/prisma-gallery-repository')
-
-    const result = await prisma.$transaction(async (tx) => {
-      // Pessimistic lock: serialize concurrent webhook deliveries for the same session.
-      await tx.$queryRaw`SELECT id FROM "ExtraFreeEventCheckout" WHERE id = ${pending.id} FOR UPDATE`
-
-      const fresh = await tx.extraFreeEventCheckout.findUnique({
-        where: { id: pending.id },
-      })
-      if (!fresh || fresh.status === 'auto_created' || fresh.status === 'failed') {
-        return { skipped: true }
-      }
-
-      const event = await prismaGalleryRepository.createEvent({
-        name: fresh.eventName,
-        prismaClient: tx,
-      })
-
-      await tx.event.update({
-        where: { id: event.id },
-        data: {
-          ownerId: owner.id,
-          ownerEmail: owner.email,
-        },
-      })
-
-      const updatedPending = await tx.extraFreeEventCheckout.update({
-        where: { id: fresh.id },
-        data: {
-          status: 'auto_created',
-          stripeCheckoutSessionId: session.id,
-          createdEventId: event.id,
-          createdEventSlug: event.slug,
-          completedAt: new Date(),
-          autoCreatedAt: new Date(),
-        },
-      })
-
-      await markStripeWebhookEventProcessed({ prisma: tx, eventId: stripeEventId, attempt })
-
-      return { event, updatedPending }
-    })
-
-    if (result.skipped) {
-      return NextResponse.json({ received: true })
-    }
-
-    trackServerEvent(
-      EVENT_CHECKOUT_COMPLETED,
-      {
-        owner_id: ownerId,
-        billing_intent: intent,
-        product_type: session.metadata?.productType || 'extra_free_event',
-        restrictions: session.metadata?.restrictions || 'free_plan',
-        stripe_session_id: session.id,
-        stripe_customer_id: session.customer,
-        pending_checkout_id: pending.id,
-      },
-      { distinctId: session.metadata?.ownerEmail || ownerId }
-    )
-
-    trackServerEvent(
-      EVENT_UPSELL_CONVERSION,
-      {
-        owner_id: ownerId,
-        billing_intent: intent,
-        upsell_type: session.metadata?.upsellType || 'extra_event',
-        product_type: session.metadata?.productType || 'extra_free_event',
-        restrictions: session.metadata?.restrictions || 'free_plan',
-        source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
-        stripe_session_id: session.id,
-        stripe_customer_id: session.customer,
-        pending_checkout_id: pending.id,
-      },
-      { distinctId: session.metadata?.ownerEmail || ownerId }
-    )
-
-    trackServerEvent(
-      EXTRA_FREE_EVENT_AUTO_CREATE_SUCCESS,
-      {
-        pending_checkout_id: pending.id,
-        checkout_session_id: session.id,
-        event_slug: result.event.slug,
-        source: 'stripe_webhook',
-      },
-      { distinctId: session.metadata?.ownerEmail || ownerId }
-    )
-
-    console.log(`[stripe/webhook] Auto-created event ${result.event.slug} for pending checkout ${pending.id}`)
-
-    await sendExtraFreeEventCreatedEmail({
-      owner,
-      event: result.event,
-      appUrl: getAppUrl(),
-    })
-
-    return {
-      kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
-      response: NextResponse.json({ received: true }),
-    }
-  } catch (error) {
-    if (error instanceof StripeWebhookFencingError) {
-      // Another worker already reclaimed this delivery; Prisma already
-      // rolled back the Event/association/pendingCheckout writes above.
-      // This worker lost its claim and is no longer authorized to grant a
-      // compensating credit, so the fallback must NOT run here. Let the
-      // wrapper handle it (503, no markFailed with this now-stale attempt).
-      throw error
-    }
-
-    console.error('[stripe/webhook] Auto-create event failed, granting fallback credit:', {
-      pendingCheckoutId: pending.id,
-      sessionId: session.id,
-      error: error.message,
-    })
-
-    await sendOpsAlert({
-      severity: 'critical',
-      type: 'billing:extra_free_event:auto_create_failed',
-      title: 'Extra Free Event auto-create failed; fallback credit granted',
-      message: error.message,
-      context: {
-        stripeSessionId: session.id,
-        ownerId,
-        pendingCheckoutId: pending.id,
-        eventName: pending.eventName,
-      },
-    })
-
-    try {
-      await prisma.$transaction(async (tx) => {
-        await tx.owner.update({
-          where: { id: ownerId },
-          data: {
-            extraEventCredits: { increment: 1 },
-            extraEventCheckoutSessionId: session.id,
-            updatedAt: new Date(),
-          },
-        })
-        await tx.extraFreeEventCheckout.update({
-          where: { id: pending.id },
-          data: {
-            status: 'failed',
-            stripeCheckoutSessionId: session.id,
-            errorMessage: String(error?.message || 'auto_create_failed').slice(0, 500),
-            completedAt: new Date(),
-          },
-        })
-
-        await markStripeWebhookEventProcessed({ prisma: tx, eventId: stripeEventId, attempt })
-      })
-
-      trackServerEvent(
-        EXTRA_FREE_EVENT_AUTO_CREATE_FAILED,
-        {
-          pending_checkout_id: pending.id,
-          checkout_session_id: session.id,
-          fallback_credit_granted: true,
-          reason: error.message,
-          source: 'stripe_webhook',
-        },
-        { distinctId: session.metadata?.ownerEmail || ownerId }
-      )
-
-      await sendExtraFreeEventFallbackCreditEmail({
-        owner,
-        pending,
-        appUrl: getAppUrl(),
-      })
-
-      return {
-        kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
-        response: NextResponse.json({ received: true }),
-      }
-    } catch (fallbackError) {
-      if (fallbackError instanceof StripeWebhookFencingError) {
-        // Another worker already reclaimed this delivery; Prisma already
-        // rolled back the fallback credit/checkout writes above. Let the
-        // wrapper handle it (503, no markFailed with this now-stale attempt).
-        throw fallbackError
-      }
-      console.error('[stripe/webhook] Fallback credit grant also failed:', fallbackError)
-      await sendOpsAlert({
-        severity: 'critical',
-        type: 'billing:extra_free_event:fallback_credit_failed',
-        title: 'Extra Free Event fallback credit grant failed',
-        message: fallbackError.message,
-        context: {
-          stripeSessionId: session.id,
-          ownerId,
-          pendingCheckoutId: pending.id,
-          eventName: pending.eventName,
-        },
-      })
-      return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
-    }
-  }
-
-  return NextResponse.json({ received: true })
 }

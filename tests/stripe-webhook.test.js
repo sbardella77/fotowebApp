@@ -115,6 +115,11 @@ function buildCheckoutSession({ intent, eventId, sessionId = 'cs_test', extra = 
     id: sessionId,
     customer: 'cus_test',
     customer_email: 'owner@example.com',
+    // Real card payments are 'paid' by the time checkout.session.completed
+    // fires — matches every existing scenario here unless a test explicitly
+    // overrides it via extra:{payment_status:'unpaid'} to exercise the
+    // payment-safety gate (STEP: billing PR 1).
+    payment_status: 'paid',
     metadata: {
       intent,
       ownerId: 'owner-1',

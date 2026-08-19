@@ -80,6 +80,7 @@ function buildSession({ sessionId = 'cs_bcf_test', ownerId = 'owner-1', pendingC
   return {
     id: sessionId,
     customer: 'cus_test',
+    payment_status: 'paid',
     customer_email: 'owner@example.com',
     metadata: {
       intent: 'extra_event',
