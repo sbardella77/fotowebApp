@@ -7,6 +7,17 @@ import { resolve } from 'path'
 // must immediately stop the whole-file retry loop, instead of being retried
 // up to 3x (see STEP 7.13 §C for the amplification this closes).
 //
+// STEP 7.15g.1 extends the same mechanism to HTTP 422 (deterministic
+// source-content rejection from the STEP 7.15g validator): since all four
+// call sites below funnel through the single shared
+// isRetryableUploadHttpStatus(status) classifier before setting
+// err.nonRetryable, and that classifier is now proven (tests/upload-
+// utils.test.js) to return false for 422 exactly as it does for 429, no
+// wiring change was needed here — the same structural proof that made 429
+// stop the loop after one attempt now also covers 422. This file adds
+// explicit 422-labeled assertions alongside the existing ones so the two
+// statuses are never allowed to drift apart silently.
+//
 // The blob-token-generation request (issued internally by @vercel/blob's
 // upload() client SDK) is explicitly OUT of scope for this STEP — its
 // failure surfaces as a bare BlobError with no HTTP status preserved, so it
@@ -19,7 +30,12 @@ import { resolve } from 'path'
 // tests/blob-upload-client-contract.test.js. The actual status -> boolean
 // classification logic is behavior-tested directly in
 // tests/upload-utils.test.js (isRetryableUploadHttpStatus), since that part
-// is a pure function and needs no source parsing at all.
+// is a pure function and needs no source parsing at all. Combined, these two
+// files are the full proof that a 422 (like a 429) reaches exactly one
+// attempt: the pure function proves the classification is false, and this
+// file proves every call site reaches that classifier and that the loop's
+// break-on-nonRetryable mechanics are untouched — without needing to
+// actually execute the component, which this repo has no harness for.
 
 const ROOM = readFileSync(resolve(import.meta.dirname, '..', 'components/room-page-client.jsx'), 'utf8')
 
@@ -155,6 +171,23 @@ describe('Guest upload — retry loop mechanics are untouched', () => {
     expect(uploadCallIdx).toBeGreaterThan(-1)
     const uploadCallBlock = FN.slice(uploadCallIdx, uploadCallIdx + 500)
     expect(uploadCallBlock).not.toContain('isRetryableUploadHttpStatus')
+  })
+})
+
+describe('Guest upload — HTTP 422 (STEP 7.15g.1) reaches the same shared classifier as 429', () => {
+  it('all four call sites still route through isRetryableUploadHttpStatus — the single source of the 422 verdict', () => {
+    // Deliberately re-asserts (rather than assumes) that no call site grew a
+    // second, parallel classification path for 422 specifically — status-
+    // based non-retryable classification must have exactly one seam.
+    expect(INIT_BLOCK).toContain('if (!isRetryableUploadHttpStatus(initResponse.status)) err.nonRetryable = true')
+    expect(VERCEL_COMPLETE_BLOCK).toContain('if (!isRetryableUploadHttpStatus(completeResponse.status)) err.nonRetryable = true')
+    expect(LOCAL_COMPLETE_BLOCK).toContain('if (!isRetryableUploadHttpStatus(completeResponse.status)) err.nonRetryable = true')
+    expect(CHUNK_BLOCK).toContain('if (!isRetryableUploadHttpStatus(chunkResponse.status)) err.nonRetryable = true')
+  })
+
+  it('merge-blocking: no 422-specific branch bypasses the shared classifier (e.g. no hardcoded "=== 422" check anywhere in the retry function)', () => {
+    expect(FN).not.toContain('=== 422')
+    expect(FN).not.toContain('422 ===')
   })
 })
 
