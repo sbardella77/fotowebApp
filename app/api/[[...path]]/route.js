@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'crypto'
 import { BlobError, head } from '@vercel/blob'
 import { handleUpload } from '@vercel/blob/client'
+import { normalizeContributorId } from '@/lib/server/contributor-id'
 import {
   generateManagementToken,
   hashManagementToken,
@@ -1186,6 +1187,11 @@ const initUpload = async (request) => {
 
   const storageDriver = getStorageDriver()
 
+  // Best-effort, analytics-only — never trusted for security/billing/gating.
+  // A malformed/missing value normalizes to null and never blocks the
+  // upload (see lib/server/contributor-id.js).
+  const contributorId = normalizeContributorId(payload.contributorId)
+
   if (storageDriver.mode === 'vercel-blob') {
     if (!prisma) {
       return json(
@@ -1204,12 +1210,13 @@ const initUpload = async (request) => {
       uploaderName: payload.uploaderName,
       caption: payload.caption,
       momentId: payload.momentId,
+      contributorId,
     })
 
     return json({ session }, 201)
   }
 
-  const session = await storageDriver.initUploadSession(payload)
+  const session = await storageDriver.initUploadSession({ ...payload, contributorId })
   return json({ session }, 201)
 }
 
@@ -1663,6 +1670,11 @@ const completeUpload = withTiming('completeUpload', async (request) => {
     uploaderName: payload.uploaderName,
     caption: payload.caption,
     momentId: payload.momentId || undefined,
+    // Unlike uploaderName/caption/momentId above, contributorId is read
+    // exclusively from the session (fileResult, sourced from meta.json at
+    // init time) — never from this complete-request body — for parity with
+    // the Vercel Blob path's session-authoritative contract.
+    contributorId: fileResult.contributorId,
   })
 
   // Eager, best-effort, post-commit (STEP 7.15e) — parity with the Blob path.

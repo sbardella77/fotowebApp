@@ -808,6 +808,26 @@ describe('transaction', () => {
     expect(photo.caption).toBe('First dance')
   })
 
+  it("19b. Photo usa contributorId dalla sessione (mai da un eventuale body client)", async () => {
+    const session = makeSession({ contributorId: '33333333-3333-4333-8333-333333333333' })
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    await completeRoomPhotoBlobUpload({ ...makeDefaultArgs(), prisma })
+    const [photo] = [...prisma._photos.values()]
+    expect(photo.contributorId).toBe('33333333-3333-4333-8333-333333333333')
+  })
+
+  it('19c. Photo.contributorId è null quando la sessione (legacy) non lo ha', async () => {
+    // Legacy BlobUploadSession rows created before this field existed have
+    // contributorId === undefined, not null — completion must still succeed.
+    const session = makeSession()
+    delete session.contributorId
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const result = await completeRoomPhotoBlobUpload({ ...makeDefaultArgs(), prisma })
+    expect(result.photo.contributorId).toBeNull()
+  })
+
   it('20. storedName deriva da expectedPathname della sessione', async () => {
     const args = makeDefaultArgs()
     await completeRoomPhotoBlobUpload(args)

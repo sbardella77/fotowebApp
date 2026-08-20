@@ -216,6 +216,21 @@ describe('createBlobUploadSession', () => {
     ).rejects.toThrow(BlobUploadSessionInvariantError)
   })
 
+  it('9. persists a provided contributorId', async () => {
+    const prisma = makeFakePrisma()
+    const session = await createBlobUploadSession(prisma, {
+      ...BASE_CREATE_INPUT,
+      contributorId: '11111111-1111-4111-8111-111111111111',
+    })
+    expect(session.contributorId).toBe('11111111-1111-4111-8111-111111111111')
+  })
+
+  it('10. defaults contributorId to null when omitted (legacy call sites)', async () => {
+    const prisma = makeFakePrisma()
+    const session = await createBlobUploadSession(prisma, BASE_CREATE_INPUT)
+    expect(session.contributorId).toBeNull()
+  })
+
   it('8. rejects path traversal, backslash, and percent-encoding', async () => {
     const prisma = makeFakePrisma()
     const bad = [

@@ -416,6 +416,41 @@ describe('createServerBoundBlobUploadInit', () => {
     expect(record.momentId).toBe('moment-xyz')
   })
 
+  it('ROOM_PHOTO: saves contributorId when provided', async () => {
+    const prisma = makeFakePrisma()
+    const driver = makeFakeDriver()
+
+    await createServerBoundBlobUploadInit({
+      prisma,
+      storageDriver: driver,
+      event: EVENT,
+      payload: PAYLOAD,
+      uploadKind: BlobUploadKind.ROOM_PHOTO,
+      handleUploadUrl: '/api/uploads/blob',
+      contributorId: '22222222-2222-4222-8222-222222222222',
+    })
+
+    const record = prisma.blobUploadSession._store[0]
+    expect(record.contributorId).toBe('22222222-2222-4222-8222-222222222222')
+  })
+
+  it('ROOM_PHOTO: contributorId null when omitted', async () => {
+    const prisma = makeFakePrisma()
+    const driver = makeFakeDriver()
+
+    await createServerBoundBlobUploadInit({
+      prisma,
+      storageDriver: driver,
+      event: EVENT,
+      payload: PAYLOAD,
+      uploadKind: BlobUploadKind.ROOM_PHOTO,
+      handleUploadUrl: '/api/uploads/blob',
+    })
+
+    const record = prisma.blobUploadSession._store[0]
+    expect(record.contributorId).toBeNull()
+  })
+
   it('ROOM_PHOTO: momentId null when omitted', async () => {
     const prisma = makeFakePrisma()
     const driver = makeFakeDriver()
@@ -450,6 +485,7 @@ describe('createServerBoundBlobUploadInit', () => {
     expect(record.uploaderName).toBeNull()
     expect(record.caption).toBeNull()
     expect(record.momentId).toBeNull()
+    expect(record.contributorId).toBeNull()
   })
 
   it('PHOTOGRAPHER_UPLOAD: metadata fields are null when caller does not pass them', async () => {
@@ -469,5 +505,6 @@ describe('createServerBoundBlobUploadInit', () => {
     expect(record.uploaderName).toBeNull()
     expect(record.caption).toBeNull()
     expect(record.momentId).toBeNull()
+    expect(record.contributorId).toBeNull()
   })
 })

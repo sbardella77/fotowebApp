@@ -13,7 +13,7 @@ vi.mock('fs/promises', () => ({
   appendFile: vi.fn().mockResolvedValue(undefined),
 }))
 
-import { rm } from 'fs/promises'
+import { rm, writeFile, readFile, stat } from 'fs/promises'
 import { localStorageDriver } from '@/lib/server/storage/local-storage'
 
 const STORAGE_ROOT = path.join(process.cwd(), 'public', 'uploads')
@@ -106,5 +106,91 @@ describe('localStorageDriver.deleteStoredFile', () => {
   it('is a no-op for empty string', async () => {
     await localStorageDriver.deleteStoredFile('')
     expect(rm).not.toHaveBeenCalled()
+  })
+})
+
+describe('localStorageDriver contributorId propagation (init → meta → complete)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    stat.mockResolvedValue({ size: 1024 })
+  })
+
+  it('initUploadSession writes contributorId into the session meta file', async () => {
+    await localStorageDriver.initUploadSession({
+      eventSlug: 'wedding-2026',
+      fileName: 'photo.jpg',
+      fileSize: 1024,
+      mimeType: 'image/jpeg',
+      totalChunks: 1,
+      contributorId: '44444444-4444-4444-8444-444444444444',
+    })
+
+    const [, metaJson] = writeFile.mock.calls[0]
+    const meta = JSON.parse(metaJson)
+    expect(meta.contributorId).toBe('44444444-4444-4444-8444-444444444444')
+  })
+
+  it('initUploadSession defaults contributorId to null when omitted (legacy call sites)', async () => {
+    await localStorageDriver.initUploadSession({
+      eventSlug: 'wedding-2026',
+      fileName: 'photo.jpg',
+      fileSize: 1024,
+      mimeType: 'image/jpeg',
+      totalChunks: 1,
+    })
+
+    const [, metaJson] = writeFile.mock.calls[0]
+    const meta = JSON.parse(metaJson)
+    expect(meta.contributorId).toBeNull()
+  })
+
+  it('completeUploadSession returns the contributorId stored in meta', async () => {
+    readFile.mockImplementation(async (filePath) => {
+      if (String(filePath).endsWith('meta.json')) {
+        return JSON.stringify({
+          sessionId: 'sess-1',
+          eventSlug: 'wedding-2026',
+          fileName: 'photo.jpg',
+          mimeType: 'image/jpeg',
+          totalChunks: 1,
+          directory: 'events',
+          contributorId: '44444444-4444-4444-8444-444444444444',
+        })
+      }
+      return Buffer.from('chunk-bytes')
+    })
+
+    const result = await localStorageDriver.completeUploadSession({
+      sessionId: 'sess-1',
+      photoId: 'photo-1',
+    })
+
+    expect(result.contributorId).toBe('44444444-4444-4444-8444-444444444444')
+  })
+
+  it('completeUploadSession returns null contributorId for a legacy meta file that never had it', async () => {
+    readFile.mockImplementation(async (filePath) => {
+      if (String(filePath).endsWith('meta.json')) {
+        // Legacy meta.json written before this field existed — no
+        // contributorId key at all.
+        return JSON.stringify({
+          sessionId: 'sess-1',
+          eventSlug: 'wedding-2026',
+          fileName: 'photo.jpg',
+          mimeType: 'image/jpeg',
+          totalChunks: 1,
+          directory: 'events',
+        })
+      }
+      return Buffer.from('chunk-bytes')
+    })
+
+    const result = await localStorageDriver.completeUploadSession({
+      sessionId: 'sess-1',
+      photoId: 'photo-1',
+    })
+
+    expect(result.contributorId).toBeNull()
+    expect(result.url).toContain('wedding-2026')
   })
 })

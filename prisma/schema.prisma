@@ -142,24 +142,25 @@ model EventMoment {
 }
 
 model Photo {
-  id           String       @id @default(uuid())
-  eventId      String
-  originalName String
-  storedName   String
-  mimeType     String
-  size         Int
-  url          String
-  uploaderName String?
-  caption      String?
-  status       PhotoStatus  @default(VISIBLE)
-  uploadSource String       @default("mobile")
-  width        Int?
-  height       Int?
-  momentId     String?
-  moment       EventMoment? @relation(fields: [momentId], references: [id], onDelete: SetNull)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  event        Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  id            String       @id @default(uuid())
+  eventId       String
+  originalName  String
+  storedName    String
+  mimeType      String
+  size          Int
+  url           String
+  uploaderName  String?
+  caption       String?
+  status        PhotoStatus  @default(VISIBLE)
+  uploadSource  String       @default("mobile")
+  width         Int?
+  height        Int?
+  momentId      String?
+  contributorId String?
+  moment        EventMoment? @relation(fields: [momentId], references: [id], onDelete: SetNull)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  event         Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@index([eventId, createdAt(sort: Desc)])
   @@index([status, createdAt(sort: Desc)])
@@ -275,9 +276,10 @@ model BlobUploadSession {
   mimeType         String
   expectedSize     Int
 
-  uploaderName String?
-  caption      String?
-  momentId     String?
+  uploaderName  String?
+  caption       String?
+  momentId      String?
+  contributorId String?
 
   blobUrl  String?
   resultId String?
