@@ -669,7 +669,10 @@ describe('validateBlobUploadCallbackUrl', () => {
     ).toThrow(BlobUploadTokenRequestError)
   })
 
-  it('7. callbackUrl mancante → rifiutato', () => {
+  it('7. callbackUrl assente (chiave non presente nel payload) → accettato (no throw)', () => {
+    // Matches the real @vercel/blob@2.8.0 client contract: the generate-client-token
+    // request payload never includes callbackUrl at all. The SDK derives the callback
+    // server-side. Absence must not be rejected.
     const body = {
       type: 'blob.generate-client-token',
       payload: {
@@ -677,9 +680,38 @@ describe('validateBlobUploadCallbackUrl', () => {
         multipart: false,
       },
     }
-    expect(() => validateBlobUploadCallbackUrl(body, REQUEST_URL)).toThrow(
-      BlobUploadTokenRequestError,
-    )
+    expect(() => validateBlobUploadCallbackUrl(body, REQUEST_URL)).not.toThrow()
+  })
+
+  it('7b. callbackUrl esplicitamente undefined → accettato (no throw)', () => {
+    expect(() =>
+      validateBlobUploadCallbackUrl(makeGenerateTokenBody(undefined), REQUEST_URL),
+    ).not.toThrow()
+  })
+
+  it('7c. callbackUrl non-stringa presente (number) → rifiutato', () => {
+    // A present-but-invalid value must NOT be treated as equivalent to absence.
+    expect(() =>
+      validateBlobUploadCallbackUrl(makeGenerateTokenBody(123), REQUEST_URL),
+    ).toThrow(BlobUploadTokenRequestError)
+
+    try {
+      validateBlobUploadCallbackUrl(makeGenerateTokenBody(123), REQUEST_URL)
+    } catch (e) {
+      expect(e.code).toBe('invalid_callback_url')
+    }
+  })
+
+  it('7d. callbackUrl null presente → rifiutato', () => {
+    expect(() =>
+      validateBlobUploadCallbackUrl(makeGenerateTokenBody(null), REQUEST_URL),
+    ).toThrow(BlobUploadTokenRequestError)
+  })
+
+  it('7e. callbackUrl stringa vuota presente → rifiutato', () => {
+    expect(() =>
+      validateBlobUploadCallbackUrl(makeGenerateTokenBody(''), REQUEST_URL),
+    ).toThrow(BlobUploadTokenRequestError)
   })
 
   it('8. body blob.upload-completed non viene sottoposto al controllo', () => {
