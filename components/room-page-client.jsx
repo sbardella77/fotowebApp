@@ -6,6 +6,7 @@ import Link from 'next/link'
 import {
   Camera,
   CheckCircle2,
+  ChevronRight,
   Clock3,
   Copy,
   Download,
@@ -33,17 +34,20 @@ import { runWithConcurrency, isRetryableUploadHttpStatus } from '@/lib/upload-ut
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 import { trackEvent } from '@/lib/analytics/track-client'
 import { trackUpsellImpression, trackUpsellClick } from '@/lib/analytics/upsell'
 import {
   EVENT_ROOM_VIEWED,
-  EVENT_SNAP_CTA_CLICKED,
   EVENT_UPLOAD_CTA_CLICKED,
   EVENT_UPLOAD_STARTED,
   EVENT_UPLOAD_COMPLETED,
   EVENT_SECOND_UPLOAD_COMPLETED,
   EVENT_UPLOAD_FILE_REJECTED,
   EVENT_GUEST_UPLOAD_OPTIMIZED,
+  EVENT_UPLOAD_FAILED,
+  EVENT_MOMENT_SELECTED,
+  EVENT_GUEST_NAME_ENTERED,
   EVENT_WHATSAPP_SHARE_CLICKED,
   EVENT_NATIVE_SHARE_CLICKED,
   EVENT_COPY_LINK_CLICKED,
@@ -212,7 +216,9 @@ export default function RoomPageClient({ slug, isNew }) {
   const [hasMorePhotos, setHasMorePhotos] = useState(false)
   const [loadingMorePhotos, setLoadingMorePhotos] = useState(false)
   const [selectedMomentSlug, setSelectedMomentSlug] = useState('all')
-  const [uploadMomentId, setUploadMomentId] = useState('')
+  const [pendingFiles, setPendingFiles] = useState([])
+  const [pendingMomentId, setPendingMomentId] = useState('')
+  const [guestNameOpen, setGuestNameOpen] = useState(false)
   const [galleryJob, setGalleryJob] = useState(null)
   const [galleryJobPolling, setGalleryJobPolling] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
@@ -234,11 +240,11 @@ export default function RoomPageClient({ slug, isNew }) {
   const [newPhotosCount, setNewPhotosCount] = useState(0)
   const [galleryBlockedModalOpen, setGalleryBlockedModalOpen] = useState(false)
   const heroFileInputRef = useRef(null)
-  const cameraFileInputRef = useRef(null)
   const heroRef = useRef(null)
   const galleryRef = useRef(null)
   const roomViewTracked = useRef(false)
   const uploadCompletedTracked = useRef(false)
+  const guestNameTracked = useRef(false)
   const { showToast, ToastComponent } = useToast()
   const fetchControllerRef = useRef(null)
   const photosControllerRef = useRef(null)
@@ -545,12 +551,26 @@ export default function RoomPageClient({ slug, isNew }) {
       trackEvent(EVENT_UPLOAD_FILE_REJECTED, { room_slug: activeEvent?.slug, rejected_count: oversizedFiles.length, reason: 'file_too_large' })
     }
     if (supportedFiles.length === 0) return
-    setIsUploading(true); setLastUploadCount(supportedFiles.length)
-    trackEvent(EVENT_UPLOAD_STARTED, { room_slug: activeEvent?.slug, batch_size: supportedFiles.length, is_second_upload: uploadCompletedTracked.current })
+
+    const eventMoments = activeEvent?.moments || []
+    if (eventMoments.length > 1) {
+      // Multiple moments: defer the choice until after photo selection
+      // instead of forcing it upfront — the guest picks files first, then
+      // (optionally) tags the batch before confirming the upload.
+      setPendingMomentId('')
+      setPendingFiles(supportedFiles)
+      return
+    }
+    await beginUpload(supportedFiles, eventMoments[0]?.id ?? '')
+  }
+
+  const beginUpload = async (filesToUpload, momentId) => {
+    setIsUploading(true); setLastUploadCount(filesToUpload.length)
+    trackEvent(EVENT_UPLOAD_STARTED, { room_slug: activeEvent?.slug, batch_size: filesToUpload.length, is_second_upload: uploadCompletedTracked.current })
 
     // Pre-register upload entries with optimizing status
     setUploads(
-      supportedFiles.map((file) => ({
+      filesToUpload.map((file) => ({
         id: `${file.name}-${file.lastModified}`,
         name: file.name,
         size: file.size,
@@ -566,7 +586,7 @@ export default function RoomPageClient({ slug, isNew }) {
     const optimizedMap = new Map()
     const optimizationResults = []
     await Promise.all(
-      supportedFiles.map(async (file) => {
+      filesToUpload.map(async (file) => {
         const result = await optimizeImage(file)
         const localId = `${file.name}-${file.lastModified}`
         optimizedMap.set(localId, result.file)
@@ -598,7 +618,7 @@ export default function RoomPageClient({ slug, isNew }) {
 
     try {
       trackEvent(EVENT_GUEST_UPLOAD_OPTIMIZED, {
-        files: supportedFiles.length,
+        files: filesToUpload.length,
         optimized_files: optimizedFiles,
         skipped_files: skippedFiles,
         original_bytes: originalBytes,
@@ -616,10 +636,10 @@ export default function RoomPageClient({ slug, isNew }) {
     }
 
     // Upload with controlled concurrency (max 3)
-    const tasks = supportedFiles.map((file) => async () => {
+    const tasks = filesToUpload.map((file) => async () => {
       const localId = `${file.name}-${file.lastModified}`
       const optimized = optimizedMap.get(localId)
-      return uploadSingleFile(file, optimized, uploadMomentId)
+      return uploadSingleFile(file, optimized, momentId)
     })
     const results = await runWithConcurrency(tasks, 3)
 
@@ -629,13 +649,14 @@ export default function RoomPageClient({ slug, isNew }) {
       setUploadSuccess(true)
       setUploads([])
       setShowViralSection(true); showToast(t.uploadSuccess)
-      if (uploadCompletedTracked.current) { trackEvent(EVENT_SECOND_UPLOAD_COMPLETED, { room_slug: activeEvent?.slug, batch_size: supportedFiles.length }) }
-      else { uploadCompletedTracked.current = true; trackEvent(EVENT_UPLOAD_COMPLETED, { room_slug: activeEvent?.slug, batch_size: supportedFiles.length }) }
+      if (uploadCompletedTracked.current) { trackEvent(EVENT_SECOND_UPLOAD_COMPLETED, { room_slug: activeEvent?.slug, batch_size: filesToUpload.length }) }
+      else { uploadCompletedTracked.current = true; trackEvent(EVENT_UPLOAD_COMPLETED, { room_slug: activeEvent?.slug, batch_size: filesToUpload.length }) }
       await refreshGalleryAfterUpload()
       lastLocalUploadAt.current = Date.now()
     } else {
       const someSucceeded = results.some(Boolean)
       setUploadSuccess(false)
+      trackEvent(EVENT_UPLOAD_FAILED, { room_slug: activeEvent?.slug, batch_size: filesToUpload.length, partial: someSucceeded })
       if (someSucceeded) {
         setUploadFormatError(t.somePhotosFailed || t.uploadFailedTryAgain)
       } else {
@@ -647,7 +668,6 @@ export default function RoomPageClient({ slug, isNew }) {
       }
     }
     if (heroFileInputRef.current) heroFileInputRef.current.value = ''
-    if (cameraFileInputRef.current) cameraFileInputRef.current.value = ''
   }
 
   const openLightbox = (index) => { setLightboxIndex(index); setLightboxOpen(true) }
@@ -1075,20 +1095,21 @@ export default function RoomPageClient({ slug, isNew }) {
       ) : (
         <section className="container relative z-10 px-4 py-8 pb-28 sm:pb-20">
           <div className="mx-auto max-w-3xl space-y-6">
-            {/* Room info header */}
+            {/* Event cover hero */}
             <div className="rounded-2xl border border-border bg-surface shadow-card overflow-hidden">
               {activeEvent.coverUrl ? (
-                <div className="relative h-40 sm:h-56 w-full overflow-hidden">
+                <div className="relative h-56 sm:h-72 md:h-80 w-full overflow-hidden">
                   <img
                     src={activeEvent.coverUrl}
                     alt={activeEvent.name}
                     className="h-full w-full object-cover"
                     loading="eager"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent" />
                   <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-6">
                     <span className="inline-block rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-medium text-white/90 backdrop-blur-md">{t.roomLabel}</span>
-                    <h1 className="mt-1.5 font-display text-xl font-bold tracking-tight text-white sm:text-2xl">{activeEvent.name}</h1>
+                    <h1 className="mt-1.5 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">{activeEvent.name}</h1>
+                    <p className="mt-1 text-sm font-light text-white/85">{activeEvent?.photoCount || galleryPhotos.length} {t.photosLabel}</p>
                   </div>
                 </div>
               ) : (
@@ -1097,6 +1118,7 @@ export default function RoomPageClient({ slug, isNew }) {
                     <div className="min-w-0 flex-1">
                       <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.roomLabel}</span>
                       <h1 className="mt-1.5 font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">{activeEvent.name}</h1>
+                      <p className="mt-1 text-sm font-light text-muted-foreground">{activeEvent?.photoCount || galleryPhotos.length} {t.photosLabel}</p>
                     </div>
                     <Button variant="ghost" size="sm" className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground" onClick={() => loadEvent(activeEvent.slug, { silent: true, force: true })} aria-label={t.retry}>
                       <RefreshCcw className={`h-4 w-4 ${busy.refresh ? 'animate-spin' : ''}`} />
@@ -1107,32 +1129,35 @@ export default function RoomPageClient({ slug, isNew }) {
               <div className="px-5 pb-5 sm:px-6 sm:pb-6">
                 <div className="flex flex-wrap items-center gap-4 text-sm font-light text-muted-foreground">
                   <span className="flex items-center gap-1.5"><Users className="h-4 w-4 text-primary" />{t.openForUploads}</span>
-                  <span className="flex items-center gap-1.5"><ImagePlus className="h-4 w-4 text-primary" />{activeEvent?.photoCount || galleryPhotos.length} {t.photosLabel}</span>
                 </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" className="gap-1.5 border-border bg-elevated hover:bg-surface hover:text-foreground" onClick={async () => {
-                    trackEvent(EVENT_COPY_LINK_CLICKED, { room_slug: activeEvent?.slug, source: 'room_info_card' })
-                    try {
-                      if (navigator.clipboard && navigator.clipboard.writeText) {
-                        await navigator.clipboard.writeText(`${baseUrl}/event/${activeEvent.slug}`); setCopied(true); showToast(t.linkCopied); setTimeout(() => setCopied(false), 2000)
-                      } else { showToast(t.copyNotSupported, 'error') }
-                    } catch { showToast(t.failedToCopy, 'error') }
-                  }}>
-                    {copied ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                    {copied ? tCommon.copied : tCommon.copy}
-                  </Button>
-                  <Button size="sm" variant="outline" className="gap-1.5 border-border bg-elevated hover:bg-surface hover:text-foreground" onClick={async () => {
-                    trackEvent(EVENT_NATIVE_SHARE_CLICKED, { room_slug: activeEvent?.slug, source: 'room_info_card' })
-                    const shareData = { title: t.joinRoomOnSnapRooms.replace('{name}', activeEvent.name), text: t.uploadYourPhotosTo.replace('{name}', activeEvent.name) + ' ' + t.useCode + ': ' + activeEvent.slug }
-                    if (typeof navigator !== 'undefined' && navigator.share) { try { await navigator.share(shareData); showToast(t.shared) } catch {} }
-                    else { try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(t.uploadYourPhotosTo.replace('{name}', activeEvent.name) + ' ' + t.useCode + ': ' + activeEvent.slug); showToast(t.inviteCopied) } else { showToast(t.shareNotSupported, 'error') } } catch { showToast(t.failedToCopy, 'error') } }
-                  }}>
-                    <Share2 className="h-3.5 w-3.5" />{t.nativeShare}
-                  </Button>
-                  <Button size="sm" variant="outline" className="gap-1.5 border-border bg-elevated hover:bg-surface hover:text-foreground" onClick={() => { trackEvent(EVENT_QR_OPENED, { room_slug: activeEvent?.slug, source: 'room_info_card' }); setQrModalOpen(true) }}>
-                    <QrCode className="h-3.5 w-3.5" />{t.showQR}
-                  </Button>
-                </div>
+                {/* Copy link / share / QR are host-only up here — guests reach the same
+                    actions from the secondary "Share this event" card further down. */}
+                {isEventOwner && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" className="gap-1.5 border-border bg-elevated hover:bg-surface hover:text-foreground" onClick={async () => {
+                      trackEvent(EVENT_COPY_LINK_CLICKED, { room_slug: activeEvent?.slug, source: 'room_info_card' })
+                      try {
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                          await navigator.clipboard.writeText(`${baseUrl}/event/${activeEvent.slug}`); setCopied(true); showToast(t.linkCopied); setTimeout(() => setCopied(false), 2000)
+                        } else { showToast(t.copyNotSupported, 'error') }
+                      } catch { showToast(t.failedToCopy, 'error') }
+                    }}>
+                      {copied ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                      {copied ? tCommon.copied : tCommon.copy}
+                    </Button>
+                    <Button size="sm" variant="outline" className="gap-1.5 border-border bg-elevated hover:bg-surface hover:text-foreground" onClick={async () => {
+                      trackEvent(EVENT_NATIVE_SHARE_CLICKED, { room_slug: activeEvent?.slug, source: 'room_info_card' })
+                      const shareData = { title: t.joinRoomOnSnapRooms.replace('{name}', activeEvent.name), text: t.uploadYourPhotosTo.replace('{name}', activeEvent.name) + ' ' + t.useCode + ': ' + activeEvent.slug }
+                      if (typeof navigator !== 'undefined' && navigator.share) { try { await navigator.share(shareData); showToast(t.shared) } catch {} }
+                      else { try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(t.uploadYourPhotosTo.replace('{name}', activeEvent.name) + ' ' + t.useCode + ': ' + activeEvent.slug); showToast(t.inviteCopied) } else { showToast(t.shareNotSupported, 'error') } } catch { showToast(t.failedToCopy, 'error') } }
+                    }}>
+                      <Share2 className="h-3.5 w-3.5" />{t.nativeShare}
+                    </Button>
+                    <Button size="sm" variant="outline" className="gap-1.5 border-border bg-elevated hover:bg-surface hover:text-foreground" onClick={() => { trackEvent(EVENT_QR_OPENED, { room_slug: activeEvent?.slug, source: 'room_info_card' }); setQrModalOpen(true) }}>
+                      <QrCode className="h-3.5 w-3.5" />{t.showQR}
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1159,10 +1184,39 @@ export default function RoomPageClient({ slug, isNew }) {
                 )}
 
                 <div className="mt-6 mx-auto max-w-sm">
-                  <div className="space-y-2 text-left">
-                    <label htmlFor="guest-name" className="text-sm font-medium text-foreground">{t.guestNamePlaceholder}</label>
-                    <Input id="guest-name" value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder={t.yourName} className="h-11 rounded-xl border-border bg-raised text-foreground placeholder:text-muted-foreground" />
-                  </div>
+                  <Collapsible open={guestNameOpen} onOpenChange={setGuestNameOpen}>
+                    {!guestNameOpen && (
+                      <CollapsibleTrigger asChild>
+                        <button type="button" className="flex w-full flex-col items-center gap-0.5 text-center motion-reduce:transition-none">
+                          <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">{t.optionalLabel}</span>
+                          <span className="inline-flex items-center gap-1 text-sm font-medium text-foreground hover:text-primary">
+                            {t.addYourName}
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </span>
+                        </button>
+                      </CollapsibleTrigger>
+                    )}
+                    <CollapsibleContent>
+                      <div className="space-y-2 text-left">
+                        <label htmlFor="guest-name" className="text-sm font-medium text-foreground">{t.guestNamePlaceholder}</label>
+                        <Input
+                          id="guest-name"
+                          value={guestName}
+                          onChange={(event) => {
+                            const value = event.target.value
+                            setGuestName(value)
+                            if (value.trim() && !guestNameTracked.current) {
+                              guestNameTracked.current = true
+                              trackEvent(EVENT_GUEST_NAME_ENTERED, { room_slug: activeEvent?.slug })
+                            }
+                          }}
+                          placeholder={t.yourName}
+                          className="h-11 rounded-xl border-border bg-raised text-foreground placeholder:text-muted-foreground"
+                          autoFocus
+                        />
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
                 </div>
 
                 {/* Post-upload success */}
@@ -1230,96 +1284,91 @@ export default function RoomPageClient({ slug, isNew }) {
                       />
                     </div>
                   </div>
-                ) : (
-                  <div className="mt-6 flex flex-col gap-3">
-                    {activeEvent?.moments && activeEvent.moments.length > 0 && (
-                      <div className="flex flex-col items-center gap-2">
-                        <span className="text-xs font-light text-muted-foreground">{t.whereDoThesePhotosBelong || 'Where do these photos belong?'}</span>
-                        <div className="flex flex-wrap justify-center gap-1.5">
+                ) : pendingFiles.length > 0 ? (
+                  <div className="mt-6 flex flex-col items-center gap-3">
+                    <p className="text-sm font-medium text-foreground">
+                      {(t.photosSelectedCount || '{count} photos selected').replace('{count}', pendingFiles.length)}
+                    </p>
+                    <div className="flex flex-col items-center gap-2">
+                      <span className="text-xs font-light text-muted-foreground">{t.whereDoThesePhotosBelong || 'Where do these photos belong?'}</span>
+                      <div className="flex flex-wrap justify-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => { setPendingMomentId(''); trackEvent(EVENT_MOMENT_SELECTED, { room_slug: activeEvent?.slug, moment_id: null }) }}
+                          className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                            !pendingMomentId
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-raised text-muted-foreground hover:bg-elevated hover:text-foreground'
+                          }`}
+                          aria-pressed={!pendingMomentId}
+                        >
+                          {t.noMoment || 'No moment'}
+                        </button>
+                        {activeEvent.moments.map((m) => (
                           <button
+                            key={m.id}
                             type="button"
-                            onClick={() => setUploadMomentId('')}
+                            onClick={() => { setPendingMomentId(m.id); trackEvent(EVENT_MOMENT_SELECTED, { room_slug: activeEvent?.slug, moment_id: m.id }) }}
                             className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                              !uploadMomentId
+                              pendingMomentId === m.id
                                 ? 'bg-primary text-primary-foreground'
                                 : 'bg-raised text-muted-foreground hover:bg-elevated hover:text-foreground'
                             }`}
-                            aria-pressed={!uploadMomentId}
+                            aria-pressed={pendingMomentId === m.id}
                           >
-                            {t.noMoment || 'No moment'}
+                            {m.name}
                           </button>
-                          {activeEvent.moments.map((m) => (
-                            <button
-                              key={m.id}
-                              type="button"
-                              onClick={() => setUploadMomentId(m.id)}
-                              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                                uploadMomentId === m.id
-                                  ? 'bg-primary text-primary-foreground'
-                                  : 'bg-raised text-muted-foreground hover:bg-elevated hover:text-foreground'
-                              }`}
-                              aria-pressed={uploadMomentId === m.id}
-                            >
-                              {m.name}
-                            </button>
-                          ))}
-                        </div>
+                        ))}
                       </div>
-                    )}
-                    <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-                      <Button size="lg" className="h-14 gap-2 rounded-xl px-8 text-base font-body font-semibold cta-primary touch-target" disabled={Boolean(photoLimitError)} aria-label={t.snapPhoto} onClick={() => { setUploadSuccess(false); setUploadFormatError(''); trackEvent(EVENT_SNAP_CTA_CLICKED, { room_slug: activeEvent?.slug }); cameraFileInputRef.current?.click() }}>
-                        <Camera className="h-5 w-5" />{t.snapPhoto}
+                    </div>
+                    <div className="mt-1 flex flex-col items-center gap-2 sm:flex-row sm:justify-center">
+                      <Button
+                        size="lg"
+                        className="h-14 gap-2 rounded-xl px-8 text-base font-body font-semibold cta-primary touch-target"
+                        disabled={Boolean(photoLimitError)}
+                        onClick={() => {
+                          const files = pendingFiles
+                          const momentId = pendingMomentId
+                          setPendingFiles([])
+                          setPendingMomentId('')
+                          beginUpload(files, momentId)
+                        }}
+                      >
+                        <Upload className="h-5 w-5" />
+                        {(t.uploadPhotosCount || 'Upload {count} photos').replace('{count}', pendingFiles.length)}
                       </Button>
-                      <Button size="lg" variant="outline" className="h-14 gap-2 rounded-xl px-8 text-base font-body font-semibold border-border bg-raised hover:bg-elevated hover:text-foreground touch-target" disabled={Boolean(photoLimitError)} aria-label={t.uploadPhoto} onClick={() => { setUploadSuccess(false); setUploadFormatError(''); trackEvent(EVENT_UPLOAD_CTA_CLICKED, { room_slug: activeEvent?.slug }); heroFileInputRef.current?.click() }}>
-                        <Upload className="h-5 w-5" />{t.uploadPhoto}
+                      <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-foreground" onClick={() => { setPendingFiles([]); setPendingMomentId('') }}>
+                        {t.changePhotos || 'Choose different photos'}
                       </Button>
                     </div>
+                  </div>
+                ) : (
+                  <div className="mt-6 flex flex-col items-center gap-3">
+                    <Button
+                      size="lg"
+                      className="h-14 w-full gap-2 rounded-xl px-8 text-base font-body font-semibold cta-primary touch-target sm:w-auto"
+                      disabled={Boolean(photoLimitError)}
+                      aria-label={t.addPhotos}
+                      onClick={() => { setUploadSuccess(false); setUploadFormatError(''); trackEvent(EVENT_UPLOAD_CTA_CLICKED, { room_slug: activeEvent?.slug, source: 'hero' }); heroFileInputRef.current?.click() }}
+                    >
+                      <ImagePlus className="h-5 w-5" />{t.addPhotos}
+                    </Button>
+                    {galleryPhotos.length > 0 && (
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground motion-reduce:transition-none"
+                        onClick={() => galleryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                      >
+                        {t.viewGallery}<ArrowDown className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
                 )}
                 <p className="mt-5 text-xs font-light text-muted-foreground">{t.noAppNeeded}</p>
               </div>
             </div>
 
-            <input ref={heroFileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={onFilesSelected} aria-label={t.uploadPhoto} />
-            <input ref={cameraFileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" capture="environment" className="hidden" onChange={onFilesSelected} aria-label={t.snapPhoto} />
-
-            {/* Viral share */}
-            {showViralSection && (
-              <div className="mt-2 rounded-2xl border border-success/20 bg-success/5">
-                <div className="p-5 sm:p-6">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-display text-base font-bold text-foreground">{t.inviteOthers}</p>
-                      <p className="mt-1 text-sm font-light leading-relaxed text-muted-foreground">{t.viralDesc}</p>
-                    </div>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground" onClick={() => setShowViralSection(false)}>
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    <Button size="sm" className="gap-1.5 bg-[#25D366] text-foreground hover:bg-[#128C7E] border-transparent" onClick={() => { trackEvent(EVENT_WHATSAPP_SHARE_CLICKED, { room_slug: activeEvent?.slug, source: 'viral_section' }); try { window.open(`https://wa.me/?text=${encodeURIComponent(`📸 Photos from ${activeEvent.name}\n\nAdd yours here 👇\n${baseUrl}/event/${activeEvent.slug}`)}`, '_blank') } catch (e) { console.warn(e) } }}>
-                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                      {t.shareOnWhatsApp}
-                    </Button>
-                    <Button size="sm" variant="outline" className="gap-1.5 border-border bg-raised hover:bg-elevated hover:text-foreground" onClick={async () => { trackEvent(EVENT_COPY_LINK_CLICKED, { room_slug: activeEvent?.slug, source: 'viral_section' }); try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(`${baseUrl}/event/${activeEvent.slug}`); showToast(t.copied + '!') } else { showToast(t.copy + ' ' + t.error, 'error') } } catch { showToast(t.error, 'error') } }}>
-                      <Copy className="h-3.5 w-3.5" />{t.copyLink}
-                    </Button>
-                    <Button size="sm" variant="outline" className="gap-1.5 border-border bg-raised hover:bg-elevated hover:text-foreground" onClick={async () => { trackEvent(EVENT_NATIVE_SHARE_CLICKED, { room_slug: activeEvent?.slug, source: 'viral_section' }); const shareData = { title: t.joinRoomOnSnapRooms.replace('{name}', activeEvent.name), text: t.uploadYourPhotosTo.replace('{name}', activeEvent.name), url: `${baseUrl}/event/${activeEvent.slug}` }; if (typeof navigator !== 'undefined' && navigator.share) { try { await navigator.share(shareData); showToast(t.shared) } catch {} } else { try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(`${baseUrl}/event/${activeEvent.slug}`); showToast(t.copied + '!') } else { showToast(t.share + ' ' + t.error, 'error') } } catch { showToast(t.error, 'error') } } }}>
-                      <Share2 className="h-3.5 w-3.5" />{t.nativeShare}
-                    </Button>
-                    <Button size="sm" variant="outline" className="gap-1.5 border-border bg-raised hover:bg-elevated hover:text-foreground" onClick={() => { trackEvent(EVENT_QR_OPENED, { room_slug: activeEvent?.slug, source: 'viral_section' }); setQrModalOpen(true) }}>
-                      <QrCode className="h-3.5 w-3.5" />{t.showQR}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {isNew && !newRoomBannerDismissed && (
-              <NewRoomShareBanner event={activeEvent} baseUrl={baseUrl} onDismiss={() => setNewRoomBannerDismissed(true)} showToast={showToast} onShowQR={() => { trackEvent(EVENT_QR_OPENED, { room_slug: activeEvent?.slug, source: 'new_room_banner' }); setQrModalOpen(true) }} />
-            )}
-
-            <InstallCta mode="room" className="mt-2" />
+            <input ref={heroFileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={onFilesSelected} aria-label={t.addPhotos} />
 
             {uploads.length > 0 && (
               <div className="mt-4 space-y-3" role="region" aria-label={t.uploadingPhotos} aria-live="polite">
@@ -1347,7 +1396,7 @@ export default function RoomPageClient({ slug, isNew }) {
               </div>
             )}
 
-            {/* Gallery */}
+            {/* Latest photos — right after the primary action, for social proof */}
             <div ref={galleryRef} className="mt-8 rounded-2xl border border-border bg-surface shadow-card">
               <div className="p-5 sm:p-6">
                 {newPhotosAvailable && (
@@ -1478,14 +1527,84 @@ export default function RoomPageClient({ slug, isNew }) {
                 </div>
               </div>
             </div>
+
+            {/* Viral share — celebratory prompt right after a successful upload */}
+            {showViralSection && (
+              <div className="mt-2 rounded-2xl border border-success/20 bg-success/5">
+                <div className="p-5 sm:p-6">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-display text-base font-bold text-foreground">{t.inviteOthers}</p>
+                      <p className="mt-1 text-sm font-light leading-relaxed text-muted-foreground">{t.viralDesc}</p>
+                    </div>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground" onClick={() => setShowViralSection(false)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    <Button size="sm" className="gap-1.5 bg-[#25D366] text-foreground hover:bg-[#128C7E] border-transparent" onClick={() => { trackEvent(EVENT_WHATSAPP_SHARE_CLICKED, { room_slug: activeEvent?.slug, source: 'viral_section' }); try { window.open(`https://wa.me/?text=${encodeURIComponent(`📸 Photos from ${activeEvent.name}\n\nAdd yours here 👇\n${baseUrl}/event/${activeEvent.slug}`)}`, '_blank') } catch (e) { console.warn(e) } }}>
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                      {t.shareOnWhatsApp}
+                    </Button>
+                    <Button size="sm" variant="outline" className="gap-1.5 border-border bg-raised hover:bg-elevated hover:text-foreground" onClick={async () => { trackEvent(EVENT_COPY_LINK_CLICKED, { room_slug: activeEvent?.slug, source: 'viral_section' }); try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(`${baseUrl}/event/${activeEvent.slug}`); showToast(t.copied + '!') } else { showToast(t.copy + ' ' + t.error, 'error') } } catch { showToast(t.error, 'error') } }}>
+                      <Copy className="h-3.5 w-3.5" />{t.copyLink}
+                    </Button>
+                    <Button size="sm" variant="outline" className="gap-1.5 border-border bg-raised hover:bg-elevated hover:text-foreground" onClick={async () => { trackEvent(EVENT_NATIVE_SHARE_CLICKED, { room_slug: activeEvent?.slug, source: 'viral_section' }); const shareData = { title: t.joinRoomOnSnapRooms.replace('{name}', activeEvent.name), text: t.uploadYourPhotosTo.replace('{name}', activeEvent.name), url: `${baseUrl}/event/${activeEvent.slug}` }; if (typeof navigator !== 'undefined' && navigator.share) { try { await navigator.share(shareData); showToast(t.shared) } catch {} } else { try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(`${baseUrl}/event/${activeEvent.slug}`); showToast(t.copied + '!') } else { showToast(t.share + ' ' + t.error, 'error') } } catch { showToast(t.error, 'error') } } }}>
+                      <Share2 className="h-3.5 w-3.5" />{t.nativeShare}
+                    </Button>
+                    <Button size="sm" variant="outline" className="gap-1.5 border-border bg-raised hover:bg-elevated hover:text-foreground" onClick={() => { trackEvent(EVENT_QR_OPENED, { room_slug: activeEvent?.slug, source: 'viral_section' }); setQrModalOpen(true) }}>
+                      <QrCode className="h-3.5 w-3.5" />{t.showQR}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {isNew && !newRoomBannerDismissed && (
+              <NewRoomShareBanner event={activeEvent} baseUrl={baseUrl} onDismiss={() => setNewRoomBannerDismissed(true)} showToast={showToast} onShowQR={() => { trackEvent(EVENT_QR_OPENED, { room_slug: activeEvent?.slug, source: 'new_room_banner' }); setQrModalOpen(true) }} />
+            )}
+
+            <InstallCta mode="room" className="mt-2" />
+
+            {/* Share this event — secondary for guests, always reachable */}
+            <div className="rounded-2xl border border-border bg-surface shadow-card">
+              <div className="p-5 sm:p-6">
+                <p className="font-display text-base font-bold text-foreground">{t.shareThisEvent}</p>
+                <p className="mt-1 text-sm font-light leading-relaxed text-muted-foreground">{t.inviteGuestsToAddPhotos}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" className="gap-1.5 border-border bg-raised hover:bg-elevated hover:text-foreground" onClick={async () => {
+                    trackEvent(EVENT_COPY_LINK_CLICKED, { room_slug: activeEvent?.slug, source: 'share_event_card' })
+                    try {
+                      if (navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(`${baseUrl}/event/${activeEvent.slug}`); setCopied(true); showToast(t.linkCopied); setTimeout(() => setCopied(false), 2000)
+                      } else { showToast(t.copyNotSupported, 'error') }
+                    } catch { showToast(t.failedToCopy, 'error') }
+                  }}>
+                    {copied ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copied ? tCommon.copied : tCommon.copy}
+                  </Button>
+                  <Button size="sm" variant="outline" className="gap-1.5 border-border bg-raised hover:bg-elevated hover:text-foreground" onClick={async () => {
+                    trackEvent(EVENT_NATIVE_SHARE_CLICKED, { room_slug: activeEvent?.slug, source: 'share_event_card' })
+                    const shareData = { title: t.joinRoomOnSnapRooms.replace('{name}', activeEvent.name), text: t.uploadYourPhotosTo.replace('{name}', activeEvent.name) + ' ' + t.useCode + ': ' + activeEvent.slug }
+                    if (typeof navigator !== 'undefined' && navigator.share) { try { await navigator.share(shareData); showToast(t.shared) } catch {} }
+                    else { try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(t.uploadYourPhotosTo.replace('{name}', activeEvent.name) + ' ' + t.useCode + ': ' + activeEvent.slug); showToast(t.inviteCopied) } else { showToast(t.shareNotSupported, 'error') } } catch { showToast(t.failedToCopy, 'error') } }
+                  }}>
+                    <Share2 className="h-3.5 w-3.5" />{t.nativeShare}
+                  </Button>
+                  <Button size="sm" variant="outline" className="gap-1.5 border-border bg-raised hover:bg-elevated hover:text-foreground" onClick={() => { trackEvent(EVENT_QR_OPENED, { room_slug: activeEvent?.slug, source: 'share_event_card' }); setQrModalOpen(true) }}>
+                    <QrCode className="h-3.5 w-3.5" />{t.showQR}
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
       )}
 
       {/* Sticky mobile CTA */}
-      <div className={`fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-0 right-0 z-40 px-4 transition-opacity duration-200 sm:hidden ${showStickyCta ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-        <Button size="lg" className="h-14 w-full gap-2 rounded-xl text-base font-body font-semibold cta-primary shadow-lg" aria-label={t.uploadToEvent} onClick={() => { setUploadSuccess(false); setUploadFormatError(''); trackEvent(EVENT_SNAP_CTA_CLICKED, { room_slug: activeEvent?.slug, position: 'sticky_mobile' }); cameraFileInputRef.current?.click() }}>
-          <Camera className="h-5 w-5" />{t.addPhotos}
+      <div className={`fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-0 right-0 z-40 px-4 transition-opacity duration-200 motion-reduce:transition-none sm:hidden ${showStickyCta ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+        <Button size="lg" className="h-14 w-full gap-2 rounded-xl text-base font-body font-semibold cta-primary shadow-lg" aria-label={t.addPhotos} onClick={() => { setUploadSuccess(false); setUploadFormatError(''); trackEvent(EVENT_UPLOAD_CTA_CLICKED, { room_slug: activeEvent?.slug, source: 'sticky' }); heroFileInputRef.current?.click() }}>
+          <ImagePlus className="h-5 w-5" />{t.addPhotos}
         </Button>
       </div>
 
