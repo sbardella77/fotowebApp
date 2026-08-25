@@ -322,17 +322,17 @@ export function PlannersLandingPage({ locale }) {
         </div>
       </section>
 
-      {/* Testimonial */}
+      {/* Use-Case Callout */}
       <section className="relative py-24 sm:py-32">
         <div className="container px-4">
           <div className="mx-auto max-w-3xl reveal">
             <div className="rounded-2xl border border-white/[0.08] bg-surface p-8 sm:p-10 shadow-elevated text-center">
               <Sparkles className="mx-auto h-6 w-6 text-primary" />
-              <blockquote className="mt-5 font-display text-xl text-foreground">
-                &ldquo;{t.testimonialQuote}&rdquo;
-              </blockquote>
+              <p className="mt-5 font-display text-xl font-bold text-foreground">
+                {t.useCaseCalloutTitle}
+              </p>
               <p className="mt-4 text-sm text-muted-foreground">
-                {t.testimonialAttribution}
+                {t.useCaseCalloutDesc}
               </p>
             </div>
           </div>

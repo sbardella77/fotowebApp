@@ -584,11 +584,11 @@ export function WeddingLandingPage({ locale = 'en' }) {
                   <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10 text-primary">
                     <Shield className="h-7 w-7" />
                   </div>
-                  <p className="mt-4 text-lg font-light text-muted-foreground">
-                    &ldquo;{t.testimonialQuote}&rdquo;
+                  <p className="mt-4 font-display text-lg font-bold text-foreground">
+                    {t.capabilityCalloutTitle}
                   </p>
-                  <p className="mt-4 font-mono text-[0.7rem] uppercase tracking-[0.1em] text-muted-foreground">
-                    {t.testimonialAttribution}
+                  <p className="mt-2 text-sm font-light text-muted-foreground">
+                    {t.capabilityCalloutDesc}
                   </p>
                 </div>
               </div>

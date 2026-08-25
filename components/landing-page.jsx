@@ -390,18 +390,15 @@ export function LandingPage({
         </div>
       </section>
 
-      {/* Social Proof */}
-      <section className="border-t border-border bg-card py-20 sm:py-28" aria-label="Testimonial">
+      {/* Benefit Callout */}
+      <section className="border-t border-border bg-card py-20 sm:py-28" aria-labelledby="benefit-callout-heading">
         <div className="container px-4">
           <div className="reveal mx-auto max-w-3xl rounded-2xl border border-border bg-[hsl(var(--bg-elevated))] p-8 sm:p-10 text-center shadow-card">
-            <blockquote>
-              <p className="text-xl sm:text-2xl text-foreground font-display leading-relaxed">
-                &ldquo;{t.quote}
-                <span className="text-accent-dark">{t.quoteHighlight}</span>&rdquo;
-              </p>
-            </blockquote>
-            <p className="mt-5 font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-              {t.quoteAttribution}
+            <h2 id="benefit-callout-heading" className="text-xl sm:text-2xl text-foreground font-display leading-relaxed font-bold">
+              {t.benefitCalloutTitle}
+            </h2>
+            <p className="mt-4 text-base text-muted-foreground leading-relaxed">
+              {t.benefitCalloutDesc}
             </p>
           </div>
         </div>
