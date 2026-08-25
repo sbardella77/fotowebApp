@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { trackEvent, trackPageView } from '@/lib/analytics/track-client'
 import { EVENT_LANDING_VIEW, EVENT_HERO_CTA_CLICKED, EVENT_CREATE_ROOM_CLICKED } from '@/lib/analytics/events'
 import { useTranslations } from '@/components/i18n-provider'
+import { localizedPath } from '@/lib/i18n/config'
 import {
   Camera,
   Heart,
@@ -162,7 +163,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-40 border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container flex h-14 items-center justify-between px-4">
-          <a href="/" className="flex items-center gap-2">
+          <a href={localizedPath(locale, '/')} className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Camera className="h-4 w-4" />
             </div>
@@ -712,7 +713,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
       <footer className="bg-surface border-t border-border py-8">
         <div className="container px-4">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-            <a href="/" className="flex items-center gap-2">
+            <a href={localizedPath(locale, '/')} className="flex items-center gap-2">
               <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
                 <Camera className="h-3 w-3" />
               </div>
@@ -722,13 +723,13 @@ export function WeddingLandingPage({ locale = 'en' }) {
               {footer.tagline}
             </p>
             <div className="flex items-center gap-4">
-              <a href="/pricing" className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
+              <a href={localizedPath(locale, '/pricing')} className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
                 {footer.pricing}
               </a>
-              <a href="/privacy" className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
+              <a href={localizedPath(locale, '/privacy')} className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
                 {footer.privacy}
               </a>
-              <a href="/terms" className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
+              <a href={localizedPath(locale, '/terms')} className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
                 {footer.terms}
               </a>
               <a href="/dashboard/login" className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">

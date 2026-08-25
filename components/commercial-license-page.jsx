@@ -21,7 +21,8 @@ import { MarketingNav } from '@/components/marketing-nav'
 import { MarketingFooter } from '@/components/marketing-footer'
 import { trackEvent, trackPageView } from '@/lib/analytics/track-client'
 import { EVENT_LANDING_VIEW } from '@/lib/analytics/events'
-import { useTranslations } from '@/components/i18n-provider'
+import { useTranslations, useLocale } from '@/components/i18n-provider'
+import { localizedPath } from '@/lib/i18n/config'
 
 function useScrollReveal() {
   useEffect(() => {
@@ -64,6 +65,7 @@ function Section({ number, title, icon: Icon, children }) {
 export function CommercialLicensePage() {
   useScrollReveal()
   const t = useTranslations('legal')
+  const locale = useLocale()
 
   useEffect(() => {
     trackPageView('landing', { variant: 'commercial_license' })
@@ -262,7 +264,7 @@ export function CommercialLicensePage() {
             <div className="reveal rounded-xl border border-border bg-surface p-6 text-center">
               <p className="text-sm text-muted-foreground">
                 {t.commercialAcceptance}{' '}
-                <a href="/terms" className="text-accent-dark hover:underline">
+                <a href={localizedPath(locale, '/terms')} className="text-accent-dark hover:underline">
                   {t.termsTitle}
                 </a>.
               </p>
@@ -277,10 +279,10 @@ export function CommercialLicensePage() {
               </p>
               <div className="flex flex-col gap-3 sm:flex-row">
                 <Button className="cta-primary" asChild>
-                  <a href="/">{t.createFreeEvent}</a>
+                  <a href={localizedPath(locale, '/')}>{t.createFreeEvent}</a>
                 </Button>
                 <Button variant="outline" className="border-border bg-transparent hover:bg-white/[0.03]" asChild>
-                  <a href="/pricing">{t.viewProPlans}</a>
+                  <a href={localizedPath(locale, '/pricing')}>{t.viewProPlans}</a>
                 </Button>
               </div>
             </div>

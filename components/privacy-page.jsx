@@ -7,6 +7,7 @@ import { MarketingFooter } from '@/components/marketing-footer'
 import { trackEvent, trackPageView } from '@/lib/analytics/track-client'
 import { EVENT_LANDING_VIEW } from '@/lib/analytics/events'
 import { useTranslations } from '@/components/i18n-provider'
+import { localizedPath } from '@/lib/i18n/config'
 
 function useScrollReveal() {
   useEffect(() => {
@@ -179,7 +180,7 @@ export function PrivacyPage({ locale = 'en' }) {
 
             <div className="mt-12 border-t border-border pt-8 text-center">
               <a
-                href="/"
+                href={localizedPath(locale, '/')}
                 className="inline-flex items-center gap-2 text-sm font-medium text-accent-dark hover:text-accent-dark/80"
               >
                 {t.backToSnapRooms}

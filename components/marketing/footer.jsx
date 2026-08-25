@@ -1,11 +1,13 @@
 'use client'
 
 import { Camera } from 'lucide-react'
-import { useTranslations } from '@/components/i18n-provider'
+import { useTranslations, useLocale } from '@/components/i18n-provider'
+import { localizedPath } from '@/lib/i18n/config'
 import { InstallCta } from '@/components/install-cta'
 
 export function MarketingFooter() {
   const t = useTranslations('footer')
+  const locale = useLocale()
 
   return (
     <footer className="border-t border-white/[0.06]">
@@ -13,7 +15,7 @@ export function MarketingFooter() {
         <div className="mx-auto max-w-5xl">
           <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
             <div className="sm:col-span-2 lg:col-span-1">
-              <a href="/" className="flex items-center gap-2.5 group">
+              <a href={localizedPath(locale, '/')} className="flex items-center gap-2.5 group">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-glow transition-transform group-hover:scale-105">
                   <Camera className="h-4 w-4" />
                 </div>
@@ -31,10 +33,10 @@ export function MarketingFooter() {
                 Product
               </p>
               <ul className="mt-4 space-y-2.5">
-                <li><a href="/pricing" className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.pricing}</a></li>
-                <li><a href="/wedding-photo-sharing" className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.weddings}</a></li>
-                <li><a href="/birthday-photo-sharing" className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.birthdays}</a></li>
-                <li><a href="/corporate-event-photo-sharing" className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.corporate}</a></li>
+                <li><a href={localizedPath(locale, '/pricing')} className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.pricing}</a></li>
+                <li><a href={localizedPath(locale, '/wedding-photo-sharing')} className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.weddings}</a></li>
+                <li><a href={localizedPath(locale, '/birthday-photo-sharing')} className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.birthdays}</a></li>
+                <li><a href={localizedPath(locale, '/corporate-event-photo-sharing')} className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.corporate}</a></li>
               </ul>
             </div>
 
@@ -43,9 +45,9 @@ export function MarketingFooter() {
                 Professionals
               </p>
               <ul className="mt-4 space-y-2.5">
-                <li><a href="/for-wedding-photographers" className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.photographers}</a></li>
-                <li><a href="/for-event-planners" className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.planners}</a></li>
-                <li><a href="/commercial-license" className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.commercialLicense}</a></li>
+                <li><a href={localizedPath(locale, '/for-wedding-photographers')} className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.photographers}</a></li>
+                <li><a href={localizedPath(locale, '/for-event-planners')} className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.planners}</a></li>
+                <li><a href={localizedPath(locale, '/commercial-license')} className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.commercialLicense}</a></li>
               </ul>
             </div>
 
@@ -54,8 +56,8 @@ export function MarketingFooter() {
                 Legal
               </p>
               <ul className="mt-4 space-y-2.5">
-                <li><a href="/privacy" className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.privacy}</a></li>
-                <li><a href="/terms" className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.terms}</a></li>
+                <li><a href={localizedPath(locale, '/privacy')} className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.privacy}</a></li>
+                <li><a href={localizedPath(locale, '/terms')} className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.terms}</a></li>
                 <li><a href="/dashboard/login" className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.organizerSignIn}</a></li>
               </ul>
             </div>

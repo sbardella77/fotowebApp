@@ -2,7 +2,8 @@
 
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useTranslations } from '@/components/i18n-provider'
+import { useTranslations, useLocale } from '@/components/i18n-provider'
+import { localizedPath } from '@/lib/i18n/config'
 import { useOwnerSession } from '@/lib/use-owner-session'
 
 /**
@@ -13,6 +14,7 @@ import { useOwnerSession } from '@/lib/use-owner-session'
  */
 export function AuthAwareFinalCta() {
   const t = useTranslations('pricing')
+  const locale = useLocale()
   const { loading, authenticated } = useOwnerSession()
 
   if (loading) {
@@ -37,7 +39,7 @@ export function AuthAwareFinalCta() {
   return (
     <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
       <Button size="lg" className="cta-primary rounded-xl w-full sm:w-auto" asChild>
-        <a href="/">{t.createFreeRoom}</a>
+        <a href={localizedPath(locale, '/')}>{t.createFreeRoom}</a>
       </Button>
       <Button
         size="lg"

@@ -3,6 +3,7 @@
 import { Camera } from 'lucide-react'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { useTranslations, useLocale } from '@/components/i18n-provider'
+import { localizedPath } from '@/lib/i18n/config'
 import { trackEvent } from '@/lib/analytics/track-client'
 import { EVENT_PRICING_LINK_CLICKED } from '@/lib/analytics/events'
 import { AuthAwareNavActions } from '@/components/auth-aware-nav-actions'
@@ -19,7 +20,7 @@ export function MarketingNav({ variant = 'fixed' }) {
   return (
     <nav className={`${navClass} bg-background/85 backdrop-blur-2xl border-b border-border sm:bg-background/70`}>
       <div className="container flex h-16 items-center justify-between px-4">
-        <a href="/" className="flex items-center gap-2.5 group flex-shrink-0">
+        <a href={localizedPath(locale, '/')} className="flex items-center gap-2.5 group flex-shrink-0">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-glow transition-transform group-hover:scale-105">
             <Camera className="h-[18px] w-[18px]" />
           </div>
@@ -30,7 +31,7 @@ export function MarketingNav({ variant = 'fixed' }) {
 
         <div className="flex items-center gap-2 sm:gap-3">
           <a
-            href="/pricing"
+            href={localizedPath(locale, '/pricing')}
             className="hidden px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline"
             onClick={() => {
               trackEvent(EVENT_PRICING_LINK_CLICKED, { source: 'landing_nav', locale, location: 'marketing_nav' })
@@ -39,13 +40,13 @@ export function MarketingNav({ variant = 'fixed' }) {
             {t.pricing}
           </a>
           <a
-            href="/for-wedding-photographers"
+            href={localizedPath(locale, '/for-wedding-photographers')}
             className="hidden px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground lg:inline"
           >
             {t.forPhotographers}
           </a>
           <a
-            href="/for-event-planners"
+            href={localizedPath(locale, '/for-event-planners')}
             className="hidden px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground lg:inline"
           >
             {t.forPlanners}
@@ -55,7 +56,7 @@ export function MarketingNav({ variant = 'fixed' }) {
 
           <LanguageSwitcher />
 
-          <AuthAwareNavActions t={t} />
+          <AuthAwareNavActions t={t} anonymousCreateHref={localizedPath(locale, '/')} />
         </div>
       </div>
     </nav>

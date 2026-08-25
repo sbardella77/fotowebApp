@@ -1,4 +1,4 @@
-import { LOCALES } from '@/lib/i18n/config'
+import { LOCALES, localizedPath } from '@/lib/i18n/config'
 
 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, '') || 'https://snaprooms.app'
 
@@ -21,9 +21,8 @@ export default function sitemap() {
 
   for (const locale of LOCALES) {
     for (const { path, priority, changeFrequency } of PUBLIC_PATHS) {
-      const localizedPath = locale === 'en' ? path : `/${locale}${path}`
       entries.push({
-        url: `${baseUrl}${localizedPath}`,
+        url: `${baseUrl}${localizedPath(locale, path)}`,
         lastModified: new Date(),
         changeFrequency,
         priority,

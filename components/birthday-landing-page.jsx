@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useTranslations } from '@/components/i18n-provider'
+import { useTranslations, useLocale } from '@/components/i18n-provider'
+import { localizedPath } from '@/lib/i18n/config'
 import {
   PartyPopper,
   QrCode,
@@ -64,6 +65,7 @@ export function BirthdayLandingPage() {
 
   const t = useTranslations('birthday')
   const tLanding = useTranslations('landing')
+  const locale = useLocale()
 
   useScrollReveal()
 
@@ -441,10 +443,10 @@ export function BirthdayLandingPage() {
             </p>
             <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Button size="lg" className="cta-primary" asChild>
-                <a href="/">{t.finalCta}</a>
+                <a href={localizedPath(locale, '/')}>{t.finalCta}</a>
               </Button>
               <Button size="lg" variant="outline" className="border-border bg-transparent hover:bg-white/[0.03]" asChild>
-                <a href="/pricing">
+                <a href={localizedPath(locale, '/pricing')}>
                   {t.viewPricing}
                 </a>
               </Button>

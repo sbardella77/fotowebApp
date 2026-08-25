@@ -2,7 +2,8 @@
 
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useTranslations } from '@/components/i18n-provider'
+import { useTranslations, useLocale } from '@/components/i18n-provider'
+import { localizedPath } from '@/lib/i18n/config'
 import { useOwnerSession } from '@/lib/use-owner-session'
 import { resolvePricingCtaState } from '@/lib/pricing-cta-state'
 import { Loader2 } from 'lucide-react'
@@ -30,6 +31,7 @@ export function AuthAwarePricingCta({
   billingInterval = null,
 }) {
   const t = useTranslations('pricing')
+  const locale = useLocale()
   const { loading, authenticated } = useOwnerSession()
 
   const buttonSize = size === 'sm' ? 'default' : size === 'lg' ? 'lg' : 'default'
@@ -43,6 +45,9 @@ export function AuthAwarePricingCta({
   }
 
   const { labelKey, href, helperKey } = resolvePricingCtaState({ authenticated, intent, billingInterval })
+  // resolvePricingCtaState stays locale-agnostic (pure, unit-tested on '/');
+  // only the one public marketing target it can return gets locale-prefixed here.
+  const resolvedHref = href === '/' ? localizedPath(locale, '/') : href
 
   return (
     <div className={helperKey ? 'space-y-2' : undefined}>
@@ -52,7 +57,7 @@ export function AuthAwarePricingCta({
         className={`w-full cta-primary rounded-xl border-transparent ${className}`}
         asChild
       >
-        <a href={href}>{t[labelKey]}</a>
+        <a href={resolvedHref}>{t[labelKey]}</a>
       </Button>
       {showHelper && helperKey && (
         <p className="text-xs leading-relaxed text-muted-foreground">

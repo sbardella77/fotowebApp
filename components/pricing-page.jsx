@@ -24,7 +24,8 @@ import { MarketingNav } from '@/components/marketing-nav'
 import { MarketingFooter } from '@/components/marketing-footer'
 import { trackEvent, trackPageView } from '@/lib/analytics/track-client'
 import { EVENT_LANDING_VIEW } from '@/lib/analytics/events'
-import { useTranslations } from '@/components/i18n-provider'
+import { useTranslations, useLocale } from '@/components/i18n-provider'
+import { localizedPath } from '@/lib/i18n/config'
 import { SectionHeader } from '@/components/marketing/section-header'
 import { TrustStrip } from '@/components/marketing/trust-strip'
 import { AuthAwarePricingCta } from '@/components/auth-aware-pricing-cta'
@@ -408,6 +409,7 @@ export function PricingPage({ fromDashboard, highlightPlan, eventSlug, billingIn
   const tCommon = useTranslations('common')
   const tLanding = useTranslations('landing')
   const tMeta = useTranslations('meta')
+  const locale = useLocale()
 
   useScrollReveal()
 
@@ -717,16 +719,16 @@ export function PricingPage({ fromDashboard, highlightPlan, eventSlug, billingIn
             </p>
             <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Button asChild className="cta-primary">
-                <a href="/for-wedding-photographers">
+                <a href={localizedPath(locale, '/for-wedding-photographers')}>
                   {t.forPhotographers}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </a>
               </Button>
               <Button variant="outline" className="border-border bg-transparent hover:bg-surface" asChild>
-                <a href="/for-event-planners">{t.forPlanners}</a>
+                <a href={localizedPath(locale, '/for-event-planners')}>{t.forPlanners}</a>
               </Button>
               <Button variant="outline" className="border-border bg-transparent hover:bg-surface" asChild>
-                <a href="/commercial-license">{t.commercialLicense}</a>
+                <a href={localizedPath(locale, '/commercial-license')}>{t.commercialLicense}</a>
               </Button>
             </div>
           </div>

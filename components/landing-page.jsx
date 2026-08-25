@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { InstallCta } from '@/components/install-cta'
 import { useTranslations } from '@/components/i18n-provider'
+import { localizedPath } from '@/lib/i18n/config'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { AuthAwareNavActions } from '@/components/auth-aware-nav-actions'
 import { trackEvent } from '@/lib/analytics/track-client'
@@ -110,7 +111,7 @@ export function LandingPage({
         aria-label="Main navigation"
       >
         <div className="container flex h-16 items-center justify-between px-4">
-          <a href="/" className="flex items-center gap-2.5" aria-label="SnapRooms home">
+          <a href={localizedPath(locale, '/')} className="flex items-center gap-2.5" aria-label="SnapRooms home">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-subtle">
               <Camera className="h-[18px] w-[18px]" aria-hidden="true" />
             </div>
@@ -124,7 +125,7 @@ export function LandingPage({
               {tNav.howItWorks}
             </button>
             <a
-              href="/pricing"
+              href={localizedPath(locale, '/pricing')}
               className="hidden px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline"
               onClick={() => {
                 trackEvent(EVENT_PRICING_LINK_CLICKED, { source: 'landing_nav', locale, location: 'landing_inline_nav' })
@@ -133,7 +134,7 @@ export function LandingPage({
               {tNav.pricing}
             </a>
             <LanguageSwitcher />
-            <AuthAwareNavActions t={tNav} />
+            <AuthAwareNavActions t={tNav} anonymousCreateHref={localizedPath(locale, '/')} />
           </div>
         </div>
       </nav>
@@ -240,7 +241,7 @@ export function LandingPage({
                           asChild
                         >
                           <a
-                            href="/pricing"
+                            href={localizedPath(locale, '/pricing')}
                             onClick={() => {
                               trackUpsellClick({ upsellType: 'room_limit', source: 'landing_room_limit', location: 'landing', ctaPlan: 'professional' })
                             }}
@@ -273,7 +274,7 @@ export function LandingPage({
                   <span className="sm:hidden">
                     {t.microcopy1}{' '}&middot;{' '}
                     <a
-                      href="/pricing"
+                      href={localizedPath(locale, '/pricing')}
                       className="underline underline-offset-2 hover:text-foreground transition-colors"
                       onClick={() => {
                         trackEvent(EVENT_PRICING_LINK_CLICKED, { source: 'landing_hero_mobile', locale, location: 'landing_hero_microcopy' })
@@ -426,13 +427,13 @@ export function LandingPage({
               {tFooter.tagline}
             </p>
             <nav className="flex flex-wrap items-center justify-center gap-5" aria-label="Footer navigation">
-              <a href="/pricing" className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
+              <a href={localizedPath(locale, '/pricing')} className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
                 {tFooter.pricing}
               </a>
-              <a href="/privacy" className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
+              <a href={localizedPath(locale, '/privacy')} className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
                 {tFooter.privacy}
               </a>
-              <a href="/terms" className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
+              <a href={localizedPath(locale, '/terms')} className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
                 {tFooter.terms}
               </a>
               <a href="/dashboard/login" className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
