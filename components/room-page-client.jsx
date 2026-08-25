@@ -40,6 +40,7 @@ import { trackUpsellImpression, trackUpsellClick } from '@/lib/analytics/upsell'
 import {
   EVENT_ROOM_VIEWED,
   EVENT_UPLOAD_CTA_CLICKED,
+  EVENT_PHOTOS_SELECTED,
   EVENT_UPLOAD_STARTED,
   EVENT_UPLOAD_COMPLETED,
   EVENT_SECOND_UPLOAD_COMPLETED,
@@ -240,6 +241,11 @@ export default function RoomPageClient({ slug, isNew }) {
   const [newPhotosCount, setNewPhotosCount] = useState(0)
   const [galleryBlockedModalOpen, setGalleryBlockedModalOpen] = useState(false)
   const heroFileInputRef = useRef(null)
+  // Remembers which CTA opened the native picker (hero/sticky/upload_more/
+  // gallery_empty_state) so it can be attached to analytics events that fire
+  // after the picker returns, when the click that triggered it is no longer
+  // in scope.
+  const lastCtaSourceRef = useRef('')
   const heroRef = useRef(null)
   const galleryRef = useRef(null)
   const roomViewTracked = useRef(false)
@@ -333,9 +339,21 @@ export default function RoomPageClient({ slug, isNew }) {
       pollBackoffRef.current = 3000
       if (!roomViewTracked.current) {
         roomViewTracked.current = true
+        // activeEvent/isEventOwner haven't re-rendered from the setActiveEvent
+        // call above yet, so host status is derived from payload.event
+        // directly here rather than from the (still stale) isEventOwner memo.
+        const viewedIsHost = Boolean(
+          ownerSession?.authenticated &&
+          payload.event?.ownerEmail &&
+          ownerSession.email.toLowerCase() === payload.event.ownerEmail.toLowerCase()
+        )
+        const viewedMoments = payload.event?.moments || []
         trackEvent(EVENT_ROOM_VIEWED, {
           room_slug: payload.event?.slug, room_name: payload.event?.name,
           is_new_room: isNew, photo_count: payload.event?.photos?.length || 0,
+          is_host: viewedIsHost,
+          has_moments: viewedMoments.length > 0,
+          moment_count: viewedMoments.length,
         })
       }
     } catch (error) {
@@ -553,6 +571,15 @@ export default function RoomPageClient({ slug, isNew }) {
     if (supportedFiles.length === 0) return
 
     const eventMoments = activeEvent?.moments || []
+    trackEvent(EVENT_PHOTOS_SELECTED, {
+      room_slug: activeEvent?.slug,
+      photo_count: supportedFiles.length,
+      has_moments: eventMoments.length > 0,
+      moment_count: eventMoments.length,
+      is_host: isEventOwner,
+      source: lastCtaSourceRef.current,
+    })
+
     if (eventMoments.length > 1) {
       // Multiple moments: defer the choice until after photo selection
       // instead of forcing it upfront — the guest picks files first, then
@@ -566,7 +593,14 @@ export default function RoomPageClient({ slug, isNew }) {
 
   const beginUpload = async (filesToUpload, momentId) => {
     setIsUploading(true); setLastUploadCount(filesToUpload.length)
-    trackEvent(EVENT_UPLOAD_STARTED, { room_slug: activeEvent?.slug, batch_size: filesToUpload.length, is_second_upload: uploadCompletedTracked.current })
+    const eventMoments = activeEvent?.moments || []
+    const funnelProps = {
+      has_moments: eventMoments.length > 0,
+      moment_count: eventMoments.length,
+      is_host: isEventOwner,
+      source: lastCtaSourceRef.current,
+    }
+    trackEvent(EVENT_UPLOAD_STARTED, { room_slug: activeEvent?.slug, batch_size: filesToUpload.length, is_second_upload: uploadCompletedTracked.current, ...funnelProps })
 
     // Pre-register upload entries with optimizing status
     setUploads(
@@ -649,14 +683,14 @@ export default function RoomPageClient({ slug, isNew }) {
       setUploadSuccess(true)
       setUploads([])
       setShowViralSection(true); showToast(t.uploadSuccess)
-      if (uploadCompletedTracked.current) { trackEvent(EVENT_SECOND_UPLOAD_COMPLETED, { room_slug: activeEvent?.slug, batch_size: filesToUpload.length }) }
-      else { uploadCompletedTracked.current = true; trackEvent(EVENT_UPLOAD_COMPLETED, { room_slug: activeEvent?.slug, batch_size: filesToUpload.length }) }
+      if (uploadCompletedTracked.current) { trackEvent(EVENT_SECOND_UPLOAD_COMPLETED, { room_slug: activeEvent?.slug, batch_size: filesToUpload.length, ...funnelProps }) }
+      else { uploadCompletedTracked.current = true; trackEvent(EVENT_UPLOAD_COMPLETED, { room_slug: activeEvent?.slug, batch_size: filesToUpload.length, ...funnelProps }) }
       await refreshGalleryAfterUpload()
       lastLocalUploadAt.current = Date.now()
     } else {
       const someSucceeded = results.some(Boolean)
       setUploadSuccess(false)
-      trackEvent(EVENT_UPLOAD_FAILED, { room_slug: activeEvent?.slug, batch_size: filesToUpload.length, partial: someSucceeded })
+      trackEvent(EVENT_UPLOAD_FAILED, { room_slug: activeEvent?.slug, batch_size: filesToUpload.length, partial: someSucceeded, ...funnelProps })
       if (someSucceeded) {
         setUploadFormatError(t.somePhotosFailed || t.uploadFailedTryAgain)
       } else {
@@ -1228,7 +1262,7 @@ export default function RoomPageClient({ slug, isNew }) {
                     <p className="mt-3 font-display text-lg font-bold text-foreground">{t.photosUploadedSuccessfully}</p>
                     <p className="mt-1 text-sm font-light text-muted-foreground">{t.thanksForSharing}</p>
                     <div className="mt-4 flex flex-col sm:flex-row gap-2 justify-center">
-                      <Button size="sm" className="cta-primary" onClick={() => { heroFileInputRef.current?.click() }}>
+                      <Button size="sm" className="cta-primary" onClick={() => { lastCtaSourceRef.current = 'upload_more'; heroFileInputRef.current?.click() }}>
                         <Upload className="h-4 w-4 mr-1.5" />{t.uploadMore}
                       </Button>
                       <Button size="sm" variant="outline" className="border-border bg-raised hover:bg-elevated" onClick={() => galleryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
@@ -1349,7 +1383,7 @@ export default function RoomPageClient({ slug, isNew }) {
                       className="h-14 w-full gap-2 rounded-xl px-8 text-base font-body font-semibold cta-primary touch-target sm:w-auto"
                       disabled={Boolean(photoLimitError)}
                       aria-label={t.addPhotos}
-                      onClick={() => { setUploadSuccess(false); setUploadFormatError(''); trackEvent(EVENT_UPLOAD_CTA_CLICKED, { room_slug: activeEvent?.slug, source: 'hero' }); heroFileInputRef.current?.click() }}
+                      onClick={() => { setUploadSuccess(false); setUploadFormatError(''); lastCtaSourceRef.current = 'hero'; trackEvent(EVENT_UPLOAD_CTA_CLICKED, { room_slug: activeEvent?.slug, source: 'hero', is_host: isEventOwner, has_moments: (activeEvent?.moments?.length || 0) > 0, moment_count: activeEvent?.moments?.length || 0 }); heroFileInputRef.current?.click() }}
                     >
                       <ImagePlus className="h-5 w-5" />{t.addPhotos}
                     </Button>
@@ -1519,7 +1553,7 @@ export default function RoomPageClient({ slug, isNew }) {
                     error={galleryError}
                     onRetry={() => activeEvent?.slug && loadPhotos({ reset: true })}
                     onSelectPhoto={openLightbox}
-                    onUploadClick={() => { heroFileInputRef.current?.click() }}
+                    onUploadClick={() => { lastCtaSourceRef.current = 'gallery_empty_state'; heroFileInputRef.current?.click() }}
                     hasMore={hasMorePhotos}
                     onLoadMore={() => loadPhotos()}
                     loadingMore={loadingMorePhotos}
@@ -1603,7 +1637,7 @@ export default function RoomPageClient({ slug, isNew }) {
 
       {/* Sticky mobile CTA */}
       <div className={`fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-0 right-0 z-40 px-4 transition-opacity duration-200 motion-reduce:transition-none sm:hidden ${showStickyCta ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-        <Button size="lg" className="h-14 w-full gap-2 rounded-xl text-base font-body font-semibold cta-primary shadow-lg" aria-label={t.addPhotos} onClick={() => { setUploadSuccess(false); setUploadFormatError(''); trackEvent(EVENT_UPLOAD_CTA_CLICKED, { room_slug: activeEvent?.slug, source: 'sticky' }); heroFileInputRef.current?.click() }}>
+        <Button size="lg" className="h-14 w-full gap-2 rounded-xl text-base font-body font-semibold cta-primary shadow-lg" aria-label={t.addPhotos} onClick={() => { setUploadSuccess(false); setUploadFormatError(''); lastCtaSourceRef.current = 'sticky'; trackEvent(EVENT_UPLOAD_CTA_CLICKED, { room_slug: activeEvent?.slug, source: 'sticky', is_host: isEventOwner, has_moments: (activeEvent?.moments?.length || 0) > 0, moment_count: activeEvent?.moments?.length || 0 }); heroFileInputRef.current?.click() }}>
           <ImagePlus className="h-5 w-5" />{t.addPhotos}
         </Button>
       </div>
