@@ -649,6 +649,43 @@ export function WeddingLandingPage({ locale = 'en' }) {
         </div>
       </section>
 
+      {/* Professional Redirect */}
+      <section className="border-t border-border bg-surface py-20 sm:py-28" aria-labelledby="pro-heading">
+        <div className="container px-4">
+          <div className="reveal">
+            <SectionHeader label={t.proLabel} title={t.proTitle} />
+          </div>
+          <div className="reveal mx-auto mt-12 grid max-w-2xl gap-4 sm:grid-cols-2">
+            <a
+              href={localizedPath(locale, '/for-wedding-photographers')}
+              className="group relative overflow-hidden rounded-xl border border-border bg-card p-6 transition-all duration-300 hover:-translate-y-1 hover:border-[hsl(var(--border-visible))] hover:shadow-elevated"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary border border-border">
+                <Camera className="h-6 w-6 text-blue-600" aria-hidden="true" />
+              </div>
+              <h3 className="mt-5 font-display text-base font-bold tracking-tight text-foreground">{t.proPhotographerQ}</h3>
+              <span className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-accent-dark">
+                {nav.forPhotographers}
+                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+              </span>
+            </a>
+            <a
+              href={localizedPath(locale, '/for-event-planners')}
+              className="group relative overflow-hidden rounded-xl border border-border bg-card p-6 transition-all duration-300 hover:-translate-y-1 hover:border-[hsl(var(--border-visible))] hover:shadow-elevated"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary border border-border">
+                <Users className="h-6 w-6 text-amber-600" aria-hidden="true" />
+              </div>
+              <h3 className="mt-5 font-display text-base font-bold tracking-tight text-foreground">{t.proPlannerQ}</h3>
+              <span className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-accent-dark">
+                {nav.forPlanners}
+                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+              </span>
+            </a>
+          </div>
+        </div>
+      </section>
+
       {/* Final CTA */}
       <section className="border-t border-white/[0.06] py-24 sm:py-32">
         <div className="container px-4">
@@ -725,6 +762,12 @@ export function WeddingLandingPage({ locale = 'en' }) {
             <div className="flex items-center gap-4">
               <a href={localizedPath(locale, '/pricing')} className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
                 {footer.pricing}
+              </a>
+              <a href={localizedPath(locale, '/for-wedding-photographers')} className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
+                {footer.forPhotographers}
+              </a>
+              <a href={localizedPath(locale, '/for-event-planners')} className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
+                {footer.forPlanners}
               </a>
               <a href={localizedPath(locale, '/privacy')} className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
                 {footer.privacy}

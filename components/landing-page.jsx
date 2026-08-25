@@ -133,6 +133,18 @@ export function LandingPage({
             >
               {tNav.pricing}
             </a>
+            <a
+              href={localizedPath(locale, '/for-wedding-photographers')}
+              className="hidden px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground lg:inline"
+            >
+              {tNav.forPhotographers}
+            </a>
+            <a
+              href={localizedPath(locale, '/for-event-planners')}
+              className="hidden px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground lg:inline"
+            >
+              {tNav.forPlanners}
+            </a>
             <LanguageSwitcher />
             <AuthAwareNavActions t={tNav} anonymousCreateHref={localizedPath(locale, '/')} />
           </div>
@@ -330,6 +342,54 @@ export function LandingPage({
         </div>
       </section>
 
+      {/* Audience Segmentation */}
+      <section className="border-t border-border py-20 sm:py-28" aria-labelledby="audience-heading">
+        <div className="container px-4">
+          <SectionHeader label={t.audienceLabel} title={t.audienceTitle} />
+          <div className="reveal mx-auto mt-14 sm:mt-16 grid max-w-4xl gap-4 sm:gap-5 sm:grid-cols-3">
+            <a
+              href={localizedPath(locale, '/wedding-photo-sharing')}
+              className="group relative overflow-hidden rounded-xl border border-border bg-card p-6 transition-all duration-300 hover:-translate-y-1 hover:border-[hsl(var(--border-visible))] hover:shadow-elevated"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary border border-border">
+                <Heart className="h-6 w-6 text-rose-500" aria-hidden="true" />
+              </div>
+              <h3 className="mt-5 font-display text-base font-bold tracking-tight text-foreground">{t.audienceWeddingQ}</h3>
+              <span className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-accent-dark">
+                {t.weddings}
+                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+              </span>
+            </a>
+            <a
+              href={localizedPath(locale, '/for-wedding-photographers')}
+              className="group relative overflow-hidden rounded-xl border border-border bg-card p-6 transition-all duration-300 hover:-translate-y-1 hover:border-[hsl(var(--border-visible))] hover:shadow-elevated"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary border border-border">
+                <Camera className="h-6 w-6 text-blue-600" aria-hidden="true" />
+              </div>
+              <h3 className="mt-5 font-display text-base font-bold tracking-tight text-foreground">{t.audiencePhotographerQ}</h3>
+              <span className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-accent-dark">
+                {tNav.forPhotographers}
+                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+              </span>
+            </a>
+            <a
+              href={localizedPath(locale, '/for-event-planners')}
+              className="group relative overflow-hidden rounded-xl border border-border bg-card p-6 transition-all duration-300 hover:-translate-y-1 hover:border-[hsl(var(--border-visible))] hover:shadow-elevated"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary border border-border">
+                <Users className="h-6 w-6 text-amber-600" aria-hidden="true" />
+              </div>
+              <h3 className="mt-5 font-display text-base font-bold tracking-tight text-foreground">{t.audiencePlannerQ}</h3>
+              <span className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-accent-dark">
+                {tNav.forPlanners}
+                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+              </span>
+            </a>
+          </div>
+        </div>
+      </section>
+
       {/* Social Proof */}
       <section className="border-t border-border bg-card py-20 sm:py-28" aria-label="Testimonial">
         <div className="container px-4">
@@ -429,6 +489,12 @@ export function LandingPage({
             <nav className="flex flex-wrap items-center justify-center gap-5" aria-label="Footer navigation">
               <a href={localizedPath(locale, '/pricing')} className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
                 {tFooter.pricing}
+              </a>
+              <a href={localizedPath(locale, '/for-wedding-photographers')} className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
+                {tFooter.forPhotographers}
+              </a>
+              <a href={localizedPath(locale, '/for-event-planners')} className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
+                {tFooter.forPlanners}
               </a>
               <a href={localizedPath(locale, '/privacy')} className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
                 {tFooter.privacy}
