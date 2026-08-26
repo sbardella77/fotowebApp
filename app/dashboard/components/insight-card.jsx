@@ -4,8 +4,11 @@ import { useEffect, useRef } from 'react'
 import { ImagePlus, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { trackUpsellImpression, trackUpsellClick } from '@/lib/analytics/upsell'
+import { useLocale } from '@/components/i18n-provider'
+import { localizedPath } from '@/lib/i18n/config'
 
 export function InsightCard({ experience, events, checkoutBusy, onUpgrade, t }) {
+  const locale = useLocale()
   const upsellStrategy = experience?.upsellStrategy || 'light'
   const showUpgradeBanner = experience?.insight?.showUpgradeBanner ?? true
   const totalPhotos = events.reduce((sum, e) => sum + (e.photoCount || e.photos?.length || 0), 0)
@@ -94,7 +97,7 @@ export function InsightCard({ experience, events, checkoutBusy, onUpgrade, t }) 
               )}
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="outline" asChild className="border-border bg-surface text-foreground">
-                  <a href="/pricing?from=dashboard">{t.viewPricing}</a>
+                  <a href={`${localizedPath(locale, '/pricing')}?from=dashboard`}>{t.viewPricing}</a>
                 </Button>
                 <Button size="sm" className="cta-primary" disabled={checkoutBusy} onClick={handleUpgrade}>
                   {checkoutBusy ? <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" /> : ctaLabel}

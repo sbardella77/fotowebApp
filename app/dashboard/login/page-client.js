@@ -5,13 +5,15 @@ import { useRouter } from 'next/navigation'
 import { Camera, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useTranslations } from '@/components/i18n-provider'
+import { useTranslations, useLocale } from '@/components/i18n-provider'
+import { localizedPath } from '@/lib/i18n/config'
 import { identifyUser } from '@/lib/analytics/track-client'
 
 export default function LoginPageClient({ redirect = '/dashboard' }) {
   const router = useRouter()
   const t = useTranslations('dashboard')
   const tCommon = useTranslations('common')
+  const locale = useLocale()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -219,7 +221,7 @@ export default function LoginPageClient({ redirect = '/dashboard' }) {
             </a>
           </p>
           <p className="mt-2 text-center text-[11px] text-muted-foreground/70">
-            <a href="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</a>
+            <a href={localizedPath(locale, '/privacy')} className="hover:text-foreground transition-colors">Privacy Policy</a>
           </p>
         </div>
       </div>

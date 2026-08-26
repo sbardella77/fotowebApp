@@ -4,6 +4,8 @@ import { useEffect } from 'react'
 import { Camera, CreditCard, LayoutDashboard, LogOut, Sparkles, User, BarChart3, Tag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { trackUpsellImpression, trackUpsellClick } from '@/lib/analytics/upsell'
+import { useLocale } from '@/components/i18n-provider'
+import { localizedPath } from '@/lib/i18n/config'
 
 export function DashboardSidebar({
   experience,
@@ -16,6 +18,7 @@ export function DashboardSidebar({
   t,
   tCommon,
 }) {
+  const locale = useLocale()
   const showAnalytics = experience?.sidebarItems?.includes('analytics')
   const showPricing = experience?.sidebarItems?.includes('pricing')
   const showSidebarUpsell = experience?.showSidebarUpsell && onUpgradeClick
@@ -87,7 +90,7 @@ export function DashboardSidebar({
           )}
           {showPricing && (
             <a
-              href="/pricing?from=dashboard"
+              href={`${localizedPath(locale, '/pricing')}?from=dashboard`}
               className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-primary/5 hover:text-foreground transition-colors"
             >
               <Tag className="h-4 w-4" />

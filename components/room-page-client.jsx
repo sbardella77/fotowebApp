@@ -58,7 +58,8 @@ import {
   EVENT_GALLERY_DOWNLOAD_COMPLETED,
   EVENT_GALLERY_DOWNLOAD_BLOCKED,
 } from '@/lib/analytics/events'
-import { useTranslations } from '@/components/i18n-provider'
+import { useTranslations, useLocale } from '@/components/i18n-provider'
+import { localizedPath } from '@/lib/i18n/config'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { InstallCta } from '@/components/install-cta'
 import { resolveEffectiveEventAccessState } from '@/lib/event-access'
@@ -205,6 +206,7 @@ function RoomNotFound() {
 export default function RoomPageClient({ slug, isNew }) {
   const t = useTranslations('room')
   const tCommon = useTranslations('common')
+  const locale = useLocale()
   const [guestName, setGuestName] = useState('')
   const [activeEvent, setActiveEvent] = useState(null)
   const [uploads, setUploads] = useState([])
@@ -1286,7 +1288,7 @@ export default function RoomPageClient({ slug, isNew }) {
                         <p className="text-sm font-semibold text-warning">{t.freeLimitReached}</p>
                         <p className="mt-1 text-xs font-light text-muted-foreground">{t.upgradeToContinueOwner}</p>
                         <div className="mt-3 flex flex-wrap gap-2">
-                          <Button size="sm" className="cta-primary" asChild><a href="/pricing">{tCommon.viewPricing}</a></Button>
+                          <Button size="sm" className="cta-primary" asChild><a href={localizedPath(locale, '/pricing')}>{tCommon.viewPricing}</a></Button>
                           <Button size="sm" variant="outline" className="border-border bg-raised" onClick={() => { if (typeof window !== 'undefined') { window.location.href = '/dashboard' } }}>{t.upgradeThisRoom}</Button>
                         </div>
                       </>
@@ -1533,7 +1535,7 @@ export default function RoomPageClient({ slug, isNew }) {
                         t={t}
                         onUpgrade={() => {
                           if (typeof window !== 'undefined') {
-                            window.location.href = '/pricing'
+                            window.location.href = localizedPath(locale, '/pricing')
                           }
                         }}
                         checkoutBusy={false}
