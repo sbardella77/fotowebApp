@@ -61,7 +61,7 @@ export function PrivacyPage({ locale = 'en' }) {
       <div className="noise-overlay" aria-hidden="true" />
       <MarketingNav ctaAction="link" />
 
-      <section className="relative overflow-hidden pt-28 pb-12 sm:pt-36 sm:pb-16">
+      <section id="main-content" className="relative overflow-hidden pt-28 pb-12 sm:pt-36 sm:pb-16">
         <div className="absolute inset-0 bg-grid opacity-50" aria-hidden="true" />
         <div className="container relative px-4">
           <div className="mx-auto max-w-3xl text-center">

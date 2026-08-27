@@ -306,7 +306,7 @@ function TierCard({ tier, index, delayOffset = 0, isHighlighted = false, billing
           ? 'ring-2 ring-primary border-primary/40'
           : isPopular
             ? 'border-primary/30'
-            : 'border-white/[0.08]'
+            : 'border-border'
       }`}
       style={{ transitionDelay: `${(index + delayOffset) * 60}ms` }}
     >
@@ -438,7 +438,7 @@ export function PricingPage({ fromDashboard, highlightPlan, eventSlug, billingIn
       <MarketingNav ctaAction="link" />
 
       {fromDashboard && (
-        <div className="container px-4 pt-6">
+        <div id="main-content" className="container px-4 pt-6">
           <Button variant="outline" size="sm" asChild className="border-border bg-surface text-foreground hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent-dark">
             <a href="/dashboard">
               <ArrowLeft className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
@@ -563,7 +563,7 @@ export function PricingPage({ fromDashboard, highlightPlan, eventSlug, billingIn
             ].map((item, i) => (
               <div
                 key={i}
-                className="reveal rounded-xl border border-white/[0.08] bg-surface p-5 sm:p-6"
+                className="reveal rounded-xl border border-border bg-surface p-5 sm:p-6"
                 style={{ transitionDelay: `${i * 60}ms` }}
               >
                 <div className="flex items-center gap-3">
@@ -673,7 +673,7 @@ export function PricingPage({ fromDashboard, highlightPlan, eventSlug, billingIn
               ].map((item, i) => (
                 <div
                   key={i}
-                  className="reveal flex flex-col items-center text-center rounded-xl border border-white/[0.08] bg-surface p-5"
+                  className="reveal flex flex-col items-center text-center rounded-xl border border-border bg-surface p-5"
                   style={{ transitionDelay: `${i * 60}ms` }}
                 >
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">

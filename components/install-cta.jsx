@@ -84,7 +84,7 @@ export function InstallCta({ mode = 'landing', className = '' }) {
   return (
     <>
       <div
-        className={`group relative overflow-hidden rounded-2xl border border-border bg-surface p-5 shadow-card transition-colors hover:border-white/[0.08] ${className}`}
+        className={`group relative overflow-hidden rounded-2xl border border-border bg-surface p-5 shadow-card transition-colors hover:border-border ${className}`}
       >
         <button
           type="button"

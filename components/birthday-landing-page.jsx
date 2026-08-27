@@ -123,7 +123,7 @@ export function BirthdayLandingPage() {
       <MarketingNav ctaAction="scroll" />
 
       {/* Hero */}
-      <section className="relative overflow-hidden pt-28 pb-16 sm:pt-36 sm:pb-24">
+      <section id="main-content" className="relative overflow-hidden pt-28 pb-16 sm:pt-36 sm:pb-24">
         <div className="absolute inset-0 bg-grid opacity-50" aria-hidden="true" />
         <div className="absolute -top-40 -right-40 h-96 w-96 rounded-full bg-pink-500/10 blur-[100px]" aria-hidden="true" />
         <div className="absolute -bottom-40 -left-40 h-96 w-96 rounded-full bg-primary/5 blur-[100px]" aria-hidden="true" />
@@ -154,7 +154,7 @@ export function BirthdayLandingPage() {
 
               {/* Create Form */}
               <div id="create" className="mt-10 max-w-lg animate-fade-up delay-300">
-                <div className="rounded-2xl border border-white/[0.08] bg-raised/60 p-6 shadow-elevated">
+                <div className="rounded-2xl border border-border bg-raised/60 p-6 shadow-elevated">
                   <div className="space-y-3">
                     <Input
                       placeholder={t.eventPlaceholder}
@@ -206,7 +206,7 @@ export function BirthdayLandingPage() {
       </section>
 
       {/* Problem */}
-      <section className="relative border-t border-white/[0.06] py-24 sm:py-32">
+      <section className="relative border-t border-border py-24 sm:py-32">
         <div className="container px-4">
           <div className="mx-auto grid max-w-5xl gap-10 sm:grid-cols-2 sm:items-center">
             <div className="reveal">
@@ -248,7 +248,7 @@ export function BirthdayLandingPage() {
       </section>
 
       {/* Why It Works for Birthdays */}
-      <section className="relative border-t border-white/[0.06] py-24 sm:py-32">
+      <section className="relative border-t border-border py-24 sm:py-32">
         <div className="container px-4">
           <div className="reveal">
             <SectionHeader label={t.featuresLabel} title={t.featuresTitle} />
@@ -289,7 +289,7 @@ export function BirthdayLandingPage() {
             ].map((f, i) => (
               <div
                 key={f.title}
-                className="reveal rounded-2xl border border-border bg-surface p-6 shadow-elevated hover:-translate-y-px hover:border-white/[0.08] transition-all duration-200"
+                className="reveal rounded-2xl border border-border bg-surface p-6 shadow-elevated hover:-translate-y-px hover:border-border transition-all duration-200"
                 style={{ transitionDelay: `${i * 60}ms` }}
               >
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-raised border border-border text-primary shadow-subtle">
@@ -343,7 +343,7 @@ export function BirthdayLandingPage() {
       </section>
 
       {/* Trust / Privacy */}
-      <section className="relative border-t border-white/[0.06] py-24 sm:py-32">
+      <section className="relative border-t border-border py-24 sm:py-32">
         <div className="container px-4">
           <div className="mx-auto max-w-3xl text-center reveal">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-raised border border-border text-primary mx-auto shadow-subtle">

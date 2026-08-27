@@ -1,28 +1,21 @@
 'use client'
 
-import { Camera } from 'lucide-react'
 import { useTranslations, useLocale } from '@/components/i18n-provider'
 import { localizedPath } from '@/lib/i18n/config'
 import { InstallCta } from '@/components/install-cta'
+import { SnapRoomsLogo } from '@/components/marketing/logo'
 
 export function MarketingFooter() {
   const t = useTranslations('footer')
   const locale = useLocale()
 
   return (
-    <footer className="border-t border-white/[0.06]">
+    <footer className="border-t border-border">
       <div className="container px-4 py-14">
         <div className="mx-auto max-w-5xl">
           <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
             <div className="sm:col-span-2 lg:col-span-1">
-              <a href={localizedPath(locale, '/')} className="flex items-center gap-2.5 group">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-glow transition-transform group-hover:scale-105">
-                  <Camera className="h-4 w-4" />
-                </div>
-                <span className="font-display text-sm font-bold tracking-tight text-foreground">
-                  SnapRooms
-                </span>
-              </a>
+              <SnapRoomsLogo href={localizedPath(locale, '/')} size="sm" />
               <p className="mt-3 max-w-xs text-sm leading-relaxed text-muted-foreground">
                 {t.tagline}
               </p>
@@ -63,7 +56,7 @@ export function MarketingFooter() {
             </div>
           </div>
 
-          <div className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-white/[0.06] pt-8 sm:flex-row">
+          <div className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-border pt-8 sm:flex-row">
             <p className="text-xs text-muted-foreground">
               © {new Date().getFullYear()} SnapRooms. All rights reserved.
             </p>

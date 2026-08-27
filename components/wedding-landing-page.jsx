@@ -29,9 +29,9 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { LanguageSwitcher } from '@/components/language-switcher'
-import { AuthAwareNavActions } from '@/components/auth-aware-nav-actions'
 import { InstallCta } from '@/components/install-cta'
+import { MarketingNav } from '@/components/marketing/nav'
+import { MarketingFooter } from '@/components/marketing/footer'
 import {
   Accordion,
   AccordionContent,
@@ -43,13 +43,6 @@ import { TrustStrip } from '@/components/marketing/trust-strip'
 import { HowItWorks } from '@/components/marketing/how-it-works'
 import { UseCaseCards } from '@/components/marketing/use-case-cards'
 import { SectionHeader } from '@/components/marketing/section-header'
-
-function scrollToSection(sectionId) {
-  const element = document.getElementById(sectionId)
-  if (element) {
-    element.scrollIntoView({ behavior: 'smooth' })
-  }
-}
 
 function useScrollReveal() {
   useEffect(() => {
@@ -79,7 +72,6 @@ export function WeddingLandingPage({ locale = 'en' }) {
 
   const t = useTranslations('wedding')
   const nav = useTranslations('nav')
-  const footer = useTranslations('footer')
   const tLanding = useTranslations('landing')
 
   useScrollReveal()
@@ -160,36 +152,10 @@ export function WeddingLandingPage({ locale = 'en' }) {
       {/* Noise texture overlay */}
       <div className="noise-overlay" aria-hidden="true" />
 
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-40 border-b border-border bg-background/80 backdrop-blur-md">
-        <div className="container flex h-14 items-center justify-between px-4">
-          <a href={localizedPath(locale, '/')} className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Camera className="h-4 w-4" />
-            </div>
-            <span className="font-display text-sm font-bold tracking-tight text-foreground">SnapRooms</span>
-          </a>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => scrollToSection('how-it-works')}
-              className="hidden text-sm text-muted-foreground hover:text-foreground sm:block"
-            >
-              {nav.howItWorks}
-            </button>
-            <button
-              onClick={() => scrollToSection('faq')}
-              className="hidden text-sm text-muted-foreground hover:text-foreground sm:block"
-            >
-              {nav.faq}
-            </button>
-            <LanguageSwitcher />
-            <AuthAwareNavActions t={nav} anonymousCreateHref="#create" />
-          </div>
-        </div>
-      </nav>
+      <MarketingNav ctaAction="scroll" />
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden pt-24 pb-16 sm:pt-32 sm:pb-24">
+      <section id="main-content" className="relative overflow-hidden pt-24 pb-16 sm:pt-32 sm:pb-24">
         {/* Grid background */}
         <div className="absolute inset-0 bg-grid opacity-50" aria-hidden="true" />
         {/* Radial fade toward edges */}
@@ -227,7 +193,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
                 {/* Create room form card */}
                 <div
                   id="create"
-                  className="animate-fade-up delay-300 mt-10 rounded-2xl border border-white/[0.08] bg-raised/60 p-6 shadow-elevated"
+                  className="animate-fade-up delay-300 mt-10 rounded-2xl border border-border bg-raised/60 p-6 shadow-elevated"
                 >
                   <div className="flex flex-col gap-3 sm:flex-row">
                     <Input
@@ -282,7 +248,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
       </section>
 
       {/* Problem Section */}
-      <section className="border-t border-white/[0.06] py-24 sm:py-32">
+      <section className="border-t border-border py-24 sm:py-32">
         <div className="container px-4">
           <div className="mx-auto max-w-6xl">
             <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
@@ -388,7 +354,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
       </section>
 
       {/* QR Code Section */}
-      <section className="border-t border-white/[0.06] py-24 sm:py-32">
+      <section className="border-t border-border py-24 sm:py-32">
         <div className="container px-4">
           <div className="mx-auto max-w-6xl">
             <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
@@ -451,7 +417,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
 
                   <div className="absolute -right-2 top-1/4 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-medium shadow-lg">
                     <span className="flex items-center gap-1">
-                      <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                      <CheckCircle2 className="h-3 w-3 text-accent-dark" />
                       <span className="font-mono text-[0.65rem]">Instant upload</span>
                     </span>
                   </div>
@@ -514,7 +480,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
             ].map((item, i) => (
               <div
                 key={item.title}
-                className="reveal rounded-xl border border-border bg-surface p-6 transition-all duration-200 hover:-translate-y-px hover:border-white/[0.08]"
+                className="reveal rounded-xl border border-border bg-surface p-6 transition-all duration-200 hover:-translate-y-px hover:border-border"
                 style={{ transitionDelay: `${i * 40}ms` }}
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -533,7 +499,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
       </section>
 
       {/* Trust / Privacy */}
-      <section className="border-t border-white/[0.06] py-24 sm:py-32">
+      <section className="border-t border-border py-24 sm:py-32">
         <div className="container px-4">
           <div className="mx-auto max-w-6xl">
             <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
@@ -687,7 +653,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
       </section>
 
       {/* Final CTA */}
-      <section className="border-t border-white/[0.06] py-24 sm:py-32">
+      <section className="border-t border-border py-24 sm:py-32">
         <div className="container px-4">
           <div className="reveal mx-auto max-w-2xl text-center">
             <h2 className="font-display text-3xl font-extrabold tracking-[-0.03em] text-foreground sm:text-4xl">
@@ -746,42 +712,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
         <InstallCta mode="landing" />
       </div>
 
-      {/* Footer */}
-      <footer className="bg-surface border-t border-border py-8">
-        <div className="container px-4">
-          <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-            <a href={localizedPath(locale, '/')} className="flex items-center gap-2">
-              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                <Camera className="h-3 w-3" />
-              </div>
-              <span className="font-display text-sm font-bold tracking-tight text-foreground">SnapRooms</span>
-            </a>
-            <p className="text-xs font-light text-muted-foreground">
-              {footer.tagline}
-            </p>
-            <div className="flex items-center gap-4">
-              <a href={localizedPath(locale, '/pricing')} className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
-                {footer.pricing}
-              </a>
-              <a href={localizedPath(locale, '/for-wedding-photographers')} className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
-                {footer.forPhotographers}
-              </a>
-              <a href={localizedPath(locale, '/for-event-planners')} className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
-                {footer.forPlanners}
-              </a>
-              <a href={localizedPath(locale, '/privacy')} className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
-                {footer.privacy}
-              </a>
-              <a href={localizedPath(locale, '/terms')} className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
-                {footer.terms}
-              </a>
-              <a href="/dashboard/login" className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors">
-                {footer.organizerSignIn}
-              </a>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <MarketingFooter />
     </div>
   )
 }

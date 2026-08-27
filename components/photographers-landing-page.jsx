@@ -114,7 +114,7 @@ export function PhotographersLandingPage({ locale }) {
       <MarketingNav ctaAction="scroll" />
 
       {/* Hero */}
-      <section className="relative overflow-hidden pt-28 pb-16 sm:pt-36 sm:pb-24">
+      <section id="main-content" className="relative overflow-hidden pt-28 pb-16 sm:pt-36 sm:pb-24">
         <div className="absolute inset-0 bg-grid opacity-50" aria-hidden="true" />
         <div className="absolute -top-40 -right-40 h-96 w-96 rounded-full bg-primary/10 blur-[100px]" aria-hidden="true" />
         <div className="absolute -bottom-40 -left-40 h-96 w-96 rounded-full bg-primary/5 blur-[100px]" aria-hidden="true" />
@@ -143,7 +143,7 @@ export function PhotographersLandingPage({ locale }) {
           <div className="mx-auto mt-12 grid max-w-5xl items-center gap-10 sm:grid-cols-2">
             {/* Create Form */}
             <div id="create" className="animate-fade-up delay-400">
-              <div className="rounded-2xl border border-white/[0.08] bg-raised/60 p-6 shadow-elevated">
+              <div className="rounded-2xl border border-border bg-raised/60 p-6 shadow-elevated">
                 <div className="space-y-3">
                   <Input
                     placeholder={t.eventPlaceholder}
@@ -195,7 +195,7 @@ export function PhotographersLandingPage({ locale }) {
       </section>
 
       {/* Problem / Solution */}
-      <section className="relative border-t border-white/[0.06] bg-raised/50 py-24 sm:py-32">
+      <section className="relative border-t border-border bg-raised/50 py-24 sm:py-32">
         <div className="container px-4">
           <div className="mx-auto grid max-w-5xl gap-10 sm:grid-cols-2 sm:items-center">
             <div className="reveal">
@@ -210,8 +210,8 @@ export function PhotographersLandingPage({ locale }) {
               </p>
             </div>
             <div className="reveal space-y-4" style={{ transitionDelay: '100ms' }}>
-              <div className="rounded-xl bg-surface border border-white/[0.08] p-6">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-raised border border-white/[0.08] text-primary">
+              <div className="rounded-xl bg-surface border border-border p-6">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-raised border border-border text-primary">
                   <QrCode className="h-6 w-6" />
                 </div>
                 <h3 className="mt-4 font-display text-lg font-semibold text-foreground">
@@ -221,8 +221,8 @@ export function PhotographersLandingPage({ locale }) {
                   {t.solution1Desc}
                 </p>
               </div>
-              <div className="rounded-xl bg-surface border border-white/[0.08] p-6">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-raised border border-white/[0.08] text-primary">
+              <div className="rounded-xl bg-surface border border-border p-6">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-raised border border-border text-primary">
                   <Download className="h-6 w-6" />
                 </div>
                 <h3 className="mt-4 font-display text-lg font-semibold text-foreground">
@@ -283,10 +283,10 @@ export function PhotographersLandingPage({ locale }) {
             ].map((f, i) => (
               <div
                 key={f.title}
-                className="reveal rounded-xl bg-surface border border-white/[0.08] p-6 transition-all duration-200 hover:-translate-y-px hover:border-white/[0.12] hover:shadow-elevated"
+                className="reveal rounded-xl bg-surface border border-border p-6 transition-all duration-200 hover:-translate-y-px hover:border-[hsl(var(--border-visible))] hover:shadow-elevated"
                 style={{ transitionDelay: `${i * 60}ms` }}
               >
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-raised border border-white/[0.08] text-primary">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-raised border border-border text-primary">
                   <f.icon className="h-5 w-5" />
                 </div>
                 <h3 className="mt-4 font-display text-base font-semibold text-foreground">
@@ -300,7 +300,7 @@ export function PhotographersLandingPage({ locale }) {
       </section>
 
       {/* How It Works */}
-      <section className="relative border-t border-white/[0.06] bg-raised/50 py-24 sm:py-32">
+      <section className="relative border-t border-border bg-raised/50 py-24 sm:py-32">
         <div className="container px-4">
           <div className="reveal">
             <SectionHeader
@@ -318,7 +318,7 @@ export function PhotographersLandingPage({ locale }) {
       <section className="relative py-24 sm:py-32">
         <div className="container px-4">
           <div className="mx-auto max-w-3xl reveal">
-            <div className="rounded-2xl border border-white/[0.08] bg-surface p-8 sm:p-10 shadow-elevated text-center">
+            <div className="rounded-2xl border border-border bg-surface p-8 sm:p-10 shadow-elevated text-center">
               <Sparkles className="mx-auto h-6 w-6 text-primary" />
               <p className="mt-5 font-display text-xl font-bold text-foreground">
                 {t.useCaseCalloutTitle}
@@ -332,7 +332,7 @@ export function PhotographersLandingPage({ locale }) {
       </section>
 
       {/* Pricing Teaser */}
-      <section className="relative border-t border-white/[0.06] bg-raised/50 py-24 sm:py-32">
+      <section className="relative border-t border-border bg-raised/50 py-24 sm:py-32">
         <div className="container px-4">
           <div className="reveal">
             <SectionHeader

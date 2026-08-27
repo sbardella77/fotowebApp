@@ -498,6 +498,29 @@
   animation: pulse-soft 2s ease-in-out infinite;
 }
 
+/* ── Reduced motion ────────────────────────────────────────────────────── */
+/* `both`-fill-mode entrance animations (fade-up/in, scale-in, slide-in) start
+   from their `from` keyframe (opacity:0) before playing — without this guard,
+   a user with reduced-motion preference who never triggers the (near-instant)
+   animation would see that content stay invisible. Collapsing the duration to
+   near-zero (rather than `animation: none`) still runs one iteration and lands
+   on the end state, so nothing is ever stuck hidden or offset. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .reveal {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
 /* Stagger delays */
 .delay-100 { animation-delay: 100ms; }
 .delay-200 { animation-delay: 200ms; }
@@ -517,36 +540,21 @@
 }
 
 /* ── Legacy overrides (backward compat) ────────────────────────────────── */
+/* Trimmed 2026-08 (SnapRooms Redesign V4, Phase 1): removed rules whose
+   target classes had zero remaining usages repo-wide, verified by grep
+   across the full source tree. Rules still matching a live class stay,
+   even if only reachable in dark mode (not currently user-facing, but
+   not yet provably dead either). */
 
-.dark .bg-\[\#141C2E\] { background-color: hsl(var(--bg-surface)) !important; }
-.dark .bg-\[\#0D1220\] { background-color: hsl(var(--bg-raised)) !important; }
-.dark .bg-\[\#111827\] { background-color: hsl(var(--bg-elevated)) !important; }
-.dark .bg-\[\#1E293B\] { background-color: hsl(var(--bg-elevated)) !important; }
 .dark .bg-background\/80,
 .dark .bg-background\/95 { background-color: hsl(var(--bg-base) / 0.88) !important; }
-.dark .border-white\/\[0\.07\] { border-color: hsl(var(--border-subtle)) !important; }
-.dark .border-white\/\[0\.12\] { border-color: hsl(var(--border-visible)) !important; }
 .dark .text-white { color: hsl(var(--text-primary)) !important; }
 .dark .text-primary { color: hsl(var(--accent)) !important; }
 .dark .text-muted-foreground { color: hsl(var(--text-secondary)) !important; }
-.dark .text-emerald-400,
 .dark .text-emerald-500 { color: hsl(var(--success)) !important; }
 .dark .text-amber-400 { color: hsl(var(--warning)) !important; }
-.dark .text-red-400 { color: hsl(var(--danger)) !important; }
-.dark .bg-emerald-500\/10,
-.dark .bg-emerald-500\/\[0\.06\] { background-color: hsl(var(--success-soft)) !important; }
-.dark .border-emerald-500\/20 { border-color: hsl(var(--success) / 0.2) !important; }
-.dark .bg-amber-500\/10,
-.dark .bg-amber-500\/\[0\.06\] { background-color: hsl(var(--warning-soft)) !important; }
-.dark .border-amber-500\/20 { border-color: hsl(var(--warning) / 0.2) !important; }
-.dark .bg-red-500\/10,
-.dark .bg-red-500\/\[0\.06\] { background-color: hsl(var(--danger-soft)) !important; }
-.dark .border-red-500\/20 { border-color: hsl(var(--danger) / 0.2) !important; }
-.dark .glow-blue { box-shadow: 0 4px 24px hsl(var(--accent) / 0.35) !important; }
-.dark button[class*="bg-primary"],
-.dark .glow-blue { background-color: hsl(var(--accent)) !important; color: hsl(0 0% 100%) !important; }
-.dark button[class*="bg-primary"]:hover,
-.dark .glow-blue:hover { background-color: hsl(var(--accent-hover)) !important; }
+.dark button[class*="bg-primary"] { background-color: hsl(var(--accent)) !important; color: hsl(0 0% 100%) !important; }
+.dark button[class*="bg-primary"]:hover { background-color: hsl(var(--accent-hover)) !important; }
 .dark button[class*="variant-outline"],
 .dark button[class*="variant-ghost"] { border-color: hsl(var(--border-subtle)) !important; background: transparent !important; color: hsl(var(--text-primary)) !important; }
 .dark button[class*="variant-outline"]:hover,
@@ -557,22 +565,6 @@
 .dark input:focus, .dark textarea:focus, .dark select:focus { border-color: hsl(var(--accent)) !important; box-shadow: 0 0 0 3px hsl(var(--accent-soft)) !important; }
 .dark .rounded-2xl, .dark .rounded-xl, .dark .rounded-lg { border-radius: 12px !important; }
 .dark .shadow-card { box-shadow: 0 4px 6px -1px hsl(0 0% 4% / 0.4), 0 2px 4px -2px hsl(0 0% 4% / 0.4), 0 0 0 1px hsl(var(--border-subtle)) !important; }
-
-/* ── Light theme overrides for hardcoded dark-mode borders ─────────────── */
-:root:not(.dark) .border-white\/\[0\.06\],
-:root:not(.dark) .border-white\/\[0\.07\],
-:root:not(.dark) .border-white\/\[0\.08\] {
-  border-color: hsl(var(--border-subtle)) !important;
-}
-:root:not(.dark) .border-white\/\[0\.09\],
-:root:not(.dark) .border-white\/\[0\.10\],
-:root:not(.dark) .border-white\/\[0\.12\] {
-  border-color: hsl(var(--border-visible)) !important;
-}
-:root:not(.dark) .hover\:border-white\/\[0\.08\]:hover,
-:root:not(.dark) .hover\:border-white\/\[0\.12\]:hover {
-  border-color: hsl(var(--border-visible)) !important;
-}
 
 /* ── Scrollbar (macOS-style thin) ─────────────────────────────────────── */
 

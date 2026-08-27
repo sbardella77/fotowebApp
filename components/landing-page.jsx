@@ -17,8 +17,8 @@ import { Input } from '@/components/ui/input'
 import { InstallCta } from '@/components/install-cta'
 import { useTranslations } from '@/components/i18n-provider'
 import { localizedPath } from '@/lib/i18n/config'
-import { LanguageSwitcher } from '@/components/language-switcher'
-import { AuthAwareNavActions } from '@/components/auth-aware-nav-actions'
+import { MarketingNav } from '@/components/marketing/nav'
+import { MarketingFooter } from '@/components/marketing/footer'
 import { trackEvent } from '@/lib/analytics/track-client'
 import { trackUpsellImpression, trackUpsellClick } from '@/lib/analytics/upsell'
 import { EVENT_HERO_CTA_CLICKED, EVENT_PRICING_LINK_CLICKED } from '@/lib/analytics/events'
@@ -28,12 +28,6 @@ import { HowItWorks } from '@/components/marketing/how-it-works'
 import { UseCaseCards } from '@/components/marketing/use-case-cards'
 import { SectionHeader } from '@/components/marketing/section-header'
 
-function scrollToSection(sectionId) {
-  const element = document.getElementById(sectionId)
-  if (element) {
-    element.scrollIntoView({ behavior: 'smooth' })
-  }
-}
 
 function useScrollReveal() {
   useEffect(() => {
@@ -80,7 +74,6 @@ export function LandingPage({
 }) {
   const t = useTranslations('landing')
   const tNav = useTranslations('nav')
-  const tFooter = useTranslations('footer')
   const cta = getCtaCopy(t, CTA_VARIANT)
   useScrollReveal()
 
@@ -97,62 +90,10 @@ export function LandingPage({
 
   return (
     <div className="relative min-h-screen bg-background font-body text-foreground">
-      {/* Skip to content link for accessibility */}
-      <a
-        href="#create"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[60] focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-lg focus:font-medium"
-      >
-        Skip to create event
-      </a>
-
-      {/* Navigation */}
-      <nav
-        className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-card/80 backdrop-blur-xl"
-        aria-label="Main navigation"
-      >
-        <div className="container flex h-16 items-center justify-between px-4">
-          <a href={localizedPath(locale, '/')} className="flex items-center gap-2.5" aria-label="SnapRooms home">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-subtle">
-              <Camera className="h-[18px] w-[18px]" aria-hidden="true" />
-            </div>
-            <span className="font-display text-[15px] font-bold tracking-tight text-foreground">SnapRooms</span>
-          </a>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              onClick={() => scrollToSection('how-it-works')}
-              className="hidden px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline"
-            >
-              {tNav.howItWorks}
-            </button>
-            <a
-              href={localizedPath(locale, '/pricing')}
-              className="hidden px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline"
-              onClick={() => {
-                trackEvent(EVENT_PRICING_LINK_CLICKED, { source: 'landing_nav', locale, location: 'landing_inline_nav' })
-              }}
-            >
-              {tNav.pricing}
-            </a>
-            <a
-              href={localizedPath(locale, '/for-wedding-photographers')}
-              className="hidden px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground lg:inline"
-            >
-              {tNav.forPhotographers}
-            </a>
-            <a
-              href={localizedPath(locale, '/for-event-planners')}
-              className="hidden px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground lg:inline"
-            >
-              {tNav.forPlanners}
-            </a>
-            <LanguageSwitcher />
-            <AuthAwareNavActions t={tNav} anonymousCreateHref={localizedPath(locale, '/')} />
-          </div>
-        </div>
-      </nav>
+      <MarketingNav ctaAction="scroll" />
 
       {/* Hero */}
-      <section className="relative overflow-hidden pt-32 pb-20 lg:pt-40 lg:pb-28" aria-label="Hero">
+      <section id="main-content" className="relative overflow-hidden pt-32 pb-20 lg:pt-40 lg:pb-28" aria-label="Hero">
         <div className="absolute inset-0 bg-grid opacity-[0.06]" aria-hidden="true" />
         <div
           className="absolute inset-0"
@@ -470,42 +411,7 @@ export function LandingPage({
         <InstallCta mode="landing" />
       </div>
 
-      {/* Footer */}
-      <footer className="border-t border-border bg-card py-12">
-        <div className="container px-4">
-          <div className="flex flex-col items-center justify-between gap-5 sm:flex-row">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-glow">
-                <Camera className="h-3.5 w-3.5" aria-hidden="true" />
-              </div>
-              <span className="font-display text-sm font-bold tracking-tight text-foreground">SnapRooms</span>
-            </div>
-            <p className="text-xs font-medium text-muted-foreground text-center sm:text-left max-w-xs">
-              {tFooter.tagline}
-            </p>
-            <nav className="flex flex-wrap items-center justify-center gap-5" aria-label="Footer navigation">
-              <a href={localizedPath(locale, '/pricing')} className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
-                {tFooter.pricing}
-              </a>
-              <a href={localizedPath(locale, '/for-wedding-photographers')} className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
-                {tFooter.forPhotographers}
-              </a>
-              <a href={localizedPath(locale, '/for-event-planners')} className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
-                {tFooter.forPlanners}
-              </a>
-              <a href={localizedPath(locale, '/privacy')} className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
-                {tFooter.privacy}
-              </a>
-              <a href={localizedPath(locale, '/terms')} className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
-                {tFooter.terms}
-              </a>
-              <a href="/dashboard/login" className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
-                {tFooter.organizerSignIn}
-              </a>
-            </nav>
-          </div>
-        </div>
-      </footer>
+      <MarketingFooter />
     </div>
   )
 }
