@@ -24,7 +24,7 @@ export function HowItWorks({ steps, t }) {
           </div>
           <div className="mt-5">
             <span className="inline-block font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-accent-dark">
-              Step {step.num}
+              {t?.stepLabel || 'Step'} {step.num}
             </span>
             <h3 className="mt-2 font-display text-lg font-bold tracking-tight text-foreground">
               {step.title}

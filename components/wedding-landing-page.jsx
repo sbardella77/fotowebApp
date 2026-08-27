@@ -29,7 +29,6 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { InstallCta } from '@/components/install-cta'
 import { MarketingNav } from '@/components/marketing/nav'
 import { MarketingFooter } from '@/components/marketing/footer'
 import {
@@ -707,10 +706,6 @@ export function WeddingLandingPage({ locale = 'en' }) {
           </div>
         </div>
       </section>
-
-      <div className="container mx-auto max-w-3xl px-4 pb-6">
-        <InstallCta mode="landing" />
-      </div>
 
       <MarketingFooter />
     </div>

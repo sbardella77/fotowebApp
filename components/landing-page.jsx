@@ -14,7 +14,6 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { InstallCta } from '@/components/install-cta'
 import { useTranslations } from '@/components/i18n-provider'
 import { localizedPath } from '@/lib/i18n/config'
 import { MarketingNav } from '@/components/marketing/nav'
@@ -25,7 +24,8 @@ import { EVENT_HERO_CTA_CLICKED, EVENT_PRICING_LINK_CLICKED } from '@/lib/analyt
 import { PhoneMockup } from '@/components/marketing/phone-mockup'
 import { TrustStrip } from '@/components/marketing/trust-strip'
 import { HowItWorks } from '@/components/marketing/how-it-works'
-import { UseCaseCards } from '@/components/marketing/use-case-cards'
+import { UseCasePreview } from '@/components/marketing/use-case-preview'
+import { ProblemSection } from '@/components/marketing/problem-section'
 import { SectionHeader } from '@/components/marketing/section-header'
 
 
@@ -257,8 +257,26 @@ export function LandingPage({
         </div>
       </section>
 
+      {/* Problem → Solution */}
+      <section className="border-t border-border bg-card py-20 sm:py-28" aria-labelledby="problem-heading">
+        <div className="container px-4">
+          <SectionHeader label={t.problemLabel} title={t.problemTitle} description={t.problemDesc} />
+          <div className="mx-auto mt-14 sm:mt-16 max-w-4xl">
+            <ProblemSection
+              t={t}
+              photos={[
+                { src: '/marketing-placeholder/wedding-toast-thumb.jpg' },
+                { src: '/marketing-placeholder/wedding-detail-thumb.jpg' },
+                { src: '/marketing-placeholder/wedding-guests-thumb.jpg' },
+                { src: '/marketing-placeholder/wedding-dancefloor-thumb.jpg' },
+              ]}
+            />
+          </div>
+        </div>
+      </section>
+
       {/* How It Works */}
-      <section id="how-it-works" className="border-t border-border bg-card py-20 sm:py-28" aria-labelledby="how-it-works-heading">
+      <section id="how-it-works" className="border-t border-border py-20 sm:py-28" aria-labelledby="how-it-works-heading">
         <div className="container px-4">
           <SectionHeader label={t.hiwLabel} title={t.hiwTitle} description={t.hiwDesc} />
           <div className="mx-auto mt-14 sm:mt-16 max-w-5xl">
@@ -267,66 +285,50 @@ export function LandingPage({
         </div>
       </section>
 
-      {/* Use Cases */}
-      <section className="border-t border-border py-20 sm:py-28" aria-labelledby="use-cases-heading">
+      {/* Use Case Preview */}
+      <section className="border-t border-border bg-card py-20 sm:py-28" aria-labelledby="use-cases-heading">
         <div className="container px-4">
           <SectionHeader label={t.useCasesLabel} title={t.useCasesTitle} description={t.useCasesDesc} />
           <div className="mx-auto mt-14 sm:mt-16 max-w-5xl">
-            <UseCaseCards
-              cases={[
-                { icon: Heart, color: 'text-rose-500', title: t.weddings, desc: t.weddingsDesc, bullets: [t.weddingsBullet1, t.weddingsBullet2] },
-                { icon: PartyPopper, color: 'text-amber-600', title: t.birthdays, desc: t.birthdaysDesc, bullets: [t.birthdaysBullet1, t.birthdaysBullet2] },
-                { icon: Building2, color: 'text-blue-600', title: t.corporate, desc: t.corporateDesc, bullets: [t.corporateBullet1, t.corporateBullet2] },
+            <UseCasePreview
+              items={[
+                {
+                  href: localizedPath(locale, '/wedding-photo-sharing'),
+                  icon: Heart,
+                  title: t.weddings,
+                  desc: t.weddingsDesc,
+                  photoSrc: '/marketing-placeholder/wedding-couple-card.jpg',
+                },
+                {
+                  href: localizedPath(locale, '/birthday-photo-sharing'),
+                  icon: PartyPopper,
+                  title: t.birthdays,
+                  desc: t.birthdaysDesc,
+                  photoSrc: '/marketing-placeholder/usecase-birthday-card.jpg',
+                },
+                {
+                  href: localizedPath(locale, '/corporate-event-photo-sharing'),
+                  icon: Building2,
+                  title: t.corporate,
+                  desc: t.corporateDesc,
+                  photoSrc: '/marketing-placeholder/usecase-corporate-card.jpg',
+                },
+                {
+                  href: localizedPath(locale, '/for-wedding-photographers'),
+                  icon: Camera,
+                  title: tNav.forPhotographers,
+                  desc: t.photographersCardDesc,
+                  photoSrc: '/marketing-placeholder/usecase-photographer-card.jpg',
+                },
+                {
+                  href: localizedPath(locale, '/for-event-planners'),
+                  icon: Users,
+                  title: tNav.forPlanners,
+                  desc: t.plannersCardDesc,
+                  photoSrc: '/marketing-placeholder/usecase-planner-card.jpg',
+                },
               ]}
             />
-          </div>
-        </div>
-      </section>
-
-      {/* Audience Segmentation */}
-      <section className="border-t border-border py-20 sm:py-28" aria-labelledby="audience-heading">
-        <div className="container px-4">
-          <SectionHeader label={t.audienceLabel} title={t.audienceTitle} />
-          <div className="reveal mx-auto mt-14 sm:mt-16 grid max-w-4xl gap-4 sm:gap-5 sm:grid-cols-3">
-            <a
-              href={localizedPath(locale, '/wedding-photo-sharing')}
-              className="group relative overflow-hidden rounded-xl border border-border bg-card p-6 transition-all duration-300 hover:-translate-y-1 hover:border-[hsl(var(--border-visible))] hover:shadow-elevated"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary border border-border">
-                <Heart className="h-6 w-6 text-rose-500" aria-hidden="true" />
-              </div>
-              <h3 className="mt-5 font-display text-base font-bold tracking-tight text-foreground">{t.audienceWeddingQ}</h3>
-              <span className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-accent-dark">
-                {t.weddings}
-                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
-              </span>
-            </a>
-            <a
-              href={localizedPath(locale, '/for-wedding-photographers')}
-              className="group relative overflow-hidden rounded-xl border border-border bg-card p-6 transition-all duration-300 hover:-translate-y-1 hover:border-[hsl(var(--border-visible))] hover:shadow-elevated"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary border border-border">
-                <Camera className="h-6 w-6 text-blue-600" aria-hidden="true" />
-              </div>
-              <h3 className="mt-5 font-display text-base font-bold tracking-tight text-foreground">{t.audiencePhotographerQ}</h3>
-              <span className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-accent-dark">
-                {tNav.forPhotographers}
-                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
-              </span>
-            </a>
-            <a
-              href={localizedPath(locale, '/for-event-planners')}
-              className="group relative overflow-hidden rounded-xl border border-border bg-card p-6 transition-all duration-300 hover:-translate-y-1 hover:border-[hsl(var(--border-visible))] hover:shadow-elevated"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary border border-border">
-                <Users className="h-6 w-6 text-amber-600" aria-hidden="true" />
-              </div>
-              <h3 className="mt-5 font-display text-base font-bold tracking-tight text-foreground">{t.audiencePlannerQ}</h3>
-              <span className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-accent-dark">
-                {tNav.forPlanners}
-                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
-              </span>
-            </a>
           </div>
         </div>
       </section>
@@ -406,10 +408,6 @@ export function LandingPage({
           </div>
         </div>
       </section>
-
-      <div className="container mx-auto max-w-3xl px-4 pb-10">
-        <InstallCta mode="landing" />
-      </div>
 
       <MarketingFooter />
     </div>

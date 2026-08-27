@@ -29,6 +29,7 @@ export function MarketingFooter() {
                 <li><a href={localizedPath(locale, '/pricing')} className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.pricing}</a></li>
                 <li><a href={localizedPath(locale, '/wedding-photo-sharing')} className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.weddings}</a></li>
                 <li><a href={localizedPath(locale, '/birthday-photo-sharing')} className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.birthdays}</a></li>
+                <li><a href={localizedPath(locale, '/private-party-photo-sharing')} className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.privateParty}</a></li>
                 <li><a href={localizedPath(locale, '/corporate-event-photo-sharing')} className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.corporate}</a></li>
               </ul>
             </div>
@@ -38,8 +39,8 @@ export function MarketingFooter() {
                 Professionals
               </p>
               <ul className="mt-4 space-y-2.5">
-                <li><a href={localizedPath(locale, '/for-wedding-photographers')} className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.photographers}</a></li>
-                <li><a href={localizedPath(locale, '/for-event-planners')} className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.planners}</a></li>
+                <li><a href={localizedPath(locale, '/for-wedding-photographers')} className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.forPhotographers}</a></li>
+                <li><a href={localizedPath(locale, '/for-event-planners')} className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.forPlanners}</a></li>
                 <li><a href={localizedPath(locale, '/commercial-license')} className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.commercialLicense}</a></li>
               </ul>
             </div>

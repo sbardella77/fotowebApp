@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { useTranslations } from '@/components/i18n-provider'
 import { trackEvent, trackPageView } from '@/lib/analytics/track-client'
 import { EVENT_LANDING_VIEW, EVENT_CREATE_ROOM_CLICKED } from '@/lib/analytics/events'
+import { SnapRoomsLogo, SnapRoomsIcon } from '@/components/marketing/logo'
 
 export function HomePageClient({ locale = 'en' }) {
   const router = useRouter()
@@ -80,17 +81,14 @@ export function HomePageClient({ locale = 'en' }) {
       <main className="min-h-screen bg-background text-foreground">
         <header className="border-b border-border bg-card/80 backdrop-blur-xl">
           <div className="container flex h-16 items-center justify-between px-4">
-            <div className="flex items-center gap-2.5">
-              <img src="/snaprooms-logo.svg" alt="SnapRooms" fetchPriority="high" className="h-9 w-9 rounded-xl object-cover shadow-subtle" />
-              <span className="font-display text-[15px] font-bold tracking-tight text-foreground">SnapRooms</span>
-            </div>
+            <SnapRoomsLogo size="md" />
             <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
               <a href="/dashboard/login">{tCommon.signIn}</a>
             </Button>
           </div>
         </header>
         <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center gap-4 px-4">
-          <img src="/snaprooms-logo.svg" alt="SnapRooms" fetchPriority="high" className="h-14 w-14 rounded-xl object-cover shadow-card" />
+          <SnapRoomsIcon className="h-14 w-14 text-accent-dark" />
           <p className="text-lg font-medium text-foreground">{t.openingRoom}</p>
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
         </div>
