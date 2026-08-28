@@ -143,7 +143,7 @@ export function EventMomentsManager({ event, t, onOwnerSessionFailure }) {
   }
 
   return (
-    <div className="mt-3 rounded-xl border border-border bg-raised p-4">
+    <div className="mt-3 rounded-xl border border-border bg-secondary p-4">
       <div className="flex items-center justify-between gap-2">
         <p className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.moments || 'Moments'}</p>
         {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
@@ -172,10 +172,10 @@ export function EventMomentsManager({ event, t, onOwnerSessionFailure }) {
                     if (e.key === 'Escape') cancelEdit()
                   }}
                 />
-                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => handleRename(moment.id)} disabled={busyId === moment.id}>
+                <Button size="sm" variant="ghost" className="h-9 w-9 p-0" onClick={() => handleRename(moment.id)} disabled={busyId === moment.id}>
                   {busyId === moment.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                 </Button>
-                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={cancelEdit}>
+                <Button size="sm" variant="ghost" className="h-9 w-9 p-0" onClick={cancelEdit}>
                   <X className="h-3.5 w-3.5" />
                 </Button>
               </div>
@@ -183,10 +183,10 @@ export function EventMomentsManager({ event, t, onOwnerSessionFailure }) {
               <>
                 <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{moment.name}</span>
                 <div className="flex items-center gap-1">
-                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground" onClick={() => startEdit(moment)} disabled={busyId === moment.id}>
+                  <Button size="sm" variant="ghost" className="h-9 w-9 p-0 text-muted-foreground hover:text-foreground" onClick={() => startEdit(moment)} disabled={busyId === moment.id}>
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
-                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(moment.id)} disabled={busyId === moment.id}>
+                  <Button size="sm" variant="ghost" className="h-9 w-9 p-0 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(moment.id)} disabled={busyId === moment.id}>
                     {busyId === moment.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                   </Button>
                 </div>

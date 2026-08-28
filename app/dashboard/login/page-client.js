@@ -131,7 +131,7 @@ export default function LoginPageClient({ redirect = '/dashboard' }) {
             <div className="surface-elevated rounded-xl shadow-card p-6">
               <div className="space-y-4">
                 {forgotSent ? (
-                  <div className="rounded-xl border border-border bg-raised p-4 text-sm text-muted-foreground text-center">
+                  <div className="rounded-xl border border-border bg-secondary p-4 text-sm text-muted-foreground text-center">
                     {t.resetSent}
                   </div>
                 ) : (

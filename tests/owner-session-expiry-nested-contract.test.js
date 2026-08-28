@@ -10,6 +10,8 @@ function readSource(relPath) {
 
 const DASHBOARD_PAGE = readSource('app/dashboard/page.js')
 const EVENT_DETAIL_PANEL = readSource('app/dashboard/components/event-detail-panel.jsx')
+const EVENT_WORKSPACE_OVERVIEW = readSource('app/dashboard/components/event-workspace-overview.jsx')
+const EVENT_WORKSPACE_PHOTOS = readSource('app/dashboard/components/event-workspace-photos.jsx')
 const EVENT_MOMENTS_MANAGER = readSource('app/dashboard/components/event-moments-manager.jsx')
 const EVENT_COVER_EDITOR = readSource('app/dashboard/components/event-cover-editor.jsx')
 const ROOM_CLIENT = readSource('components/room-page-client.jsx')
@@ -30,13 +32,27 @@ describe('A. EventDetailPanel receives and forwards onOwnerSessionFailure', () =
     expect(EVENT_DETAIL_PANEL).toMatch(/onOwnerSessionFailure,/)
   })
 
-  it('3: EventCoverEditor/EventCoverRemove both receive onOwnerSessionFailure forwarded from the panel', () => {
-    expect(EVENT_DETAIL_PANEL).toContain('<EventCoverEditor event={event} onCoverUpdated={onCoverUpdated} onOwnerSessionFailure={onOwnerSessionFailure}')
-    expect(EVENT_DETAIL_PANEL).toContain('<EventCoverRemove event={event} onCoverUpdated={onCoverUpdated} onOwnerSessionFailure={onOwnerSessionFailure}')
+  it('3a: EventDetailPanel forwards onOwnerSessionFailure to EventWorkspaceOverview (Phase 5B extraction)', () => {
+    const idx = EVENT_DETAIL_PANEL.indexOf('<EventWorkspaceOverview')
+    expect(idx).toBeGreaterThan(-1)
+    const closeIdx = EVENT_DETAIL_PANEL.indexOf('/>', idx)
+    expect(EVENT_DETAIL_PANEL.slice(idx, closeIdx)).toContain('onOwnerSessionFailure={onOwnerSessionFailure}')
   })
 
-  it('4: EventMomentsManager receives onOwnerSessionFailure forwarded from the panel', () => {
-    expect(EVENT_DETAIL_PANEL).toContain('<EventMomentsManager event={event} t={t} onOwnerSessionFailure={onOwnerSessionFailure} />')
+  it('3b: EventCoverEditor/EventCoverRemove both receive onOwnerSessionFailure forwarded from EventWorkspaceOverview', () => {
+    expect(EVENT_WORKSPACE_OVERVIEW).toContain('<EventCoverEditor event={event} onCoverUpdated={onCoverUpdated} onOwnerSessionFailure={onOwnerSessionFailure}')
+    expect(EVENT_WORKSPACE_OVERVIEW).toContain('<EventCoverRemove event={event} onCoverUpdated={onCoverUpdated} onOwnerSessionFailure={onOwnerSessionFailure}')
+  })
+
+  it('4a: EventDetailPanel forwards onOwnerSessionFailure to EventWorkspacePhotos (Phase 5B extraction)', () => {
+    const idx = EVENT_DETAIL_PANEL.indexOf('<EventWorkspacePhotos')
+    expect(idx).toBeGreaterThan(-1)
+    const closeIdx = EVENT_DETAIL_PANEL.indexOf('/>', idx)
+    expect(EVENT_DETAIL_PANEL.slice(idx, closeIdx)).toContain('onOwnerSessionFailure={onOwnerSessionFailure}')
+  })
+
+  it('4b: EventMomentsManager receives onOwnerSessionFailure forwarded from EventWorkspacePhotos', () => {
+    expect(EVENT_WORKSPACE_PHOTOS).toContain('<EventMomentsManager event={event} t={t} onOwnerSessionFailure={onOwnerSessionFailure} />')
   })
 })
 
@@ -139,6 +155,8 @@ describe('G. EventCoverRemove — cover remove: same contract, generic-error UX 
 // ─── H/I. Nested components stay dependency-free of the gate/session-check ───
 
 describe('H/I. Nested components do not own any session-expiry infrastructure', () => {
+  const NESTED_FILES = [EVENT_MOMENTS_MANAGER, EVENT_COVER_EDITOR, EVENT_DETAIL_PANEL, EVENT_WORKSPACE_OVERVIEW, EVENT_WORKSPACE_PHOTOS]
+
   it('14: event-moments-manager.jsx does not import createOwnerSessionExpiryGate', () => {
     expect(EVENT_MOMENTS_MANAGER).not.toContain('createOwnerSessionExpiryGate')
     expect(EVENT_MOMENTS_MANAGER).not.toContain('owner-session-expiry')
@@ -149,19 +167,21 @@ describe('H/I. Nested components do not own any session-expiry infrastructure', 
     expect(EVENT_COVER_EDITOR).not.toContain('owner-session-expiry')
   })
 
-  it('16: event-detail-panel.jsx does not import createOwnerSessionExpiryGate', () => {
-    expect(EVENT_DETAIL_PANEL).not.toContain('createOwnerSessionExpiryGate')
-    expect(EVENT_DETAIL_PANEL).not.toContain('owner-session-expiry')
+  it('16: event-detail-panel.jsx and its Phase 5B workspace extractions do not import createOwnerSessionExpiryGate', () => {
+    for (const source of NESTED_FILES) {
+      expect(source).not.toContain('createOwnerSessionExpiryGate')
+      expect(source).not.toContain('owner-session-expiry')
+    }
   })
 
-  it('17: none of the three nested files call /api/owner/session', () => {
-    expect(EVENT_MOMENTS_MANAGER).not.toContain('/api/owner/session')
-    expect(EVENT_COVER_EDITOR).not.toContain('/api/owner/session')
-    expect(EVENT_DETAIL_PANEL).not.toContain('/api/owner/session')
+  it('17: none of the nested/workspace files call /api/owner/session', () => {
+    for (const source of NESTED_FILES) {
+      expect(source).not.toContain('/api/owner/session')
+    }
   })
 
-  it('18: none of the three nested files introduce their own authState/login/redirect/sessionExpired message state', () => {
-    for (const source of [EVENT_MOMENTS_MANAGER, EVENT_COVER_EDITOR, EVENT_DETAIL_PANEL]) {
+  it('18: none of the nested/workspace files introduce their own authState/login/redirect/sessionExpired message state', () => {
+    for (const source of NESTED_FILES) {
       expect(source).not.toContain('authState')
       expect(source).not.toContain('router.push')
       expect(source).not.toContain('sessionExpired')

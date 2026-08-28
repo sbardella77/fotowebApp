@@ -1,8 +1,15 @@
 'use client'
 
-import { Camera, ImagePlus, Loader2, Pencil, QrCode, Share2, Sparkles, Trash2 } from 'lucide-react'
+import { Camera, ExternalLink, ImagePlus, Loader2, MoreVertical, Pencil, QrCode, Share2, Sparkles, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { getEffectiveEventTierLabel } from '../lib/event-status'
 
 export function EventCard({
@@ -12,7 +19,8 @@ export function EventCard({
   editing,
   editName,
   busyDetail,
-  onSelect,
+  onManage,
+  onManageMobile,
   onRenameStart,
   onRenameSave,
   onRenameCancel,
@@ -28,17 +36,16 @@ export function EventCard({
 
   return (
     <div
-      onClick={onSelect}
-      className={`group relative overflow-hidden rounded-xl border bg-surface transition-all duration-200 hover:-translate-y-px hover:shadow-elevated cursor-pointer ${
+      className={`relative overflow-hidden rounded-xl border bg-surface transition-colors duration-200 ${
         selected
           ? 'border-primary/40 shadow-[0_0_0_1px_hsl(var(--accent)/0.15)]'
-          : 'border-border hover:border-[hsl(var(--border-visible))]'
+          : 'border-border'
       }`}
     >
       {/* Cover */}
-      <div className="relative h-40 overflow-hidden bg-raised">
+      <div className="relative h-40 overflow-hidden bg-secondary">
         {coverUrl ? (
-          <img src={coverUrl} alt={event.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+          <img src={coverUrl} alt={event.name} className="h-full w-full object-cover" />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/10 to-primary/5">
             <Camera className="h-10 w-10 text-muted-foreground/30" />
@@ -62,7 +69,7 @@ export function EventCard({
       {/* Body */}
       <div className="p-4">
         {editing ? (
-          <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
+          <div className="space-y-3">
             <Input
               value={editName}
               onChange={(e) => onEditNameChange?.(e.target.value)}
@@ -92,59 +99,75 @@ export function EventCard({
               </div>
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button size="sm" asChild className="cta-primary" onClick={(e) => e.stopPropagation()}>
-                <a href={`/event/${event.slug}`}>{t.openRoom}</a>
-              </Button>
+            <div className="mt-4 space-y-2">
+              {/* Primary: Manage — desktop (xl+) selects the event for the contextual right panel */}
               <Button
                 size="sm"
-                variant="outline"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onShare(event)
-                }}
-                className="border-border bg-surface text-foreground hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent-dark"
+                className="hidden w-full cta-primary xl:inline-flex"
+                onClick={() => onManage(event)}
               >
-                <Share2 className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
-                {t.share}
+                {t.manageEvent}
               </Button>
+              {/* Primary: Manage — below xl, also opens the immediate workspace Sheet.
+                  Taller than the desktop variant (h-11 ≈ 44px): this is the
+                  highest-frequency touch target on the card, tapped on every
+                  mobile/tablet visit. */}
               <Button
                 size="sm"
-                variant="outline"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onQR(event)
-                }}
-                className="border-border bg-surface text-foreground hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent-dark"
+                className="flex h-11 w-full cta-primary xl:hidden"
+                onClick={(e) => onManageMobile(event, e.currentTarget)}
               >
-                <QrCode className="mr-1.5 h-3.5 w-3.5" />
-                {t.qr}
+                {t.manageEvent}
               </Button>
-            </div>
 
-            <div className="mt-4 flex gap-3 pt-4 border-t border-border">
-              <button
-                type="button"
-                className="inline-flex items-center gap-1.5 text-xs font-light text-muted-foreground hover:text-foreground transition-colors"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onRenameStart(event)
-                }}
-              >
-                <Pencil className="h-3.5 w-3.5" />
-                {t.rename}
-              </button>
-              <button
-                type="button"
-                className="inline-flex items-center gap-1.5 text-xs font-light text-destructive hover:text-destructive/80 transition-colors"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onDelete(event)
-                }}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                {tCommon.delete}
-              </button>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onShare(event)}
+                  className="h-10 flex-1 border-border bg-surface text-foreground hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent-dark"
+                >
+                  <Share2 className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
+                  {t.share}
+                </Button>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      aria-label={t.moreActions}
+                      className="h-10 w-10 shrink-0 border-border bg-surface px-0 text-foreground hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent-dark"
+                    >
+                      <MoreVertical className="h-3.5 w-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="border-border bg-surface">
+                    <DropdownMenuItem asChild className="py-2.5">
+                      <a href={`/event/${event.slug}`}>
+                        <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                        {t.viewEvent}
+                      </a>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="py-2.5" onSelect={() => onQR(event)}>
+                      <QrCode className="h-3.5 w-3.5 text-muted-foreground" />
+                      {t.qr}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="py-2.5" onSelect={() => onRenameStart(event)}>
+                      <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                      {t.rename}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="py-2.5 text-destructive focus:bg-destructive/10 focus:text-destructive"
+                      onSelect={() => onDelete(event)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      {tCommon.delete}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
           </>
         )}

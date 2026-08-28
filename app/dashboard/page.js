@@ -7,6 +7,7 @@ import { upload } from '@vercel/blob/client'
 import { AlertTriangle, ArrowUpDown, Camera, Copy, Download, Eye, EyeOff, FolderHeart, ImagePlus, Info, LinkIcon, Loader2, Lock, LogOut, Pencil, Plus, QrCode, RefreshCw, Search, Share2, Sparkles, Trash2, Upload, Archive } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import PhotoLightbox from '@/components/photo-lightbox'
 import { EventQRModal } from '@/components/event-qr-modal'
 import { trackEvent, identifyUser } from '@/lib/analytics/track-client'
@@ -151,6 +152,8 @@ export default function DashboardPage() {
   const [photographerLinkCopied, setPhotographerLinkCopied] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState('newest')
+  const [mobileWorkspaceOpen, setMobileWorkspaceOpen] = useState(false)
+  const manageTriggerRef = useRef(null)
   const roomLimitTracked = useRef(false)
   const [createEventIntent, setCreateEventIntent] = useState(false)
   const [dataLoaded, setDataLoaded] = useState({ plan: false, events: false })
@@ -648,6 +651,33 @@ export default function DashboardPage() {
     } finally {
       setForgotBusy(false)
     }
+  }
+
+  // Single source of truth for "Manage" selection so the tracked event fires
+  // exactly once regardless of which breakpoint's Manage control was used —
+  // see EventCard's separate xl+ / below-xl Manage buttons.
+  const handleManageEvent = (event) => {
+    trackEvent(EVENT_ROOM_SELECTED_IN_DASHBOARD, {
+      room_slug: event.slug,
+      room_name: event.name,
+      photo_count: event.photoCount || event.photos?.length || 0,
+    })
+    setSelectedSlug(event.slug)
+  }
+
+  const handleManageEventMobile = (event, triggerEl) => {
+    handleManageEvent(event)
+    // The Sheet lives in DashboardShell, structurally separate from the
+    // per-card Manage button that opened it, so it can't use Radix's
+    // Trigger-based focus restore (no shared Sheet.Root ancestor). Track the
+    // clicked DOM node ourselves and refocus it in onWorkspaceCloseAutoFocus.
+    manageTriggerRef.current = triggerEl || null
+    setMobileWorkspaceOpen(true)
+  }
+
+  const handleWorkspaceCloseAutoFocus = (e) => {
+    e.preventDefault()
+    manageTriggerRef.current?.focus()
   }
 
   const shareEvent = async (event) => {
@@ -1389,6 +1419,10 @@ export default function DashboardPage() {
 
   return (
     <DashboardShell
+      mobileWorkspaceOpen={mobileWorkspaceOpen}
+      onMobileWorkspaceOpenChange={setMobileWorkspaceOpen}
+      onWorkspaceCloseAutoFocus={handleWorkspaceCloseAutoFocus}
+      workspaceLabel={t.eventWorkspace}
       sidebar={
         <DashboardSidebar
           experience={experience}
@@ -1470,8 +1504,9 @@ export default function DashboardPage() {
       }
     >
       {authState.loading ? (
-        <div className="flex items-center justify-center py-20">
+        <div className="flex items-center justify-center py-20" role="status">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <span className="sr-only">{tCommon.loading}</span>
         </div>
       ) : !authState.authenticated ? (
         <div className="mx-auto max-w-sm py-12 px-4">
@@ -1491,7 +1526,7 @@ export default function DashboardPage() {
             <div className="surface-elevated rounded-xl p-6">
               <div className="space-y-4">
                 {forgotSent ? (
-                  <div className="rounded-xl border border-border bg-raised p-4 text-sm text-muted-foreground text-center">
+                  <div className="rounded-xl border border-border bg-secondary p-4 text-sm text-muted-foreground text-center">
                     {t.resetSent}
                   </div>
                 ) : (
@@ -1591,8 +1626,31 @@ export default function DashboardPage() {
           )}
         </div>
       ) : !dataLoaded.events ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="space-y-8 px-4 py-8 sm:px-6 lg:px-8" aria-busy="true" aria-live="polite">
+          <span className="sr-only">{t.loadingRooms || 'Loading your events…'}</span>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <Skeleton className="h-7 w-40" />
+              <Skeleton className="mt-2 h-4 w-64" />
+            </div>
+            <Skeleton className="h-9 w-36" />
+          </div>
+          <Skeleton className="h-28 w-full rounded-xl" />
+          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="overflow-hidden rounded-xl border border-border bg-surface">
+                <Skeleton className="h-40 w-full rounded-none" />
+                <div className="space-y-3 p-4">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-11 w-full" />
+                  <div className="flex gap-2">
+                    <Skeleton className="h-10 flex-1" />
+                    <Skeleton className="h-10 w-10 shrink-0" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       ) : events.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center px-4">
@@ -1755,14 +1813,8 @@ export default function DashboardPage() {
                   editing={editingSlug === event.slug}
                   editName={editName}
                   busyDetail={busy.detail}
-                  onSelect={() => {
-                    trackEvent(EVENT_ROOM_SELECTED_IN_DASHBOARD, {
-                      room_slug: event.slug,
-                      room_name: event.name,
-                      photo_count: event.photoCount || event.photos?.length || 0,
-                    })
-                    setSelectedSlug(event.slug)
-                  }}
+                  onManage={handleManageEvent}
+                  onManageMobile={handleManageEventMobile}
                   onRenameStart={startRename}
                   onRenameSave={() => saveRename(event.slug)}
                   onRenameCancel={cancelRename}
@@ -1856,7 +1908,7 @@ export default function DashboardPage() {
                     </div>
 
                     {/* Professional option */}
-                    <div className="space-y-2 rounded-lg border border-border bg-raised p-3">
+                    <div className="space-y-2 rounded-lg border border-border bg-secondary p-3">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-semibold text-foreground">{t.professional}</p>
                         <p className="text-xs font-medium text-muted-foreground">{t.professionalMonthlyPrice || '€79 / month'}</p>
@@ -1925,7 +1977,7 @@ export default function DashboardPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)} className="border-border bg-raised text-foreground hover:bg-elevated hover:text-foreground">
+            <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)} className="border-border bg-secondary text-foreground hover:bg-elevated hover:text-foreground">
               {tCommon.cancel}
             </AlertDialogCancel>
             <AlertDialogAction onClick={deleteEvent} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">

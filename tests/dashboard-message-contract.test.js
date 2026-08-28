@@ -27,6 +27,7 @@ function extractTopBarMessageBlock(source) {
 
 const TOP_BAR = readSource('app/dashboard/components/dashboard-top-bar.jsx')
 const DASHBOARD_PAGE = readSource('app/dashboard/page.js')
+const DASHBOARD_SHELL = readSource('app/dashboard/components/dashboard-shell.jsx')
 
 const TOP_BAR_MESSAGE_BLOCK = extractTopBarMessageBlock(TOP_BAR)
 
@@ -42,12 +43,20 @@ describe('DashboardTopBar message renderer — mobile visibility', () => {
   })
 
   it('3: message container still renders as a flex row (styling preserved)', () => {
-    expect(TOP_BAR_MESSAGE_BLOCK).toMatch(/className="flex items-center gap-2/)
+    expect(TOP_BAR_MESSAGE_BLOCK).toMatch(/className="flex min-w-0 items-center gap-2/)
+  })
+
+  it("3b: min-w-0 is present on the container (Phase 5C 320px-overflow fix — without it, truncate never gets a chance to constrain the message's width)", () => {
+    expect(TOP_BAR_MESSAGE_BLOCK).toContain('min-w-0')
   })
 
   it('4: message content and dismiss callback are unchanged', () => {
     expect(TOP_BAR_MESSAGE_BLOCK).toContain('{message}')
     expect(TOP_BAR_MESSAGE_BLOCK).toContain('onDismissMessage')
+  })
+
+  it('4b: the DashboardShell wrapper around {topBar} also carries min-w-0 (Phase 5C — the full flex-item chain needs it, not just the innermost container, or truncate still never engages)', () => {
+    expect(DASHBOARD_SHELL).toContain('<div className="min-w-0 flex-1">{topBar}</div>')
   })
 })
 

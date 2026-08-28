@@ -123,7 +123,7 @@ export function DashboardSidebar({
 
       {/* Owner / Profile */}
       <div className="border-t border-border p-3">
-        <div className="flex items-center gap-3 rounded-lg bg-raised px-3 py-2.5">
+        <div className="flex items-center gap-3 rounded-lg bg-secondary px-3 py-2.5">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-accent-dark">
             <User className="h-4 w-4" />
           </div>
@@ -150,7 +150,7 @@ export function DashboardSidebar({
             type="button"
             onClick={onManageSubscription}
             disabled={portalBusy}
-            className="mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-raised hover:text-foreground transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            className="mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <CreditCard className="h-4 w-4" />
             {portalBusy ? t.openingBillingPortal : t.manageSubscription}
@@ -159,7 +159,7 @@ export function DashboardSidebar({
         <button
           type="button"
           onClick={onLogout}
-          className="mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-raised hover:text-foreground transition-colors"
+          className="mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
         >
           <LogOut className="h-4 w-4" />
           {t.signOut}

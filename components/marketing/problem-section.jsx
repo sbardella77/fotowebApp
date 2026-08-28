@@ -4,9 +4,18 @@ import Image from 'next/image'
 import { MessageCircle, X, CheckCircle2 } from 'lucide-react'
 
 const CHAOS_BUBBLES = [
-  { tone: 'bg-rose-200/70 text-rose-900', align: 'items-start' },
-  { tone: 'bg-sky-200/70 text-sky-900', align: 'items-end' },
-  { tone: 'bg-amber-200/70 text-amber-900', align: 'items-start' },
+  { tone: 'bg-rose-200/70 text-rose-900', align: 'items-start', width: 72, rotate: '-1deg', offset: 'mt-0' },
+  { tone: 'bg-sky-200/70 text-sky-900', align: 'items-end', width: 44, rotate: '1.5deg', offset: '-mt-1' },
+  { tone: 'bg-amber-200/70 text-amber-900', align: 'items-start', width: 58, rotate: '-0.5deg', offset: 'mt-1.5' },
+  { tone: 'bg-violet-200/70 text-violet-900', align: 'items-end', width: 30, rotate: '1deg', offset: 'mt-0' },
+]
+
+// Small desaturated photo fragments, peeking out from behind the message
+// bubbles — visualizes "your photos are scattered and half-buried in chats"
+// without imitating any specific chat app's UI.
+const SCATTERED_THUMBS = [
+  { src: '/marketing-placeholder/wedding-guests-thumb.jpg', rotate: '-6deg', className: 'left-0 top-8' },
+  { src: '/marketing-placeholder/wedding-toast-thumb.jpg', rotate: '5deg', className: 'right-2 top-20' },
 ]
 
 /**
@@ -26,12 +35,25 @@ export function ProblemSection({ t, photos = [] }) {
     <div className="grid gap-6 lg:grid-cols-2 lg:gap-8">
       {/* Chaos */}
       <div className="reveal rounded-2xl border border-border bg-card p-6 sm:p-8">
-        <div className="flex flex-col gap-2.5">
+        <div className="relative flex flex-col gap-2.5 overflow-hidden">
+          {SCATTERED_THUMBS.map((thumb, i) => (
+            <div
+              key={i}
+              aria-hidden="true"
+              className={`absolute z-0 h-12 w-12 overflow-hidden rounded-lg border-2 border-card opacity-50 grayscale shadow-md ${thumb.className}`}
+              style={{ transform: `rotate(${thumb.rotate})` }}
+            >
+              <Image src={thumb.src} alt="" fill sizes="48px" className="object-cover" />
+            </div>
+          ))}
           {CHAOS_BUBBLES.map((bubble, i) => (
-            <div key={i} className={`flex ${bubble.align}`}>
-              <div className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium ${bubble.tone} max-w-[75%]`}>
+            <div key={i} className={`relative z-10 flex ${bubble.align} ${bubble.offset}`}>
+              <div
+                className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium ${bubble.tone} max-w-[75%]`}
+                style={{ transform: `rotate(${bubble.rotate})` }}
+              >
                 <MessageCircle className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden="true" />
-                <span className="h-2 flex-1 rounded-full bg-current opacity-25" style={{ minWidth: `${40 + i * 20}px` }} />
+                <span className="h-2 flex-1 rounded-full bg-current opacity-25" style={{ minWidth: `${bubble.width}px` }} />
               </div>
             </div>
           ))}

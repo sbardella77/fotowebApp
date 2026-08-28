@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import {
   QrCode,
   CheckCircle2,
@@ -13,6 +14,9 @@ import {
   Briefcase,
   EyeOff,
   Smartphone,
+  Camera,
+  Heart,
+  Users,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,6 +34,15 @@ import { PhoneMockup } from '@/components/marketing/phone-mockup'
 import { TrustStrip } from '@/components/marketing/trust-strip'
 import { HowItWorks } from '@/components/marketing/how-it-works'
 import { SectionHeader } from '@/components/marketing/section-header'
+
+const PHOTOGRAPHER_PHOTOS = [
+  { src: '/marketing-placeholder/photographer-candid-thumb.jpg', heart: true },
+  { src: '/marketing-placeholder/photographer-shooting-thumb.jpg' },
+  { src: '/marketing-placeholder/photographer-guests-thumb.jpg', heart: true },
+  { src: '/marketing-placeholder/photographer-reception-thumb.jpg' },
+  { src: '/marketing-placeholder/photographer-camera-thumb.jpg' },
+  { src: '/marketing-placeholder/photographer-review-thumb.jpg' },
+]
 
 function useScrollReveal() {
   useEffect(() => {
@@ -57,6 +70,7 @@ export function PhotographersLandingPage({ locale }) {
   const [createError, setCreateError] = useState(null)
   const t = useTranslations('photographers')
   const tLanding = useTranslations('landing')
+  const nav = useTranslations('nav')
 
   useScrollReveal()
 
@@ -114,24 +128,30 @@ export function PhotographersLandingPage({ locale }) {
       <MarketingNav ctaAction="scroll" />
 
       {/* Hero */}
-      <section id="main-content" className="relative overflow-hidden pt-28 pb-16 sm:pt-36 sm:pb-24">
-        <div className="absolute inset-0 bg-grid opacity-50" aria-hidden="true" />
-        <div className="absolute -top-40 -right-40 h-96 w-96 rounded-full bg-primary/10 blur-[100px]" aria-hidden="true" />
-        <div className="absolute -bottom-40 -left-40 h-96 w-96 rounded-full bg-primary/5 blur-[100px]" aria-hidden="true" />
+      <section id="main-content" className="relative overflow-hidden pt-24 pb-16 sm:pt-32 sm:pb-24">
+        <div className="absolute inset-0 bg-grid opacity-[0.06]" aria-hidden="true" />
+        <div
+          className="absolute inset-0"
+          style={{ background: 'radial-gradient(ellipse at 50% 0%, hsl(var(--primary) / 0.06) 0%, transparent 55%)' }}
+          aria-hidden="true"
+        />
 
         <div className="container relative px-4">
           <div className="mx-auto max-w-3xl text-center">
-            <span className="inline-block font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-accent-dark animate-fade-up">
-              {t.heroEyebrow}
-            </span>
-            <h1 className="mt-4 font-display text-3xl font-bold tracking-tight text-foreground sm:text-4xl animate-fade-up delay-100">
+            <div className="animate-fade-up inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary px-3 py-1">
+              <Camera className="h-3 w-3 text-accent-dark" aria-hidden="true" />
+              <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-muted-foreground">
+                {t.heroEyebrow}
+              </span>
+            </div>
+            <h1 className="animate-fade-up delay-100 mt-6 font-display text-4xl font-extrabold leading-[1.08] tracking-[-0.03em] text-foreground sm:text-5xl text-balance">
               {t.heroHeadline1}{' '}
-              <span className="text-gradient">{t.heroHeadline2}</span>
+              <span className="text-accent-dark">{t.heroHeadline2}</span>
             </h1>
-            <p className="mt-4 text-base text-muted-foreground sm:text-lg animate-fade-up delay-200">
+            <p className="animate-fade-up delay-200 mt-6 text-lg leading-relaxed text-muted-foreground sm:text-xl">
               {t.heroSubheadline}
             </p>
-            <div className="mt-8 animate-fade-up delay-300">
+            <div className="animate-fade-up delay-300 mt-8 flex justify-center">
               <TrustStrip items={[
                 { icon: Infinity, text: t.trustUnlimitedEvents },
                 { icon: Download, text: t.trustBulkDownload },
@@ -140,17 +160,17 @@ export function PhotographersLandingPage({ locale }) {
             </div>
           </div>
 
-          <div className="mx-auto mt-12 grid max-w-5xl items-center gap-10 sm:grid-cols-2">
+          <div className="mx-auto mt-12 grid max-w-5xl grid-cols-1 items-center gap-10 sm:grid-cols-2">
             {/* Create Form */}
-            <div id="create" className="animate-fade-up delay-400">
-              <div className="rounded-2xl border border-border bg-raised/60 p-6 shadow-elevated">
+            <div id="create" className="reveal min-w-0">
+              <div className="rounded-2xl border border-border bg-card p-6 shadow-elevated">
                 <div className="space-y-3">
                   <Input
                     placeholder={t.eventPlaceholder}
                     value={eventName}
                     onChange={(e) => setEventName(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && createEvent()}
-                    className="h-12 rounded-lg border-border bg-raised"
+                    className="h-12 rounded-lg border-border bg-secondary"
                   />
                   <Input
                     placeholder={t.emailPlaceholder}
@@ -158,7 +178,7 @@ export function PhotographersLandingPage({ locale }) {
                     value={ownerEmail}
                     onChange={(e) => setOwnerEmail(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && createEvent()}
-                    className="h-12 rounded-lg border-border bg-raised"
+                    className="h-12 rounded-lg border-border bg-secondary"
                   />
                   <Button
                     className="h-12 w-full cta-primary"
@@ -187,18 +207,50 @@ export function PhotographersLandingPage({ locale }) {
             </div>
 
             {/* Phone Mockup */}
-            <div className="animate-fade-up delay-500 flex justify-center">
-              <PhoneMockup />
+            <div className="reveal relative min-w-0 flex justify-center" style={{ transitionDelay: '100ms' }}>
+              <div className="absolute -inset-8 rounded-full bg-primary/10 blur-3xl" aria-hidden="true" />
+              <PhoneMockup
+                eventName="Client: Sarah & Mike"
+                url="snaprooms.app/event/client-sarah-mike"
+                photos={PHOTOGRAPHER_PHOTOS}
+              />
             </div>
           </div>
         </div>
       </section>
 
       {/* Problem / Solution */}
-      <section className="relative border-t border-border bg-raised/50 py-24 sm:py-32">
+      <section className="border-t border-border bg-card py-20 sm:py-28">
         <div className="container px-4">
-          <div className="mx-auto grid max-w-5xl gap-10 sm:grid-cols-2 sm:items-center">
-            <div className="reveal">
+          <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 sm:items-center">
+            <div className="reveal min-w-0 overflow-hidden rounded-2xl border border-border shadow-elevated">
+              <div className="relative aspect-[4/3]">
+                <Image
+                  src="/marketing-placeholder/photographer-shooting-card.jpg"
+                  alt=""
+                  fill
+                  sizes="(min-width: 640px) 50vw, 100vw"
+                  className="object-cover"
+                />
+                <div
+                  className="absolute inset-0"
+                  aria-hidden="true"
+                  style={{ background: 'linear-gradient(180deg, transparent 45%, hsl(0 0% 8% / 0.75) 100%)' }}
+                />
+                <div className="absolute inset-x-0 bottom-0 p-5">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
+                    <Camera className="h-5 w-5 text-white" aria-hidden="true" />
+                  </div>
+                  <h3 className="mt-3 font-display text-lg font-semibold text-white">
+                    {t.solution1Title}
+                  </h3>
+                  <p className="mt-1.5 text-sm text-white/85">
+                    {t.solution1Desc}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="reveal min-w-0" style={{ transitionDelay: '100ms' }}>
               <h2 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
                 {t.problemTitle}
               </h2>
@@ -208,24 +260,11 @@ export function PhotographersLandingPage({ locale }) {
               <p className="mt-3 text-muted-foreground">
                 {t.problemDesc2}
               </p>
-            </div>
-            <div className="reveal space-y-4" style={{ transitionDelay: '100ms' }}>
-              <div className="rounded-xl bg-surface border border-border p-6">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-raised border border-border text-primary">
-                  <QrCode className="h-6 w-6" />
+              <div className="mt-6 rounded-xl border border-border bg-surface p-5">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary border border-border text-primary">
+                  <Download className="h-5 w-5" />
                 </div>
-                <h3 className="mt-4 font-display text-lg font-semibold text-foreground">
-                  {t.solution1Title}
-                </h3>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {t.solution1Desc}
-                </p>
-              </div>
-              <div className="rounded-xl bg-surface border border-border p-6">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-raised border border-border text-primary">
-                  <Download className="h-6 w-6" />
-                </div>
-                <h3 className="mt-4 font-display text-lg font-semibold text-foreground">
+                <h3 className="mt-3 font-display text-base font-semibold text-foreground">
                   {t.solution2Title}
                 </h3>
                 <p className="mt-2 text-sm text-muted-foreground">
@@ -286,7 +325,7 @@ export function PhotographersLandingPage({ locale }) {
                 className="reveal rounded-xl bg-surface border border-border p-6 transition-all duration-200 hover:-translate-y-px hover:border-[hsl(var(--border-visible))] hover:shadow-elevated"
                 style={{ transitionDelay: `${i * 60}ms` }}
               >
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-raised border border-border text-primary">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary border border-border text-primary">
                   <f.icon className="h-5 w-5" />
                 </div>
                 <h3 className="mt-4 font-display text-base font-semibold text-foreground">
@@ -300,7 +339,7 @@ export function PhotographersLandingPage({ locale }) {
       </section>
 
       {/* How It Works */}
-      <section className="relative border-t border-border bg-raised/50 py-24 sm:py-32">
+      <section className="border-t border-border bg-card py-20 sm:py-28">
         <div className="container px-4">
           <div className="reveal">
             <SectionHeader
@@ -332,7 +371,7 @@ export function PhotographersLandingPage({ locale }) {
       </section>
 
       {/* Pricing Teaser */}
-      <section className="relative border-t border-border bg-raised/50 py-24 sm:py-32">
+      <section className="border-t border-border bg-card py-20 sm:py-28">
         <div className="container px-4">
           <div className="reveal">
             <SectionHeader
@@ -386,6 +425,61 @@ export function PhotographersLandingPage({ locale }) {
               {t.contactUs}
             </a>
           </p>
+        </div>
+      </section>
+
+      {/* Cross-link — other ways to use SnapRooms */}
+      <section className="border-t border-border py-20 sm:py-28">
+        <div className="container px-4">
+          <div className="reveal"><SectionHeader label={t.crossLabel} title={t.crossTitle} /></div>
+          <div className="mx-auto mt-12 grid max-w-2xl gap-4 sm:grid-cols-2">
+            {[
+              {
+                href: localizedPath(locale, '/wedding-photo-sharing'),
+                icon: Heart,
+                title: tLanding.weddings,
+                desc: tLanding.weddingsDesc,
+                photoSrc: '/marketing-placeholder/wedding-couple-card.jpg',
+              },
+              {
+                href: localizedPath(locale, '/for-event-planners'),
+                icon: Users,
+                title: nav.forPlanners,
+                desc: tLanding.plannersCardDesc,
+                photoSrc: '/marketing-placeholder/usecase-planner-card.jpg',
+              },
+            ].map((item, i) => (
+              <a
+                key={item.href}
+                href={item.href}
+                className="reveal group relative flex min-h-[220px] flex-col justify-end overflow-hidden rounded-2xl border border-border shadow-subtle transition-all duration-300 hover:-translate-y-1 hover:shadow-elevated"
+                style={{ transitionDelay: `${i * 70}ms` }}
+              >
+                <Image
+                  src={item.photoSrc}
+                  alt=""
+                  fill
+                  sizes="(min-width: 640px) 50vw, 100vw"
+                  className="object-cover transition-transform duration-500 group-hover:scale-105"
+                />
+                <div
+                  className="absolute inset-0"
+                  aria-hidden="true"
+                  style={{ background: 'linear-gradient(180deg, transparent 30%, hsl(0 0% 8% / 0.75) 100%)' }}
+                />
+                <div className="relative p-5">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15 backdrop-blur-sm">
+                    <item.icon className="h-4.5 w-4.5 text-white" aria-hidden="true" />
+                  </div>
+                  <h3 className="mt-3 font-display text-base font-bold tracking-tight text-white">{item.title}</h3>
+                  {item.desc && <p className="mt-1 text-xs text-white/80 leading-relaxed line-clamp-2">{item.desc}</p>}
+                  <span className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-semibold text-white">
+                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                  </span>
+                </div>
+              </a>
+            ))}
+          </div>
         </div>
       </section>
 

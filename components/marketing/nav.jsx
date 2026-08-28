@@ -54,7 +54,7 @@ export function MarketingNav({ variant = 'fixed', ctaAction = 'link' }) {
       </a>
 
       <nav className={`${navClass} bg-background/85 backdrop-blur-2xl border-b border-border sm:bg-background/70`}>
-        <div className="container flex h-16 items-center justify-between px-4">
+        <div className="container flex h-16 items-center justify-between px-4 max-[359px]:px-2">
           <SnapRoomsLogo href={homeHref} size="md" className="flex-shrink-0" />
 
           {/* Desktop links */}
@@ -105,7 +105,7 @@ export function MarketingNav({ variant = 'fixed', ctaAction = 'link' }) {
             </a>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 max-[359px]:gap-1 sm:gap-3">
             <div className="mx-1 hidden h-4 w-px bg-border sm:block" />
 
             <LanguageSwitcher />

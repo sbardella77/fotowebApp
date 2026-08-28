@@ -199,7 +199,7 @@ export function EventCoverEditor({ event, onCoverUpdated, onOwnerSessionFailure,
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="flex w-full flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-border bg-raised p-10 transition-colors hover:border-[hsl(var(--border-visible))] hover:bg-elevated"
+                className="flex w-full flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-border bg-secondary p-10 transition-colors hover:border-[hsl(var(--border-visible))] hover:bg-elevated"
               >
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-accent-dark">
                   <Upload className="h-5 w-5" />
@@ -209,7 +209,7 @@ export function EventCoverEditor({ event, onCoverUpdated, onOwnerSessionFailure,
               </button>
             ) : (
               <div className="space-y-4">
-                <div className="relative h-64 w-full overflow-hidden rounded-xl bg-raised">
+                <div className="relative h-64 w-full overflow-hidden rounded-xl bg-secondary">
                   <Cropper
                     image={imageSrc}
                     crop={crop}
@@ -295,7 +295,7 @@ export function EventCoverEditor({ event, onCoverUpdated, onOwnerSessionFailure,
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setConfirmReplaceOpen(false)} className="border-border bg-raised text-foreground hover:bg-elevated">
+            <AlertDialogCancel onClick={() => setConfirmReplaceOpen(false)} className="border-border bg-secondary text-foreground hover:bg-elevated">
               {tCommon.cancel}
             </AlertDialogCancel>
             <AlertDialogAction onClick={saveCover} className="cta-primary">
@@ -357,7 +357,7 @@ export function EventCoverRemove({ event, onCoverUpdated, onOwnerSessionFailure,
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setConfirmOpen(false)} className="border-border bg-raised text-foreground hover:bg-elevated">
+            <AlertDialogCancel onClick={() => setConfirmOpen(false)} className="border-border bg-secondary text-foreground hover:bg-elevated">
               {tCommon.cancel}
             </AlertDialogCancel>
             <AlertDialogAction onClick={handleRemove} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">

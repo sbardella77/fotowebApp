@@ -30,6 +30,13 @@ import { SectionHeader } from '@/components/marketing/section-header'
 import { TrustStrip } from '@/components/marketing/trust-strip'
 import { AuthAwarePricingCta } from '@/components/auth-aware-pricing-cta'
 import { AuthAwareFinalCta } from '@/components/auth-aware-final-cta'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
 
 function useScrollReveal() {
   useEffect(() => {
@@ -301,6 +308,7 @@ function TierCard({ tier, index, delayOffset = 0, isHighlighted = false, billing
 
   return (
     <div
+      data-tier-id={tier.id}
       className={`reveal relative flex flex-col rounded-2xl border bg-surface p-6 sm:p-8 ${
         isHighlighted
           ? 'ring-2 ring-primary border-primary/40'
@@ -393,13 +401,37 @@ function TierCard({ tier, index, delayOffset = 0, isHighlighted = false, billing
       )}
 
       {tier.storageKey && (
-        <div className="mt-auto pt-5">
+        <div className={tier.benefits.length > 0 ? 'mt-5' : 'mt-auto pt-5'}>
           <div className="flex items-center gap-2 border-t border-border pt-4 text-sm text-muted-foreground">
             <Clock className="h-4 w-4 shrink-0 text-primary" />
             <span>{t[tier.storageKey]}</span>
           </div>
         </div>
       )}
+
+      <Accordion type="single" collapsible className={tier.storageKey ? 'mt-2' : 'mt-auto pt-5'}>
+        <AccordionItem value="features" className="border-0">
+          <AccordionTrigger className="justify-start gap-1.5 py-0 text-xs font-semibold text-accent-dark hover:no-underline [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:text-accent-dark">
+            {t.viewAllFeatures}
+          </AccordionTrigger>
+          <AccordionContent className="pb-0">
+            <ul className="mt-3 space-y-2 border-t border-border pt-3">
+              {tier.features.map((f) => (
+                <li key={f.name} className="flex items-center justify-between gap-3 text-xs">
+                  <span className="text-muted-foreground">{translateFeatureName(t, f.name)}</span>
+                  {f.value === true ? (
+                    <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
+                  ) : f.value === false ? (
+                    <Minus className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40" />
+                  ) : (
+                    <span className="text-right text-muted-foreground">{translateFeatureValue(t, f.value)}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </div>
   )
 }
@@ -420,15 +452,18 @@ export function PricingPage({ fromDashboard, highlightPlan, eventSlug, billingIn
     trackEvent(EVENT_LANDING_VIEW, { variant: 'pricing' })
   }, [])
 
-  // Scroll to highlighted tier section if plan is specified via query params
+  const isProfessionalHighlight = recurringTiers.some((tier) => tier.id === highlightPlan)
+  const defaultSegment = isProfessionalHighlight ? 'professional' : 'event'
+
+  // Bring the highlighted tier card into view if a plan is specified via
+  // query params (e.g. returning from the dashboard or an upgrade prompt).
+  // The correct tab is already selected via defaultSegment above, so this
+  // only needs to scroll within it.
   useEffect(() => {
     if (!highlightPlan) return
-    const isEventPlan = eventTiers.some((t) => t.id === highlightPlan)
-    const section = isEventPlan
-      ? document.querySelector('[data-pricing-section="event"]')
-      : document.querySelector('[data-pricing-section="recurring"]')
-    if (section) {
-      section.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    const card = document.querySelector(`[data-tier-id="${highlightPlan}"]`)
+    if (card) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
   }, [highlightPlan])
 
@@ -449,23 +484,26 @@ export function PricingPage({ fromDashboard, highlightPlan, eventSlug, billingIn
       )}
 
       {/* Hero */}
-      <section className="relative overflow-hidden pt-28 pb-16 sm:pt-36 sm:pb-24">
-        <div className="absolute inset-0 bg-grid opacity-50" aria-hidden="true" />
-        <div className="absolute -top-40 -right-40 h-96 w-96 rounded-full bg-primary/10 blur-[100px]" aria-hidden="true" />
-        <div className="absolute -bottom-40 -left-40 h-96 w-96 rounded-full bg-primary/5 blur-[100px]" aria-hidden="true" />
+      <section className="relative overflow-hidden pt-24 pb-16 sm:pt-32 sm:pb-24">
+        <div className="absolute inset-0 bg-grid opacity-[0.06]" aria-hidden="true" />
+        <div
+          className="absolute inset-0"
+          style={{ background: 'radial-gradient(ellipse at 50% 0%, hsl(var(--primary) / 0.06) 0%, transparent 55%)' }}
+          aria-hidden="true"
+        />
 
         <div className="container relative px-4">
           <div className="mx-auto max-w-3xl text-center">
-            <SectionHeader
-              label={t.title}
-              title={
-                <>
-                  {t.heroTitle1}{' '}
-                  <span className="text-gradient">{t.heroTitle2}</span>
-                </>
-              }
-              description={t.heroSubtitle}
-            />
+            <span className="inline-block font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              {t.title}
+            </span>
+            <h1 className="mt-3 font-display text-3xl font-bold tracking-[-0.03em] text-foreground sm:text-4xl">
+              {t.heroTitle1}{' '}
+              <span className="text-accent-dark">{t.heroTitle2}</span>
+            </h1>
+            <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+              {t.heroSubtitle}
+            </p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3 text-sm text-muted-foreground">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1">
                 <Calendar className="h-3.5 w-3.5 text-primary" />
@@ -489,57 +527,89 @@ export function PricingPage({ fromDashboard, highlightPlan, eventSlug, billingIn
         </div>
       </section>
 
-      {/* Event-based Tiers */}
-      <section className="relative pb-10" data-pricing-section="event">
+      {/* Segmented plan picker */}
+      <section className="relative pb-16 sm:pb-24">
         <div className="container px-4">
           <div className="mx-auto max-w-5xl">
-            <div className="reveal flex items-center gap-3 mb-8">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 border border-primary/20 text-primary">
-                <Calendar className="h-4 w-4" />
+            <Tabs defaultValue={defaultSegment}>
+              <div className="reveal flex flex-col items-center text-center">
+                <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  {t.pricingSegmentQuestion}
+                </span>
+                <TabsList className="mt-4 h-auto max-w-full rounded-full border border-border bg-surface p-1">
+                  <TabsTrigger
+                    value="event"
+                    className="rounded-full px-3 py-2 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-black data-[state=active]:shadow-none sm:px-4"
+                  >
+                    <Calendar className="mr-1.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    {t.pricingSegmentEvent}
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="professional"
+                    className="rounded-full px-3 py-2 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-black data-[state=active]:shadow-none sm:px-4"
+                  >
+                    <Briefcase className="mr-1.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    <span className="sm:hidden">{t.professional}</span>
+                    <span className="hidden sm:inline">{t.pricingSegmentProfessional}</span>
+                  </TabsTrigger>
+                </TabsList>
               </div>
-              <div>
-                <h2 className="font-display text-base font-semibold text-foreground">{t.payPerEvent}</h2>
-                <p className="text-xs text-muted-foreground">{t.payPerEventSubtitle}</p>
-              </div>
-            </div>
 
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {eventTiers.map((tier, i) => (
-                <TierCard key={tier.id} tier={tier} index={i} isHighlighted={tier.id === highlightPlan} />
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
+              <TabsContent
+                value="event"
+                forceMount
+                data-pricing-section="event"
+                className="mt-10 data-[state=inactive]:hidden"
+              >
+                <div className="reveal flex items-center gap-3 mb-8">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary border border-border text-primary">
+                    <Calendar className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h2 className="font-display text-base font-semibold text-foreground">{t.payPerEvent}</h2>
+                    <p className="text-xs text-muted-foreground">{t.payPerEventSubtitle}</p>
+                  </div>
+                </div>
 
-      {/* Recurring Tiers */}
-      <section className="relative pb-16 sm:pb-24" data-pricing-section="recurring">
-        <div className="container px-4">
-          <div className="mx-auto max-w-5xl">
-            <div className="reveal flex items-center gap-3 mb-8 mt-10 pt-10 border-t border-border">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 border border-primary/20 text-primary">
-                <Briefcase className="h-4 w-4" />
-              </div>
-              <div>
-                <h2 className="font-display text-base font-semibold text-foreground">{t.payMonthly}</h2>
-                <p className="text-xs text-muted-foreground">{t.payMonthlySubtitle}</p>
-              </div>
-            </div>
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {eventTiers.map((tier, i) => (
+                    <TierCard key={tier.id} tier={tier} index={i} isHighlighted={tier.id === highlightPlan} />
+                  ))}
+                </div>
+              </TabsContent>
 
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {recurringTiers.map((tier, i) => (
-                <TierCard
-                  key={tier.id}
-                  tier={tier}
-                  index={i}
-                  delayOffset={eventTiers.length}
-                  isHighlighted={tier.id === highlightPlan}
-                  billingInterval={tier.id === 'professional' ? billingInterval : null}
-                />
-              ))}
-              {/* Spacer for alignment on desktop */}
-              <div className="hidden lg:block" />
-            </div>
+              <TabsContent
+                value="professional"
+                forceMount
+                data-pricing-section="recurring"
+                className="mt-10 data-[state=inactive]:hidden"
+              >
+                <div className="reveal flex items-center gap-3 mb-8">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary border border-border text-primary">
+                    <Briefcase className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h2 className="font-display text-base font-semibold text-foreground">{t.payMonthly}</h2>
+                    <p className="text-xs text-muted-foreground">{t.payMonthlySubtitle}</p>
+                  </div>
+                </div>
+
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {recurringTiers.map((tier, i) => (
+                    <TierCard
+                      key={tier.id}
+                      tier={tier}
+                      index={i}
+                      delayOffset={eventTiers.length}
+                      isHighlighted={tier.id === highlightPlan}
+                      billingInterval={tier.id === 'professional' ? billingInterval : null}
+                    />
+                  ))}
+                  {/* Spacer for alignment on desktop */}
+                  <div className="hidden lg:block" />
+                </div>
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
       </section>
@@ -556,27 +626,31 @@ export function PricingPage({ fromDashboard, highlightPlan, eventSlug, billingIn
 
           <div className="mx-auto mt-10 grid max-w-4xl gap-4 sm:grid-cols-2">
             {[
-              { title: t.useCaseSmallPartyTitle, plan: t.useCaseSmallPartyPlan, copy: t.useCaseSmallPartyCopy, icon: PartyPopper },
-              { title: t.useCaseWeddingTitle, plan: t.useCaseWeddingPlan, copy: t.useCaseWeddingCopy, icon: Heart },
-              { title: t.useCasePhotographerTitle, plan: t.useCasePhotographerPlan, copy: t.useCasePhotographerCopy, icon: Camera },
-              { title: t.useCaseCorporateTitle, plan: t.useCaseCorporatePlan, copy: t.useCaseCorporateCopy, icon: Building2 },
+              { title: t.useCaseSmallPartyTitle, plan: t.useCaseSmallPartyPlan, copy: t.useCaseSmallPartyCopy, icon: PartyPopper, href: localizedPath(locale, '/birthday-photo-sharing') },
+              { title: t.useCaseWeddingTitle, plan: t.useCaseWeddingPlan, copy: t.useCaseWeddingCopy, icon: Heart, href: localizedPath(locale, '/wedding-photo-sharing') },
+              { title: t.useCasePhotographerTitle, plan: t.useCasePhotographerPlan, copy: t.useCasePhotographerCopy, icon: Camera, href: localizedPath(locale, '/for-wedding-photographers') },
+              { title: t.useCaseCorporateTitle, plan: t.useCaseCorporatePlan, copy: t.useCaseCorporateCopy, icon: Building2, href: localizedPath(locale, '/corporate-event-photo-sharing') },
             ].map((item, i) => (
-              <div
+              <a
                 key={i}
-                className="reveal rounded-xl border border-border bg-surface p-5 sm:p-6"
+                href={item.href}
+                className="reveal group rounded-xl border border-border bg-surface p-5 transition-all duration-200 hover:-translate-y-px hover:border-[hsl(var(--border-visible))] hover:shadow-elevated sm:p-6"
                 style={{ transitionDelay: `${i * 60}ms` }}
               >
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary border border-border text-primary">
                     <item.icon className="h-5 w-5" />
                   </div>
                   <div>
                     <h3 className="font-display text-sm font-semibold text-foreground">{item.title}</h3>
-                    <p className="text-xs font-medium text-primary">{item.plan}</p>
+                    <p className="text-xs font-medium text-accent-dark">{item.plan}</p>
                   </div>
                 </div>
                 <p className="mt-3 text-sm text-muted-foreground">{item.copy}</p>
-              </div>
+                <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-foreground">
+                  <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                </span>
+              </a>
             ))}
           </div>
         </div>
@@ -622,40 +696,47 @@ export function PricingPage({ fromDashboard, highlightPlan, eventSlug, billingIn
             </div>
           </div>
 
-          {/* Mobile Comparison Cards */}
-          <div className="md:hidden mx-auto mt-10 max-w-md space-y-6">
-            {allTiers.map((tier) => (
-              <div
-                key={tier.id}
-                className={`reveal rounded-xl border bg-surface p-5 ${
-                  tier.id === highlightPlan ? 'ring-2 ring-primary border-primary/40' : 'border-border'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <h3 className="font-display text-base font-bold text-foreground">{translateTierName(t, tier)}</h3>
-                  <div className="text-right">
-                    <span className="font-display text-lg font-bold text-foreground">{tier.price}</span>
-                    {tier.interval && (
-                      <span className="block text-xs text-muted-foreground">{translateInterval(t, tier.interval)}</span>
-                    )}
-                  </div>
-                </div>
-                <ul className="mt-4 space-y-2.5">
-                  {tier.features.map((f) => (
-                    <li key={f.name} className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">{translateFeatureName(t, f.name)}</span>
-                      {f.value === true ? (
-                        <Check className="h-4 w-4 text-primary" />
-                      ) : f.value === false ? (
-                        <Minus className="h-4 w-4 text-muted-foreground/40" />
-                      ) : (
-                        <span className="text-sm text-muted-foreground">{translateFeatureValue(t, f.value)}</span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+          {/* Mobile Comparison — compact accordion, one collapsed item per plan */}
+          <div className="md:hidden mx-auto mt-10 max-w-md">
+            <Accordion type="single" collapsible defaultValue={highlightPlan || undefined} className="space-y-3">
+              {allTiers.map((tier) => (
+                <AccordionItem
+                  key={tier.id}
+                  value={tier.id}
+                  className={`reveal rounded-xl border bg-surface px-5 ${
+                    tier.id === highlightPlan ? 'ring-2 ring-primary border-primary/40' : 'border-border'
+                  }`}
+                >
+                  <AccordionTrigger className="py-4 hover:no-underline">
+                    <span className="flex flex-1 items-center justify-between pr-3">
+                      <span className="font-display text-base font-bold text-foreground">{translateTierName(t, tier)}</span>
+                      <span className="text-right">
+                        <span className="font-display text-lg font-bold text-foreground">{tier.price}</span>
+                        {tier.interval && (
+                          <span className="block text-xs font-normal text-muted-foreground">{translateInterval(t, tier.interval)}</span>
+                        )}
+                      </span>
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <ul className="space-y-2.5 border-t border-border pt-4">
+                      {tier.features.map((f) => (
+                        <li key={f.name} className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">{translateFeatureName(t, f.name)}</span>
+                          {f.value === true ? (
+                            <Check className="h-4 w-4 text-primary" />
+                          ) : f.value === false ? (
+                            <Minus className="h-4 w-4 text-muted-foreground/40" />
+                          ) : (
+                            <span className="text-sm text-muted-foreground">{translateFeatureValue(t, f.value)}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
           </div>
         </div>
       </section>

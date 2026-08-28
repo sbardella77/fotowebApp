@@ -94,7 +94,7 @@ function SectionTitle({ children }) {
 
 function EmptyState({ title, description }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-raised py-12 text-center">
+    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-secondary py-12 text-center">
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-accent-dark">
         <AlertCircle className="h-6 w-6" />
       </div>
@@ -466,7 +466,7 @@ function CompleteAnalyticsContent({ days, setDays, loading, error, hasData, tota
           <div>
             <SectionTitle>{t.analyticsTopUpsells}</SectionTitle>
             <div className="mt-4 overflow-hidden rounded-xl border border-border bg-surface shadow-subtle">
-              <div className="grid grid-cols-12 gap-2 border-b border-border bg-raised px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <div className="grid grid-cols-12 gap-2 border-b border-border bg-secondary px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                 <div className="col-span-3">{t.analyticsUpsell}</div>
                 <div className="col-span-2 text-right">{t.analyticsImpressions}</div>
                 <div className="col-span-2 text-right">{t.analyticsClicks}</div>
@@ -496,7 +496,7 @@ function CompleteAnalyticsContent({ days, setDays, loading, error, hasData, tota
           <div>
             <SectionTitle>{t.analyticsTopSurfaces}</SectionTitle>
             <div className="mt-4 overflow-hidden rounded-xl border border-border bg-surface shadow-subtle">
-              <div className="grid grid-cols-10 gap-2 border-b border-border bg-raised px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <div className="grid grid-cols-10 gap-2 border-b border-border bg-secondary px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                 <div className="col-span-4">{t.analyticsSurface}</div>
                 <div className="col-span-2 text-right">{t.analyticsImpressions}</div>
                 <div className="col-span-2 text-right">{t.analyticsClicks}</div>
@@ -522,7 +522,7 @@ function CompleteAnalyticsContent({ days, setDays, loading, error, hasData, tota
           <div>
             <SectionTitle>{t.analyticsPlanConversions}</SectionTitle>
             <div className="mt-4 overflow-hidden rounded-xl border border-border bg-surface shadow-subtle">
-              <div className="grid grid-cols-6 gap-2 border-b border-border bg-raised px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <div className="grid grid-cols-6 gap-2 border-b border-border bg-secondary px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                 <div className="col-span-2">{t.analyticsPlan}</div>
                 <div className="col-span-2 text-right">{t.analyticsClicks}</div>
                 <div className="col-span-2 text-right">{t.analyticsConversions}</div>

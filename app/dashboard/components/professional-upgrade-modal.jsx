@@ -69,7 +69,7 @@ export function ProfessionalUpgradeModal({
               className={`relative flex flex-col rounded-xl border p-4 transition-colors ${
                 plan.highlight
                   ? 'border-primary bg-primary/5'
-                  : 'border-border bg-raised'
+                  : 'border-border bg-secondary'
               }`}
             >
               {plan.badge && (

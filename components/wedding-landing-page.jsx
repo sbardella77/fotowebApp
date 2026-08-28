@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { trackEvent, trackPageView } from '@/lib/analytics/track-client'
 import { EVENT_LANDING_VIEW, EVENT_HERO_CTA_CLICKED, EVENT_CREATE_ROOM_CLICKED } from '@/lib/analytics/events'
 import { useTranslations } from '@/components/i18n-provider'
@@ -41,6 +42,7 @@ import { PhoneMockup } from '@/components/marketing/phone-mockup'
 import { TrustStrip } from '@/components/marketing/trust-strip'
 import { HowItWorks } from '@/components/marketing/how-it-works'
 import { UseCaseCards } from '@/components/marketing/use-case-cards'
+import { ProblemSection } from '@/components/marketing/problem-section'
 import { SectionHeader } from '@/components/marketing/section-header'
 
 function useScrollReveal() {
@@ -155,63 +157,60 @@ export function WeddingLandingPage({ locale = 'en' }) {
 
       {/* Hero Section */}
       <section id="main-content" className="relative overflow-hidden pt-24 pb-16 sm:pt-32 sm:pb-24">
-        {/* Grid background */}
-        <div className="absolute inset-0 bg-grid opacity-50" aria-hidden="true" />
-        {/* Radial fade toward edges */}
+        <div className="absolute inset-0 bg-grid opacity-[0.06]" aria-hidden="true" />
         <div
           className="absolute inset-0"
-          style={{
-            background: 'radial-gradient(ellipse at center, transparent 0%, rgba(8,12,20,0.85) 70%)'
-          }}
+          style={{ background: 'radial-gradient(ellipse at 50% 0%, hsl(var(--primary) / 0.06) 0%, transparent 55%)' }}
+          aria-hidden="true"
         />
 
         <div className="container relative px-4">
           <div className="mx-auto max-w-6xl">
-            <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+            <div className="grid grid-cols-1 gap-12 lg:grid-cols-2 lg:items-center">
               {/* Left: Copy + Form */}
-              <div className="text-center lg:text-left">
+              <div className="min-w-0 text-center lg:text-left">
                 {/* Badge */}
-                <div className="animate-fade-up inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1">
-                  <Heart className="h-3 w-3 text-rose-400" />
-                  <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-accent-dark">
+                <div className="animate-fade-up inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary px-3 py-1">
+                  <Heart className="h-3 w-3 text-accent-dark" aria-hidden="true" />
+                  <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-muted-foreground">
                     {t.heroEyebrow}
                   </span>
                 </div>
 
                 {/* H1 */}
-                <h1 className="animate-fade-up delay-100 mt-6 font-display text-4xl font-extrabold tracking-[-0.03em] text-foreground sm:text-5xl lg:text-6xl">
+                <h1 className="animate-fade-up delay-100 mt-6 font-display text-4xl font-extrabold leading-[1.08] tracking-[-0.03em] text-foreground sm:text-5xl lg:text-6xl text-balance">
                   {t.heroHeadline1}{' '}
-                  <span className="text-gradient">{t.heroHeadline2}</span>
+                  <span className="text-accent-dark">{t.heroHeadline2}</span>
                 </h1>
 
                 {/* Subheadline */}
-                <p className="animate-fade-up delay-200 mt-6 text-lg font-light leading-relaxed text-muted-foreground sm:text-xl">
+                <p className="animate-fade-up delay-200 mt-6 text-lg leading-relaxed text-muted-foreground sm:text-xl">
                   {t.heroSubheadline}
                 </p>
 
-                {/* Create room form card */}
+                {/* Create event form card */}
                 <div
                   id="create"
-                  className="animate-fade-up delay-300 mt-10 rounded-2xl border border-border bg-raised/60 p-6 shadow-elevated"
+                  className="animate-fade-up delay-300 mt-10 rounded-2xl border border-border bg-card p-6 shadow-elevated"
                 >
                   <div className="flex flex-col gap-3 sm:flex-row">
                     <Input
                       value={eventName}
                       onChange={(e) => setEventName(e.target.value)}
                       placeholder={t.eventPlaceholder}
-                      className="h-12 flex-1 rounded-lg border-input bg-surface text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                      className="h-12 flex-1 rounded-lg border-border bg-secondary text-base font-body text-foreground placeholder:text-muted-foreground"
                     />
                     <Input
                       type="email"
                       value={ownerEmail}
                       onChange={(e) => setOwnerEmail(e.target.value)}
                       placeholder={t.finalEmailPlaceholder}
-                      className="h-12 flex-1 rounded-lg border-input bg-surface text-base font-body text-foreground placeholder:text-muted-foreground focus:border-[rgba(99,179,255,0.25)] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                      className="h-12 flex-1 rounded-lg border-border bg-secondary text-base font-body text-foreground placeholder:text-muted-foreground"
                     />
                   </div>
                   <Button
                     size="lg"
-                    className="mt-3 h-12 w-full gap-2 rounded-lg px-8 text-base font-body font-medium whitespace-nowrap cta-primary"
+                    className="mt-3 h-12 w-full gap-2 rounded-lg px-8 text-base font-body font-semibold whitespace-nowrap cta-primary"
                     onClick={createEvent}
                     disabled={isCreating || !eventName?.trim() || eventName.trim().length < 3 || !ownerEmail?.trim() || !ownerEmail.includes('@')}
                   >
@@ -237,83 +236,35 @@ export function WeddingLandingPage({ locale = 'en' }) {
                 </div>
               </div>
 
-              {/* Right: PhoneMockup */}
-              <div className="animate-fade-up delay-200 hidden lg:flex justify-center">
-                <PhoneMockup />
+              {/* Right: PhoneMockup — visible at every breakpoint, matching the
+                  approved main-landing hero pattern (stacked on mobile). */}
+              <div className="animate-fade-up delay-200 relative flex min-w-0 justify-center lg:justify-end">
+                <div className="relative w-full max-w-[320px]">
+                  <div className="absolute -inset-8 rounded-full bg-primary/10 blur-3xl" aria-hidden="true" />
+                  <PhoneMockup />
+                </div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Problem Section */}
-      <section className="border-t border-border py-24 sm:py-32">
+      {/* Problem → Solution */}
+      <section className="border-t border-border bg-card py-20 sm:py-28">
         <div className="container px-4">
-          <div className="mx-auto max-w-6xl">
-            <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
-              {/* Left: The Problem */}
-              <div className="reveal">
-                <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-accent-dark">
-                  {t.problemLabel}
-                </span>
-                <h2 className="mt-3 font-display text-2xl font-bold tracking-[-0.03em] text-foreground sm:text-3xl">
-                  {t.problemTitle}
-                </h2>
-                <p className="mt-3 font-light text-muted-foreground">
-                  {t.problemDesc}
-                </p>
-                <div className="mt-6 space-y-3">
-                  {[
-                    { emoji: '💬', text: t.problem1 },
-                    { emoji: '😰', text: t.problem2 },
-                    { emoji: '⏰', text: t.problem3 },
-                  ].map((item) => (
-                    <div key={item.text} className="flex items-center gap-3 text-muted-foreground">
-                      <span className="text-base">{item.emoji}</span>
-                      <span className="text-sm font-light">{item.text}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Right: The Solution */}
-              <div className="reveal relative" style={{ transitionDelay: '100ms' }}>
-                <div className="absolute -inset-4 rounded-3xl bg-gradient-to-br from-primary/10 to-transparent" />
-                <div className="relative space-y-4 surface-raised rounded-xl shadow-card p-6">
-                  {[
-                    {
-                      icon: ImagePlus,
-                      title: t.solution1Title,
-                      desc: t.solution1Desc,
-                    },
-                    {
-                      icon: Smartphone,
-                      title: t.solution2Title,
-                      desc: t.solution2Desc,
-                    },
-                    {
-                      icon: Lock,
-                      title: t.solution3Title,
-                      desc: t.solution3Desc,
-                    },
-                  ].map((item) => (
-                    <div key={item.title} className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                        <item.icon className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <h3 className="font-display text-lg font-bold tracking-tight text-foreground">
-                          {item.title}
-                        </h3>
-                        <p className="mt-1 text-sm font-light text-muted-foreground">
-                          {item.desc}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+          <div className="reveal">
+            <SectionHeader label={t.problemLabel} title={t.problemTitle} description={t.problemDesc} />
+          </div>
+          <div className="mx-auto mt-14 sm:mt-16 max-w-4xl">
+            <ProblemSection
+              t={t}
+              photos={[
+                { src: '/marketing-placeholder/wedding-toast-thumb.jpg' },
+                { src: '/marketing-placeholder/wedding-guests-thumb.jpg' },
+                { src: '/marketing-placeholder/wedding-dancefloor-thumb.jpg' },
+                { src: '/marketing-placeholder/wedding-detail-thumb.jpg' },
+              ]}
+            />
           </div>
         </div>
       </section>
@@ -353,12 +304,12 @@ export function WeddingLandingPage({ locale = 'en' }) {
       </section>
 
       {/* QR Code Section */}
-      <section className="border-t border-border py-24 sm:py-32">
+      <section className="relative overflow-hidden border-t border-border py-24 sm:py-32">
         <div className="container px-4">
           <div className="mx-auto max-w-6xl">
-            <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+            <div className="grid grid-cols-1 gap-12 lg:grid-cols-2 lg:items-center">
               {/* Left: Content */}
-              <div className="reveal order-2 lg:order-1">
+              <div className="reveal order-2 min-w-0 lg:order-1">
                 <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1">
                   <QrCode className="h-3 w-3 text-primary" />
                   <span className="font-mono text-[0.65rem] font-medium uppercase tracking-[0.1em] text-accent-dark">
@@ -395,35 +346,48 @@ export function WeddingLandingPage({ locale = 'en' }) {
                 </div>
               </div>
 
-              {/* Right: Visual */}
-              <div className="reveal order-1 lg:order-2" style={{ transitionDelay: '100ms' }}>
+              {/* Right: Visual — a real reception/table-detail photo with a
+                  QR chip overlay, in place of the old fake-QR icon box. */}
+              <div className="reveal order-1 min-w-0 lg:order-2" style={{ transitionDelay: '100ms' }}>
                 <div className="relative mx-auto max-w-sm">
-                  <div className="absolute -top-4 -right-4 h-24 w-24 rounded-full bg-primary/10 blur-2xl" aria-hidden="true" />
-                  <div className="absolute -bottom-4 -left-4 h-24 w-24 rounded-full bg-rose-500/10 blur-2xl" aria-hidden="true" />
+                  <div className="absolute -inset-6 rounded-full bg-primary/10 blur-3xl" aria-hidden="true" />
 
-                  <div className="relative rounded-xl border border-border bg-surface p-6 shadow-card">
-                    <div className="text-center">
-                      <p className="font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
-                        Sarah & Mike&apos;s Wedding
-                      </p>
-                      <div className="mx-auto my-4 flex h-40 w-40 items-center justify-center rounded-xl border-2 border-dashed border-border bg-raised">
-                        <QrCode className="h-20 w-20 text-muted-foreground" />
+                  <div className="relative overflow-hidden rounded-2xl border border-border shadow-elevated">
+                    <div className="relative aspect-square">
+                      <Image
+                        src="/marketing-placeholder/wedding-detail-square.jpg"
+                        alt=""
+                        fill
+                        sizes="384px"
+                        className="object-cover"
+                      />
+                      <div
+                        className="absolute inset-0"
+                        aria-hidden="true"
+                        style={{ background: 'linear-gradient(180deg, transparent 55%, hsl(0 0% 8% / 0.7) 100%)' }}
+                      />
+                    </div>
+                    <div className="absolute inset-x-0 bottom-0 flex items-center gap-3 p-5">
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-white">
+                        <QrCode className="h-8 w-8 text-foreground" aria-hidden="true" />
                       </div>
-                      <p className="text-sm font-medium text-foreground">Scan to upload your photos</p>
-                      <p className="mt-1 font-mono text-[0.65rem] text-muted-foreground">snaprooms.app/room/sarah-mike</p>
+                      <div>
+                        <p className="text-sm font-semibold text-white">Sarah & Mike&apos;s Wedding</p>
+                        <p className="font-mono text-[0.65rem] text-white/80">snaprooms.app/event/sarah-mike</p>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="absolute -right-2 top-1/4 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-medium shadow-lg">
+                  <div className="absolute -right-2 top-6 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium shadow-elevated">
                     <span className="flex items-center gap-1">
-                      <CheckCircle2 className="h-3 w-3 text-accent-dark" />
-                      <span className="font-mono text-[0.65rem]">Instant upload</span>
+                      <CheckCircle2 className="h-3 w-3 text-accent-dark" aria-hidden="true" />
+                      <span className="font-mono text-[0.65rem] text-foreground">Instant upload</span>
                     </span>
                   </div>
-                  <div className="absolute -left-2 bottom-1/4 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-medium shadow-lg">
+                  <div className="absolute -left-2 bottom-6 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium shadow-elevated">
                     <span className="flex items-center gap-1">
-                      <Users className="h-3 w-3 text-primary" />
-                      <span className="font-mono text-[0.65rem]">127 photos</span>
+                      <Users className="h-3 w-3 text-accent-dark" aria-hidden="true" />
+                      <span className="font-mono text-[0.65rem] text-foreground">127 photos</span>
                     </span>
                   </div>
                 </div>
@@ -501,8 +465,8 @@ export function WeddingLandingPage({ locale = 'en' }) {
       <section className="border-t border-border py-24 sm:py-32">
         <div className="container px-4">
           <div className="mx-auto max-w-6xl">
-            <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
-              <div className="reveal">
+            <div className="grid grid-cols-1 gap-12 lg:grid-cols-2 lg:items-center">
+              <div className="reveal min-w-0">
                 <span className="font-mono text-[0.7rem] font-medium uppercase tracking-[0.1em] text-accent-dark">
                   {t.privacyLabel}
                 </span>
@@ -543,7 +507,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
                 </div>
               </div>
 
-              <div className="reveal relative" style={{ transitionDelay: '100ms' }}>
+              <div className="reveal relative min-w-0" style={{ transitionDelay: '100ms' }}>
                 <div className="absolute -inset-4 rounded-3xl bg-gradient-to-br from-primary/10 to-transparent" />
                 <div className="relative rounded-xl border border-border bg-surface p-8 shadow-card text-center">
                   <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -614,39 +578,64 @@ export function WeddingLandingPage({ locale = 'en' }) {
         </div>
       </section>
 
-      {/* Professional Redirect */}
-      <section className="border-t border-border bg-surface py-20 sm:py-28" aria-labelledby="pro-heading">
+      {/* Professional Redirect — photo-first cards, same visual language as
+          the main landing's UseCasePreview (not the component itself: that
+          grid is tuned for 3+ items, this is exactly 2). */}
+      <section className="border-t border-border bg-card py-20 sm:py-28">
         <div className="container px-4">
           <div className="reveal">
             <SectionHeader label={t.proLabel} title={t.proTitle} />
           </div>
-          <div className="reveal mx-auto mt-12 grid max-w-2xl gap-4 sm:grid-cols-2">
-            <a
-              href={localizedPath(locale, '/for-wedding-photographers')}
-              className="group relative overflow-hidden rounded-xl border border-border bg-card p-6 transition-all duration-300 hover:-translate-y-1 hover:border-[hsl(var(--border-visible))] hover:shadow-elevated"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary border border-border">
-                <Camera className="h-6 w-6 text-blue-600" aria-hidden="true" />
-              </div>
-              <h3 className="mt-5 font-display text-base font-bold tracking-tight text-foreground">{t.proPhotographerQ}</h3>
-              <span className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-accent-dark">
-                {nav.forPhotographers}
-                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
-              </span>
-            </a>
-            <a
-              href={localizedPath(locale, '/for-event-planners')}
-              className="group relative overflow-hidden rounded-xl border border-border bg-card p-6 transition-all duration-300 hover:-translate-y-1 hover:border-[hsl(var(--border-visible))] hover:shadow-elevated"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary border border-border">
-                <Users className="h-6 w-6 text-amber-600" aria-hidden="true" />
-              </div>
-              <h3 className="mt-5 font-display text-base font-bold tracking-tight text-foreground">{t.proPlannerQ}</h3>
-              <span className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-accent-dark">
-                {nav.forPlanners}
-                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
-              </span>
-            </a>
+          <div className="mx-auto mt-12 grid max-w-2xl gap-4 sm:grid-cols-2">
+            {[
+              {
+                href: localizedPath(locale, '/for-wedding-photographers'),
+                icon: Camera,
+                title: t.proPhotographerQ,
+                desc: tLanding.photographersCardDesc,
+                photoSrc: '/marketing-placeholder/usecase-photographer-card.jpg',
+              },
+              {
+                href: localizedPath(locale, '/for-event-planners'),
+                icon: Users,
+                title: t.proPlannerQ,
+                desc: tLanding.plannersCardDesc,
+                photoSrc: '/marketing-placeholder/usecase-planner-card.jpg',
+              },
+            ].map((item, i) => (
+              <a
+                key={item.href}
+                href={item.href}
+                className="reveal group relative flex min-h-[220px] flex-col justify-end overflow-hidden rounded-2xl border border-border shadow-subtle transition-all duration-300 hover:-translate-y-1 hover:shadow-elevated"
+                style={{ transitionDelay: `${i * 70}ms` }}
+              >
+                <Image
+                  src={item.photoSrc}
+                  alt=""
+                  fill
+                  sizes="(min-width: 640px) 50vw, 100vw"
+                  className="object-cover transition-transform duration-500 group-hover:scale-105"
+                />
+                <div
+                  className="absolute inset-0"
+                  aria-hidden="true"
+                  style={{ background: 'linear-gradient(180deg, transparent 30%, hsl(0 0% 8% / 0.75) 100%)' }}
+                />
+                <div className="relative p-5">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15 backdrop-blur-sm">
+                    <item.icon className="h-4.5 w-4.5 text-white" aria-hidden="true" />
+                  </div>
+                  <h3 className="mt-3 font-display text-base font-bold tracking-tight text-white">{item.title}</h3>
+                  {item.desc && (
+                    <p className="mt-1 text-xs text-white/80 leading-relaxed line-clamp-2">{item.desc}</p>
+                  )}
+                  <span className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-semibold text-white">
+                    {i === 0 ? nav.forPhotographers : nav.forPlanners}
+                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                  </span>
+                </div>
+              </a>
+            ))}
           </div>
         </div>
       </section>

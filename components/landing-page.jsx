@@ -102,9 +102,9 @@ export function LandingPage({
         />
 
         <div className="container relative px-4">
-          <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+          <div className="grid gap-12 lg:grid-cols-[1.15fr_1fr] lg:items-center">
             {/* Left: text + form */}
-            <div className="max-w-xl">
+            <div className="max-w-xl lg:max-w-2xl">
               <div className="animate-fade-up inline-flex items-center gap-2 rounded-full border border-border bg-secondary px-4 py-1.5 shadow-subtle">
                 <Sparkles className="h-3.5 w-3.5 text-accent-dark" aria-hidden="true" />
                 <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
@@ -246,9 +246,11 @@ export function LandingPage({
               </div>
             </div>
 
-            {/* Right: PhoneMockup */}
+            {/* Right: PhoneMockup — scaled up at wide desktop so it carries as much
+                visual weight as the headline column instead of floating small in
+                the extra grid-column space. */}
             <div className="relative flex justify-center lg:justify-end">
-              <div className="relative w-full max-w-[320px]">
+              <div className="relative w-full max-w-[320px] xl:origin-right xl:scale-110 2xl:scale-125">
                 <div className="absolute -inset-8 rounded-full bg-primary/10 blur-3xl" aria-hidden="true" />
                 <PhoneMockup />
               </div>

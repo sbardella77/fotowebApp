@@ -99,7 +99,7 @@ export default function ResetPasswordPageClient({ token }) {
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">{t.newPassword}</label>
                   <div className="relative">
-                    <Input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t.passwordPlaceholder} className="h-11 rounded-xl border-border bg-raised text-foreground placeholder:text-muted-foreground" />
+                    <Input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t.passwordPlaceholder} className="h-11 rounded-xl border-border bg-secondary text-foreground placeholder:text-muted-foreground" />
                     <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
@@ -107,7 +107,7 @@ export default function ResetPasswordPageClient({ token }) {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">{t.confirmPassword}</label>
-                  <Input type={showPassword ? 'text' : 'password'} value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={t.confirmPasswordPlaceholder} className="h-11 rounded-xl border-border bg-raised text-foreground placeholder:text-muted-foreground" />
+                  <Input type={showPassword ? 'text' : 'password'} value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={t.confirmPasswordPlaceholder} className="h-11 rounded-xl border-border bg-secondary text-foreground placeholder:text-muted-foreground" />
                 </div>
                 <div className="space-y-1.5 text-xs text-muted-foreground">
                   <div className={`flex items-center gap-1.5 ${isLongEnough ? 'text-accent-dark' : ''}`}><CheckCircle2 className={`h-3 w-3 ${isLongEnough ? 'text-accent-dark opacity-100' : 'text-muted-foreground opacity-40'}`} /> {t.min12Chars}</div>

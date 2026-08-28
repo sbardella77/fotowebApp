@@ -20,7 +20,7 @@ export function DashboardPhotoCard({ photo, onApprove, onReject, onDelete, onOpe
         {url ? (
           <img alt={originalName} className="aspect-square w-full object-cover" src={url} />
         ) : (
-          <div className="aspect-square w-full bg-raised flex items-center justify-center text-muted-foreground text-xs">
+          <div className="aspect-square w-full bg-secondary flex items-center justify-center text-muted-foreground text-xs">
             No image
           </div>
         )}
@@ -35,20 +35,20 @@ export function DashboardPhotoCard({ photo, onApprove, onReject, onDelete, onOpe
             className={`inline-flex items-center rounded-full border px-2 py-0.5 font-mono text-[10px] font-medium capitalize ${
               isVisible
                 ? 'border-primary/20 bg-primary/10 text-accent-dark'
-                : 'border-border bg-raised text-muted-foreground'
+                : 'border-border bg-secondary text-muted-foreground'
             }`}
           >
             {status.toLowerCase()}
           </span>
         </div>
         <div className="grid grid-cols-3 gap-2">
-          <Button disabled={isBusy || isVisible} size="sm" onClick={onApprove} className="h-9">
+          <Button disabled={isBusy || isVisible} size="sm" onClick={onApprove} className="h-10">
             {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
           </Button>
-          <Button disabled={isBusy || isHidden} size="sm" variant="outline" onClick={onReject} className="h-9 border-border bg-raised hover:bg-elevated">
+          <Button disabled={isBusy || isHidden} size="sm" variant="outline" onClick={onReject} className="h-10 border-border bg-secondary hover:bg-elevated">
             <EyeOff className="h-3.5 w-3.5" />
           </Button>
-          <Button disabled={isBusy} size="sm" variant="destructive" onClick={onDelete} className="h-9">
+          <Button disabled={isBusy} size="sm" variant="destructive" onClick={onDelete} className="h-10">
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
         </div>
