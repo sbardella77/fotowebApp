@@ -2,6 +2,7 @@ import { PricingPage } from '@/components/pricing-page'
 import { notFound } from 'next/navigation'
 import { LOCALES } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/utils'
+import { normalizePricingPlanParam } from '@/lib/pricing-deep-link'
 
 export async function generateMetadata({ params }) {
   const { locale } = params
@@ -29,7 +30,7 @@ export default function Pricing({ params, searchParams }) {
   const { locale } = params
   if (!LOCALES.includes(locale)) notFound()
   const fromDashboard = searchParams?.from === 'dashboard'
-  const highlightPlan = searchParams?.plan || null
+  const highlightPlan = normalizePricingPlanParam(searchParams?.plan)
   const eventSlug = searchParams?.eventSlug || null
   const billingInterval = searchParams?.billing === 'annual' ? 'annual' : null
   return <PricingPage locale={locale} fromDashboard={fromDashboard} highlightPlan={highlightPlan} eventSlug={eventSlug} billingInterval={billingInterval} />
