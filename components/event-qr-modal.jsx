@@ -2,13 +2,12 @@
 
 import { useRef, useMemo, useState, useCallback } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { 
-  X, 
-  Copy, 
-  Download, 
-  Printer, 
-  Share2, 
-  Camera,
+import {
+  X,
+  Copy,
+  Download,
+  Printer,
+  Share2,
   CheckCircle2,
   Link2,
   ExternalLink,
@@ -38,6 +37,23 @@ const useToast = () => {
   }, [toast])
   
   return { showToast, ToastComponent }
+}
+
+// The canonical QR badge overlay, used both on-screen and in the downloaded
+// PNG. On screen it's rendered at h-10 w-10 (40px) with p-1 (4px) padding
+// against a 200px QR — a 20% white backing box, 16% visible badge. This
+// constant preserves that exact ratio at any output resolution.
+const QR_BADGE_SRC = '/brand/snaprooms-qr-badge.svg'
+const QR_BADGE_BOX_RATIO = 0.2
+const QR_BADGE_CONTENT_RATIO = 0.16
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = (err) => reject(err)
+    img.src = src
+  })
 }
 
 // Generate a clean filename from event name
@@ -82,85 +98,86 @@ export function EventQRModal({
   const instruction = t[`qrInstruction${eventType.charAt(0).toUpperCase() + eventType.slice(1)}`] || t.qrInstructionGeneric
   const trustLine = t.qrTrustLine
 
-  // Download QR code as PNG
+  // Download QR code as PNG — composited with the canonical badge overlay so
+  // the downloaded file matches what's shown on screen. The badge is never
+  // redrawn: it's the same /brand/snaprooms-qr-badge.svg asset used
+  // everywhere else, loaded and drawn onto the canvas as its own image.
   const handleDownload = useCallback(async () => {
     if (!qrContainerRef.current) return
-    
-    try {
-      const svg = qrContainerRef.current.querySelector('svg')
-      if (!svg) {
-        showToast(t.qrCodeNotFound, 'error')
-        return
-      }
 
-      // Get SVG data
-      const svgData = new XMLSerializer().serializeToString(svg)
-      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' })
-      const url = URL.createObjectURL(svgBlob)
-      
-      // Create image and canvas
-      const img = new Image()
-      const canvas = document.createElement('canvas')
-      const ctx = canvas.getContext('2d')
-      
-      if (!ctx) {
-        showToast(t.failedToCreateImage, 'error')
+    const svg = qrContainerRef.current.querySelector('svg')
+    if (!svg) {
+      showToast(t.qrCodeNotFound, 'error')
+      return
+    }
+
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    if (!ctx) {
+      showToast(t.failedToCreateImage, 'error')
+      return
+    }
+
+    // Larger canvas for better print/download quality.
+    const size = 800
+    canvas.width = size
+    canvas.height = size
+
+    const svgData = new XMLSerializer().serializeToString(svg)
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' })
+    const qrUrl = URL.createObjectURL(svgBlob)
+
+    try {
+      const [qrImage, badgeImage] = await Promise.all([
+        loadImage(qrUrl),
+        loadImage(QR_BADGE_SRC),
+      ])
+
+      // Fill white background, then the QR pattern.
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, size, size)
+      ctx.drawImage(qrImage, 0, 0, size, size)
+
+      // Badge overlay: a white backing square (quiet zone against the QR
+      // modules) then the badge centered inside it, at the exact same
+      // box/content ratio as the on-screen overlay (20% / 16% of QR width).
+      const boxSize = size * QR_BADGE_BOX_RATIO
+      const contentSize = size * QR_BADGE_CONTENT_RATIO
+      const boxOffset = (size - boxSize) / 2
+      const contentOffset = (size - contentSize) / 2
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(boxOffset, boxOffset, boxSize, boxSize)
+      ctx.drawImage(badgeImage, contentOffset, contentOffset, contentSize, contentSize)
+
+      if (typeof canvas.toBlob !== 'function') {
+        showToast(t.downloadNotSupported, 'error')
         return
       }
-      
-      // Set canvas size (larger for better quality)
-      const size = 800
-      canvas.width = size
-      canvas.height = size
-      
-      img.onload = () => {
-        // Fill white background
-        ctx.fillStyle = '#ffffff'
-        ctx.fillRect(0, 0, size, size)
-        
-        // Draw QR code
-        ctx.drawImage(img, 0, 0, size, size)
-        
-        // Convert to PNG and download
-        if (typeof canvas.toBlob !== 'function') {
-          showToast(t.downloadNotSupported, 'error')
-          URL.revokeObjectURL(url)
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          showToast(t.failedToGenerateImage, 'error')
           return
         }
-        canvas.toBlob((blob) => {
-          if (!blob) {
-            showToast(t.failedToGenerateImage, 'error')
-            return
-          }
-          
-          try {
-            const downloadUrl = URL.createObjectURL(blob)
-            const link = document.createElement('a')
-            link.href = downloadUrl
-            link.download = filename
-            document.body.appendChild(link)
-            link.click()
-            document.body.removeChild(link)
-            
-            URL.revokeObjectURL(downloadUrl)
-            URL.revokeObjectURL(url)
-            showToast(t.qrCodeDownloaded)
-          } catch (e) {
-            console.warn('[qr-modal] download failed', e)
-        showToast(t.downloadFailed, 'error')
-          }
-        }, 'image/png')
-      }
-      
-      img.onerror = () => {
-        URL.revokeObjectURL(url)
-        showToast(t.failedToGenerateImage, 'error')
-      }
-      
-      img.src = url
+        try {
+          const downloadUrl = URL.createObjectURL(blob)
+          const link = document.createElement('a')
+          link.href = downloadUrl
+          link.download = filename
+          document.body.appendChild(link)
+          link.click()
+          document.body.removeChild(link)
+          URL.revokeObjectURL(downloadUrl)
+          showToast(t.qrCodeDownloaded)
+        } catch (e) {
+          console.warn('[qr-modal] download failed', e)
+          showToast(t.downloadFailed, 'error')
+        }
+      }, 'image/png')
     } catch (error) {
       console.error('Download error:', error)
-      showToast(t.downloadFailed, 'error')
+      showToast(t.failedToGenerateImage, 'error')
+    } finally {
+      URL.revokeObjectURL(qrUrl)
     }
   }, [filename, showToast])
 
@@ -247,9 +264,11 @@ export function EventQRModal({
 
             {/* Header Content */}
             <div className="text-center">
-              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-                <Camera className="h-6 w-6 text-primary" />
-              </div>
+              <img
+                src="/brand/snaprooms-qr-badge.svg"
+                alt="SnapRooms"
+                className="mx-auto mb-3 h-12 w-12"
+              />
               <h2 className="text-xl font-semibold tracking-tight">{t.shareThisRoom}</h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 {t.guestsScanQR}
@@ -267,9 +286,9 @@ export function EventQRModal({
 
             {/* Logo */}
             <img
-              src="/snaprooms-logo.svg"
+              src="/brand/snaprooms-qr-badge.svg"
               alt="SnapRooms"
-              className="h-10 w-10 mx-auto mb-3 rounded-md object-cover"
+              className="mx-auto mb-3 h-10 w-10"
             />
 
             {/* QR Code Card */}
@@ -291,7 +310,7 @@ export function EventQRModal({
                     fgColor="#000000"
                   />
                   <img
-                    src="/snaprooms-logo.svg"
+                    src="/brand/snaprooms-qr-badge.svg"
                     alt="SnapRooms"
                     className="absolute left-1/2 top-1/2 h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-md bg-white p-1"
                   />

@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Camera, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { SnapRoomsIcon } from '@/components/marketing/logo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useTranslations, useLocale } from '@/components/i18n-provider'
@@ -102,9 +103,7 @@ export default function LoginPageClient({ redirect = '/dashboard' }) {
       <header className="relative z-10 bg-background/80 backdrop-blur-xl border-b border-border">
         <div className="container flex h-16 items-center justify-between px-4">
           <a href="/" className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-subtle">
-              <Camera className="h-[18px] w-[18px]" />
-            </div>
+            <SnapRoomsIcon className="h-9 w-9 shrink-0 text-accent-dark" />
             <span className="font-display text-[15px] font-bold tracking-tight text-foreground">SnapRooms</span>
           </a>
           <Button size="sm" variant="ghost" asChild className="text-muted-foreground">
@@ -116,8 +115,8 @@ export default function LoginPageClient({ redirect = '/dashboard' }) {
       <div className="relative z-10 flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center px-4 py-12">
         <div className="w-full max-w-sm">
           <div className="mb-8 text-center">
-            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-              <Camera className="h-8 w-8" />
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
+              <SnapRoomsIcon className="h-8 w-8 text-accent-dark" />
             </div>
             <h1 className="font-display text-2xl font-bold tracking-[-0.02em] text-foreground">
               {forgotMode ? t.resetYourPassword : t.signInToManage}

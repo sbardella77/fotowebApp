@@ -1450,6 +1450,7 @@ export default function DashboardPage() {
           experience={experience}
           message={message}
           onDismissMessage={() => setMessage('')}
+          tCommon={tCommon}
         />
       }
       rightPanel={

@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect } from 'react'
-import { Camera, CreditCard, LayoutDashboard, LogOut, Sparkles, User, BarChart3, Tag } from 'lucide-react'
+import { CreditCard, LayoutDashboard, LogOut, Sparkles, User, BarChart3, Tag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { trackUpsellImpression, trackUpsellClick } from '@/lib/analytics/upsell'
 import { useLocale } from '@/components/i18n-provider'
 import { localizedPath } from '@/lib/i18n/config'
+import { SnapRoomsIcon } from '@/components/marketing/logo'
 
 export function DashboardSidebar({
   experience,
@@ -63,9 +64,7 @@ export function DashboardSidebar({
     <div className="flex h-full flex-col">
       {/* Logo */}
       <div className="flex h-16 items-center gap-2.5 border-b border-border px-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-subtle">
-          <Camera className="h-[18px] w-[18px]" />
-        </div>
+        <SnapRoomsIcon className="h-9 w-9 shrink-0 text-accent-dark" />
         <span className="font-display text-[15px] font-bold tracking-tight text-foreground">{t.brand}</span>
       </div>
 

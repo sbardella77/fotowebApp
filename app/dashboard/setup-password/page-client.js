@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Camera, CheckCircle2, Eye, EyeOff, Loader2, XCircle } from 'lucide-react'
+import { CheckCircle2, Eye, EyeOff, Loader2, XCircle } from 'lucide-react'
+import { SnapRoomsIcon } from '@/components/marketing/logo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useTranslations } from '@/components/i18n-provider'
@@ -74,7 +75,7 @@ export default function SetupPasswordPageClient({ token }) {
       <header className="relative z-10 border-b border-border bg-background/70 backdrop-blur-xl">
         <div className="container flex h-16 items-center justify-between px-4">
           <a href="/" className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-subtle"><Camera className="h-[18px] w-[18px]" /></div>
+            <SnapRoomsIcon className="h-9 w-9 shrink-0 text-accent-dark" />
             <span className="font-display text-[15px] font-bold tracking-tight text-foreground">SnapRooms</span>
           </a>
         </div>

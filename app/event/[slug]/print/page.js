@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { Camera } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { getQRCopy } from '@/lib/qr-copy'
 
@@ -99,7 +98,7 @@ export default function PrintEventPage() {
       <div className="print:hidden border-b bg-white px-4 py-3">
         <div className="mx-auto max-w-4xl flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Camera className="h-5 w-5 text-primary" />
+            <img src="/brand/snaprooms-qr-badge.svg" alt="SnapRooms" className="h-6 w-6" />
             <span className="font-semibold text-primary">SnapRooms</span>
             <span className="text-muted-foreground">— Print Room QR Card</span>
           </div>
@@ -197,9 +196,7 @@ function PrintCardContent({ event, eventUrl, baseUrl }) {
     <div className="flex flex-col items-center justify-center h-full min-h-[60mm] text-center">
       {/* Header / Logo */}
       <div className="mb-4 flex items-center gap-2">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
-          <Camera className="h-5 w-5 text-primary" />
-        </div>
+        <img src="/brand/snaprooms-qr-badge.svg" alt="SnapRooms" className="h-10 w-10" />
         <span className="text-xl font-bold tracking-tight text-foreground">SnapRooms</span>
       </div>
 

@@ -64,7 +64,6 @@ function App({ children }) {
   return (
     <html lang={locale} suppressHydrationWarning>
       <head>
-        <link rel="preload" as="image" href="/snaprooms-logo.svg" type="image/svg+xml" />
         <script dangerouslySetInnerHTML={{ __html: 'window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);' }} />
       </head>
       <body

@@ -3,7 +3,7 @@
 import { CheckCircle2, Sparkles } from 'lucide-react'
 import { useTranslations } from '@/components/i18n-provider'
 
-export function DashboardTopBar({ experience, message, onDismissMessage }) {
+export function DashboardTopBar({ experience, message, onDismissMessage, tCommon }) {
   const t = useTranslations('dashboard')
   const badge = experience?.planBadge
   const isPremium = badge?.variant === 'premium' || badge?.variant === 'pro'
@@ -41,11 +41,18 @@ export function DashboardTopBar({ experience, message, onDismissMessage }) {
         // without it the child's `truncate` never gets a chance to apply —
         // this container can report an intrinsic width wider than the
         // available row, which is what caused the 320px page overflow.
-        <div className="flex min-w-0 items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs text-foreground">
-          <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-accent-dark" />
+        <div className="flex min-w-0 items-center gap-2 rounded-full border border-primary/20 bg-primary/5 py-1 pl-1 pr-1.5 text-xs font-medium text-foreground">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-accent-dark">
+            <CheckCircle2 className="h-3 w-3" />
+          </span>
           <span className="min-w-0 flex-1 truncate">{message}</span>
           {onDismissMessage && (
-            <button type="button" onClick={onDismissMessage} className="ml-1 shrink-0 text-muted-foreground hover:text-foreground">
+            <button
+              type="button"
+              onClick={onDismissMessage}
+              aria-label={tCommon?.close || 'Close'}
+              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/15 hover:text-foreground"
+            >
               ×
             </button>
           )}
