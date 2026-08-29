@@ -2897,7 +2897,7 @@ const resendOwnerAccess = async (request) => {
       const actionText = purpose === 'password_reset' ? 'Reset your password' : 'Set your password'
       const expiryText = purpose === 'password_reset' ? '30 minutes' : '24 hours'
 
-      await resend.emails.send({
+      const { error: resendAccessSendError } = await resend.emails.send({
         from,
         to: email,
         reply_to: 'hello@snaprooms.app',
@@ -2921,6 +2921,9 @@ Every guest photo. One room.`,
   <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">If you didn't request this, you can safely ignore this email.<br>SnapRooms — Every guest photo. One room.</p>
 </div>`,
       })
+      if (resendAccessSendError) {
+        console.error('[resendOwnerAccess] Resend error:', resendAccessSendError)
+      }
     } catch (emailError) {
       console.error('[resendOwnerAccess] Failed to send email:', emailError)
     }

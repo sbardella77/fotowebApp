@@ -46,3 +46,28 @@ describe('forgotOwnerPassword — surfaces Resend API-level send errors', () => 
     expect(source).toContain("message: 'If an account with this email exists, a password reset link has been sent.'")
   })
 })
+
+// Fourth instance of the same bug, found via a full-codebase sweep after
+// fixing forgotOwnerPassword: resendOwnerAccess (a distinct "resend my
+// access link" route) also discarded the Resend { error } result.
+describe('resendOwnerAccess — surfaces Resend API-level send errors', () => {
+  it('captures the error field from its resend.emails.send() call', () => {
+    expect(source).toMatch(/const \{ error: resendAccessSendError \} = await resend\.emails\.send\(/)
+  })
+
+  it('logs a send-level error without changing the anti-enumeration response', () => {
+    expect(source).toContain('[resendOwnerAccess] Resend error:')
+    const fnStart = source.indexOf('const resendOwnerAccess = async')
+    const nextFnStart = source.indexOf('const recoverOwnerAccess = async')
+    const fnBody = source.slice(fnStart, nextFnStart)
+    expect(fnBody).toContain("message: 'If an account with this email exists, a password reset link has been sent.'")
+  })
+
+  it('never logs the raw token, only the structured Resend error object', () => {
+    const fnStart = source.indexOf('const resendOwnerAccess = async')
+    const nextFnStart = source.indexOf('const recoverOwnerAccess = async')
+    const fnBody = source.slice(fnStart, nextFnStart)
+    const errorLogLine = fnBody.split('\n').find((l) => l.includes('[resendOwnerAccess] Resend error:'))
+    expect(errorLogLine).not.toMatch(/rawToken/)
+  })
+})
