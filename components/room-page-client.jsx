@@ -28,6 +28,7 @@ import {
 import PhotoGalleryGrid from '@/components/photo-gallery-grid'
 import PhotoLightbox from '@/components/photo-lightbox'
 import { EventQRModal } from '@/components/event-qr-modal'
+import { SnapRoomsIcon } from '@/components/marketing/logo'
 import { getSortedRenderablePhotos, getRenderablePhotos } from '@/lib/photo-utils'
 import { optimizeImage } from '@/lib/client-image-optimizer'
 import { runWithConcurrency, isRetryableUploadHttpStatus } from '@/lib/upload-utils'
@@ -1086,7 +1087,7 @@ export default function RoomPageClient({ slug, isNew }) {
         <header className="border-b border-border bg-background/70 backdrop-blur-xl">
           <div className="container flex h-16 items-center justify-between px-4">
             <Link href={ownerSession?.authenticated ? '/dashboard' : '/'} className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-subtle"><Camera className="h-[18px] w-[18px]" /></div>
+              <SnapRoomsIcon className="h-9 w-9 shrink-0" />
               <span className="font-display text-[15px] font-bold tracking-tight text-foreground">SnapRooms</span>
             </Link>
             {ownerSession?.authenticated && (
@@ -1108,7 +1109,7 @@ export default function RoomPageClient({ slug, isNew }) {
       <header className="relative z-10 border-b border-border bg-background/70 backdrop-blur-xl">
         <div className="container flex h-16 items-center justify-between px-4">
           <Link href={ownerSession?.authenticated ? '/dashboard' : '/'} className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-subtle"><Camera className="h-[18px] w-[18px]" /></div>
+            <SnapRoomsIcon className="h-9 w-9 shrink-0" />
             <span className="font-display text-[15px] font-bold tracking-tight text-foreground">SnapRooms</span>
           </Link>
           <div className="flex items-center gap-3">
@@ -1124,7 +1125,7 @@ export default function RoomPageClient({ slug, isNew }) {
 
       {busy.join && !activeEvent ? (
         <div className="relative z-10 flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center gap-4 px-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Camera className="h-7 w-7" /></div>
+          <SnapRoomsIcon className="h-14 w-14" />
           <p className="text-lg font-light text-foreground">{t.loading}</p>
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>

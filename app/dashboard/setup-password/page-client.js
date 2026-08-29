@@ -75,7 +75,7 @@ export default function SetupPasswordPageClient({ token }) {
       <header className="relative z-10 border-b border-border bg-background/70 backdrop-blur-xl">
         <div className="container flex h-16 items-center justify-between px-4">
           <a href="/" className="flex items-center gap-2.5">
-            <SnapRoomsIcon className="h-9 w-9 shrink-0 text-accent-dark" />
+            <SnapRoomsIcon className="h-9 w-9 shrink-0" />
             <span className="font-display text-[15px] font-bold tracking-tight text-foreground">SnapRooms</span>
           </a>
         </div>

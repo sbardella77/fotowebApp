@@ -64,7 +64,7 @@ export function DashboardSidebar({
     <div className="flex h-full flex-col">
       {/* Logo */}
       <div className="flex h-16 items-center gap-2.5 border-b border-border px-5">
-        <SnapRoomsIcon className="h-9 w-9 shrink-0 text-accent-dark" />
+        <SnapRoomsIcon className="h-9 w-9 shrink-0" />
         <span className="font-display text-[15px] font-bold tracking-tight text-foreground">{t.brand}</span>
       </div>
 

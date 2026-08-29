@@ -12,33 +12,21 @@ const WORDMARK_SIZES = {
 
 /**
  * Canonical SnapRooms mark: rounded camera/frame corner brackets, a lens,
- * and a small sparkle accent, in the brand lime. Single source of truth —
- * do not hand-recreate this per page.
+ * and a small sparkle accent, in the brand lime — rendered from
+ * public/brand/snaprooms-mark.svg, a programmatic derivative of the
+ * supplied canonical badge (public/brand/snaprooms-qr-badge.svg) with only
+ * its ivory circular backing removed. Single source of truth — do not
+ * hand-recreate this per page. The mark carries its own fixed lime fills
+ * (not currentColor), so className should only be used for sizing.
  */
 export function SnapRoomsIcon({ className = '', 'aria-hidden': ariaHidden = true }) {
   return (
-    <svg
-      viewBox="0 0 32 32"
-      fill="none"
-      className={className}
+    <img
+      src="/brand/snaprooms-mark.svg"
+      alt=""
       aria-hidden={ariaHidden}
-    >
-      {/* Frame brackets */}
-      <path
-        d="M5 11V5H11M21 5H27V11M27 21V27H21M11 27H5V21"
-        stroke="currentColor"
-        strokeWidth="2.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {/* Lens */}
-      <circle cx="16" cy="16" r="4.5" fill="currentColor" />
-      {/* Sparkle */}
-      <path
-        d="M25 4.2L25.9 6.1L27.2 7L25.9 7.9L25 9.8L24.1 7.9L22.8 7L24.1 6.1Z"
-        fill="currentColor"
-      />
-    </svg>
+      className={className}
+    />
   )
 }
 
@@ -49,7 +37,7 @@ export function SnapRoomsLogo({ variant = 'full', size = 'md', href, className =
 
   const inner = (
     <>
-      <SnapRoomsIcon className={`${iconSize} shrink-0 text-accent-dark transition-transform group-hover:scale-105`} />
+      <SnapRoomsIcon className={`${iconSize} shrink-0 transition-transform group-hover:scale-105`} />
       {variant === 'full' && (
         <span className={`font-display ${wordmarkSize} font-bold tracking-tight text-foreground`}>
           SnapRooms

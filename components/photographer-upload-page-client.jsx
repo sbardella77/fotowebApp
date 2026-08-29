@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { upload } from '@vercel/blob/client'
 import { Camera, CheckCircle2, FolderHeart, ImagePlus, Loader2, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { SnapRoomsIcon } from '@/components/marketing/logo'
 import { trackEvent } from '@/lib/analytics/track-client'
 import {
   EVENT_PHOTOGRAPHER_UPLOAD_STARTED,
@@ -211,7 +212,7 @@ export default function PhotographerUploadPageClient({ token }) {
       <header className="sticky top-0 z-30 h-14 border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container flex h-full items-center justify-between px-4">
           <a href="/" className="flex items-center gap-2 text-foreground">
-            <Camera className="h-5 w-5 text-primary" />
+            <SnapRoomsIcon className="h-6 w-6 shrink-0" />
             <span className="font-display text-base font-semibold tracking-tight">SnapRooms</span>
           </a>
         </div>

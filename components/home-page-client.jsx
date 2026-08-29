@@ -88,7 +88,7 @@ export function HomePageClient({ locale = 'en' }) {
           </div>
         </header>
         <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center gap-4 px-4">
-          <SnapRoomsIcon className="h-14 w-14 text-accent-dark" />
+          <SnapRoomsIcon className="h-14 w-14" />
           <p className="text-lg font-medium text-foreground">{t.openingRoom}</p>
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
         </div>
