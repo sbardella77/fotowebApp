@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useMemo, useState, useCallback } from 'react'
+import { useRef, useMemo, useState, useCallback, useEffect } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import {
   X,
@@ -238,6 +238,16 @@ export function EventQRModal({
     window.print()
   }, [])
 
+  // Escape closes the modal, matching the dialog pattern used by PhotoLightbox.
+  useEffect(() => {
+    if (!isOpen || typeof window === 'undefined') return
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
   if (!isOpen || !event) return null
 
   return (
@@ -248,6 +258,9 @@ export function EventQRModal({
         onClick={onClose}
       >
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={headline}
           className={`relative my-auto w-full max-w-md overflow-hidden rounded-2xl bg-background shadow-2xl max-h-[90vh] overflow-y-auto overscroll-contain ${className}`}
           onClick={(e) => e.stopPropagation()}
         >
