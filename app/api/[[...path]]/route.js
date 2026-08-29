@@ -3105,7 +3105,7 @@ const forgotOwnerPassword = async (request) => {
         const actionText = purpose === 'password_reset' ? 'Reset your password' : 'Set your password'
         const expiryText = purpose === 'password_reset' ? '30 minutes' : '24 hours'
 
-        await resend.emails.send({
+        const { error: forgotSendError } = await resend.emails.send({
           from: process.env.RESEND_FROM_EMAIL,
           to: email,
           reply_to: 'hello@snaprooms.app',
@@ -3130,6 +3130,9 @@ If you did not request this, you can safely ignore this email.
   <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">If you did not request this, you can safely ignore this email.<br>SnapRooms — Every guest photo. One room.</p>
 </div>`,
         })
+        if (forgotSendError) {
+          console.error('[forgotOwnerPassword] Resend error:', forgotSendError)
+        }
       } catch (emailError) {
         console.error('[forgotOwnerPassword] Failed to send email:', emailError)
       }

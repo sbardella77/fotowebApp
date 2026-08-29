@@ -30,3 +30,19 @@ describe('sendOwnerNotificationEmail — surfaces Resend API-level send errors',
     expect(fnBody).not.toMatch(/if \(addedSendError\)[^}]*throw/)
   })
 })
+
+// Same class of bug, found in a third location while using this route to
+// retest email delivery: forgotOwnerPassword also discarded the Resend
+// { error } result. Its response is intentionally the same generic
+// anti-enumeration message regardless of outcome, so — unlike a client-
+// facing contract — only the server-side logging needed fixing here.
+describe('forgotOwnerPassword — surfaces Resend API-level send errors', () => {
+  it('captures the error field from its resend.emails.send() call', () => {
+    expect(source).toMatch(/const \{ error: forgotSendError \} = await resend\.emails\.send\(/)
+  })
+
+  it('logs a send-level error without changing the anti-enumeration response', () => {
+    expect(source).toContain('[forgotOwnerPassword] Resend error:')
+    expect(source).toContain("message: 'If an account with this email exists, a password reset link has been sent.'")
+  })
+})
