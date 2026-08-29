@@ -751,7 +751,7 @@ const sendOwnerNotificationEmail = async ({ email, event, owner, request }) => {
         clientIp,
       })
       const setupUrl = `${appUrl}/dashboard/setup-password?token=${encodeURIComponent(setupToken)}`
-      await resend.emails.send({
+      const { error: setupSendError } = await resend.emails.send({
         from,
         to: email,
         reply_to: 'hello@snaprooms.app',
@@ -785,9 +785,12 @@ SnapRooms — Every guest photo. One room.`,
   </p>
 </div>`,
       })
+      if (setupSendError) {
+        console.error('[sendOwnerNotificationEmail] Resend error (setup_password):', setupSendError)
+      }
     } else {
       const dashboardUrl = `${appUrl}/dashboard`
-      await resend.emails.send({
+      const { error: addedSendError } = await resend.emails.send({
         from,
         to: email,
         reply_to: 'hello@snaprooms.app',
@@ -816,6 +819,9 @@ SnapRooms — Every guest photo. One room.`,
   </p>
 </div>`,
       })
+      if (addedSendError) {
+        console.error('[sendOwnerNotificationEmail] Resend error (room_added):', addedSendError)
+      }
     }
   } catch (emailError) {
     console.error('[sendOwnerNotificationEmail] Failed to send owner email:', emailError)
