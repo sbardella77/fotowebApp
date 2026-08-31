@@ -14,6 +14,7 @@ import {
 } from '@/lib/server/photographer-token'
 import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
+import { buildEmail } from '@/lib/server/email/email-layout'
 import {
   adminModerationSchema,
   adminPasswordSchema,
@@ -669,47 +670,25 @@ const saveEventByEmail = async (request, slug) => {
   const eventUrl = `${appUrl}/event/${event.slug}`
 
   try {
+    const roomReadyEmail = buildEmail({
+      subject: 'Your SnapRooms room is ready',
+      headline: 'Your room is ready',
+      bodyLines: [
+        `Your room "${event.name}" is ready. Share the link below with your guests so they can upload their photos.`,
+        `If you didn't request this email, you can ignore it.`,
+      ],
+      cta: { text: 'Open your room', url: eventUrl },
+      linkBox: { label: 'Room link', url: eventUrl },
+      locale: 'en',
+      appUrl,
+    })
     const { data, error: sendError } = await resend.emails.send({
       from,
       to: email,
       reply_to: 'hello@snaprooms.app',
-      subject: `Your SnapRooms room is ready`,
-      text: `Hi,
-
-Your SnapRooms room "${event.name}" is ready.
-
-Open your room here:
-${eventUrl}
-
-Share this link with your guests so they can upload their photos.
-
-If you didn't request this email, you can ignore it.
-
-– SnapRooms
-Every guest photo. One room.`,
-      html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
-  <div style="text-align:center;margin-bottom:24px;">
-    <span style="font-size:20px;font-weight:700;color:#d4a853;letter-spacing:-0.5px;">SnapRooms</span>
-  </div>
-  <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Your room is ready</h1>
-  <p style="margin:0 0 24px;text-align:center;color:#4b5563;">
-    Your room <strong style="color:#111111;">${event.name}</strong> is ready.<br />
-    Share the link below with your guests so they can upload their photos.
-  </p>
-  <p style="margin:0 0 24px;text-align:center;">
-    <a href="${eventUrl}" style="display:inline-block;padding:12px 24px;background:#d4a853;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Open your room</a>
-  </p>
-  <div style="margin:0 0 24px;padding:16px;background:#F7F7F8;border:1px solid #E5E7EB;border-radius:8px;text-align:center;">
-    <p style="margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;color:#9ca3af;">Room link</p>
-    <p style="margin:0;font-size:14px;word-break:break-all;color:#374151;">${eventUrl}</p>
-  </div>
-  <p style="margin:0 0 32px;text-align:center;color:#6b7280;font-size:14px;">
-    If you didn't request this email, you can ignore it.
-  </p>
-  <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">
-    SnapRooms — Every guest photo. One room.
-  </p>
-</div>`,
+      subject: roomReadyEmail.subject,
+      text: roomReadyEmail.text,
+      html: roomReadyEmail.html,
     })
 
     if (sendError) {
@@ -751,73 +730,45 @@ const sendOwnerNotificationEmail = async ({ email, event, owner, request }) => {
         clientIp,
       })
       const setupUrl = `${appUrl}/dashboard/setup-password?token=${encodeURIComponent(setupToken)}`
+      const setupEmail = buildEmail({
+        subject: 'Set your SnapRooms password',
+        headline: 'Set your password',
+        bodyLines: [
+          `Your room "${event.name}" is ready. Create a password to manage all your rooms in one place.`,
+          `This link expires in 24 hours. If you didn't create this room, you can safely ignore this email.`,
+        ],
+        cta: { text: 'Set password', url: setupUrl },
+        locale: 'en',
+        appUrl,
+      })
       const { error: setupSendError } = await resend.emails.send({
         from,
         to: email,
         reply_to: 'hello@snaprooms.app',
-        subject: `Set your SnapRooms password`,
-        text: `Hi,
-
-Your room "${event.name}" is ready.
-
-To manage your rooms securely, set your password here:
-${setupUrl}
-
-This link expires in 24 hours.
-
-SnapRooms — Every guest photo. One room.`,
-        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
-  <div style="text-align:center;margin-bottom:24px;">
-    <span style="font-size:20px;font-weight:700;color:#d4a853;letter-spacing:-0.5px;">SnapRooms</span>
-  </div>
-  <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Set your password</h1>
-  <p style="margin:0 0 24px;text-align:center;color:#4b5563;">
-    Your room <strong style="color:#111111;">${event.name}</strong> is ready. Create a password to manage all your rooms in one place.
-  </p>
-  <p style="margin:0 0 24px;text-align:center;">
-    <a href="${setupUrl}" style="display:inline-block;padding:12px 24px;background:#d4a853;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Set password</a>
-  </p>
-  <p style="margin:0 0 32px;text-align:center;color:#6b7280;font-size:14px;">
-    This link expires in 24 hours. If you didn't create this room, you can safely ignore this email.
-  </p>
-  <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">
-    SnapRooms — Every guest photo. One room.
-  </p>
-</div>`,
+        subject: setupEmail.subject,
+        text: setupEmail.text,
+        html: setupEmail.html,
       })
       if (setupSendError) {
         console.error('[sendOwnerNotificationEmail] Resend error (setup_password):', setupSendError)
       }
     } else {
       const dashboardUrl = `${appUrl}/dashboard`
+      const roomAddedEmail = buildEmail({
+        subject: `Your SnapRooms room "${event.name}"`,
+        headline: 'Room added to your dashboard',
+        bodyLines: [`Your room "${event.name}" is now in your dashboard.`],
+        cta: { text: 'Open dashboard', url: dashboardUrl },
+        locale: 'en',
+        appUrl,
+      })
       const { error: addedSendError } = await resend.emails.send({
         from,
         to: email,
         reply_to: 'hello@snaprooms.app',
-        subject: `Your SnapRooms room "${event.name}"`,
-        text: `Hi,
-
-Your room "${event.name}" has been added to your dashboard.
-
-Open your dashboard:
-${dashboardUrl}
-
-SnapRooms — Every guest photo. One room.`,
-        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
-  <div style="text-align:center;margin-bottom:24px;">
-    <span style="font-size:20px;font-weight:700;color:#d4a853;letter-spacing:-0.5px;">SnapRooms</span>
-  </div>
-  <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">Room added to your dashboard</h1>
-  <p style="margin:0 0 24px;text-align:center;color:#4b5563;">
-    Your room <strong style="color:#111111;">${event.name}</strong> is now in your dashboard.
-  </p>
-  <p style="margin:0 0 24px;text-align:center;">
-    <a href="${dashboardUrl}" style="display:inline-block;padding:12px 24px;background:#d4a853;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Open dashboard</a>
-  </p>
-  <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">
-    SnapRooms — Every guest photo. One room.
-  </p>
-</div>`,
+        subject: roomAddedEmail.subject,
+        text: roomAddedEmail.text,
+        html: roomAddedEmail.html,
       })
       if (addedSendError) {
         console.error('[sendOwnerNotificationEmail] Resend error (room_added):', addedSendError)
@@ -2897,29 +2848,24 @@ const resendOwnerAccess = async (request) => {
       const actionText = purpose === 'password_reset' ? 'Reset your password' : 'Set your password'
       const expiryText = purpose === 'password_reset' ? '30 minutes' : '24 hours'
 
+      const resendAccessEmail = buildEmail({
+        subject,
+        headline: subject,
+        bodyLines: [
+          `Tap the button below. This link is valid for ${expiryText}.`,
+          `If you didn't request this, you can safely ignore this email.`,
+        ],
+        cta: { text: actionText, url: actionUrl },
+        locale: 'en',
+        appUrl,
+      })
       const { error: resendAccessSendError } = await resend.emails.send({
         from,
         to: email,
         reply_to: 'hello@snaprooms.app',
-        subject,
-        text: `Hi,
-
-You requested to ${purpose === 'password_reset' ? 'reset your SnapRooms password' : 'access your SnapRooms dashboard'}.
-
-${actionText} here:
-${actionUrl}
-
-This link expires in ${expiryText}. If you didn't request this, you can safely ignore this email.
-
-– SnapRooms
-Every guest photo. One room.`,
-        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
-  <div style="text-align:center;margin-bottom:24px;"><span style="font-size:20px;font-weight:700;color:#d4a853;letter-spacing:-0.5px;">SnapRooms</span></div>
-  <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">${subject}</h1>
-  <p style="margin:0 0 24px;text-align:center;color:#4b5563;">Tap the button below. This link is valid for ${expiryText}.</p>
-  <p style="margin:0 0 24px;text-align:center;"><a href="${actionUrl}" style="display:inline-block;padding:12px 24px;background:#d4a853;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">${actionText}</a></p>
-  <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">If you didn't request this, you can safely ignore this email.<br>SnapRooms — Every guest photo. One room.</p>
-</div>`,
+        subject: resendAccessEmail.subject,
+        text: resendAccessEmail.text,
+        html: resendAccessEmail.html,
       })
       if (resendAccessSendError) {
         console.error('[resendOwnerAccess] Resend error:', resendAccessSendError)
@@ -3108,30 +3054,24 @@ const forgotOwnerPassword = async (request) => {
         const actionText = purpose === 'password_reset' ? 'Reset your password' : 'Set your password'
         const expiryText = purpose === 'password_reset' ? '30 minutes' : '24 hours'
 
+        const forgotEmail = buildEmail({
+          subject,
+          headline: subject,
+          bodyLines: [
+            `Tap the button below. This link is valid for ${expiryText}.`,
+            `If you did not request this, you can safely ignore this email.`,
+          ],
+          cta: { text: actionText, url: actionUrl },
+          locale: 'en',
+          appUrl,
+        })
         const { error: forgotSendError } = await resend.emails.send({
           from: process.env.RESEND_FROM_EMAIL,
           to: email,
           reply_to: 'hello@snaprooms.app',
-          subject,
-          text: `Hi,
-
-You requested to ${purpose === 'password_reset' ? 'reset your SnapRooms password' : 'set up your SnapRooms dashboard password'}.
-
-${actionText} here:
-${actionUrl}
-
-This link expires in ${expiryText}.
-
-If you did not request this, you can safely ignore this email.
-
-– SnapRooms`,
-          html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;max-width:480px;margin:0 auto;padding:24px;background:#ffffff;color:#111111;">
-  <div style="text-align:center;margin-bottom:24px;"><span style="font-size:20px;font-weight:700;color:#d4a853;letter-spacing:-0.5px;">SnapRooms</span></div>
-  <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;text-align:center;">${subject}</h1>
-  <p style="margin:0 0 24px;text-align:center;color:#4b5563;">Tap the button below. This link is valid for ${expiryText}.</p>
-  <p style="margin:0 0 24px;text-align:center;"><a href="${actionUrl}" style="display:inline-block;padding:12px 24px;background:#d4a853;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">${actionText}</a></p>
-  <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;font-size:13px;color:#9ca3af;">If you did not request this, you can safely ignore this email.<br>SnapRooms — Every guest photo. One room.</p>
-</div>`,
+          subject: forgotEmail.subject,
+          text: forgotEmail.text,
+          html: forgotEmail.html,
         })
         if (forgotSendError) {
           console.error('[forgotOwnerPassword] Resend error:', forgotSendError)
