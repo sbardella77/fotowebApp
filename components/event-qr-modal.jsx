@@ -80,6 +80,9 @@ export function EventQRModal({
   const tCommon = useTranslations('common')
   const { showToast, ToastComponent } = useToast()
   const qrContainerRef = useRef(null)
+  const dialogRef = useRef(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
   const [copiedLink, setCopiedLink] = useState(false)
   const [copiedCode, setCopiedCode] = useState(false)
   
@@ -238,15 +241,48 @@ export function EventQRModal({
     window.print()
   }, [])
 
-  // Escape closes the modal, matching the dialog pattern used by PhotoLightbox.
+  // Focus management: move focus into the dialog on open, trap Tab/Shift+Tab
+  // within it (matching the ARIA APG dialog pattern), close on Escape, and
+  // restore focus to whatever triggered the modal when it closes — by any
+  // means (Escape, backdrop click, or the X button), since this is a
+  // cleanup function rather than the Escape handler alone.
+  // Deliberately keyed on [isOpen] only (onClose is read via a ref) so a
+  // parent re-render while the modal is open — room-page-client.jsx passes
+  // a fresh onClose closure every render — can't re-fire this effect and
+  // steal focus back to the first element mid-interaction.
   useEffect(() => {
     if (!isOpen || typeof window === 'undefined') return
+
+    const previouslyFocused = document.activeElement
+    const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    const dialog = dialogRef.current
+    dialog?.querySelector(focusableSelector)?.focus()
+
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') {
+        onCloseRef.current()
+        return
+      }
+      if (e.key === 'Tab' && dialog) {
+        const focusable = Array.from(dialog.querySelectorAll(focusableSelector))
+        if (focusable.length === 0) return
+        const first = focusable[0]
+        const last = focusable[focusable.length - 1]
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault()
+          last.focus()
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault()
+          first.focus()
+        }
+      }
     }
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onClose])
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      if (previouslyFocused instanceof HTMLElement) previouslyFocused.focus()
+    }
+  }, [isOpen])
 
   if (!isOpen || !event) return null
 
@@ -258,6 +294,7 @@ export function EventQRModal({
         onClick={onClose}
       >
         <div
+          ref={dialogRef}
           role="dialog"
           aria-modal="true"
           aria-label={headline}
