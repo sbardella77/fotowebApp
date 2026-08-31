@@ -37,7 +37,7 @@ const uuid = (n) => `0000000${n % 10}-0000-4000-8000-${String(n).padStart(12, '0
 const PHOTO_A = uuid(1)
 const PHOTO_B = uuid(2)
 
-const wm = (id) => `derivatives/wm-v1/${id}.jpg`
+const wm = (id) => `derivatives/wm-v2/${id}.jpg`
 const display = (id) => `derivatives/display-v1/${id}.jpg`
 
 const blob = (pathname) => ({ pathname, url: `https://store.public.blob.vercel-storage.com/${pathname}` })
@@ -84,7 +84,7 @@ describe('derivative identity is derived from the real builders', () => {
 
     // If a builder ever changes shape, these fail rather than the sweep
     // silently scanning a prefix nothing writes to.
-    expect(wmKind.prefix).toBe('derivatives/wm-v1/')
+    expect(wmKind.prefix).toBe('derivatives/wm-v2/')
     expect(displayKind.prefix).toBe('derivatives/display-v1/')
     expect(buildDerivativePath(PHOTO_A)).toBe(`${wmKind.prefix}${PHOTO_A}.jpg`)
     expect(buildDisplayDerivativePath(PHOTO_A)).toBe(`${displayKind.prefix}${PHOTO_A}.jpg`)
@@ -94,7 +94,7 @@ describe('derivative identity is derived from the real builders', () => {
 // ─── §6 / §40 strict parsing ────────────────────────────────────────────────
 
 describe('parseDerivativePathname — accepts only exact current-version objects', () => {
-  it('parses a wm-v1 object', () => {
+  it('parses a wm-v2 object', () => {
     expect(parseDerivativePathname(wm(PHOTO_A))).toEqual({ photoId: PHOTO_A, kind: 'wm' })
   })
 
@@ -103,17 +103,17 @@ describe('parseDerivativePathname — accepts only exact current-version objects
   })
 
   it.each([
-    ['non-uuid filename', 'derivatives/wm-v1/not-a-uuid.jpg'],
-    ['wrong extension', `derivatives/wm-v1/${PHOTO_A}.png`],
+    ['non-uuid filename', 'derivatives/wm-v2/not-a-uuid.jpg'],
+    ['wrong extension', `derivatives/wm-v2/${PHOTO_A}.png`],
     ['no extension', `derivatives/display-v1/${PHOTO_A}`],
-    ['nested path', `derivatives/wm-v1/nested/${PHOTO_A}.jpg`],
+    ['nested path', `derivatives/wm-v2/nested/${PHOTO_A}.jpg`],
     ['garbage', 'derivatives/display-v1/garbage'],
-    ['bare prefix', 'derivatives/wm-v1/'],
-    ['empty filename extension only', 'derivatives/wm-v1/.jpg'],
-    ['uuid with suffix', `derivatives/wm-v1/${PHOTO_A}-extra.jpg`],
-    ['leading slash', `/derivatives/wm-v1/${PHOTO_A}.jpg`],
-    ['full URL not a pathname', `https://x.blob.vercel-storage.com/derivatives/wm-v1/${PHOTO_A}.jpg`],
-    ['trailing whitespace', `derivatives/wm-v1/${PHOTO_A}.jpg `],
+    ['bare prefix', 'derivatives/wm-v2/'],
+    ['empty filename extension only', 'derivatives/wm-v2/.jpg'],
+    ['uuid with suffix', `derivatives/wm-v2/${PHOTO_A}-extra.jpg`],
+    ['leading slash', `/derivatives/wm-v2/${PHOTO_A}.jpg`],
+    ['full URL not a pathname', `https://x.blob.vercel-storage.com/derivatives/wm-v2/${PHOTO_A}.jpg`],
+    ['trailing whitespace', `derivatives/wm-v2/${PHOTO_A}.jpg `],
   ])('rejects %s', (_label, pathname) => {
     expect(parseDerivativePathname(pathname)).toBeNull()
   })
@@ -128,7 +128,10 @@ describe('parseDerivativePathname — accepts only exact current-version objects
   })
 
   it.each([
-    ['wm-v2', `derivatives/wm-v2/${PHOTO_A}.jpg`],
+    // v1 is the now-retired watermark version (bumped to v2 when the
+    // legacy gold badge asset was replaced) — exactly the real-world case
+    // this guards: old wm-v1 objects must never be swept.
+    ['wm-v1', `derivatives/wm-v1/${PHOTO_A}.jpg`],
     ['display-v2', `derivatives/display-v2/${PHOTO_A}.jpg`],
     ['unknown kind', `derivatives/thumb-v1/${PHOTO_A}.jpg`],
     ['bare derivatives root', `derivatives/${PHOTO_A}.jpg`],
@@ -308,7 +311,7 @@ describe('cleanupPhotoDerivatives — scanned prefixes', () => {
     await cleanupPhotoDerivatives({ logger: silentLogger })
 
     expect(list).toHaveBeenCalledTimes(2)
-    expect(list.mock.calls.map(([o]) => o.prefix)).toEqual(['derivatives/wm-v1/', 'derivatives/display-v1/'])
+    expect(list.mock.calls.map(([o]) => o.prefix)).toEqual(['derivatives/wm-v2/', 'derivatives/display-v1/'])
     for (const [options] of list.mock.calls) {
       expect(options.prefix).not.toBe('derivatives/')
       expect(options.limit).toBe(DERIVATIVE_LIST_PAGE_SIZE)
@@ -339,7 +342,7 @@ describe('cleanupPhotoDerivatives — stale eligibility (§24)', () => {
     expect(stats).toMatchObject({ scanned: 2, valid: 2, visibleKept: 2, hiddenDeleted: 0, absentDeleted: 0 })
   })
 
-  it('§38 / §30 HIDDEN photo: the existing wm-v1 object is deleted', async () => {
+  it('§38 / §30 HIDDEN photo: the existing wm-v2 object is deleted', async () => {
     // This is the live privacy gap: today a hidden photo keeps a publicly
     // readable branded derivative forever. Closing it does not depend on
     // display generation existing.
@@ -392,9 +395,9 @@ describe('cleanupPhotoDerivatives — parsing safety in the sweep', () => {
     queueListPages([
       {
         blobs: [
-          blob('derivatives/wm-v1/not-a-uuid.jpg'),
-          blob(`derivatives/wm-v1/${PHOTO_A}.png`),
-          blob(`derivatives/wm-v1/nested/${PHOTO_B}.jpg`),
+          blob('derivatives/wm-v2/not-a-uuid.jpg'),
+          blob(`derivatives/wm-v2/${PHOTO_A}.png`),
+          blob(`derivatives/wm-v2/nested/${PHOTO_B}.jpg`),
           blob('derivatives/display-v1/garbage'),
         ],
         hasMore: false,
@@ -417,7 +420,8 @@ describe('cleanupPhotoDerivatives — parsing safety in the sweep', () => {
           blob(`private-delivery/my-event/${PHOTO_A}-album.zip`),
           blob(`covers/my-event/${PHOTO_A}.jpg`),
           blob(`gallery-downloads/my-event/${PHOTO_A}.zip`),
-          blob(`derivatives/wm-v2/${PHOTO_A}.jpg`),
+          // wm-v1 is the now-retired watermark version — same real-world case as §32 above.
+          blob(`derivatives/wm-v1/${PHOTO_A}.jpg`),
           blob(`derivatives/display-v2/${PHOTO_A}.jpg`),
         ],
         hasMore: false,
@@ -434,7 +438,7 @@ describe('cleanupPhotoDerivatives — parsing safety in the sweep', () => {
   it('never "best guesses" an id out of a malformed name that contains one', async () => {
     getPrismaClient.mockResolvedValue(fakePrisma(new Map()))
     queueListPages([
-      { blobs: [blob(`derivatives/wm-v1/${PHOTO_A}-copy.jpg`)], hasMore: false },
+      { blobs: [blob(`derivatives/wm-v2/${PHOTO_A}-copy.jpg`)], hasMore: false },
       { blobs: [], hasMore: false },
     ])
 
@@ -492,7 +496,7 @@ describe('cleanupPhotoDerivatives — pagination and batching (§42, §25, §26)
     const prisma = fakePrisma(new Map())
     getPrismaClient.mockResolvedValue(prisma)
     queueListPages([
-      { blobs: [blob('derivatives/wm-v1/garbage')], hasMore: false },
+      { blobs: [blob('derivatives/wm-v2/garbage')], hasMore: false },
       { blobs: [], hasMore: false },
     ])
 
@@ -605,7 +609,7 @@ describe('cleanupPhotoDerivatives — reports aggregates only (§28)', () => {
   it('returns counters and never photo ids, pathnames or customer metadata', async () => {
     getPrismaClient.mockResolvedValue(fakePrisma(new Map([[PHOTO_A, 'VISIBLE'], [PHOTO_B, 'HIDDEN']])))
     queueListPages([
-      { blobs: [blob(wm(PHOTO_A)), blob(wm(PHOTO_B)), blob('derivatives/wm-v1/bad.jpg')], hasMore: false },
+      { blobs: [blob(wm(PHOTO_A)), blob(wm(PHOTO_B)), blob('derivatives/wm-v2/bad.jpg')], hasMore: false },
       { blobs: [], hasMore: false },
     ])
 

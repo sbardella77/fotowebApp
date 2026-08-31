@@ -228,13 +228,13 @@ describe('§33 admin photo delete', () => {
     expect(deletePhotoDerivatives.mock.calls[0][0]).toBe(PHOTO_ID)
   })
 
-  it('the id it passes resolves to exactly the wm-v1 and display-v1 pathnames', async () => {
+  it('the id it passes resolves to exactly the wm-v2 and display-v1 pathnames', async () => {
     getGalleryRepository.mockResolvedValue(makeRepository())
 
     await invoke(DELETE, await adminRequest(`/admin/photos/${PHOTO_ID}`, 'DELETE'))
 
     const id = deletePhotoDerivatives.mock.calls[0][0]
-    expect(buildDerivativePath(id)).toBe(`derivatives/wm-v1/${PHOTO_ID}.jpg`)
+    expect(buildDerivativePath(id)).toBe(`derivatives/wm-v2/${PHOTO_ID}.jpg`)
     expect(buildDisplayDerivativePath(id)).toBe(`derivatives/display-v1/${PHOTO_ID}.jpg`)
   })
 

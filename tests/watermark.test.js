@@ -74,7 +74,9 @@ describe('branded output contract constants', () => {
   })
 
   it('exposes a derivative version constant for the future derivative cache', () => {
-    expect(WATERMARK_DERIVATIVE_VERSION).toBe('v1')
+    // v2: bumped when the legacy gold badge asset was replaced with the
+    // canonical V4 lime mark — badge asset is an explicit bump trigger.
+    expect(WATERMARK_DERIVATIVE_VERSION).toBe('v2')
   })
 
   it('the contract object is frozen so a caller cannot mutate it at runtime', () => {

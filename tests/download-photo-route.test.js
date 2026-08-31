@@ -37,8 +37,8 @@ vi.mock('@vercel/blob', () => ({
 const fetchMock = vi.fn()
 vi.stubGlobal('fetch', fetchMock)
 
-const DERIVATIVE_URL = 'https://store123.public.blob.vercel-storage.com/derivatives/wm-v1/photo-1.jpg'
-const DERIVATIVE_PATH = 'derivatives/wm-v1/photo-1.jpg'
+const DERIVATIVE_URL = 'https://store123.public.blob.vercel-storage.com/derivatives/wm-v2/photo-1.jpg'
+const DERIVATIVE_PATH = 'derivatives/wm-v2/photo-1.jpg'
 /** In-memory stand-in for the Blob store, so a put makes later heads succeed. */
 const storedDerivatives = new Map()
 

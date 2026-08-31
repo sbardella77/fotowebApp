@@ -117,7 +117,7 @@ describe('identity: path and lock key', () => {
 
     expect(display.buildDisplayDerivativePath(PHOTO_ID)).not.toBe(branded.buildDerivativePath(PHOTO_ID))
     expect(display.buildDisplayTransformLockKey(PHOTO_ID)).not.toBe(branded.buildTransformLockKey(PHOTO_ID))
-    expect(branded.buildDerivativePath(PHOTO_ID)).toBe(`derivatives/wm-v1/${PHOTO_ID}.jpg`)
+    expect(branded.buildDerivativePath(PHOTO_ID)).toBe(`derivatives/wm-v2/${PHOTO_ID}.jpg`)
   })
 
   it('freezes the display output constants', async () => {
