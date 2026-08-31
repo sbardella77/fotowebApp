@@ -55,7 +55,7 @@ export function MarketingNav({ variant = 'fixed', ctaAction = 'link' }) {
 
       <nav className={`${navClass} bg-background/85 backdrop-blur-2xl border-b border-border sm:bg-background/70`}>
         <div className="container flex h-16 items-center justify-between px-4 max-[359px]:px-2">
-          <SnapRoomsLogo href={homeHref} size="md" className="flex-shrink-0" />
+          <SnapRoomsLogo href={homeHref} size="xl" className="flex-shrink-0" />
 
           {/* Desktop links */}
           <div className="hidden items-center gap-1 sm:flex">

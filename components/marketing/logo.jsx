@@ -2,12 +2,18 @@ const ICON_SIZES = {
   sm: 'h-8 w-8',
   md: 'h-9 w-9',
   lg: 'h-12 w-12',
+  // The canonical mark's inked glyph fills only ~53% of its SVG viewBox
+  // (internal padding baked into the asset), so a box this size renders a
+  // visible glyph of ~26-28px — used by the marketing navbar, where `md`
+  // was reading as too small next to the wordmark.
+  xl: 'h-[52px] w-[52px]',
 }
 
 const WORDMARK_SIZES = {
   sm: 'text-sm',
   md: 'text-[15px]',
   lg: 'text-xl',
+  xl: 'text-[15px]', // same as md — only the icon grows for this variant
 }
 
 /**
