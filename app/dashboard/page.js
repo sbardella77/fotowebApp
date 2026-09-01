@@ -428,7 +428,13 @@ export default function DashboardPage() {
 
   const handleProfessionalUpgrade = (billingInterval) => {
     const { entryPoint, upsellType, upsellSource } = professionalUpgradeContext
-    closeProfessionalUpgradeModal()
+    // Do not close the modal here: it owns the checkoutBusy-driven disabled/
+    // spinner state (see ProfessionalUpgradeModal), and closing before
+    // startCheckout even sets checkoutBusy=true meant that feedback could
+    // never render. Success navigates away via window.location.href in
+    // startCheckout; failure resets checkoutBusy and leaves the modal open
+    // so the existing error banner (DashboardTopBar) is visible and retry
+    // is possible.
     startCheckout('professional', null, entryPoint, upsellType, upsellSource, {}, billingInterval)
   }
 

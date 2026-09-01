@@ -61,6 +61,10 @@ export async function POST(request) {
 
     body = await request.json().catch(() => ({}))
     const { intent, eventId, upsellType, upsellSource, extraMetadata = {}, billingInterval } = body
+    // Hoisted above the rate-limit block (and reused below) so the bucket a
+    // request is rate-limited against and the price it actually purchases
+    // are always derived from the exact same normalization.
+    const normalizedBillingInterval = billingInterval === 'annual' ? 'annual' : 'monthly'
 
     // Rate limit by owner + intent before any Stripe call
     const limitConfig =
@@ -71,8 +75,13 @@ export async function POST(request) {
           : PAYMENT_LIMITS.checkoutSession
 
     const clientIp = getClientIp(request)
-    const ownerKey = `checkout:${intent}:owner:${hashIdentifier(ownerEmail)}`
-    const ipKey = `checkout:${intent}:ip:${hashIdentifier(clientIp)}`
+    // Professional Monthly and Annual are billed via distinct Stripe prices
+    // and are legitimately compared/retried independently by users, so they
+    // get separate buckets. Every other intent keeps its original key
+    // unchanged (rateLimitScope === intent for all of them).
+    const rateLimitScope = intent === 'professional' ? `${intent}:${normalizedBillingInterval}` : intent
+    const ownerKey = `checkout:${rateLimitScope}:owner:${hashIdentifier(ownerEmail)}`
+    const ipKey = `checkout:${rateLimitScope}:ip:${hashIdentifier(clientIp)}`
     const ownerRate = limitConfig.owner
       ? await checkRateLimit(ownerKey, limitConfig.owner.max, limitConfig.owner.window)
       : { limited: false }
@@ -132,8 +141,8 @@ export async function POST(request) {
       return NextResponse.json({ error: 'eventId must not be provided for extra_event purchases' }, { status: 400 })
     }
 
-    // Validate billing interval for subscriptions
-    const normalizedBillingInterval = billingInterval === 'annual' ? 'annual' : 'monthly'
+    // Validate billing interval for subscriptions (normalizedBillingInterval
+    // is computed earlier, alongside the rate-limit key construction)
     if (intent === 'professional' && billingInterval && !['monthly', 'annual'].includes(billingInterval)) {
       return NextResponse.json(
         { error: 'Invalid billing interval. Choose monthly or annual.' },
