@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { Menu, ChevronDown, Camera, Users } from 'lucide-react'
 import { SnapRoomsLogo } from '@/components/marketing/logo'
 import { LanguageSwitcher } from '@/components/language-switcher'
+import { useOwnerSession } from '@/lib/use-owner-session'
 import { useTranslations, useLocale } from '@/components/i18n-provider'
 import { localizedPath } from '@/lib/i18n/config'
 import { trackEvent } from '@/lib/analytics/track-client'
@@ -25,6 +26,9 @@ export function MarketingNav({ variant = 'fixed', ctaAction = 'link' }) {
   const locale = useLocale()
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
+  // Single owner-session check, shared by the header's auth actions and the
+  // Sheet menu's account entry below — see auth-aware-nav-actions.jsx.
+  const { authenticated, loading: authLoading } = useOwnerSession()
 
   const navClass =
     variant === 'fixed'
@@ -54,7 +58,7 @@ export function MarketingNav({ variant = 'fixed', ctaAction = 'link' }) {
       </a>
 
       <nav className={`${navClass} bg-background/85 backdrop-blur-2xl border-b border-border sm:bg-background/70`}>
-        <div className="container flex h-16 items-center justify-between px-4 max-[359px]:px-2">
+        <div className="container flex h-16 items-center justify-between px-3 sm:px-4">
           <SnapRoomsLogo href={homeHref} size="xl" className="flex-shrink-0" />
 
           {/* Desktop links */}
@@ -105,17 +109,31 @@ export function MarketingNav({ variant = 'fixed', ctaAction = 'link' }) {
             </a>
           </div>
 
-          <div className="flex items-center gap-2 max-[359px]:gap-1 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3">
             <div className="mx-1 hidden h-4 w-px bg-border sm:block" />
 
-            <LanguageSwitcher />
+            {/* Hidden below `sm`: there isn't room for all four controls
+                (language, sign-in, Create Event, hamburger) at phone widths
+                without crowding the primary CTA. The same switcher is
+                always available in the Sheet menu below. */}
+            <div className="hidden sm:block">
+              <LanguageSwitcher />
+            </div>
 
-            <AuthAwareNavActions t={t} anonymousCreateHref={anonymousCreateHref} />
+            <AuthAwareNavActions
+              t={t}
+              anonymousCreateHref={anonymousCreateHref}
+              authenticated={authenticated}
+              loading={authLoading}
+            />
 
-            {/* Mobile menu trigger: exposes the links that collapse below `sm`/`lg`.
-                Language switcher and auth actions are already visible at every
-                width via their own internal responsive variants, so they are
-                intentionally not duplicated here. */}
+            {/* Mobile menu trigger: exposes the links that collapse below
+                `sm`/`lg`, the language switcher (hidden from the header
+                itself below `sm`), and a full-text sign-in/dashboard entry
+                as a backup to the header's own compact mobile control.
+                Create Event is already visible at every width via its own
+                responsive variant, so it is intentionally not duplicated
+                here. */}
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
               <SheetTrigger asChild>
                 <Button
@@ -162,6 +180,31 @@ export function MarketingNav({ variant = 'fixed', ctaAction = 'link' }) {
                       {t.pricing}
                     </a>
                   </SheetClose>
+
+                  <div className="my-1 border-t border-border" role="separator" />
+
+                  {/* Always available here — this is the one place the
+                      language switcher is guaranteed reachable below `sm`,
+                      since the header itself hides it at those widths. */}
+                  <div className="px-3 py-1">
+                    <LanguageSwitcher />
+                  </div>
+
+                  {/* Full-text account entry — a backup to the header's own
+                      icon-only mobile sign-in control (see
+                      auth-aware-nav-actions.jsx), so sign-in is never
+                      exclusively behind an icon. Omitted only while the
+                      owner-session check is still loading. */}
+                  {!authLoading && (
+                    <SheetClose asChild>
+                      <a
+                        href={authenticated ? '/dashboard' : '/dashboard/login'}
+                        className="rounded-lg px-3 py-3 text-base font-medium text-foreground hover:bg-accent"
+                      >
+                        {authenticated ? t.dashboard : t.signIn}
+                      </a>
+                    </SheetClose>
+                  )}
                 </nav>
               </SheetContent>
             </Sheet>
