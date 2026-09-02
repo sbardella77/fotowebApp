@@ -563,6 +563,10 @@ export function WeddingLandingPage({ locale = 'en' }) {
                   q: t.faq6Question,
                   a: t.faq6Answer,
                 },
+                {
+                  q: t.faq7Question,
+                  a: t.faq7Answer,
+                },
               ].map((item, i) => (
                 <AccordionItem key={i} value={`item-${i}`} className="border-border">
                   <AccordionTrigger className="text-left font-display text-base font-semibold tracking-tight text-foreground hover:no-underline">
