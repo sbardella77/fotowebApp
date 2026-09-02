@@ -83,14 +83,37 @@ describe('Wedding page — WhatsApp comparison FAQ (7th FAQ, SEO Wedding Landing
   })
 })
 
-describe('DE Wedding Title/H1 — MODE A (conservative): must remain unchanged', () => {
-  it('de.meta.weddingTitle is unchanged', () => {
-    expect(dictionaries.de.meta.weddingTitle).toBe('Hochzeitsfoto-Sharing — SnapRooms')
+describe('DE Wedding Title/H1 — lexical optimization (SnapRooms DE Wedding SEO V1)', () => {
+  it('de.meta.weddingTitle matches the approved search-led wording', () => {
+    expect(dictionaries.de.meta.weddingTitle).toBe('Hochzeitsfotos sammeln & teilen — SnapRooms')
   })
 
-  it('de.wedding.heroHeadline1/heroHeadline2 are unchanged', () => {
-    expect(dictionaries.de.wedding.heroHeadline1).toBe('Hochzeits-Fotosharing')
-    expect(dictionaries.de.wedding.heroHeadline2).toBe('einfach gemacht')
+  it('de.wedding.heroHeadline1/heroHeadline2 render the approved H1 with correct du-register', () => {
+    expect(dictionaries.de.wedding.heroHeadline1).toBe('Alle Hochzeitsfotos deiner Gäste sammeln')
+    expect(dictionaries.de.wedding.heroHeadline2).toBe('— ganz einfach')
+    expect(dictionaries.de.wedding.heroHeadline1 + ' ' + dictionaries.de.wedding.heroHeadline2).toBe(
+      'Alle Hochzeitsfotos deiner Gäste sammeln — ganz einfach'
+    )
+    // Register guard: must use "deiner" (du-form), never "eurer" (ihr-form) — the rest of
+    // the page is consistently du-addressed (Sammle.../Teile.../Erstelle dein...).
+    expect(dictionaries.de.wedding.heroHeadline1).not.toMatch(/eurer/)
+  })
+
+  it('de.meta.weddingDescription (meta description) is unchanged', () => {
+    expect(dictionaries.de.meta.weddingDescription).toBe(
+      'Sammle alle Gästefotos deiner Hochzeit in einer wunderschönen Galerie. Keine App nötig — einfach Link oder QR-Code teilen.'
+    )
+  })
+
+  it('de.wedding.heroEyebrow and heroSubheadline are unchanged (out of scope this task)', () => {
+    expect(dictionaries.de.wedding.heroEyebrow).toBe('Hochzeits-Fotosharing')
+    expect(dictionaries.de.wedding.heroSubheadline).toBe(
+      'Sammle jedes Gästefoto in einer wunderschönen Galerie. Teile einen QR-Code, lass Gäste sofort hochladen und bewahre jeden Moment — keine App, keine Anmeldung.'
+    )
+  })
+
+  it('de.wedding.faq7Question (WhatsApp FAQ) is unchanged', () => {
+    expect(dictionaries.de.wedding.faq7Question).toBe('Warum nicht einfach eine WhatsApp-Gruppe nutzen?')
   })
 })
 
