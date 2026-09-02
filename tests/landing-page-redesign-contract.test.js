@@ -22,6 +22,7 @@ describe('landing page renders the new sections (Redesign V4, Phase 2)', () => {
     for (const path of [
       '/wedding-photo-sharing',
       '/birthday-photo-sharing',
+      '/private-party-photo-sharing',
       '/corporate-event-photo-sharing',
       '/for-wedding-photographers',
       '/for-event-planners',
@@ -65,7 +66,7 @@ describe('UseCasePreview card images exist on disk', () => {
   it('every photoSrc referenced in landing-page.jsx exists under public/', () => {
     const source = readComponent('components/landing-page.jsx')
     const matches = [...source.matchAll(/photoSrc:\s*'([^']+)'/g)].map((m) => m[1])
-    expect(matches.length).toBe(5)
+    expect(matches.length).toBe(6)
     for (const src of matches) {
       const filePath = resolve(ROOT, 'public' + src)
       expect(existsSync(filePath), `missing asset: ${src}`).toBe(true)

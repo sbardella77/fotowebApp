@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { trackEvent, trackPageView } from '@/lib/analytics/track-client'
-import { EVENT_LANDING_VIEW, EVENT_HERO_CTA_CLICKED, EVENT_CREATE_ROOM_CLICKED } from '@/lib/analytics/events'
+import { EVENT_LANDING_VIEW, EVENT_HERO_CTA_CLICKED, EVENT_CREATE_ROOM_CLICKED, EVENT_PRICING_LINK_CLICKED } from '@/lib/analytics/events'
 import { useTranslations } from '@/components/i18n-provider'
 import { localizedPath } from '@/lib/i18n/config'
 import {
@@ -691,6 +691,17 @@ export function WeddingLandingPage({ locale = 'en' }) {
 
             <p className="mt-4 font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
               {t.finalMicrocopy}
+            </p>
+            <p className="mt-3 text-xs text-muted-foreground">
+              <a
+                href={localizedPath(locale, '/pricing')}
+                className="underline underline-offset-2 hover:text-foreground transition-colors"
+                onClick={() => {
+                  trackEvent(EVENT_PRICING_LINK_CLICKED, { source: 'landing_wedding_final', locale, location: 'wedding_final_cta' })
+                }}
+              >
+                {t.viewPricing}
+              </a>
             </p>
           </div>
         </div>

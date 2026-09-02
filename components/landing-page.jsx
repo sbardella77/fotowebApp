@@ -6,6 +6,7 @@ import {
   Heart,
   PartyPopper,
   Building2,
+  Wine,
   CheckCircle2,
   ArrowRight,
   Sparkles,
@@ -307,6 +308,13 @@ export function LandingPage({
                   title: t.birthdays,
                   desc: t.birthdaysDesc,
                   photoSrc: '/marketing-placeholder/usecase-birthday-card.jpg',
+                },
+                {
+                  href: localizedPath(locale, '/private-party-photo-sharing'),
+                  icon: Wine,
+                  title: t.privateParty,
+                  desc: t.privatePartyDesc,
+                  photoSrc: '/marketing-placeholder/usecase-private-party-card.jpg',
                 },
                 {
                   href: localizedPath(locale, '/corporate-event-photo-sharing'),
