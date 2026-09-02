@@ -194,3 +194,89 @@ describe('localStorageDriver contributorId propagation (init → meta → comple
     expect(result.url).toContain('wedding-2026')
   })
 })
+
+describe('localStorageDriver uploadActorType propagation (init → meta → complete)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    stat.mockResolvedValue({ size: 1024 })
+  })
+
+  it('initUploadSession writes uploadActorType into the session meta file', async () => {
+    await localStorageDriver.initUploadSession({
+      eventSlug: 'wedding-2026',
+      fileName: 'photo.jpg',
+      fileSize: 1024,
+      mimeType: 'image/jpeg',
+      totalChunks: 1,
+      uploadActorType: 'owner',
+    })
+
+    const [, metaJson] = writeFile.mock.calls[0]
+    const meta = JSON.parse(metaJson)
+    expect(meta.uploadActorType).toBe('owner')
+  })
+
+  it('initUploadSession defaults uploadActorType to null when omitted (anonymous guest upload)', async () => {
+    await localStorageDriver.initUploadSession({
+      eventSlug: 'wedding-2026',
+      fileName: 'photo.jpg',
+      fileSize: 1024,
+      mimeType: 'image/jpeg',
+      totalChunks: 1,
+    })
+
+    const [, metaJson] = writeFile.mock.calls[0]
+    const meta = JSON.parse(metaJson)
+    expect(meta.uploadActorType).toBeNull()
+  })
+
+  it('completeUploadSession returns the uploadActorType stored in meta', async () => {
+    readFile.mockImplementation(async (filePath) => {
+      if (String(filePath).endsWith('meta.json')) {
+        return JSON.stringify({
+          sessionId: 'sess-1',
+          eventSlug: 'wedding-2026',
+          fileName: 'photo.jpg',
+          mimeType: 'image/jpeg',
+          totalChunks: 1,
+          directory: 'events',
+          uploadActorType: 'guest',
+        })
+      }
+      return Buffer.from('chunk-bytes')
+    })
+
+    const result = await localStorageDriver.completeUploadSession({
+      sessionId: 'sess-1',
+      photoId: 'photo-1',
+    })
+
+    expect(result.uploadActorType).toBe('guest')
+  })
+
+  it('completeUploadSession returns null uploadActorType for a legacy meta file that never had it', async () => {
+    readFile.mockImplementation(async (filePath) => {
+      if (String(filePath).endsWith('meta.json')) {
+        // Legacy meta.json written before this field existed — no
+        // uploadActorType key at all. Must stay null (unknown), never
+        // fall back to 'guest'.
+        return JSON.stringify({
+          sessionId: 'sess-1',
+          eventSlug: 'wedding-2026',
+          fileName: 'photo.jpg',
+          mimeType: 'image/jpeg',
+          totalChunks: 1,
+          directory: 'events',
+        })
+      }
+      return Buffer.from('chunk-bytes')
+    })
+
+    const result = await localStorageDriver.completeUploadSession({
+      sessionId: 'sess-1',
+      photoId: 'photo-1',
+    })
+
+    expect(result.uploadActorType).toBeNull()
+  })
+})

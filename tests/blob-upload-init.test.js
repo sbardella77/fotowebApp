@@ -468,6 +468,41 @@ describe('createServerBoundBlobUploadInit', () => {
     expect(record.momentId).toBeNull()
   })
 
+  it('ROOM_PHOTO: saves uploadActorType when provided (server-resolved, analytics attribution only)', async () => {
+    const prisma = makeFakePrisma()
+    const driver = makeFakeDriver()
+
+    await createServerBoundBlobUploadInit({
+      prisma,
+      storageDriver: driver,
+      event: EVENT,
+      payload: PAYLOAD,
+      uploadKind: BlobUploadKind.ROOM_PHOTO,
+      handleUploadUrl: '/api/uploads/blob',
+      uploadActorType: 'owner',
+    })
+
+    const record = prisma.blobUploadSession._store[0]
+    expect(record.uploadActorType).toBe('owner')
+  })
+
+  it('ROOM_PHOTO: uploadActorType null when omitted (anonymous guest upload)', async () => {
+    const prisma = makeFakePrisma()
+    const driver = makeFakeDriver()
+
+    await createServerBoundBlobUploadInit({
+      prisma,
+      storageDriver: driver,
+      event: EVENT,
+      payload: PAYLOAD,
+      uploadKind: BlobUploadKind.ROOM_PHOTO,
+      handleUploadUrl: '/api/uploads/blob',
+    })
+
+    const record = prisma.blobUploadSession._store[0]
+    expect(record.uploadActorType).toBeNull()
+  })
+
   it('PRIVATE_DELIVERY: metadata fields are null when caller does not pass them', async () => {
     const prisma = makeFakePrisma()
     const driver = makeFakeDriver()
@@ -486,6 +521,10 @@ describe('createServerBoundBlobUploadInit', () => {
     expect(record.caption).toBeNull()
     expect(record.momentId).toBeNull()
     expect(record.contributorId).toBeNull()
+    // PRIVATE_DELIVERY sessions never receive uploadActorType — that upload
+    // kind is attributed via PrivateAsset.uploadedByRole instead, which is
+    // out of scope for this field (see lib/server/gallery-upload-actor.js).
+    expect(record.uploadActorType).toBeNull()
   })
 
   it('PHOTOGRAPHER_UPLOAD: metadata fields are null when caller does not pass them', async () => {
@@ -506,5 +545,6 @@ describe('createServerBoundBlobUploadInit', () => {
     expect(record.caption).toBeNull()
     expect(record.momentId).toBeNull()
     expect(record.contributorId).toBeNull()
+    expect(record.uploadActorType).toBeNull()
   })
 })

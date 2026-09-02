@@ -2,6 +2,8 @@ import { createHash, randomUUID } from 'crypto'
 import { BlobError, head } from '@vercel/blob'
 import { handleUpload } from '@vercel/blob/client'
 import { normalizeContributorId } from '@/lib/server/contributor-id'
+import { classifyGalleryUploadActor } from '@/lib/server/gallery-upload-actor'
+import { normalizePhotoRecord } from '@/lib/server/repository-mappers'
 import {
   generateManagementToken,
   hashManagementToken,
@@ -1149,6 +1151,18 @@ const initUpload = async (request) => {
   // upload (see lib/server/contributor-id.js).
   const contributorId = normalizeContributorId(payload.contributorId)
 
+  // Analytics attribution only — never authorization. Resolved once, here,
+  // from the request's own owner-session cookie (never client-supplied),
+  // and bound into the session so it cannot be altered by the completion
+  // payload. A missing/invalid/mismatched session simply classifies as
+  // 'guest' and never blocks or degrades the upload. See
+  // lib/server/gallery-upload-actor.js.
+  const verifiedOwnerEmail = await getOwnerAuthentication(request)
+  const uploadActorType = classifyGalleryUploadActor({
+    verifiedOwnerEmail,
+    eventOwnerEmail: event.ownerEmail,
+  })
+
   if (storageDriver.mode === 'vercel-blob') {
     if (!prisma) {
       return json(
@@ -1168,12 +1182,13 @@ const initUpload = async (request) => {
       caption: payload.caption,
       momentId: payload.momentId,
       contributorId,
+      uploadActorType,
     })
 
     return json({ session }, 201)
   }
 
-  const session = await storageDriver.initUploadSession({ ...payload, contributorId })
+  const session = await storageDriver.initUploadSession({ ...payload, contributorId, uploadActorType })
   return json({ session }, 201)
 }
 
@@ -1546,7 +1561,11 @@ const completeUpload = withTiming('completeUpload', async (request) => {
 
     return json(
       {
-        photo: result.photo,
+        // normalizePhotoRecord strips server-only attribution metadata
+        // (uploadActorType) before this reaches the client — parity with
+        // the local-upload path, where repository.createPhoto() already
+        // normalizes its return value the same way.
+        photo: normalizePhotoRecord(result.photo),
         event: freshEvent,
         idempotent: result.idempotent,
       },
@@ -1632,6 +1651,10 @@ const completeUpload = withTiming('completeUpload', async (request) => {
     // init time) — never from this complete-request body — for parity with
     // the Vercel Blob path's session-authoritative contract.
     contributorId: fileResult.contributorId,
+    // Same session-authoritative contract as contributorId: uploadActorType
+    // was resolved server-side at init time and must never be re-derived or
+    // accepted from this completion request body.
+    uploadActorType: fileResult.uploadActorType,
   })
 
   // Eager, best-effort, post-commit (STEP 7.15e) — parity with the Blob path.

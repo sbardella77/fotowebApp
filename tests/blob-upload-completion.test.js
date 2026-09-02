@@ -828,6 +828,32 @@ describe('transaction', () => {
     expect(result.photo.contributorId).toBeNull()
   })
 
+  it('19d. Photo.uploadActorType usa il valore risolto server-side nella sessione (mai dal body client)', async () => {
+    const session = makeSession({ uploadActorType: 'owner' })
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const result = await completeRoomPhotoBlobUpload({ ...makeDefaultArgs(), prisma })
+
+    // Persisted to the database...
+    const [photo] = [...prisma._photos.values()]
+    expect(photo.uploadActorType).toBe('owner')
+    // ...but normalizePhotoRecord strips it from the response (Phase 14
+    // privacy rule: server-only attribution metadata, never public API surface).
+    expect(result.photo.uploadActorType).toBeUndefined()
+  })
+
+  it('19e. Photo.uploadActorType è null in database quando la sessione (legacy o guest anonimo) non lo ha', async () => {
+    const session = makeSession()
+    delete session.uploadActorType
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const result = await completeRoomPhotoBlobUpload({ ...makeDefaultArgs(), prisma })
+
+    const [photo] = [...prisma._photos.values()]
+    expect(photo.uploadActorType).toBeNull()
+    expect(result.photo.uploadActorType).toBeUndefined()
+  })
+
   it('20. storedName deriva da expectedPathname della sessione', async () => {
     const args = makeDefaultArgs()
     await completeRoomPhotoBlobUpload(args)
