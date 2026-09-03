@@ -142,25 +142,31 @@ model EventMoment {
 }
 
 model Photo {
-  id            String       @id @default(uuid())
-  eventId       String
-  originalName  String
-  storedName    String
-  mimeType      String
-  size          Int
-  url           String
-  uploaderName  String?
-  caption       String?
-  status        PhotoStatus  @default(VISIBLE)
-  uploadSource  String       @default("mobile")
-  width         Int?
-  height        Int?
-  momentId      String?
-  contributorId String?
-  moment        EventMoment? @relation(fields: [momentId], references: [id], onDelete: SetNull)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  event         Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  id              String       @id @default(uuid())
+  eventId         String
+  originalName    String
+  storedName      String
+  mimeType        String
+  size            Int
+  url             String
+  uploaderName    String?
+  caption         String?
+  status          PhotoStatus  @default(VISIBLE)
+  uploadSource    String       @default("mobile")
+  width           Int?
+  height          Int?
+  momentId        String?
+  contributorId   String?
+  // Server-derived only — never trust a client-supplied value. 'owner' when
+  // the request carried a valid owner session matching this photo's event
+  // owner at upload time, 'guest' otherwise. NULL on rows created before
+  // this field existed: unknown, never treated as 'guest'. Analytics
+  // attribution only — never used for authorization/entitlements.
+  uploadActorType String?
+  moment          EventMoment? @relation(fields: [momentId], references: [id], onDelete: SetNull)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  event           Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@index([eventId, createdAt(sort: Desc)])
   @@index([status, createdAt(sort: Desc)])
@@ -276,10 +282,15 @@ model BlobUploadSession {
   mimeType         String
   expectedSize     Int
 
-  uploaderName  String?
-  caption       String?
-  momentId      String?
-  contributorId String?
+  uploaderName    String?
+  caption         String?
+  momentId        String?
+  contributorId   String?
+  // Server-bound at init time, for ROOM_PHOTO sessions only — never for
+  // PRIVATE_DELIVERY/PHOTOGRAPHER_UPLOAD (those use PrivateAsset.uploadedByRole
+  // instead). Carried through to Photo.uploadActorType at completion; never
+  // read from the completion request payload. See lib/server/gallery-upload-actor.js.
+  uploadActorType String?
 
   blobUrl  String?
   resultId String?

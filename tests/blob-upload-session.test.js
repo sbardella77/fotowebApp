@@ -231,6 +231,21 @@ describe('createBlobUploadSession', () => {
     expect(session.contributorId).toBeNull()
   })
 
+  it('persists a provided uploadActorType (server-resolved, analytics attribution only)', async () => {
+    const prisma = makeFakePrisma()
+    const session = await createBlobUploadSession(prisma, {
+      ...BASE_CREATE_INPUT,
+      uploadActorType: 'guest',
+    })
+    expect(session.uploadActorType).toBe('guest')
+  })
+
+  it('defaults uploadActorType to null when omitted (PRIVATE_DELIVERY/PHOTOGRAPHER_UPLOAD callers, and anonymous guest uploads)', async () => {
+    const prisma = makeFakePrisma()
+    const session = await createBlobUploadSession(prisma, BASE_CREATE_INPUT)
+    expect(session.uploadActorType).toBeNull()
+  })
+
   it('8. rejects path traversal, backslash, and percent-encoding', async () => {
     const prisma = makeFakePrisma()
     const bad = [

@@ -85,6 +85,41 @@ describe('prismaGalleryRepository.createPhoto — contributorId', () => {
   })
 })
 
+describe('prismaGalleryRepository.createPhoto — uploadActorType', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('persists a provided uploadActorType to the database, but never exposes it on the returned DTO (Phase 14 privacy rule)', async () => {
+    const prisma = makeFakePrisma()
+    getPrismaClient.mockResolvedValue(prisma)
+
+    const photo = await prismaGalleryRepository.createPhoto({
+      ...BASE_INPUT,
+      uploadActorType: 'owner',
+    })
+
+    expect(prisma.photo.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ uploadActorType: 'owner' }) }),
+    )
+    // normalizePhotoRecord strips uploadActorType — it's server-only
+    // attribution metadata, never part of the public Photo API surface.
+    expect(photo.uploadActorType).toBeUndefined()
+  })
+
+  it('legacy/anonymous call site without uploadActorType still succeeds, persists null to the database', async () => {
+    const prisma = makeFakePrisma()
+    getPrismaClient.mockResolvedValue(prisma)
+
+    const photo = await prismaGalleryRepository.createPhoto({ ...BASE_INPUT })
+
+    expect(prisma.photo.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ uploadActorType: null }) }),
+    )
+    expect(photo.uploadActorType).toBeUndefined()
+  })
+})
+
 describe('mockGalleryRepository.createPhoto — contributorId', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -114,5 +149,42 @@ describe('mockGalleryRepository.createPhoto — contributorId', () => {
     const photo = await mockGalleryRepository.createPhoto({ ...BASE_INPUT })
 
     expect(photo.contributorId).toBeNull()
+  })
+})
+
+describe('mockGalleryRepository.createPhoto — uploadActorType', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  function makeLocalDatabase() {
+    return JSON.stringify({
+      events: [{ id: 'event-1', slug: 'wedding-2026', photos: [] }],
+      photos: [],
+    })
+  }
+
+  // mockGalleryRepository (the local-JSON DATA_ACCESS_DRIVER, dev-only —
+  // Preview/Production always run Prisma) does not route through
+  // normalizePhotoRecord, so uploadActorType is present on its returned
+  // object exactly like contributorId already is in this driver — this is
+  // pre-existing, unrelated behavior, not something this change alters.
+  it('persists a provided uploadActorType', async () => {
+    readFile.mockResolvedValue(makeLocalDatabase())
+
+    const photo = await mockGalleryRepository.createPhoto({
+      ...BASE_INPUT,
+      uploadActorType: 'guest',
+    })
+
+    expect(photo.uploadActorType).toBe('guest')
+  })
+
+  it('legacy/anonymous call site without uploadActorType still succeeds, persists null', async () => {
+    readFile.mockResolvedValue(makeLocalDatabase())
+
+    const photo = await mockGalleryRepository.createPhoto({ ...BASE_INPUT })
+
+    expect(photo.uploadActorType).toBeNull()
   })
 })
