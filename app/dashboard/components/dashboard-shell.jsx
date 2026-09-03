@@ -1,6 +1,6 @@
 'use client'
 
-import { Menu, X } from 'lucide-react'
+import { ChevronLeft, LogOut, Menu, X } from 'lucide-react'
 import { useState } from 'react'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { useMediaQuery } from '@/lib/hooks/use-media-query'
@@ -14,6 +14,9 @@ export function DashboardShell({
   onMobileWorkspaceOpenChange,
   onWorkspaceCloseAutoFocus,
   workspaceLabel,
+  onBackToEvents,
+  onLogout,
+  t,
 }) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   // Single source of truth for which of the two workspace presentations is
@@ -94,6 +97,33 @@ export function DashboardShell({
             className="flex w-full flex-col overflow-hidden p-0 sm:max-w-md"
           >
             <SheetTitle className="sr-only">{workspaceLabel}</SheetTitle>
+            {/* Explicit, always-on-screen navigation out of the single-event
+                workspace — without this, the Sheet's only exit was the
+                default Radix close (X) rendered on top of the event cover
+                photo, with no text label and no way to reach logout at all
+                (the owner sidebar containing it isn't mounted below `xl`).
+                Solid background (not overlaid on the cover image) and a
+                real label, unlike the default close control. `pr-14` keeps
+                it clear of that default X, which still renders (Escape/
+                overlay-click affordance) at the sheet's top-right corner. */}
+            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-background py-2 pl-2 pr-14">
+              <button
+                type="button"
+                onClick={onBackToEvents}
+                className="flex h-10 items-center gap-1 rounded-lg px-2 text-sm font-medium text-foreground hover:bg-secondary"
+              >
+                <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
+                {t.allEvents}
+              </button>
+              <button
+                type="button"
+                onClick={onLogout}
+                aria-label={t.signOut}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
+              >
+                <LogOut className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
             <div className="flex-1 overflow-y-auto">{rightPanel}</div>
           </SheetContent>
         </Sheet>

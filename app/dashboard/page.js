@@ -1429,6 +1429,12 @@ export default function DashboardPage() {
       onMobileWorkspaceOpenChange={setMobileWorkspaceOpen}
       onWorkspaceCloseAutoFocus={handleWorkspaceCloseAutoFocus}
       workspaceLabel={t.eventWorkspace}
+      onBackToEvents={() => {
+        setMobileWorkspaceOpen(false)
+        router.push('/dashboard')
+      }}
+      onLogout={logout}
+      t={t}
       sidebar={
         <DashboardSidebar
           experience={experience}
