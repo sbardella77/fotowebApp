@@ -187,7 +187,10 @@ committed to the repository.
 | Variable | Notes |
 |---|---|
 | `NEXT_PUBLIC_POSTHOG_KEY` | |
-| `NEXT_PUBLIC_POSTHOG_HOST` | Optional, has a default |
+| `NEXT_PUBLIC_POSTHOG_HOST` | Optional, has a default. Public ingestion host only — never used for privileged queries. |
+| `POSTHOG_PERSONAL_API_KEY` | Server-only. Least-privilege, query-scoped Personal API Key. Never exposed to the client. Required for `GET /api/admin/metrics/traffic`. |
+| `POSTHOG_PROJECT_ID` | Server-only. The PostHog project ID the above key can query. |
+| `POSTHOG_API_HOST` | Server-only. Optional, defaults to `https://us.posthog.com`. This is PostHog's privileged Query API host, distinct from `NEXT_PUBLIC_POSTHOG_HOST` — set to `https://eu.posthog.com` if the project is EU-hosted. |
 
 **Auth / security**
 

@@ -18,6 +18,7 @@ import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { buildEmail } from '@/lib/server/email/email-layout'
 import {
+  adminMetricsRangeSchema,
   adminModerationSchema,
   adminPasswordSchema,
   blobUploadSessionCompleteSchema,
@@ -79,6 +80,8 @@ import {
   processGalleryDownloadJobIfPending,
 } from '@/lib/server/gallery-download-job'
 import { trackServerEvent } from '@/lib/analytics/track-server'
+import { getTrafficMetrics } from '@/lib/server/admin-analytics-posthog'
+import { PostHogQueryError, POSTHOG_ERROR } from '@/lib/server/posthog-query'
 import {
   EVENT_ROOM_CREATED,
   EVENT_OWNER_CLAIM_COMPLETED,
@@ -2603,6 +2606,58 @@ const getAdminEvent = async (request, slug) => {
   return stripPublicCorsHeaders(await getEvent(slug, { includeHidden: true }))
 }
 
+// Maps a PostHogQueryError category to a safe HTTP status. The upstream
+// response body is never forwarded to the caller — only this fixed,
+// pre-written message and status.
+const POSTHOG_ERROR_STATUS = {
+  [POSTHOG_ERROR.NOT_CONFIGURED]: 503,
+  [POSTHOG_ERROR.TIMEOUT]: 504,
+  [POSTHOG_ERROR.AUTH_FAILED]: 502,
+  [POSTHOG_ERROR.RATE_LIMITED]: 429,
+  [POSTHOG_ERROR.QUERY_FAILED]: 502,
+  [POSTHOG_ERROR.INVALID_RESPONSE]: 502,
+}
+
+const getAdminTrafficMetrics = async (request) => {
+  // Auth first, then validate input, then (only then) touch PostHog — an
+  // unauthenticated/invalid request must never trigger an upstream query.
+  const authError = await requireAdmin(request)
+  if (authError) return authError
+
+  const rateLimitCheck = await checkAdminRateLimit(request, ADMIN_LIMITS.read)
+  if (rateLimitCheck) return rateLimitCheck
+
+  const { searchParams } = new URL(request.url)
+  const rangeResult = adminMetricsRangeSchema.safeParse(searchParams.get('range') || '30d')
+  if (!rangeResult.success) {
+    return jsonPrivate({ error: formatZodError(rangeResult.error) }, 400)
+  }
+  const range = rangeResult.data
+
+  // 'all' is deferred for V1: there is no verified, trustworthy PostHog
+  // project-start boundary to bound the query by, and deriving one via a
+  // live MIN(timestamp) discovery query is left to a follow-up rather than
+  // risking an unbounded historical scan. See admin-analytics-posthog.js.
+  if (range === 'all') {
+    return jsonPrivate({
+      error: 'range_not_supported',
+      message: 'range=all is deferred for V1. Use range=7d, 30d, or 90d.',
+    }, 501)
+  }
+
+  try {
+    const metrics = await getTrafficMetrics(range)
+    return jsonPrivate({ range, source: 'posthog', ...metrics })
+  } catch (error) {
+    if (error instanceof PostHogQueryError) {
+      const status = POSTHOG_ERROR_STATUS[error.category] || 502
+      return jsonPrivate({ error: error.category, message: 'Analytics data is temporarily unavailable' }, status)
+    }
+    console.error('[admin/metrics/traffic] unexpected error:', error?.message)
+    return jsonPrivate({ error: 'POSTHOG_QUERY_FAILED', message: 'Analytics data is temporarily unavailable' }, 502)
+  }
+}
+
 const moderatePhoto = async (request, photoId) => {
   const authError = await requireAdminWithCsrf(request)
   if (authError) return authError
@@ -3571,6 +3626,10 @@ async function handleRoute(request, { params }) {
 
       if (segments.length === 3 && segments[1] === 'photos' && method === 'DELETE') {
         return deletePhoto(request, segments[2])
+      }
+
+      if (segments.length === 3 && segments[1] === 'metrics' && segments[2] === 'traffic' && method === 'GET') {
+        return getAdminTrafficMetrics(request)
       }
     }
 
