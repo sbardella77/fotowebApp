@@ -120,3 +120,7 @@ credentials.json
 *.key
 .credentials
 .env*.local
+
+# Local admin credential artifact (scrypt hash/salt for the `local` admin
+# auth driver) — must never be committed; see lib/server/admin-credential-store.js
+data/admin-auth.json
