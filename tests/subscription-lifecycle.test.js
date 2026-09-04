@@ -96,6 +96,106 @@ describe('resolveSubscriptionAccessState', () => {
   })
 })
 
+// canManageSubscription is portal ELIGIBILITY ("is there a real Stripe
+// subscription the Customer Portal can manage?"), a narrower question than
+// accountPremiumActive (app-level premium ENTITLEMENT). A legacy/inconsistent
+// owner can be premium-entitled with no Stripe subscription at all — that
+// state must never make the portal CTA eligible, even though it keeps full
+// premium app access.
+describe('canManageSubscription — portal eligibility contract', () => {
+  it('1. professional plan + no stripeSubscriptionId -> false (the inconsistent-account bug state)', () => {
+    const state = resolveSubscriptionAccessState({
+      plan: 'professional',
+      stripeSubscriptionId: null,
+    })
+    expect(state.canManageSubscription).toBe(false)
+  })
+
+  it('2. professional + active stripeSubscriptionId -> true', () => {
+    const state = resolveSubscriptionAccessState({
+      plan: 'professional',
+      subscriptionStatus: 'active',
+      stripeSubscriptionId: 'sub_active_123',
+    })
+    expect(state.canManageSubscription).toBe(true)
+  })
+
+  it('3. cancel_at_period_end (still active until period end) + stripeSubscriptionId -> true', () => {
+    const state = resolveSubscriptionAccessState({
+      plan: 'professional',
+      subscriptionStatus: 'active',
+      stripeSubscriptionId: 'sub_scheduled_cancel_123',
+      subscriptionCancelAtPeriodEnd: true,
+      subscriptionCurrentPeriodEnd: dateDaysFromNow(10),
+    })
+    expect(state.canManageSubscription).toBe(true)
+  })
+
+  it('4. fully canceled subscription (stripeSubscriptionId cleared) -> false, even with a cancellation record', () => {
+    const state = resolveSubscriptionAccessState({
+      plan: 'free',
+      subscriptionStatus: 'canceled',
+      stripeSubscriptionId: null,
+      subscriptionCanceledAt: new Date(),
+    })
+    expect(state.canManageSubscription).toBe(false)
+  })
+
+  it('5. free plan, no subscription -> false', () => {
+    const state = resolveSubscriptionAccessState({ plan: 'free' })
+    expect(state.canManageSubscription).toBe(false)
+  })
+
+  it('6. one-off product purchasers (plan stays free, no stripeSubscriptionId) -> false', () => {
+    // Pro Event / Wedding Pro / Extra Free Event never touch Owner.plan or
+    // stripeSubscriptionId — Event.billingTier / Owner.extraEventCredits are
+    // separate fields entirely (see checkout-session/route.js, webhook
+    // route.js). A stripeCustomerId may exist (created at checkout for any
+    // intent) but that alone must not grant portal eligibility.
+    const state = resolveSubscriptionAccessState({
+      plan: 'free',
+      stripeSubscriptionId: null,
+    })
+    expect(state.canManageSubscription).toBe(false)
+  })
+
+  it('past_due and unpaid keep the portal eligible while stripeSubscriptionId is still present (grace period is useful for updating payment method)', () => {
+    const pastDue = resolveSubscriptionAccessState({
+      plan: 'professional',
+      subscriptionStatus: 'past_due',
+      stripeSubscriptionId: 'sub_past_due_123',
+      subscriptionGraceUntil: dateDaysFromNow(3),
+    })
+    expect(pastDue.canManageSubscription).toBe(true)
+
+    const unpaid = resolveSubscriptionAccessState({
+      plan: 'professional',
+      subscriptionStatus: 'unpaid',
+      stripeSubscriptionId: 'sub_unpaid_123',
+    })
+    expect(unpaid.canManageSubscription).toBe(true)
+  })
+
+  it('trialing keeps the portal eligible while stripeSubscriptionId is present', () => {
+    const state = resolveSubscriptionAccessState({
+      plan: 'professional',
+      subscriptionStatus: 'trialing',
+      stripeSubscriptionId: 'sub_trial_123',
+    })
+    expect(state.canManageSubscription).toBe(true)
+  })
+
+  it('7. accountPremiumActive semantics are unchanged by the canManageSubscription fix — a legacy professional owner with no subscription id keeps full premium access', () => {
+    const state = resolveSubscriptionAccessState({
+      plan: 'professional',
+      stripeSubscriptionId: null,
+      // no subscriptionStatus -> legacy-owner branch
+    })
+    expect(state.accountPremiumActive).toBe(true)
+    expect(state.canManageSubscription).toBe(false)
+  })
+})
+
 describe('isPaymentFailureAlreadyHandled', () => {
   it('returns false for a brand new failed invoice', () => {
     const owner = { subscriptionStatus: 'active', lastInvoiceId: null, paymentFailedAt: null }
