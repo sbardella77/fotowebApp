@@ -5,6 +5,7 @@ import { verifyOwnerSessionToken } from '@/lib/server/owner-auth'
 import { verifySameOriginRequest, requireCsrfProtection } from '@/lib/server/csrf'
 import { checkRateLimit, getClientIp, hashIdentifier, PAYMENT_LIMITS } from '@/lib/server/rate-limiter'
 import { trackServerEvent } from '@/lib/analytics/track-server'
+import { getOwnerAnalyticsId } from '@/lib/analytics/identity'
 import { EVENT_ORIGINAL_DOWNLOAD_CHECKOUT_STARTED } from '@/lib/analytics/events'
 
 export const dynamic = 'force-dynamic'
@@ -169,7 +170,9 @@ export async function POST(request) {
         stripe_mode: 'payment',
         source: metadata.source,
       },
-      { distinctId: owner?.email || session.customer_email || event.id }
+      // Guest or owner, no auth required for this purchase — resolve the
+      // owner identity when one exists, but never fall back to raw email.
+      { distinctId: getOwnerAnalyticsId(owner?.id) || event.id }
     )
 
     return NextResponse.json({ url: session.url })

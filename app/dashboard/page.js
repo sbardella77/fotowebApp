@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import PhotoLightbox from '@/components/photo-lightbox'
 import { EventQRModal } from '@/components/event-qr-modal'
-import { trackEvent, identifyUser } from '@/lib/analytics/track-client'
+import { trackEvent, identifyUser, resetAnalyticsIdentity } from '@/lib/analytics/track-client'
+import { getOwnerAnalyticsId } from '@/lib/analytics/identity'
 import { trackUpsellImpression, trackUpsellClick } from '@/lib/analytics/upsell'
 import {
   EVENT_DASHBOARD_VIEWED,
@@ -331,6 +332,8 @@ export default function DashboardPage() {
       })
       if (payload.authenticated && payload.email) {
         setEmail(payload.email)
+        const ownerAnalyticsId = getOwnerAnalyticsId(payload.ownerId)
+        if (ownerAnalyticsId) identifyUser(ownerAnalyticsId)
         // A confirmed-authenticated session load means any prior session-expiry
         // episode is over — allow a future genuine expiry to be handled again.
         sessionExpiryGateRef.current.reset()
@@ -348,6 +351,11 @@ export default function DashboardPage() {
         const payload = await response.json().catch(() => ({}))
         throw new Error(payload.error || t.logoutFailed)
       }
+      // Only reset PostHog identity once the server has confirmed the
+      // session is actually gone — resetting before that could leave the
+      // browser's analytics identity cleared while the auth cookie (and
+      // thus the app's own auth state) is still live, an inconsistent state.
+      resetAnalyticsIdentity()
       setSelectedEvent(null)
       setSelectedSlug('')
       setEvents([])
@@ -621,7 +629,8 @@ export default function DashboardPage() {
       }
       setAuthState({ loading: false, authenticated: true, email: payload.email })
       setMessage('')
-      identifyUser(payload.email)
+      const ownerAnalyticsId = getOwnerAnalyticsId(payload.ownerId)
+      if (ownerAnalyticsId) identifyUser(ownerAnalyticsId)
       // A fresh login ends any prior session-expiry episode — a subsequent
       // genuine expiry must be handleable again.
       sessionExpiryGateRef.current.reset()

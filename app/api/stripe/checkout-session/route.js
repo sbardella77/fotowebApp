@@ -6,6 +6,7 @@ import { verifySameOriginRequest, requireCsrfProtection } from '@/lib/server/csr
 import { checkRateLimit, getClientIp, hashIdentifier, PAYMENT_LIMITS } from '@/lib/server/rate-limiter'
 import { validatePendingEventName } from '@/lib/extra-free-event-pending'
 import { trackServerEvent } from '@/lib/analytics/track-server'
+import { getOwnerAnalyticsId } from '@/lib/analytics/identity'
 import {
   EVENT_CHECKOUT_STARTED,
   EVENT_UPSELL_CHECKOUT_START,
@@ -360,7 +361,7 @@ export async function POST(request) {
           post_purchase_action: postPurchaseAction,
           stripe_session_id: session.id,
         },
-        { distinctId: owner.email }
+        { distinctId: getOwnerAnalyticsId(owner.id) }
       )
     }
 
@@ -375,7 +376,7 @@ export async function POST(request) {
         stripe_session_id: session.id,
         stripe_mode: mode,
       },
-      { distinctId: owner.email }
+      { distinctId: getOwnerAnalyticsId(owner.id) }
     )
 
     trackServerEvent(
@@ -391,7 +392,7 @@ export async function POST(request) {
         stripe_session_id: session.id,
         stripe_mode: mode,
       },
-      { distinctId: owner.email }
+      { distinctId: getOwnerAnalyticsId(owner.id) }
     )
 
     return NextResponse.json({ url: session.url })

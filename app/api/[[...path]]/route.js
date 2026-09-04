@@ -80,6 +80,7 @@ import {
   processGalleryDownloadJobIfPending,
 } from '@/lib/server/gallery-download-job'
 import { trackServerEvent } from '@/lib/analytics/track-server'
+import { getOwnerAnalyticsId } from '@/lib/analytics/identity'
 import { getTrafficMetrics } from '@/lib/server/admin-analytics-posthog'
 import { PostHogQueryError, POSTHOG_ERROR } from '@/lib/server/posthog-query'
 import { getAdminBusinessMetrics } from '@/lib/server/admin-business-dashboard'
@@ -404,11 +405,13 @@ const createEvent = async (request) => {
 
   let event = null
   let extraEventCreditConsumed = false
+  let ownerIdForAnalytics = null
 
   // If owner email provided, enforce Free plan room limit before creating
   if (payload.ownerEmail) {
     const prisma = await getPrismaClient()
     const owner = await repository.getOrCreateOwnerByEmail(payload.ownerEmail)
+    ownerIdForAnalytics = owner?.id || null
     if (prisma && owner) {
       const entitlement = await checkOwnerRoomCreationEntitlement(prisma, owner)
       if (!entitlement.allowed) {
@@ -420,7 +423,7 @@ const createEvent = async (request) => {
             limit: entitlement.max,
             extra_event_credits: entitlement.extraEventCredits,
           },
-          { distinctId: payload.ownerEmail }
+          { distinctId: getOwnerAnalyticsId(owner.id) }
         )
         return json({
           error: `Free plan limit reached: you can only have ${entitlement.max} active room plus any Extra Free Events purchased.`,
@@ -471,7 +474,7 @@ const createEvent = async (request) => {
       has_owner_email: Boolean(payload.ownerEmail),
       extra_event_credit_used: extraEventCreditConsumed,
     },
-    { distinctId: payload.ownerEmail || 'anonymous' }
+    { distinctId: getOwnerAnalyticsId(ownerIdForAnalytics) || 'anonymous' }
   )
 
   // If owner email provided, immediately associate and send welcome email
@@ -833,7 +836,7 @@ const saveEventOwner = async (request, slug) => {
             current_rooms: entitlement.current,
             limit: entitlement.max,
           },
-          { distinctId: payload.email }
+          { distinctId: getOwnerAnalyticsId(owner.id) }
         )
         return json({
           error: `Free plan limit reached: you can only have ${entitlement.max} active room.`,
@@ -1749,7 +1752,7 @@ const initPrivateDeliveryUpload = async (request, slug) => {
   trackServerEvent(
     EVENT_PRIVATE_DELIVERY_UPLOAD_STARTED,
     { room_slug: slug, file_name: payload.fileName, file_size: payload.fileSize },
-    { distinctId: ownerEmail }
+    { distinctId: getOwnerAnalyticsId(event.ownerId) }
   )
 
   return jsonPrivate({ session }, 201)
@@ -1829,7 +1832,7 @@ const completePrivateDeliveryUpload = async (request, slug) => {
       trackServerEvent(
         EVENT_PRIVATE_DELIVERY_UPLOAD_COMPLETED,
         { room_slug: event.slug, asset_id: result.asset.id, file_size: result.asset.size },
-        { distinctId: ownerEmail }
+        { distinctId: getOwnerAnalyticsId(event.ownerId) }
       )
     }
 
@@ -1875,7 +1878,7 @@ const completePrivateDeliveryUpload = async (request, slug) => {
   trackServerEvent(
     EVENT_PRIVATE_DELIVERY_UPLOAD_COMPLETED,
     { room_slug: slug, asset_id: asset.id, file_size: fileResult.size },
-    { distinctId: ownerEmail }
+    { distinctId: getOwnerAnalyticsId(event.ownerId) }
   )
 
   return jsonPrivate({ asset }, 201)
@@ -1922,7 +1925,7 @@ const deletePrivateDeliveryAsset = async (request, assetId) => {
   trackServerEvent(
     EVENT_PRIVATE_DELIVERY_DELETED,
     { room_slug: event.slug, asset_id: assetId },
-    { distinctId: ownerEmail }
+    { distinctId: getOwnerAnalyticsId(event.ownerId) }
   )
 
   return jsonPrivate({ deleted: true })
@@ -1958,7 +1961,7 @@ const createPhotographerUploadLink = async (request, slug) => {
   trackServerEvent(
     isRegeneration ? EVENT_PHOTOGRAPHER_UPLOAD_LINK_REGENERATED : EVENT_PHOTOGRAPHER_UPLOAD_LINK_CREATED,
     { room_slug: slug },
-    { distinctId: ownerEmail }
+    { distinctId: getOwnerAnalyticsId(event.ownerId) }
   )
 
   const appUrl = getAppUrl(request)
@@ -1986,7 +1989,7 @@ const deletePhotographerUploadLink = async (request, slug) => {
   trackServerEvent(
     EVENT_PHOTOGRAPHER_UPLOAD_LINK_REVOKED,
     { room_slug: slug },
-    { distinctId: ownerEmail }
+    { distinctId: getOwnerAnalyticsId(event.ownerId) }
   )
 
   return jsonPrivate({ revoked: true })
@@ -2799,7 +2802,14 @@ const deletePhoto = async (request, photoId) => {
 
 const getOwnerSession = async (request) => {
   const email = await getOwnerAuthentication(request)
-  return jsonPrivate({ authenticated: Boolean(email), email })
+  if (!email) {
+    return jsonPrivate({ authenticated: false, email: null })
+  }
+  // Resolves the caller's own canonical Owner.id only — never another
+  // Owner's — since `email` here is always the identity already verified
+  // by getOwnerAuthentication() from this request's own session cookie.
+  const owner = await resolveCanonicalOwner(email)
+  return jsonPrivate({ authenticated: true, email, ownerId: owner?.id || null })
 }
 
 const loginOwner = withTiming('loginOwner', async (request) => {
@@ -3104,9 +3114,9 @@ const loginOwnerWithPassword = async (request) => {
       return jsonPrivate({ error: 'Invalid email or password' }, 401)
     }
 
-    trackServerEvent(EVENT_OWNER_LOGGED_IN, { method: 'password_api' }, { distinctId: email })
+    trackServerEvent(EVENT_OWNER_LOGGED_IN, { method: 'password_api' }, { distinctId: getOwnerAnalyticsId(owner.id) })
 
-    const response = jsonPrivate({ authenticated: true, email })
+    const response = jsonPrivate({ authenticated: true, email, ownerId: owner.id })
     return await setOwnerSessionCookie(response, owner)
   } catch (error) {
     if (isDatabaseUnavailableError(error)) {
@@ -3432,7 +3442,7 @@ const setupOwnerPassword = async (request) => {
   }
 
   const owner = await prisma.owner.findUnique({ where: { id: tokenRecord.ownerId } })
-  trackServerEvent(EVENT_OWNER_CLAIM_COMPLETED, {}, { distinctId: owner.email })
+  trackServerEvent(EVENT_OWNER_CLAIM_COMPLETED, {}, { distinctId: getOwnerAnalyticsId(owner.id) })
 
   const response = jsonPrivate({ authenticated: true, email: owner.email })
   return await setOwnerSessionCookie(response, owner)

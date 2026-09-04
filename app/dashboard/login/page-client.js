@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { useTranslations, useLocale } from '@/components/i18n-provider'
 import { localizedPath } from '@/lib/i18n/config'
 import { identifyUser } from '@/lib/analytics/track-client'
+import { getOwnerAnalyticsId } from '@/lib/analytics/identity'
 
 export default function LoginPageClient({ redirect = '/dashboard' }) {
   const router = useRouter()
@@ -63,7 +64,8 @@ export default function LoginPageClient({ redirect = '/dashboard' }) {
         throw new Error(getLoginErrorMessage(response, payload))
       }
 
-      identifyUser(payload.email)
+      const ownerAnalyticsId = getOwnerAnalyticsId(payload.ownerId)
+      if (ownerAnalyticsId) identifyUser(ownerAnalyticsId)
       router.push(redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/dashboard')
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {

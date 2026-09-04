@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 import { getStripe } from '@/lib/server/stripe'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { trackServerEvent } from '@/lib/analytics/track-server'
+import { getOwnerAnalyticsId } from '@/lib/analytics/identity'
 import {
   buildPaymentFailedUpdate,
   buildPaymentSucceededUpdate,
@@ -302,7 +303,10 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
         stripe_session_id: session.id,
         stripe_customer_id: session.customer,
       },
-      { distinctId: session.customer_email || session.customer || eventId }
+      // No Owner auth is required for this purchase (guest or owner) — never
+      // fall back to session.customer_email here, only the opaque Stripe
+      // customer id or the room's own eventId.
+      { distinctId: session.customer || eventId }
     )
 
     trackServerEvent(
@@ -316,7 +320,10 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
         stripe_session_id: session.id,
         stripe_customer_id: session.customer,
       },
-      { distinctId: session.customer_email || session.customer || eventId }
+      // No Owner auth is required for this purchase (guest or owner) — never
+      // fall back to session.customer_email here, only the opaque Stripe
+      // customer id or the room's own eventId.
+      { distinctId: session.customer || eventId }
     )
 
     console.log(`[stripe/webhook] Event ${updatedEvent.slug} unlocked for original quality downloads`)
@@ -498,7 +505,7 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
         stripe_session_id: session.id,
         stripe_customer_id: session.customer,
       },
-      { distinctId: session.metadata?.ownerEmail || ownerId }
+      { distinctId: getOwnerAnalyticsId(ownerId) }
     )
 
     trackServerEvent(
@@ -513,7 +520,7 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
         stripe_session_id: session.id,
         stripe_customer_id: session.customer,
       },
-      { distinctId: session.metadata?.ownerEmail || ownerId }
+      { distinctId: getOwnerAnalyticsId(ownerId) }
     )
 
     console.log(`[stripe/webhook] Event ${updatedEvent.slug} upgraded to ${intent}`)
@@ -615,7 +622,7 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
         stripe_subscription_id: session.subscription,
         stripe_customer_id: session.customer,
       },
-      { distinctId: owner.email }
+      { distinctId: getOwnerAnalyticsId(owner.id) }
     )
 
     trackServerEvent(
@@ -629,7 +636,7 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
         stripe_subscription_id: session.subscription,
         stripe_customer_id: session.customer,
       },
-      { distinctId: owner.email }
+      { distinctId: getOwnerAnalyticsId(owner.id) }
     )
 
     console.log('[stripe/webhook] Owner upgraded to Professional:', owner.email)
@@ -1742,7 +1749,7 @@ async function fulfillExtraFreeEventCredit({ prisma, session, ownerId, intent, s
       stripe_customer_id: session.customer,
       extra_event_credits: updatedOwner.extraEventCredits,
     },
-    { distinctId: session.metadata?.ownerEmail || ownerId }
+    { distinctId: getOwnerAnalyticsId(ownerId) }
   )
 
   trackServerEvent(
@@ -1758,7 +1765,7 @@ async function fulfillExtraFreeEventCredit({ prisma, session, ownerId, intent, s
       stripe_customer_id: session.customer,
       extra_event_credits: updatedOwner.extraEventCredits,
     },
-    { distinctId: session.metadata?.ownerEmail || ownerId }
+    { distinctId: getOwnerAnalyticsId(ownerId) }
   )
 
   console.log(`[stripe/webhook] Owner ${updatedOwner.email} granted extra free event credit. Total credits: ${updatedOwner.extraEventCredits}`)
