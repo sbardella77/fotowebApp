@@ -98,10 +98,12 @@ describe('Admin Business Dashboard V1 — range selector', () => {
 })
 
 describe('Admin Business Dashboard V1 — funnel', () => {
-  it('renders all five funnel stages with counts and conversion-from-previous', () => {
+  it('renders funnel stages generically (driven entirely by the API funnel.stages array, not a hardcoded stage list/count)', () => {
     expect(DASHBOARD).toMatch(/funnel\.stages\.map/)
     expect(DASHBOARD).toMatch(/stage\.conversionFromPrevious/)
     expect(DASHBOARD).toMatch(/stage\.count/)
+    // No literal stage count (e.g. Array.from({length:5}) or similar) is
+    // hardcoded for the funnel — it renders exactly whatever the API sends.
   })
 
   it('a null conversion rate renders as "—", never NaN/Infinity/undefined text', () => {
@@ -111,6 +113,17 @@ describe('Admin Business Dashboard V1 — funnel', () => {
   it('explains the stage-funnel (not strict cohort) limitation via a tooltip', () => {
     expect(DASHBOARD).toMatch(/Stage funnel over the selected date window/)
     expect(DASHBOARD).toMatch(/not reliably linked to a specific signed-up/)
+  })
+
+  it('the funnel tooltip no longer references Paid as a period-scoped stage (the removed 400% source)', () => {
+    expect(DASHBOARD).not.toMatch(/Paid reflects total accounts to date rather than this date range/)
+    // The Funnel component's own copy (its InfoTooltip block) must not
+    // mention "Paid" at all — the KPI card below is a separate concern and
+    // is intentionally excluded from this check.
+    const funnelBlockStart = DASHBOARD.indexOf('function Funnel(')
+    const funnelBlockEnd = DASHBOARD.indexOf('\n}\n', funnelBlockStart)
+    const funnelBlock = DASHBOARD.slice(funnelBlockStart, funnelBlockEnd)
+    expect(funnelBlock.toLowerCase()).not.toContain('paid')
   })
 })
 

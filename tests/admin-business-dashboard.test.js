@@ -34,19 +34,42 @@ beforeEach(() => {
 describe('computeFunnel', () => {
   it('computes conversion-from-previous-stage for a normal funnel', async () => {
     const { computeFunnel } = await import('@/lib/server/admin-business-dashboard')
-    const stages = computeFunnel({ visitors: 100, signups: 10, firstEvents: 6, coreActivated: 3, paid: 2 })
+    const stages = computeFunnel({ visitors: 100, signups: 10, firstEvents: 6, coreActivated: 3 })
 
-    expect(stages.map((s) => s.key)).toEqual(['visitors', 'signups', 'firstEvents', 'coreActivated', 'paid'])
+    expect(stages.map((s) => s.key)).toEqual(['visitors', 'signups', 'firstEvents', 'coreActivated'])
     expect(stages[0].conversionFromPrevious).toBeNull() // first stage has no "previous"
     expect(stages[1].conversionFromPrevious).toBe(10) // 10/100
     expect(stages[2].conversionFromPrevious).toBe(60) // 6/10
     expect(stages[3].conversionFromPrevious).toBe(50) // 3/6
-    expect(stages[4].conversionFromPrevious).toBeCloseTo(66.7, 1) // 2/3
+  })
+
+  it('the funnel contains exactly 4 stages — Paid is not a funnel stage', async () => {
+    const { computeFunnel } = await import('@/lib/server/admin-business-dashboard')
+    const stages = computeFunnel({ visitors: 100, signups: 10, firstEvents: 6, coreActivated: 3 })
+
+    expect(stages).toHaveLength(4)
+    expect(stages.some((s) => s.key === 'paid')).toBe(false)
+    expect(stages.some((s) => s.label.toLowerCase() === 'paid')).toBe(false)
+    // A `paid` field passed in (e.g. a stale caller) is silently ignored — the
+    // funnel is defined by FUNNEL_STAGES, not by whatever keys are present.
+    const stagesWithExtraField = computeFunnel({ visitors: 100, signups: 10, firstEvents: 6, coreActivated: 3, paid: 999 })
+    expect(stagesWithExtraField).toHaveLength(4)
+  })
+
+  it('the terminal stage (Core Activation) never carries a conversion rate derived from a snapshot metric', async () => {
+    const { computeFunnel } = await import('@/lib/server/admin-business-dashboard')
+    const stages = computeFunnel({ visitors: 1, signups: 1, firstEvents: 1, coreActivated: 1 })
+    const last = stages[stages.length - 1]
+
+    expect(last.key).toBe('coreActivated')
+    // With paidAccounts=4 and coreActivated=1 in the old 5-stage contract this
+    // produced a "400%" badge; that stage no longer exists to produce one.
+    expect(last.conversionFromPrevious).not.toBe(400)
   })
 
   it('a zero denominator produces null, never NaN or Infinity', async () => {
     const { computeFunnel } = await import('@/lib/server/admin-business-dashboard')
-    const stages = computeFunnel({ visitors: 0, signups: 5, firstEvents: 0, coreActivated: 0, paid: 0 })
+    const stages = computeFunnel({ visitors: 0, signups: 5, firstEvents: 0, coreActivated: 0 })
 
     for (const stage of stages) {
       expect(Number.isNaN(stage.conversionFromPrevious)).toBe(false)
@@ -57,7 +80,7 @@ describe('computeFunnel', () => {
 
   it('a null count (PostHog unavailable) does not poison downstream stages beyond the one that depends on it', async () => {
     const { computeFunnel } = await import('@/lib/server/admin-business-dashboard')
-    const stages = computeFunnel({ visitors: null, signups: 10, firstEvents: 6, coreActivated: 3, paid: 2 })
+    const stages = computeFunnel({ visitors: null, signups: 10, firstEvents: 6, coreActivated: 3 })
 
     expect(stages[0].count).toBeNull()
     expect(stages[1].conversionFromPrevious).toBeNull() // depends on null visitors
@@ -66,16 +89,24 @@ describe('computeFunnel', () => {
 
   it('exact 100% conversion is preserved (not rounded away or misrepresented)', async () => {
     const { computeFunnel } = await import('@/lib/server/admin-business-dashboard')
-    const stages = computeFunnel({ visitors: 50, signups: 50, firstEvents: 50, coreActivated: 50, paid: 50 })
+    const stages = computeFunnel({ visitors: 50, signups: 50, firstEvents: 50, coreActivated: 50 })
 
     expect(stages[1].conversionFromPrevious).toBe(100)
   })
 
   it('both stages zero yields null (0/0), not a misleading 100%', async () => {
     const { computeFunnel } = await import('@/lib/server/admin-business-dashboard')
-    const stages = computeFunnel({ visitors: 0, signups: 0, firstEvents: 0, coreActivated: 0, paid: 0 })
+    const stages = computeFunnel({ visitors: 0, signups: 0, firstEvents: 0, coreActivated: 0 })
 
     expect(stages[1].conversionFromPrevious).toBeNull()
+  })
+
+  it('a >100% conversion between legitimate period-scoped stages is still allowed and not clamped (cross-source volume mismatch, not a bug)', async () => {
+    const { computeFunnel } = await import('@/lib/server/admin-business-dashboard')
+    const stages = computeFunnel({ visitors: 4, signups: 7, firstEvents: 7, coreActivated: 1 })
+
+    expect(stages[1].conversionFromPrevious).toBe(175) // signups(7)/visitors(4) — real, observed live-Preview shape
+    expect(Number.isFinite(stages[1].conversionFromPrevious)).toBe(true)
   })
 })
 
@@ -97,6 +128,10 @@ describe('getAdminBusinessMetrics — partial-failure model', () => {
     expect(result.engagement.guestRoomViews).toBe(9)
     expect(result.trends.visitors).toEqual(FAKE_POSTHOG_METRICS.visitors.daily)
     expect(result.funnel.stages[0].count).toBe(100)
+    // Paid Accounts snapshot data is still returned, but never as a funnel stage.
+    expect(result.monetization.paidAccounts).toBe(2)
+    expect(result.funnel.stages).toHaveLength(4)
+    expect(result.funnel.stages.some((s) => s.key === 'paid')).toBe(false)
   })
 
   it('PostHog failure: Postgres-derived sections still populate normally, PostHog sections become null (never zero), status is unavailable', async () => {
@@ -123,6 +158,11 @@ describe('getAdminBusinessMetrics — partial-failure model', () => {
     expect(result.engagement.guestRoomViews).toBeNull()
     expect(result.trends.visitors).toBeNull()
     expect(result.funnel.stages[0].count).toBeNull()
+    // Monetization data (paid accounts) is unaffected by a PostHog outage,
+    // and it never appears inside the funnel either way.
+    expect(result.monetization.paidAccounts).toBe(2)
+    expect(result.funnel.stages).toHaveLength(4)
+    expect(result.funnel.stages.some((s) => s.key === 'paid')).toBe(false)
   })
 
   it('a non-PostHogQueryError thrown by getTrafficMetrics still degrades gracefully instead of crashing the whole endpoint', async () => {

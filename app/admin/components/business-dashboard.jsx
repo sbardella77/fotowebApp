@@ -116,7 +116,7 @@ function Funnel({ funnel }) {
           <InfoTooltip>
             Stage funnel over the selected date window — each stage counts activity in that window, not a
             person-by-person journey. PostHog visitor identity is not reliably linked to a specific signed-up
-            account, and Paid reflects total accounts to date rather than this date range.
+            account.
           </InfoTooltip>
         </div>
       </CardHeader>

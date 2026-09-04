@@ -79,7 +79,6 @@ function fakeBusinessMetrics(overrides = {}) {
         { key: 'signups', label: 'Signups', count: 10, conversionFromPrevious: 10 },
         { key: 'firstEvents', label: 'First Event', count: 6, conversionFromPrevious: 60 },
         { key: 'coreActivated', label: 'Core Activation', count: 3, conversionFromPrevious: 50 },
-        { key: 'paid', label: 'Paid', count: 2, conversionFromPrevious: 66.7 },
       ],
     },
     trends: { visitors: [], signups: [], eventsCreated: [], coreActivation: [] },
@@ -225,6 +224,24 @@ describe('GET /api/admin/metrics/business', () => {
     expect(serialized.toLowerCase()).not.toContain('stripesubscriptionid')
     expect(serialized.toLowerCase()).not.toContain('ownerid')
     expect(serialized.toLowerCase()).not.toContain('sessionid')
+  })
+
+  it('the funnel never contains a Paid stage, even though Paid Accounts still appears under monetization', async () => {
+    const { GET } = await import('@/app/api/[[...path]]/route')
+    const { getAdminBusinessMetrics } = await import('@/lib/server/admin-business-dashboard')
+    getAdminBusinessMetrics.mockResolvedValue(fakeBusinessMetrics())
+    const cookie = await buildAdminCookie()
+
+    const response = await GET(
+      makeRequest({ url: 'https://snaprooms.app/api/admin/metrics/business?range=30d', cookie }),
+      { params: { path: ['admin', 'metrics', 'business'] } },
+    )
+    const body = await response.json()
+
+    expect(body.funnel.stages).toHaveLength(4)
+    expect(body.funnel.stages.some((s) => s.key === 'paid' || s.label.toLowerCase() === 'paid')).toBe(false)
+    expect(body.funnel.stages[body.funnel.stages.length - 1].key).toBe('coreActivated')
+    expect(body.monetization.paidAccounts).toBe(2)
   })
 
   it('zero-value metrics are preserved as zero, not omitted or coerced', async () => {
