@@ -383,10 +383,6 @@ export default function DashboardPage() {
     }
   }
 
-  // canManageSubscription is loaded from /api/owner/plan; fall back to local heuristic if missing.
-  const effectiveCanManageSubscription =
-    canManageSubscription || ['professional', 'business', 'pro'].includes(plan) || !!subscriptionCanceledAt
-
   const openCustomerPortal = async () => {
     if (portalBusy) return
     setPortalBusy(true)
@@ -1429,6 +1425,12 @@ export default function DashboardPage() {
       onMobileWorkspaceOpenChange={setMobileWorkspaceOpen}
       onWorkspaceCloseAutoFocus={handleWorkspaceCloseAutoFocus}
       workspaceLabel={t.eventWorkspace}
+      onBackToEvents={() => {
+        setMobileWorkspaceOpen(false)
+        router.push('/dashboard')
+      }}
+      onLogout={logout}
+      t={t}
       sidebar={
         <DashboardSidebar
           experience={experience}
@@ -1444,7 +1446,7 @@ export default function DashboardPage() {
                   })
               : undefined
           }
-          canManageSubscription={effectiveCanManageSubscription}
+          canManageSubscription={canManageSubscription}
           onManageSubscription={openCustomerPortal}
           portalBusy={portalBusy}
           t={t}
@@ -1741,7 +1743,7 @@ export default function DashboardPage() {
                         ? t.paymentFailedGraceExpiredDescription
                         : t.paymentFailedDescription}
                   </p>
-                  {effectiveCanManageSubscription && (
+                  {canManageSubscription && (
                     <Button
                       size="sm"
                       className="mt-3 cta-primary"
@@ -1773,7 +1775,7 @@ export default function DashboardPage() {
                   {subscriptionBillingInterval !== 'annual' && (
                     <p className="mt-1 text-muted-foreground">{t.subscriptionCancellationScheduledRetention}</p>
                   )}
-                  {effectiveCanManageSubscription && (
+                  {canManageSubscription && (
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       <Button
                         size="sm"
