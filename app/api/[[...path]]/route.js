@@ -82,6 +82,7 @@ import {
 import { trackServerEvent } from '@/lib/analytics/track-server'
 import { getTrafficMetrics } from '@/lib/server/admin-analytics-posthog'
 import { PostHogQueryError, POSTHOG_ERROR } from '@/lib/server/posthog-query'
+import { getAdminBusinessMetrics } from '@/lib/server/admin-business-dashboard'
 import {
   EVENT_ROOM_CREATED,
   EVENT_OWNER_CLAIM_COMPLETED,
@@ -2658,6 +2659,45 @@ const getAdminTrafficMetrics = async (request) => {
   }
 }
 
+const getAdminBusinessMetricsRoute = async (request) => {
+  // Auth first, then validate input, then (only then) touch Postgres/PostHog
+  // — mirrors getAdminTrafficMetrics above.
+  const authError = await requireAdmin(request)
+  if (authError) return authError
+
+  const rateLimitCheck = await checkAdminRateLimit(request, ADMIN_LIMITS.read)
+  if (rateLimitCheck) return rateLimitCheck
+
+  const { searchParams } = new URL(request.url)
+  const rangeResult = adminMetricsRangeSchema.safeParse(searchParams.get('range') || '30d')
+  if (!rangeResult.success) {
+    return jsonPrivate({ error: formatZodError(rangeResult.error) }, 400)
+  }
+  const range = rangeResult.data
+
+  // 'all' is deferred, matching admin/metrics/traffic — see that handler's
+  // comment for why.
+  if (range === 'all') {
+    return jsonPrivate({
+      error: 'range_not_supported',
+      message: 'range=all is deferred for V1. Use range=7d, 30d, or 90d.',
+    }, 501)
+  }
+
+  const prisma = await getPrismaClient()
+  if (!prisma) {
+    return jsonPrivate({ error: 'DATABASE_UNAVAILABLE', message: 'Business metrics are temporarily unavailable' }, 503)
+  }
+
+  try {
+    const metrics = await getAdminBusinessMetrics({ prisma, range })
+    return jsonPrivate(metrics)
+  } catch (error) {
+    console.error('[admin/metrics/business] unexpected error:', error?.message)
+    return jsonPrivate({ error: 'BUSINESS_METRICS_QUERY_FAILED', message: 'Business metrics are temporarily unavailable' }, 502)
+  }
+}
+
 const moderatePhoto = async (request, photoId) => {
   const authError = await requireAdminWithCsrf(request)
   if (authError) return authError
@@ -3630,6 +3670,10 @@ async function handleRoute(request, { params }) {
 
       if (segments.length === 3 && segments[1] === 'metrics' && segments[2] === 'traffic' && method === 'GET') {
         return getAdminTrafficMetrics(request)
+      }
+
+      if (segments.length === 3 && segments[1] === 'metrics' && segments[2] === 'business' && method === 'GET') {
+        return getAdminBusinessMetricsRoute(request)
       }
     }
 

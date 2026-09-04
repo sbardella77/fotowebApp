@@ -6,7 +6,9 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 
 import { Input } from '@/components/ui/input'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import PhotoLightbox from '@/components/photo-lightbox'
+import BusinessDashboard from './components/business-dashboard'
 import { csrfFetch } from '@/lib/client/csrf-fetch'
 
 const AdminPhotoCard = ({ photo, onApprove, onReject, onDelete, onOpenLightbox, busyId }) => {
@@ -349,118 +351,138 @@ function App() {
         </div>
 
         <div className="space-y-6">
-          <div className="rounded-2xl border border-border bg-surface shadow-card">
-            <div className="p-5 sm:p-6">
-              <h2 className="font-display text-base font-bold tracking-tight text-foreground">
-                Create event
-              </h2>
-              <p className="mt-1 text-sm font-light text-muted-foreground">
-                Create event codes from the admin panel for staff-led workflows.
-              </p>
-              <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                <Input value={newEventName} onChange={(event) => setNewEventName(event.target.value)} placeholder="Wedding Reception" className="border-border bg-raised text-foreground placeholder:text-muted-foreground/60" />
-                <Button disabled={!authState.authenticated || busy.create} onClick={createEvent} className="cta-primary">
-                  {busy.create ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create event'}
-                </Button>
-              </div>
-            </div>
-          </div>
+          {authState.authenticated ? (
+            <Tabs defaultValue="events" className="space-y-6">
+              <TabsList className="rounded-full border border-border bg-surface p-1">
+                <TabsTrigger value="events" className="rounded-full">Events</TabsTrigger>
+                <TabsTrigger value="business" className="rounded-full">Business</TabsTrigger>
+              </TabsList>
 
-          <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
-            <div className="rounded-2xl border border-border bg-surface shadow-card">
-              <div className="p-5 sm:p-6">
-                <h2 className="font-display text-base font-bold tracking-tight text-foreground">
-                  Events
-                </h2>
-                <p className="mt-1 text-sm font-light text-muted-foreground">
-                  Open an event to review every photo, including hidden ones.
-                </p>
-                <div className="mt-4 space-y-3">
-                  {events.length === 0 ? (
-                    <div className="flex flex-col items-center rounded-xl border border-dashed border-border bg-raised p-6 text-center">
-                      <Camera className="mb-2 h-5 w-5 text-muted-foreground/50" />
-                      <p className="text-sm font-light text-muted-foreground">No events yet.</p>
+              <TabsContent value="events" className="space-y-6">
+                <div className="rounded-2xl border border-border bg-surface shadow-card">
+                  <div className="p-5 sm:p-6">
+                    <h2 className="font-display text-base font-bold tracking-tight text-foreground">
+                      Create event
+                    </h2>
+                    <p className="mt-1 text-sm font-light text-muted-foreground">
+                      Create event codes from the admin panel for staff-led workflows.
+                    </p>
+                    <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                      <Input value={newEventName} onChange={(event) => setNewEventName(event.target.value)} placeholder="Wedding Reception" className="border-border bg-raised text-foreground placeholder:text-muted-foreground/60" />
+                      <Button disabled={!authState.authenticated || busy.create} onClick={createEvent} className="cta-primary">
+                        {busy.create ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create event'}
+                      </Button>
                     </div>
-                  ) : (
-                    events.map((event) => (
-                      <button
-                        key={event.id}
-                        className={`w-full rounded-xl border p-3 text-left transition ${selectedSlug === event.slug ? 'border-primary bg-primary/[0.08]' : 'border-border bg-raised hover:border-border'}`}
-                        onClick={() => setSelectedSlug(event.slug)}
-                        type="button"
-                      >
-                        <p className="truncate text-sm font-medium text-foreground">{event.name}</p>
-                        <p className="mt-1 font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">{event.slug}</p>
-                        <p className="mt-2 text-xs font-light text-muted-foreground">{event.photoCount} public photos</p>
-                      </button>
-                    ))
-                  )}
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            <div className="rounded-2xl border border-border bg-surface shadow-card">
-              <div className="p-5 sm:p-6">
-                <h2 className="font-display text-base font-bold tracking-tight text-foreground">
-                  Event detail
-                </h2>
-                <p className="mt-1 text-sm font-light text-muted-foreground">
-                  {selectedEvent ? `${selectedEvent.name} • ${photos.length} total photos in moderation view` : 'Select an event to moderate photos.'}
-                </p>
-                <div className="mt-4 space-y-4">
-                  {busy.detail && !selectedEvent ? (
-                    <div className="flex items-center gap-2 rounded-xl border border-border bg-raised p-4 text-sm font-light text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Loading event detail...
-                    </div>
-                  ) : selectedEvent ? (
-                    <>
-                      <div className="rounded-xl border border-border bg-raised p-4">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <span className="font-mono text-[0.65rem] uppercase tracking-[0.1em] text-accent-dark">Moderating</span>
-                            <p className="mt-0.5 font-display text-base font-bold tracking-tight text-foreground">{selectedEvent.name}</p>
-                            <p className="mt-0.5 font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">Code: {selectedEvent.slug}</p>
+                <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
+                  <div className="rounded-2xl border border-border bg-surface shadow-card">
+                    <div className="p-5 sm:p-6">
+                      <h2 className="font-display text-base font-bold tracking-tight text-foreground">
+                        Events
+                      </h2>
+                      <p className="mt-1 text-sm font-light text-muted-foreground">
+                        Open an event to review every photo, including hidden ones.
+                      </p>
+                      <div className="mt-4 space-y-3">
+                        {events.length === 0 ? (
+                          <div className="flex flex-col items-center rounded-xl border border-dashed border-border bg-raised p-6 text-center">
+                            <Camera className="mb-2 h-5 w-5 text-muted-foreground/50" />
+                            <p className="text-sm font-light text-muted-foreground">No events yet.</p>
                           </div>
-                          <Badge variant="secondary" className="rounded-full bg-raised text-foreground font-mono text-[0.6rem]">{photos.length} total</Badge>
-                        </div>
+                        ) : (
+                          events.map((event) => (
+                            <button
+                              key={event.id}
+                              className={`w-full rounded-xl border p-3 text-left transition ${selectedSlug === event.slug ? 'border-primary bg-primary/[0.08]' : 'border-border bg-raised hover:border-border'}`}
+                              onClick={() => setSelectedSlug(event.slug)}
+                              type="button"
+                            >
+                              <p className="truncate text-sm font-medium text-foreground">{event.name}</p>
+                              <p className="mt-1 font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">{event.slug}</p>
+                              <p className="mt-2 text-xs font-light text-muted-foreground">{event.photoCount} public photos</p>
+                            </button>
+                          ))
+                        )}
                       </div>
-
-                      {photos.length === 0 ? (
-                        <div className="flex flex-col items-center rounded-xl border border-dashed border-border bg-raised p-8 text-center">
-                          <ImagePlus className="mb-3 h-6 w-6 text-muted-foreground/40" />
-                          <p className="text-sm font-light text-muted-foreground">No photos uploaded to this event yet.</p>
-                          <p className="mt-1 text-xs font-light text-muted-foreground/70">Share the event link so guests can start adding photos.</p>
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
-                          {photos.map((photo, index) => (
-                            <AdminPhotoCard
-                              key={photo.id}
-                              busyId={busy.photoId}
-                              photo={photo}
-                              onApprove={() => moderatePhoto(photo.id, 'approve')}
-                              onDelete={() => deletePhoto(photo.id)}
-                              onOpenLightbox={() => {
-                                setLightboxIndex(index)
-                                setLightboxOpen(true)
-                              }}
-                              onReject={() => moderatePhoto(photo.id, 'reject')}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div className="flex flex-col items-center rounded-xl border border-dashed border-border bg-raised p-8 text-center">
-                      <Shield className="mb-3 h-6 w-6 text-muted-foreground/40" />
-                      <p className="text-sm font-light text-muted-foreground">Sign in and select an event to start moderating.</p>
                     </div>
-                  )}
+                  </div>
+
+                  <div className="rounded-2xl border border-border bg-surface shadow-card">
+                    <div className="p-5 sm:p-6">
+                      <h2 className="font-display text-base font-bold tracking-tight text-foreground">
+                        Event detail
+                      </h2>
+                      <p className="mt-1 text-sm font-light text-muted-foreground">
+                        {selectedEvent ? `${selectedEvent.name} • ${photos.length} total photos in moderation view` : 'Select an event to moderate photos.'}
+                      </p>
+                      <div className="mt-4 space-y-4">
+                        {busy.detail && !selectedEvent ? (
+                          <div className="flex items-center gap-2 rounded-xl border border-border bg-raised p-4 text-sm font-light text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Loading event detail...
+                          </div>
+                        ) : selectedEvent ? (
+                          <>
+                            <div className="rounded-xl border border-border bg-raised p-4">
+                              <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                  <span className="font-mono text-[0.65rem] uppercase tracking-[0.1em] text-accent-dark">Moderating</span>
+                                  <p className="mt-0.5 font-display text-base font-bold tracking-tight text-foreground">{selectedEvent.name}</p>
+                                  <p className="mt-0.5 font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">Code: {selectedEvent.slug}</p>
+                                </div>
+                                <Badge variant="secondary" className="rounded-full bg-raised text-foreground font-mono text-[0.6rem]">{photos.length} total</Badge>
+                              </div>
+                            </div>
+
+                            {photos.length === 0 ? (
+                              <div className="flex flex-col items-center rounded-xl border border-dashed border-border bg-raised p-8 text-center">
+                                <ImagePlus className="mb-3 h-6 w-6 text-muted-foreground/40" />
+                                <p className="text-sm font-light text-muted-foreground">No photos uploaded to this event yet.</p>
+                                <p className="mt-1 text-xs font-light text-muted-foreground/70">Share the event link so guests can start adding photos.</p>
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
+                                {photos.map((photo, index) => (
+                                  <AdminPhotoCard
+                                    key={photo.id}
+                                    busyId={busy.photoId}
+                                    photo={photo}
+                                    onApprove={() => moderatePhoto(photo.id, 'approve')}
+                                    onDelete={() => deletePhoto(photo.id)}
+                                    onOpenLightbox={() => {
+                                      setLightboxIndex(index)
+                                      setLightboxOpen(true)
+                                    }}
+                                    onReject={() => moderatePhoto(photo.id, 'reject')}
+                                  />
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="flex flex-col items-center rounded-xl border border-dashed border-border bg-raised p-8 text-center">
+                            <Shield className="mb-3 h-6 w-6 text-muted-foreground/40" />
+                            <p className="text-sm font-light text-muted-foreground">Sign in and select an event to start moderating.</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              </TabsContent>
+
+              <TabsContent value="business">
+                <BusinessDashboard />
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <div className="flex flex-col items-center rounded-2xl border border-dashed border-border bg-surface p-8 text-center shadow-card">
+              <Shield className="mb-3 h-6 w-6 text-muted-foreground/40" />
+              <p className="text-sm font-light text-muted-foreground">Sign in to manage events and view business metrics.</p>
             </div>
-          </div>
+          )}
         </div>
       </section>
 
