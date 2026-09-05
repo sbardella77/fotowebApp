@@ -397,7 +397,7 @@ const createEvent = async (request) => {
   const clientIp = getClientIp(request)
   const createLimit = rateLimit(`create:ip:${clientIp}`, RATE_LIMITS.createEvent.ip.max, RATE_LIMITS.createEvent.ip.window)
   if (createLimit.limited) {
-    trackServerEvent(EVENT_RATE_LIMIT_HIT, { reason: 'create_event', client_ip: clientIp }, { distinctId: clientIp })
+    trackServerEvent(EVENT_RATE_LIMIT_HIT, { reason: 'create_event' }, { distinctId: 'rate_limit:create_event', personProfile: false })
     return json({ error: 'Too many rooms created. Please try again later.' }, 429)
   }
 
@@ -423,7 +423,7 @@ const createEvent = async (request) => {
             limit: entitlement.max,
             extra_event_credits: entitlement.extraEventCredits,
           },
-          { distinctId: getOwnerAnalyticsId(owner.id) }
+          { distinctId: getOwnerAnalyticsId(owner.id), personProfile: true }
         )
         return json({
           error: `Free plan limit reached: you can only have ${entitlement.max} active room plus any Extra Free Events purchased.`,
@@ -467,6 +467,11 @@ const createEvent = async (request) => {
     event = await repository.createEvent({ name: payload.name })
   }
 
+  // Owner-attributed room creation is a real Person action; a room created
+  // with no owner (payload.ownerEmail absent) has no known actor at all —
+  // it must not collapse into a shared literal 'anonymous' Person, so it's
+  // captured as a non-person, room-scoped event instead.
+  const roomCreatedOwnerId = getOwnerAnalyticsId(ownerIdForAnalytics)
   trackServerEvent(
     EVENT_ROOM_CREATED,
     {
@@ -474,7 +479,9 @@ const createEvent = async (request) => {
       has_owner_email: Boolean(payload.ownerEmail),
       extra_event_credit_used: extraEventCreditConsumed,
     },
-    { distinctId: getOwnerAnalyticsId(ownerIdForAnalytics) || 'anonymous' }
+    roomCreatedOwnerId
+      ? { distinctId: roomCreatedOwnerId, personProfile: true }
+      : { distinctId: `room:${event.slug}`, personProfile: false }
   )
 
   // If owner email provided, immediately associate and send welcome email
@@ -836,7 +843,7 @@ const saveEventOwner = async (request, slug) => {
             current_rooms: entitlement.current,
             limit: entitlement.max,
           },
-          { distinctId: getOwnerAnalyticsId(owner.id) }
+          { distinctId: getOwnerAnalyticsId(owner.id), personProfile: true }
         )
         return json({
           error: `Free plan limit reached: you can only have ${entitlement.max} active room.`,
@@ -1139,7 +1146,7 @@ const initUpload = async (request) => {
           current_photos: entitlement.current,
           limit: entitlement.max,
         },
-        { distinctId: event.slug }
+        { distinctId: `room:${event.slug}`, personProfile: false }
       )
       return json({
         error: `This room has reached its ${entitlement.max}-photo limit.`,
@@ -1534,7 +1541,7 @@ const completeUpload = withTiming('completeUpload', async (request) => {
               current_photos: error.details.current,
               limit: error.details.max,
             },
-            { distinctId: error.details.eventSlug },
+            { distinctId: `room:${error.details.eventSlug}`, personProfile: false },
           )
         }
         return json(
@@ -1608,7 +1615,7 @@ const completeUpload = withTiming('completeUpload', async (request) => {
           current_photos: entitlement.current,
           limit: entitlement.max,
         },
-        { distinctId: event.slug }
+        { distinctId: `room:${event.slug}`, personProfile: false }
       )
       return json({
         error: `This room has reached its ${entitlement.max}-photo limit.`,
@@ -1752,7 +1759,7 @@ const initPrivateDeliveryUpload = async (request, slug) => {
   trackServerEvent(
     EVENT_PRIVATE_DELIVERY_UPLOAD_STARTED,
     { room_slug: slug, file_name: payload.fileName, file_size: payload.fileSize },
-    { distinctId: getOwnerAnalyticsId(event.ownerId) }
+    { distinctId: getOwnerAnalyticsId(event.ownerId), personProfile: true }
   )
 
   return jsonPrivate({ session }, 201)
@@ -1832,7 +1839,7 @@ const completePrivateDeliveryUpload = async (request, slug) => {
       trackServerEvent(
         EVENT_PRIVATE_DELIVERY_UPLOAD_COMPLETED,
         { room_slug: event.slug, asset_id: result.asset.id, file_size: result.asset.size },
-        { distinctId: getOwnerAnalyticsId(event.ownerId) }
+        { distinctId: getOwnerAnalyticsId(event.ownerId), personProfile: true }
       )
     }
 
@@ -1878,7 +1885,7 @@ const completePrivateDeliveryUpload = async (request, slug) => {
   trackServerEvent(
     EVENT_PRIVATE_DELIVERY_UPLOAD_COMPLETED,
     { room_slug: slug, asset_id: asset.id, file_size: fileResult.size },
-    { distinctId: getOwnerAnalyticsId(event.ownerId) }
+    { distinctId: getOwnerAnalyticsId(event.ownerId), personProfile: true }
   )
 
   return jsonPrivate({ asset }, 201)
@@ -1925,7 +1932,7 @@ const deletePrivateDeliveryAsset = async (request, assetId) => {
   trackServerEvent(
     EVENT_PRIVATE_DELIVERY_DELETED,
     { room_slug: event.slug, asset_id: assetId },
-    { distinctId: getOwnerAnalyticsId(event.ownerId) }
+    { distinctId: getOwnerAnalyticsId(event.ownerId), personProfile: true }
   )
 
   return jsonPrivate({ deleted: true })
@@ -1961,7 +1968,7 @@ const createPhotographerUploadLink = async (request, slug) => {
   trackServerEvent(
     isRegeneration ? EVENT_PHOTOGRAPHER_UPLOAD_LINK_REGENERATED : EVENT_PHOTOGRAPHER_UPLOAD_LINK_CREATED,
     { room_slug: slug },
-    { distinctId: getOwnerAnalyticsId(event.ownerId) }
+    { distinctId: getOwnerAnalyticsId(event.ownerId), personProfile: true }
   )
 
   const appUrl = getAppUrl(request)
@@ -1989,7 +1996,7 @@ const deletePhotographerUploadLink = async (request, slug) => {
   trackServerEvent(
     EVENT_PHOTOGRAPHER_UPLOAD_LINK_REVOKED,
     { room_slug: slug },
-    { distinctId: getOwnerAnalyticsId(event.ownerId) }
+    { distinctId: getOwnerAnalyticsId(event.ownerId), personProfile: true }
   )
 
   return jsonPrivate({ revoked: true })
@@ -2320,7 +2327,7 @@ const initPhotographerUpload = async (request, token) => {
   trackServerEvent(
     EVENT_PHOTOGRAPHER_UPLOAD_STARTED,
     { room_slug: event.slug, file_name: payload.fileName, file_size: payload.fileSize },
-    { distinctId: `photographer_${event.slug}` }
+    { distinctId: `room:${event.slug}`, personProfile: false }
   )
 
   return json({ session }, 201)
@@ -2417,7 +2424,7 @@ const completePhotographerUpload = async (request, token) => {
       trackServerEvent(
         EVENT_PHOTOGRAPHER_UPLOAD_COMPLETED,
         { room_slug: event.slug, asset_id: result.asset.id, file_size: result.asset.size },
-        { distinctId: `photographer_${event.slug}` }
+        { distinctId: `room:${event.slug}`, personProfile: false }
       )
     }
 
@@ -2464,7 +2471,7 @@ const completePhotographerUpload = async (request, token) => {
   trackServerEvent(
     EVENT_PHOTOGRAPHER_UPLOAD_COMPLETED,
     { room_slug: event.slug, asset_id: asset.id, file_size: fileResult.size },
-    { distinctId: `photographer_${event.slug}` }
+    { distinctId: `room:${event.slug}`, personProfile: false }
   )
 
   return json({ asset }, 201)
@@ -3094,7 +3101,7 @@ const loginOwnerWithPassword = async (request) => {
     return buildRateLimitBackendErrorResponse()
   }
   if (ipLimit.limited || emailLimit.limited) {
-    trackServerEvent(EVENT_RATE_LIMIT_HIT, { reason: 'owner_login', client_ip: clientIp }, { distinctId: clientIp })
+    trackServerEvent(EVENT_RATE_LIMIT_HIT, { reason: 'owner_login' }, { distinctId: 'rate_limit:owner_login', personProfile: false })
     return jsonPrivate({ error: 'Too many attempts. Please try again later.' }, 429)
   }
 
@@ -3114,7 +3121,7 @@ const loginOwnerWithPassword = async (request) => {
       return jsonPrivate({ error: 'Invalid email or password' }, 401)
     }
 
-    trackServerEvent(EVENT_OWNER_LOGGED_IN, { method: 'password_api' }, { distinctId: getOwnerAnalyticsId(owner.id) })
+    trackServerEvent(EVENT_OWNER_LOGGED_IN, { method: 'password_api' }, { distinctId: getOwnerAnalyticsId(owner.id), personProfile: true })
 
     const response = jsonPrivate({ authenticated: true, email, ownerId: owner.id })
     return await setOwnerSessionCookie(response, owner)
@@ -3384,7 +3391,7 @@ const setupOwnerPassword = async (request) => {
     return buildRateLimitBackendErrorResponse()
   }
   if (ipLimit.limited || tokenLimit.limited) {
-    trackServerEvent(EVENT_RATE_LIMIT_HIT, { reason: 'setup_password', client_ip: clientIp }, { distinctId: clientIp })
+    trackServerEvent(EVENT_RATE_LIMIT_HIT, { reason: 'setup_password' }, { distinctId: 'rate_limit:setup_password', personProfile: false })
     return jsonPrivate({ error: 'Too many attempts. Please try again later.' }, 429)
   }
 
@@ -3442,7 +3449,7 @@ const setupOwnerPassword = async (request) => {
   }
 
   const owner = await prisma.owner.findUnique({ where: { id: tokenRecord.ownerId } })
-  trackServerEvent(EVENT_OWNER_CLAIM_COMPLETED, {}, { distinctId: getOwnerAnalyticsId(owner.id) })
+  trackServerEvent(EVENT_OWNER_CLAIM_COMPLETED, {}, { distinctId: getOwnerAnalyticsId(owner.id), personProfile: true })
 
   const response = jsonPrivate({ authenticated: true, email: owner.email })
   return await setOwnerSessionCookie(response, owner)

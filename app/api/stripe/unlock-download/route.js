@@ -160,6 +160,7 @@ export async function POST(request) {
       )
     }
 
+    const unlockOwnerId = getOwnerAnalyticsId(owner?.id)
     trackServerEvent(
       EVENT_ORIGINAL_DOWNLOAD_CHECKOUT_STARTED,
       {
@@ -171,8 +172,13 @@ export async function POST(request) {
         source: metadata.source,
       },
       // Guest or owner, no auth required for this purchase — resolve the
-      // owner identity when one exists, but never fall back to raw email.
-      { distinctId: getOwnerAnalyticsId(owner?.id) || event.id }
+      // owner identity when one exists (a real Person), never fall back to
+      // raw email. When no owner exists (guest purchase), there is no real
+      // person actor — captured as a non-person, room-scoped event instead
+      // of inventing a fake person identity.
+      unlockOwnerId
+        ? { distinctId: unlockOwnerId, personProfile: true }
+        : { distinctId: `room:${event.slug}`, personProfile: false }
     )
 
     return NextResponse.json({ url: session.url })

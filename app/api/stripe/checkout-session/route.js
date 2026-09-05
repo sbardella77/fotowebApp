@@ -361,7 +361,7 @@ export async function POST(request) {
           post_purchase_action: postPurchaseAction,
           stripe_session_id: session.id,
         },
-        { distinctId: getOwnerAnalyticsId(owner.id) }
+        { distinctId: getOwnerAnalyticsId(owner.id), personProfile: true }
       )
     }
 
@@ -376,7 +376,7 @@ export async function POST(request) {
         stripe_session_id: session.id,
         stripe_mode: mode,
       },
-      { distinctId: getOwnerAnalyticsId(owner.id) }
+      { distinctId: getOwnerAnalyticsId(owner.id), personProfile: true }
     )
 
     trackServerEvent(
@@ -392,7 +392,7 @@ export async function POST(request) {
         stripe_session_id: session.id,
         stripe_mode: mode,
       },
-      { distinctId: getOwnerAnalyticsId(owner.id) }
+      { distinctId: getOwnerAnalyticsId(owner.id), personProfile: true }
     )
 
     return NextResponse.json({ url: session.url })

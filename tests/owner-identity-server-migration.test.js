@@ -41,12 +41,12 @@ describe('owner auth (app/api/[[...path]]/route.js) — no email-derived distinc
     assertNoEmailDistinctId(ROUTE, 'route.js')
   })
 
-  it('EVENT_OWNER_LOGGED_IN uses getOwnerAnalyticsId(owner.id)', () => {
-    expect(ROUTE).toContain("trackServerEvent(EVENT_OWNER_LOGGED_IN, { method: 'password_api' }, { distinctId: getOwnerAnalyticsId(owner.id) })")
+  it('EVENT_OWNER_LOGGED_IN uses getOwnerAnalyticsId(owner.id) with personProfile:true', () => {
+    expect(ROUTE).toContain("trackServerEvent(EVENT_OWNER_LOGGED_IN, { method: 'password_api' }, { distinctId: getOwnerAnalyticsId(owner.id), personProfile: true })")
   })
 
-  it('EVENT_OWNER_CLAIM_COMPLETED uses getOwnerAnalyticsId(owner.id)', () => {
-    expect(ROUTE).toContain('trackServerEvent(EVENT_OWNER_CLAIM_COMPLETED, {}, { distinctId: getOwnerAnalyticsId(owner.id) })')
+  it('EVENT_OWNER_CLAIM_COMPLETED uses getOwnerAnalyticsId(owner.id) with personProfile:true', () => {
+    expect(ROUTE).toContain('trackServerEvent(EVENT_OWNER_CLAIM_COMPLETED, {}, { distinctId: getOwnerAnalyticsId(owner.id), personProfile: true })')
   })
 
   it('EVENT_FREE_ROOM_LIMIT_HIT (both create-event and claim-room call sites) uses getOwnerAnalyticsId(owner.id)', () => {
@@ -64,19 +64,24 @@ describe('owner auth (app/api/[[...path]]/route.js) — no email-derived distinc
     expect(ROUTE).toContain('jsonPrivate({ authenticated: true, email, ownerId: owner.id })')
   })
 
-  it('room-scoped events (photo/room limit hit, photographer upload) are deliberately left on their existing non-email room-scoped identity — not migrated in V1', () => {
+  it('room-scoped events (photo/room limit hit, photographer upload) use a non-person room: identity with personProfile:false (PostHog Non-Person Identity Hardening)', () => {
     // These are genuinely room-scoped (photo-limit-hit fires for a guest
     // uploader, photographer-upload fires for a token-holding third party —
-    // neither is an authenticated Owner), so V1 leaves them as-is per the
-    // approved contract's "do not pretend the room is a Person" guidance.
-    // This test documents the follow-up, not a regression.
-    expect(ROUTE).toContain("distinctId: event.slug")
-    expect(ROUTE).toContain('distinctId: `photographer_${event.slug}`')
+    // neither is an authenticated Owner). V1 left the bare event.slug /
+    // photographer_<slug> string as distinctId; this follow-up migrates
+    // them to an explicit non-person capture so they can never create a
+    // PostHog Person, while keeping the room identity itself in properties.
+    expect(ROUTE).not.toContain('distinctId: event.slug')
+    expect(ROUTE).not.toContain('distinctId: `photographer_${event.slug}`')
+    const roomMatches = ROUTE.match(/distinctId: `room:\$\{event\.slug\}`, personProfile: false/g) || []
+    expect(roomMatches.length).toBeGreaterThanOrEqual(5)
   })
 
-  it('rate-limit diagnostic events keep clientIp — never repurposed as an Owner/guest identity', () => {
-    const matches = ROUTE.match(/distinctId: clientIp/g) || []
-    expect(matches.length).toBe(3)
+  it('rate-limit diagnostic events no longer use clientIp as distinctId, and drop raw IP from properties entirely (data minimization)', () => {
+    expect(ROUTE).not.toMatch(/distinctId: clientIp/)
+    expect(ROUTE).not.toMatch(/client_ip: clientIp/)
+    const rateLimitMatches = ROUTE.match(/distinctId: 'rate_limit:[a-z_]+', personProfile: false/g) || []
+    expect(rateLimitMatches.length).toBe(3)
   })
 })
 
@@ -129,8 +134,9 @@ describe('unlock-download (app/api/stripe/unlock-download/route.js) — owner br
     assertNoEmailDistinctId(UNLOCK, 'unlock-download/route.js')
   })
 
-  it('resolves owner identity via getOwnerAnalyticsId(owner?.id), falling back only to the non-PII event.id — never session.customer_email', () => {
-    expect(UNLOCK).toContain('distinctId: getOwnerAnalyticsId(owner?.id) || event.id')
+  it('resolves owner identity via getOwnerAnalyticsId(owner?.id) as a real Person when present, or a non-person room: identity otherwise — never session.customer_email', () => {
+    expect(UNLOCK).toContain('const unlockOwnerId = getOwnerAnalyticsId(owner?.id)')
+    expect(UNLOCK).toMatch(/unlockOwnerId\s*\n?\s*\?\s*\{ distinctId: unlockOwnerId, personProfile: true \}\s*\n?\s*:\s*\{ distinctId: `room:\$\{event\.slug\}`, personProfile: false \}/)
   })
 })
 
