@@ -10,20 +10,20 @@ const KEYS = [
 ]
 
 const originalDocument = globalThis.document
-const originalNavigator = globalThis.navigator
+const originalNavigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
 
 afterEach(() => {
   if (originalDocument === undefined) delete globalThis.document
   else globalThis.document = originalDocument
-  if (originalNavigator === undefined) delete globalThis.navigator
-  else globalThis.navigator = originalNavigator
+  if (originalNavigatorDescriptor === undefined) delete globalThis.navigator
+  else Object.defineProperty(globalThis, 'navigator', originalNavigatorDescriptor)
 })
 
 function stubDocument(cookie) {
   globalThis.document = { cookie }
 }
 function stubNavigator(languages) {
-  globalThis.navigator = { languages }
+  Object.defineProperty(globalThis, 'navigator', { value: { languages }, configurable: true, writable: true })
 }
 
 describe('resolveErrorBoundaryLocale', () => {
