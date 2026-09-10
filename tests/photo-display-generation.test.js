@@ -28,10 +28,20 @@ vi.mock('@vercel/blob', () => ({
 // that runs BEFORE completeRoomPhotoBlobUpload (which is mocked wholesale
 // below and never touches this client for real) — it just needs to resolve
 // a plausible ROOM_PHOTO session so that pre-check passes.
+//
+// vi.hoisted is required here (not a plain top-level const): vi.mock
+// factories are hoisted above all other module code, so a factory that
+// references an ordinary top-level variable would run before that
+// variable is initialized.
+const { photoUpdateManyMock } = vi.hoisted(() => ({ photoUpdateManyMock: vi.fn().mockResolvedValue({ count: 1 }) }))
+
 vi.mock('@/lib/server/prisma-client', () => ({
   getPrismaClient: vi.fn().mockResolvedValue({
     blobUploadSession: {
       findUnique: vi.fn().mockResolvedValue({ eventId: 'event-guest-1', uploadKind: 'ROOM_PHOTO' }),
+    },
+    photo: {
+      updateMany: photoUpdateManyMock,
     },
   }),
   getAdminAuthDriver: vi.fn().mockReturnValue('env'),
@@ -225,6 +235,85 @@ describe('§47 generation failure does not affect upload completion success', ()
   })
 })
 
+// ─── §49 TASK-02: displayDerivativeStatus recording (Blob path) ────────────
+
+describe('§49 TASK-02: successful generation records displayDerivativeStatus = READY', () => {
+  it('a fresh (created:true) generation records READY for exactly this photo id', async () => {
+    completeRoomPhotoBlobUpload.mockResolvedValue({
+      photo: { id: PHOTO_ID, url: PHOTO_URL },
+      eventSlug: SLUG,
+      idempotent: false,
+    })
+    ensureDisplayDerivative.mockResolvedValue({ created: true })
+
+    const response = await doComplete({ sessionId: 'session-abc12345' })
+
+    expect(response.status).toBe(201)
+    expect(photoUpdateManyMock).toHaveBeenCalledTimes(1)
+    expect(photoUpdateManyMock).toHaveBeenCalledWith({
+      where: { id: PHOTO_ID },
+      data: { displayDerivativeStatus: 'READY' },
+    })
+  })
+
+  it('a cache-HIT (created:false, no error) ALSO records READY — a HIT means the derivative genuinely exists', async () => {
+    completeRoomPhotoBlobUpload.mockResolvedValue({
+      photo: { id: PHOTO_ID, url: PHOTO_URL },
+      eventSlug: SLUG,
+      idempotent: false,
+    })
+    ensureDisplayDerivative.mockResolvedValue({ created: false })
+
+    await doComplete({ sessionId: 'session-abc12345' })
+
+    expect(photoUpdateManyMock).toHaveBeenCalledWith({
+      where: { id: PHOTO_ID },
+      data: { displayDerivativeStatus: 'READY' },
+    })
+  })
+})
+
+describe('§49 TASK-02: generation failure records displayDerivativeStatus = FAILED, never READY', () => {
+  it('ensureDisplayDerivative throwing records FAILED, and READY is never written for this photo', async () => {
+    completeRoomPhotoBlobUpload.mockResolvedValue({
+      photo: { id: PHOTO_ID, url: PHOTO_URL },
+      eventSlug: SLUG,
+      idempotent: false,
+    })
+    ensureDisplayDerivative.mockRejectedValue(new Error('blob boom'))
+
+    const response = await doComplete({ sessionId: 'session-abc12345' })
+
+    // The HTTP contract is unaffected (§47) — re-asserted here alongside the
+    // status-recording proof so the two are never allowed to drift apart.
+    expect(response.status).toBe(201)
+    expect(photoUpdateManyMock).toHaveBeenCalledTimes(1)
+    expect(photoUpdateManyMock).toHaveBeenCalledWith({
+      where: { id: PHOTO_ID },
+      data: { displayDerivativeStatus: 'FAILED' },
+    })
+    expect(photoUpdateManyMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: { displayDerivativeStatus: 'READY' } }),
+    )
+  })
+
+  it('a status-recording DB failure itself never propagates into the HTTP response', async () => {
+    completeRoomPhotoBlobUpload.mockResolvedValue({
+      photo: { id: PHOTO_ID, url: PHOTO_URL },
+      eventSlug: SLUG,
+      idempotent: false,
+    })
+    ensureDisplayDerivative.mockResolvedValue({ created: true })
+    photoUpdateManyMock.mockRejectedValueOnce(new Error('db unavailable'))
+
+    const response = await doComplete({ sessionId: 'session-abc12345' })
+    const body = await response.json()
+
+    expect(response.status).toBe(201)
+    expect(body.photo.id).toBe(PHOTO_ID)
+  })
+})
+
 // ─── §22/§23 idempotent completion retry ─────────────────────────────────────
 
 describe('§22/§23 idempotent completion retry gets a fresh (cheap) ensure attempt', () => {
@@ -367,6 +456,65 @@ describe('§45 local/chunk fallback: eager generation ordering and count', () =>
     expect(response.status).toBe(422)
     expect(createPhoto).not.toHaveBeenCalled()
     expect(ensureDisplayDerivative).not.toHaveBeenCalled()
+  })
+
+  // ─── §49 TASK-02: local path, prisma available ──────────────────────────
+  // The rest of this describe block runs with prisma NULL (unrelated to
+  // display generation, per the comment on the outer beforeEach) — that
+  // already proves the null-prisma case is safe (every test above still
+  // gets response.status 201/422 as expected). These two tests instead
+  // give this specific test file's local path ONE real assertion that
+  // status recording itself works correctly when prisma IS available,
+  // matching the Blob-path coverage in §49 above.
+  it('TASK-02: local path records READY on successful generation when prisma is available', async () => {
+    getPrismaClient.mockResolvedValue({ photo: { updateMany: photoUpdateManyMock, count: vi.fn().mockResolvedValue(0) } })
+    localStorageDriver.completeUploadSession.mockResolvedValue({
+      eventSlug: SLUG,
+      originalName: 'photo.jpg',
+      storedName: 'stored-photo.jpg',
+      mimeType: 'image/jpeg',
+      size: 1234,
+      url: '/uploads/stored-photo.jpg',
+    })
+    const createPhoto = vi.fn().mockResolvedValue({ id: PHOTO_ID, url: '/uploads/stored-photo.jpg', eventId: EVENT_ID })
+    getGalleryRepository.mockResolvedValue(makePhotoRepository({ createPhoto }))
+    ensureDisplayDerivative.mockResolvedValue({ created: true })
+
+    const response = await doComplete({ sessionId: 'session-abc12345' })
+
+    expect(response.status).toBe(201)
+    expect(photoUpdateManyMock).toHaveBeenCalledWith({
+      where: { id: PHOTO_ID },
+      data: { displayDerivativeStatus: 'READY' },
+    })
+  })
+
+  it('TASK-02: local path records FAILED (never READY) when generation throws, and the HTTP response is unaffected', async () => {
+    getPrismaClient.mockResolvedValue({ photo: { updateMany: photoUpdateManyMock, count: vi.fn().mockResolvedValue(0) } })
+    localStorageDriver.completeUploadSession.mockResolvedValue({
+      eventSlug: SLUG,
+      originalName: 'photo.jpg',
+      storedName: 'stored-photo.jpg',
+      mimeType: 'image/jpeg',
+      size: 1234,
+      url: '/uploads/stored-photo.jpg',
+    })
+    const createPhoto = vi.fn().mockResolvedValue({ id: PHOTO_ID, url: '/uploads/stored-photo.jpg', eventId: EVENT_ID })
+    getGalleryRepository.mockResolvedValue(makePhotoRepository({ createPhoto }))
+    ensureDisplayDerivative.mockRejectedValue(new Error('blob boom'))
+
+    const response = await doComplete({ sessionId: 'session-abc12345' })
+    const body = await response.json()
+
+    expect(response.status).toBe(201)
+    expect(body.photo.id).toBe(PHOTO_ID)
+    expect(photoUpdateManyMock).toHaveBeenCalledWith({
+      where: { id: PHOTO_ID },
+      data: { displayDerivativeStatus: 'FAILED' },
+    })
+    expect(photoUpdateManyMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: { displayDerivativeStatus: 'READY' } }),
+    )
   })
 })
 
