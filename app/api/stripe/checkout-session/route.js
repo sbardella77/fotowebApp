@@ -13,6 +13,7 @@ import {
   EXTRA_FREE_EVENT_CHECKOUT_CREATED,
 } from '@/lib/analytics/events'
 import { sendOpsAlert } from '@/lib/server/ops-alerts'
+import { serializeProviderError, redactMessage } from '@/lib/server/safe-log'
 
 export const dynamic = 'force-dynamic'
 
@@ -128,7 +129,7 @@ export async function POST(request) {
     const { resolveCanonicalOwner } = await import('@/lib/server/owner-resolution')
     const owner = await resolveCanonicalOwner(ownerEmail)
     if (!owner) {
-      console.error(`${logPrefix} Owner not found for email:`, ownerEmail)
+      console.error(`${logPrefix} Owner not found for email:`, hashIdentifier(ownerEmail))
       return NextResponse.json({ error: 'Owner not found' }, { status: 404 })
     }
 
@@ -255,7 +256,7 @@ export async function POST(request) {
           data: { stripeCustomerId: customerId },
         })
       } catch (customerError) {
-        console.error(`${logPrefix} Stripe customer creation failed:`, customerError)
+        console.error(`${logPrefix} Stripe customer creation failed:`, serializeProviderError('stripe', 'create_customer', customerError))
         return NextResponse.json(
           { error: 'Unable to create Stripe customer. Please try again.' },
           { status: 502 }
@@ -335,7 +336,7 @@ export async function POST(request) {
         mode,
         stripeErrorType: stripeError?.type,
         stripeCode: stripeError?.code,
-        message: rawMessage,
+        message: redactMessage(rawMessage),
       })
 
       if (rawMessage.includes('No such price')) {
@@ -397,7 +398,7 @@ export async function POST(request) {
 
     return NextResponse.json({ url: session.url })
   } catch (error) {
-    console.error(`${logPrefix} Unexpected error:`, error)
+    console.error(`${logPrefix} Unexpected error:`, serializeProviderError('stripe', 'checkout_session_create', error))
     await sendOpsAlert({
       severity: 'critical',
       type: 'billing:checkout:start_failed',
@@ -406,7 +407,7 @@ export async function POST(request) {
       context: {
         intent: body?.intent,
         eventId: body?.eventId,
-        ownerEmail: ownerEmail || null,
+        ownerIdHash: hashIdentifier(ownerEmail),
       },
     })
     return NextResponse.json(

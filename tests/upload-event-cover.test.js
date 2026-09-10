@@ -230,3 +230,39 @@ describe('F — event with an existing cover, updateEvent fails', () => {
     expect(deleteStoredFile).not.toHaveBeenCalledWith(OLD_COVER_URL)
   })
 })
+
+// ─── G. PII minimization regression — TASK-01 ──
+//
+// uploadEventCover used to run a second, redundant rate-limit check keyed
+// by raw ownerEmail/clientIp through the deprecated in-memory rateLimit()
+// helper, on top of the already-correct, hashed checkOwnerRateLimit() call
+// above it. That redundant block is now removed. These tests lock in both
+// halves of the fix: (1) the deprecated raw-keyed limiter is never invoked
+// by this route any more, and (2) owner-scoped rate limiting still actually
+// works via the remaining, correctly-hashed path — the fix must not have
+// silently dropped the protection along with the raw key.
+
+describe('G — PII minimization: cover-upload rate limiting', () => {
+  it('never calls the deprecated raw-keyed rateLimit() helper', async () => {
+    const rateLimiter = await import('@/lib/server/rate-limiter')
+    const rateLimitSpy = vi.spyOn(rateLimiter, 'rateLimit')
+
+    await callUploadCover(makeEvent({ coverUrl: null }))
+
+    expect(rateLimitSpy).not.toHaveBeenCalled()
+    rateLimitSpy.mockRestore()
+  })
+
+  it('still enforces the owner-scoped cover-upload limit via the hashed checkOwnerRateLimit path', async () => {
+    const { OWNER_WRITE_LIMITS } = await import('@/lib/server/rate-limiter')
+    const maxRequests = OWNER_WRITE_LIMITS.coverUpload.owner.max
+
+    let lastResponse
+    for (let i = 0; i < maxRequests + 1; i += 1) {
+      const { response } = await callUploadCover(makeEvent({ coverUrl: null }))
+      lastResponse = response
+    }
+
+    expect(lastResponse.status).toBe(429)
+  })
+})

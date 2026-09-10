@@ -33,6 +33,7 @@ import {
   EXTRA_FREE_EVENT_AUTO_CREATE_SUCCESS,
 } from '@/lib/analytics/events'
 import { sendOpsAlert } from '@/lib/server/ops-alerts'
+import { serializeProviderError } from '@/lib/server/safe-log'
 import {
   claimStripeWebhookEvent,
   markStripeWebhookEventProcessed,
@@ -278,7 +279,7 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
         console.warn('[stripe/webhook] Event not found for fulfillment, skipping:', eventId)
         return NextResponse.json({ received: true })
       }
-      console.error('[stripe/webhook] Failed to unlock original downloads:', dbError)
+      console.error('[stripe/webhook] Failed to unlock original downloads:', serializeProviderError('db', 'unlock_original_downloads', dbError))
       await sendOpsAlert({
         severity: 'critical',
         type: 'billing:webhook:download_unlock_failed',
@@ -476,7 +477,7 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
         console.warn('[stripe/webhook] Event not found for fulfillment, skipping:', eventId)
         return NextResponse.json({ received: true })
       }
-      console.error('[stripe/webhook] Failed to update event billing:', dbError)
+      console.error('[stripe/webhook] Failed to update event billing:', serializeProviderError('db', 'update_event_billing', dbError))
       await sendOpsAlert({
         severity: 'critical',
         type: 'billing:webhook:event_upgrade_failed',
@@ -548,7 +549,7 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
       where: { id: ownerId, stripeCheckoutSessionId: session.id },
     })
     if (existing) {
-      console.log(`[stripe/webhook] Owner ${existing.email} already fulfilled for session ${session.id}`)
+      console.log(`[stripe/webhook] Owner ${existing.id} already fulfilled for session ${session.id}`)
       return NextResponse.json({ received: true })
     }
 
@@ -601,7 +602,7 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
         console.warn('[stripe/webhook] Owner not found for fulfillment, skipping:', ownerId)
         return NextResponse.json({ received: true })
       }
-      console.error('[stripe/webhook] Failed to update owner plan:', dbError)
+      console.error('[stripe/webhook] Failed to update owner plan:', serializeProviderError('db', 'update_owner_plan', dbError))
       await sendOpsAlert({
         severity: 'critical',
         type: 'billing:webhook:professional_upgrade_failed',
@@ -645,7 +646,7 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
       { distinctId: getOwnerAnalyticsId(owner.id), personProfile: true }
     )
 
-    console.log('[stripe/webhook] Owner upgraded to Professional:', owner.email)
+    console.log('[stripe/webhook] Owner upgraded to Professional:', owner.id)
 
     return {
       kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
@@ -824,7 +825,7 @@ async function legacyHandleSubscriptionUpdated({ event, prisma, attempt }) {
       // (503, no markFailed with this now-stale attempt).
       throw dbError
     }
-    console.error('[stripe/webhook] Failed to handle subscription update:', dbError)
+    console.error('[stripe/webhook] Failed to handle subscription update:', serializeProviderError('db', 'handle_subscription_update', dbError))
     await sendOpsAlert({
       severity: 'critical',
       type: 'billing:webhook:subscription_update_failed',
@@ -858,7 +859,7 @@ async function legacyHandleSubscriptionUpdated({ event, prisma, attempt }) {
     // Reactivation: cancellation schedule was removed (e.g. via Customer Portal).
     // For V1 we only clear the dashboard state; an optional reactivation email
     // can be added later.
-    console.log(`[stripe/webhook] Owner ${owner.email} cancellation schedule removed`)
+    console.log(`[stripe/webhook] Owner ${owner.id} cancellation schedule removed`)
   }
 
   return {
@@ -915,7 +916,7 @@ async function legacyHandleSubscriptionDeleted({ event, prisma, attempt }) {
     if (dbError instanceof StripeWebhookFencingError) {
       throw dbError
     }
-    console.error('[stripe/webhook] Failed to handle subscription deletion:', dbError)
+    console.error('[stripe/webhook] Failed to handle subscription deletion:', serializeProviderError('db', 'handle_subscription_deletion', dbError))
     await sendOpsAlert({
       severity: 'critical',
       type: 'billing:webhook:subscription_deletion_failed',
@@ -933,7 +934,7 @@ async function legacyHandleSubscriptionDeleted({ event, prisma, attempt }) {
     await sendProfessionalCanceledEmail({ owner, appUrl: getAppUrl() })
   }
 
-  console.log('[stripe/webhook] Owner downgraded to free after subscription deletion:', owner.email)
+  console.log('[stripe/webhook] Owner downgraded to free after subscription deletion:', owner.id)
 
   return {
     kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
@@ -1166,7 +1167,7 @@ async function orderedHandleSubscriptionUpdated({ event, prisma, stripe, attempt
         })
       }
       if (!cancelAtPeriodEnd && wasScheduled) {
-        console.log(`[stripe/webhook] Owner ${postOwner.email} cancellation schedule removed`)
+        console.log(`[stripe/webhook] Owner ${postOwner.id} cancellation schedule removed`)
       }
     },
   })
@@ -1229,7 +1230,7 @@ async function orderedHandleSubscriptionDeleted({ event, prisma, stripe, attempt
       if (!wasAlreadyCanceled && !cancellationWasScheduled) {
         await sendProfessionalCanceledEmail({ owner: postOwner, appUrl: getAppUrl() })
       }
-      console.log('[stripe/webhook] Owner downgraded to free after subscription deletion:', postOwner.email)
+      console.log('[stripe/webhook] Owner downgraded to free after subscription deletion:', postOwner.id)
     },
   })
 }
@@ -1279,7 +1280,7 @@ async function legacyHandleInvoicePaymentFailed({ event, prisma, attempt }) {
   // subscriptionStatus has changed in the meantime. Same standalone-
   // finalization reasoning: no write happens on this path.
   if (isPaymentFailureAlreadyHandled(owner, invoice)) {
-    console.log(`[stripe/webhook] Failed invoice ${invoice.id} already recorded for owner ${owner.email}`)
+    console.log(`[stripe/webhook] Failed invoice ${invoice.id} already recorded for owner ${owner.id}`)
     return NextResponse.json({ received: true, duplicate: true })
   }
 
@@ -1297,7 +1298,7 @@ async function legacyHandleInvoicePaymentFailed({ event, prisma, attempt }) {
       // (503, no markFailed with this now-stale attempt).
       throw dbError
     }
-    console.error('[stripe/webhook] Failed to handle payment failure:', dbError)
+    console.error('[stripe/webhook] Failed to handle payment failure:', serializeProviderError('db', 'handle_payment_failure', dbError))
     await sendOpsAlert({
       severity: 'warning',
       type: 'billing:webhook:payment_failure_handling_failed',
@@ -1386,7 +1387,7 @@ async function legacyHandleInvoicePaymentSucceeded({ event, prisma, attempt }) {
     if (dbError instanceof StripeWebhookFencingError) {
       throw dbError
     }
-    console.error('[stripe/webhook] Failed to handle payment success:', dbError)
+    console.error('[stripe/webhook] Failed to handle payment success:', serializeProviderError('db', 'handle_payment_success', dbError))
     await sendOpsAlert({
       severity: 'warning',
       type: 'billing:webhook:payment_success_handling_failed',
@@ -1406,7 +1407,7 @@ async function legacyHandleInvoicePaymentSucceeded({ event, prisma, attempt }) {
     await sendProfessionalPaymentRecoveredEmail({ owner, appUrl: getAppUrl() })
   }
 
-  console.log('[stripe/webhook] Owner payment succeeded, subscription restored:', owner.email)
+  console.log('[stripe/webhook] Owner payment succeeded, subscription restored:', owner.id)
 
   return {
     kind: StripeWebhookRunOutcome.RECEIPT_ALREADY_FINALIZED,
@@ -1588,7 +1589,7 @@ async function orderedHandleInvoicePaymentFailed({ event, prisma, stripe, attemp
   // Idempotency: same standalone-finalization reasoning as legacy — no
   // write happens on this path, orthogonal to the ordering marker.
   if (isPaymentFailureAlreadyHandled(owner, invoice)) {
-    console.log(`[stripe/webhook] Failed invoice ${invoice.id} already recorded for owner ${owner.email}`)
+    console.log(`[stripe/webhook] Failed invoice ${invoice.id} already recorded for owner ${owner.id}`)
     return NextResponse.json({ received: true, duplicate: true })
   }
 
@@ -1673,7 +1674,7 @@ async function orderedHandleInvoicePaymentSucceeded({ event, prisma, stripe, att
         !!preOwner.paymentFailedAt ||
         preOwner.subscriptionStatus === 'past_due' ||
         preOwner.subscriptionStatus === 'unpaid'
-      console.log('[stripe/webhook] Owner payment succeeded, subscription restored (ordering guard):', postOwner.email)
+      console.log('[stripe/webhook] Owner payment succeeded, subscription restored (ordering guard):', postOwner.id)
       if (wasRecoverable) {
         await sendProfessionalPaymentRecoveredEmail({ owner: postOwner, appUrl: getAppUrl() })
       }
@@ -1688,7 +1689,7 @@ async function fulfillExtraFreeEventCredit({ prisma, session, ownerId, intent, s
     where: { id: ownerId, extraEventCheckoutSessionId: session.id },
   })
   if (existing) {
-    console.log(`[stripe/webhook] Owner ${existing.email} already fulfilled for extra free event session ${session.id}`)
+    console.log(`[stripe/webhook] Owner ${existing.id} already fulfilled for extra free event session ${session.id}`)
     return NextResponse.json({ received: true })
   }
 
@@ -1729,7 +1730,7 @@ async function fulfillExtraFreeEventCredit({ prisma, session, ownerId, intent, s
       console.warn('[stripe/webhook] Owner not found for extra free event fulfillment, skipping:', ownerId)
       return NextResponse.json({ received: true })
     }
-    console.error('[stripe/webhook] Failed to grant extra free event credit:', dbError)
+    console.error('[stripe/webhook] Failed to grant extra free event credit:', serializeProviderError('db', 'grant_extra_free_event_credit', dbError))
     await sendOpsAlert({
       severity: 'critical',
       type: 'billing:extra_free_event:credit_grant_failed',
@@ -1774,7 +1775,7 @@ async function fulfillExtraFreeEventCredit({ prisma, session, ownerId, intent, s
     { distinctId: getOwnerAnalyticsId(ownerId), personProfile: true }
   )
 
-  console.log(`[stripe/webhook] Owner ${updatedOwner.email} granted extra free event credit. Total credits: ${updatedOwner.extraEventCredits}`)
+  console.log(`[stripe/webhook] Owner ${updatedOwner.id} granted extra free event credit. Total credits: ${updatedOwner.extraEventCredits}`)
 
   await sendExtraFreeEventCreditGrantedEmail({
     owner: updatedOwner,

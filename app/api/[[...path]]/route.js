@@ -130,6 +130,7 @@ import { ensureDisplayDerivative } from '@/lib/server/display-derivative'
 import { getPhotoBuffer } from '@/lib/server/download-utils'
 import { validateRoomPhotoSource, PhotoSourceValidationError } from '@/lib/server/photo-source-validation'
 import { sendOpsAlert } from '@/lib/server/ops-alerts'
+import { serializeProviderError } from '@/lib/server/safe-log'
 import {
   checkOwnerRoomCreationEntitlement,
   checkPrivateDeliveryEntitlement,
@@ -448,7 +449,7 @@ const createEvent = async (request) => {
           })
           extraEventCreditConsumed = true
         } catch (txError) {
-          console.error('[api/events] Extra event credit transaction failed:', txError)
+          console.error('[api/events] Extra event credit transaction failed:', serializeProviderError('db', 'extra_event_credit_transaction', txError))
           return json({
             error: 'Extra Free Event credit no longer available. Please try again or upgrade to Professional.',
             limit: 'room_count',
@@ -627,7 +628,7 @@ const getGalleryDownload = withTiming('getGalleryDownload', async (request, slug
         const refreshed = await getLatestGalleryDownloadJob(event.id)
         return json({ job: refreshed })
       } catch (processingError) {
-        console.error('[getGalleryDownload] processing failed:', processingError)
+        console.error('[getGalleryDownload] processing failed:', serializeProviderError('db', 'gallery_download_processing', processingError))
         const refreshed = await getLatestGalleryDownloadJob(event.id)
         return json({ job: refreshed })
       }
@@ -708,13 +709,13 @@ const saveEventByEmail = async (request, slug) => {
     })
 
     if (sendError) {
-      console.error('[saveEventByEmail] Resend error:', sendError)
+      console.error('[saveEventByEmail] Resend error:', serializeProviderError('resend', 'save_event_by_email', sendError))
       return json({ error: sendError.message || 'Unable to send email' }, 502)
     }
 
     return json({ success: true, id: data?.id })
   } catch (error) {
-    console.error('[saveEventByEmail] Unexpected error:', error)
+    console.error('[saveEventByEmail] Unexpected error:', serializeProviderError('resend', 'save_event_by_email', error))
     return json({ error: error?.message || 'Unable to send email' }, 502)
   }
 }
@@ -766,7 +767,7 @@ const sendOwnerNotificationEmail = async ({ email, event, owner, request }) => {
         html: setupEmail.html,
       })
       if (setupSendError) {
-        console.error('[sendOwnerNotificationEmail] Resend error (setup_password):', setupSendError)
+        console.error('[sendOwnerNotificationEmail] Resend error (setup_password):', serializeProviderError('resend', 'send_owner_notification_setup_password', setupSendError))
       }
     } else {
       const dashboardUrl = `${appUrl}/dashboard`
@@ -787,11 +788,11 @@ const sendOwnerNotificationEmail = async ({ email, event, owner, request }) => {
         html: roomAddedEmail.html,
       })
       if (addedSendError) {
-        console.error('[sendOwnerNotificationEmail] Resend error (room_added):', addedSendError)
+        console.error('[sendOwnerNotificationEmail] Resend error (room_added):', serializeProviderError('resend', 'send_owner_notification_room_added', addedSendError))
       }
     }
   } catch (emailError) {
-    console.error('[sendOwnerNotificationEmail] Failed to send owner email:', emailError)
+    console.error('[sendOwnerNotificationEmail] Failed to send owner email:', serializeProviderError('resend', 'send_owner_notification', emailError))
   }
 }
 
@@ -1924,7 +1925,7 @@ const deletePrivateDeliveryAsset = async (request, assetId) => {
   try {
     await deleteEventScopedStoredFile({ url: asset.url, eventSlug: event?.slug || '', kind: 'private-asset', deleteFile: deleteStoredFile })
   } catch (storageError) {
-    console.error('[deletePrivateDeliveryAsset] Storage cleanup failed:', assetId, storageError)
+    console.error('[deletePrivateDeliveryAsset] Storage cleanup failed:', assetId, serializeProviderError('blob', 'delete_private_delivery_asset', storageError))
   }
 
   await repository.deletePrivateAssetById(assetId)
@@ -2011,15 +2012,11 @@ const uploadEventCover = withTiming('uploadEventCover', async (request, slug) =>
   const rateLimitCheck = await checkOwnerRateLimit(request, ownerEmail, OWNER_WRITE_LIMITS.coverUpload)
   if (rateLimitCheck) return rateLimitCheck
 
-  const clientIp = getClientIp(request)
-  const ipLimit = rateLimit(`cover-upload:ip:${clientIp}`, RATE_LIMITS.coverUpload.ip.max, RATE_LIMITS.coverUpload.ip.window)
-  if (ipLimit.limited) {
-    return jsonPrivate({ error: 'Too many cover uploads. Please try again later.' }, 429)
-  }
-  const ownerLimit = rateLimit(`cover-upload:owner:${ownerEmail}`, RATE_LIMITS.coverUpload.owner.max, RATE_LIMITS.coverUpload.owner.window)
-  if (ownerLimit.limited) {
-    return jsonPrivate({ error: 'Too many cover uploads for this account. Please try again later.' }, 429)
-  }
+  // A second, redundant rate-limit check used to run here, keyed by raw
+  // ownerEmail/clientIp through the deprecated in-memory rateLimit()
+  // helper — RATE_LIMITS.coverUpload carries identical owner/ip thresholds
+  // to OWNER_WRITE_LIMITS.coverUpload above, so it added no protection,
+  // only a PII-bearing key. Removed rather than patched.
 
   let body
   try {
@@ -2095,7 +2092,7 @@ const uploadEventCover = withTiming('uploadEventCover', async (request, slug) =>
       throw dbError
     }
   } catch (storageError) {
-    console.error('[uploadEventCover] Storage error:', storageError)
+    console.error('[uploadEventCover] Storage error:', serializeProviderError('blob', 'upload_event_cover', storageError))
     return jsonPrivate({ error: 'Unable to save cover image. Please try again.' }, 500)
   }
 })
@@ -2119,7 +2116,9 @@ const deleteEventCover = async (request, slug) => {
     try {
       await deleteManagedEventCover(event.coverUrl, slug)
     } catch (storageError) {
-      console.error('[deleteEventCover] Storage cleanup failed for cover:', event.coverUrl, storageError)
+      // event.coverUrl is a full Blob URL — never logged; slug identifies
+      // the event just as well for on-call debugging.
+      console.error('[deleteEventCover] Storage cleanup failed for cover:', slug, serializeProviderError('blob', 'delete_event_cover', storageError))
     }
   }
 
@@ -2778,7 +2777,7 @@ const deletePhoto = async (request, photoId) => {
   try {
     await deleteEventScopedStoredFile({ url: photo.url, eventSlug, kind: 'room-photo', deleteFile: deleteStoredFile })
   } catch (storageError) {
-    console.error('[deletePhoto] Storage cleanup failed for photo:', photoId, storageError)
+    console.error('[deletePhoto] Storage cleanup failed for photo:', photoId, serializeProviderError('blob', 'delete_photo', storageError))
   }
 
   // Public derivative caches (wm-v1 / display-v1) are keyed by photo id and
@@ -2801,7 +2800,7 @@ const deletePhoto = async (request, photoId) => {
       })
     }
   } catch (logError) {
-    console.error('[deletePhoto] Failed to write deletion log:', logError)
+    console.error('[deletePhoto] Failed to write deletion log:', serializeProviderError('db', 'delete_photo_deletion_log', logError))
   }
 
   return jsonPrivate({ deleted: true, photo })
@@ -3003,10 +3002,10 @@ const resendOwnerAccess = async (request) => {
         html: resendAccessEmail.html,
       })
       if (resendAccessSendError) {
-        console.error('[resendOwnerAccess] Resend error:', resendAccessSendError)
+        console.error('[resendOwnerAccess] Resend error:', serializeProviderError('resend', 'resend_owner_access', resendAccessSendError))
       }
     } catch (emailError) {
-      console.error('[resendOwnerAccess] Failed to send email:', emailError)
+      console.error('[resendOwnerAccess] Failed to send email:', serializeProviderError('resend', 'resend_owner_access', emailError))
     }
   }
 
@@ -3209,14 +3208,14 @@ const forgotOwnerPassword = async (request) => {
           html: forgotEmail.html,
         })
         if (forgotSendError) {
-          console.error('[forgotOwnerPassword] Resend error:', forgotSendError)
+          console.error('[forgotOwnerPassword] Resend error:', serializeProviderError('resend', 'forgot_owner_password', forgotSendError))
         }
       } catch (emailError) {
-        console.error('[forgotOwnerPassword] Failed to send email:', emailError)
+        console.error('[forgotOwnerPassword] Failed to send email:', serializeProviderError('resend', 'forgot_owner_password', emailError))
       }
     }
   } catch (error) {
-    console.error('[forgotOwnerPassword] Unexpected error:', error)
+    console.error('[forgotOwnerPassword] Unexpected error:', serializeProviderError('db', 'forgot_owner_password', error))
     return jsonPrivate({ error: 'Password reset is temporarily unavailable. Please try again later.' }, 503)
   }
 
@@ -3517,7 +3516,9 @@ const updateOwnerEvent = async (request, slug) => {
     try {
       await deleteManagedEventCover(event.coverUrl, slug)
     } catch (storageError) {
-      console.error('[updateOwnerEvent] Storage cleanup failed for cover:', event.coverUrl, storageError)
+      // event.coverUrl is a full Blob URL — never logged; slug identifies
+      // the event just as well for on-call debugging.
+      console.error('[updateOwnerEvent] Storage cleanup failed for cover:', slug, serializeProviderError('blob', 'update_owner_event_cover', storageError))
     }
   }
 
@@ -3594,7 +3595,7 @@ const moderateOwnerPhoto = async (request, photoId) => {
     await ensurePhotoDisplayDerivative(photo, { operation: 'moderateOwnerPhoto' })
   }
 
-  console.log(`[audit] Owner ${ownerEmail} ${payload.action}d photo ${photoId} in event ${photo.eventId}`)
+  console.log(`[audit] Owner ${hashIdentifier(ownerEmail)} ${payload.action}d photo ${photoId} in event ${photo.eventId}`)
   return jsonPrivate({ photo })
 }
 
@@ -3618,14 +3619,14 @@ const deleteOwnerPhoto = async (request, photoId) => {
     const ownerPhotoEvent = await repository.getEventById(photo.eventId)
     await deleteEventScopedStoredFile({ url: photo.url, eventSlug: ownerPhotoEvent?.slug || '', kind: 'room-photo', deleteFile: deleteStoredFile })
   } catch (storageError) {
-    console.error('[deleteOwnerPhoto] Storage cleanup failed for photo:', photoId, storageError)
+    console.error('[deleteOwnerPhoto] Storage cleanup failed for photo:', photoId, serializeProviderError('blob', 'delete_owner_photo', storageError))
   }
 
   // Same shared helper as the admin path — derivative identity is never
   // reconstructed at a call site.
   await deletePhotoDerivatives(photo.id, { context: 'deleteOwnerPhoto' })
 
-  console.log(`[audit] Owner ${ownerEmail} deleted photo ${photoId} from event ${photo.eventId}`)
+  console.log(`[audit] Owner ${hashIdentifier(ownerEmail)} deleted photo ${photoId} from event ${photo.eventId}`)
   return jsonPrivate({ deleted: true, photo })
 }
 

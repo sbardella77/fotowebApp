@@ -5,6 +5,7 @@ import { verifyOwnerSessionToken } from '@/lib/server/owner-auth'
 import { verifySameOriginRequest, requireCsrfProtection } from '@/lib/server/csrf'
 import { checkRateLimit, getClientIp, hashIdentifier, PAYMENT_LIMITS } from '@/lib/server/rate-limiter'
 import { sendOpsAlert } from '@/lib/server/ops-alerts'
+import { serializeProviderError } from '@/lib/server/safe-log'
 
 export const dynamic = 'force-dynamic'
 
@@ -66,7 +67,7 @@ export async function POST(request) {
         type: 'db:unavailable',
         title: 'Database unavailable when opening Stripe Customer Portal',
         message: 'Prisma client could not be initialized during a Customer Portal request.',
-        context: { ownerEmail },
+        context: { ownerIdHash: hashIdentifier(ownerEmail) },
       })
       return NextResponse.json({ error: 'Database unavailable' }, { status: 503 })
     }
@@ -74,7 +75,7 @@ export async function POST(request) {
     const { resolveCanonicalOwner } = await import('@/lib/server/owner-resolution')
     const owner = await resolveCanonicalOwner(ownerEmail)
     if (!owner) {
-      console.error(`${logPrefix} Owner not found for email:`, ownerEmail)
+      console.error(`${logPrefix} Owner not found for email:`, hashIdentifier(ownerEmail))
       return NextResponse.json({ error: 'Owner not found' }, { status: 404 })
     }
 
@@ -106,13 +107,13 @@ export async function POST(request) {
 
     return NextResponse.json({ url: portalSession.url })
   } catch (error) {
-    console.error(`${logPrefix} Unexpected error:`, error)
+    console.error(`${logPrefix} Unexpected error:`, serializeProviderError('stripe', 'customer_portal_create', error))
     await sendOpsAlert({
       severity: 'warning',
       type: 'billing:customer_portal:create_failed',
       title: 'Stripe Customer Portal session creation failed',
       message: error.message,
-      context: { ownerEmail },
+      context: { ownerIdHash: hashIdentifier(ownerEmail) },
     })
     return NextResponse.json(
       { error: 'Unable to open billing portal. Please try again later.' },
