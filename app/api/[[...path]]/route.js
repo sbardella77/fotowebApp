@@ -1448,18 +1448,44 @@ const uploadChunk = async (request) => {
  *   7.15g — the buffer already fetched+validated during upload completion),
  *   is reused as-is instead of a second fetch; omitted on every other call
  *   site (moderation, idempotent retries), which still fetch normally.
- * @returns {Promise<{created: boolean}>} `created:false` on any failure, indistinguishable from a cache HIT
+ * @returns {Promise<{created: boolean}>} `created:false` on a cache HIT or
+ *   on any failure — TASK-02: the two are no longer conflated in the
+ *   database. A cache HIT (derivative already existed) and a successful
+ *   fresh transform both record `displayDerivativeStatus: READY`; a
+ *   thrown error records `FAILED`. A failure to record either status (the
+ *   photo row vanishing between commit and this call, a transient DB
+ *   error) is itself swallowed — this function's job is cache/status
+ *   materialization, never a reason to fail the caller's HTTP response.
  */
 async function ensurePhotoDisplayDerivative(photo, { operation, sourceBuffer }) {
+  const prisma = await getPrismaClient()
+
   try {
-    return await ensureDisplayDerivative({
+    const result = await ensureDisplayDerivative({
       photoId: photo.id,
       getSourceBuffer: sourceBuffer ? async () => sourceBuffer : () => getPhotoBuffer(photo.url),
     })
+    // READY means only this: a display derivative is confirmed to exist as
+    // the output of this pipeline (fresh transform+put, or a prior run's
+    // already-persisted object) — never inferred from anything else.
+    await prisma?.photo?.updateMany?.({
+      where: { id: photo.id },
+      data: { displayDerivativeStatus: 'READY' },
+    })?.catch((updateError) => {
+      console.warn(`[${operation}] Failed to record READY display derivative status for photo:`, photo.id, serializeProviderError('db', 'record_display_derivative_ready', updateError))
+    })
+    return result
   } catch (error) {
-    // Safe context only: photoId (opaque) and the operation label. Never the
-    // source URL, storedName, originalName, or the raw error object.
-    console.warn(`[${operation}] Display derivative generation failed for photo:`, photo.id, error?.name)
+    // Safe context only: photoId (opaque) and the operation label. Never
+    // the source URL, storedName, originalName, or the raw error object —
+    // TASK-01 logging policy applies to this and every new log site below.
+    console.warn(`[${operation}] Display derivative generation failed for photo:`, photo.id, serializeProviderError('blob', 'ensure_photo_display_derivative', error))
+    await prisma?.photo?.updateMany?.({
+      where: { id: photo.id },
+      data: { displayDerivativeStatus: 'FAILED' },
+    })?.catch((updateError) => {
+      console.warn(`[${operation}] Failed to record FAILED display derivative status for photo:`, photo.id, serializeProviderError('db', 'record_display_derivative_failed', updateError))
+    })
     return { created: false }
   }
 }

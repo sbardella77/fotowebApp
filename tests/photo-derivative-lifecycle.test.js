@@ -193,6 +193,11 @@ const makePrisma = () => ({
   },
   event: { findUnique: vi.fn().mockResolvedValue({ id: EVENT_ID, slug: SLUG }) },
   deletionLog: { create: vi.fn().mockResolvedValue({}) },
+  // TASK-02: ensurePhotoDisplayDerivative records displayDerivativeStatus
+  // via prisma.photo.updateMany after every ensure attempt (moderation
+  // transitions included) — stubbed here so that path resolves cleanly
+  // instead of throwing on a missing delegate.
+  photo: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
 })
 
 beforeEach(async () => {
@@ -490,6 +495,57 @@ describe('§34 / §12 HIDDEN → VISIBLE', () => {
     expect(response2.status).toBe(200)
     expect(ensureDisplayDerivative).toHaveBeenCalledTimes(2)
     expect(deletePhotoDerivatives).not.toHaveBeenCalled()
+  })
+
+  // ─── TASK-02: moderation-triggered generation also records status ────────
+  // A moderation transition to VISIBLE is one of only two places
+  // ensureDisplayDerivative is invoked (the other is upload completion,
+  // covered in tests/photo-display-generation.test.js). This is also this
+  // codebase's existing, natural retry hook for a LEGACY_UNVERIFIED or
+  // previously-FAILED photo (Section M of the TASK-02 spec) — re-approving
+  // a photo gives its derivative another real attempt, correctly recorded,
+  // with no new cron or retry infrastructure required.
+
+  it('TASK-02: admin approve success records displayDerivativeStatus = READY for the approved photo', async () => {
+    const prisma = makePrisma()
+    getPrismaClient.mockResolvedValue(prisma)
+    getGalleryRepository.mockResolvedValue(
+      makeRepository({ setPhotoStatus: vi.fn().mockResolvedValue(photoRecord({ status: 'VISIBLE' })) }),
+    )
+    ensureDisplayDerivative.mockResolvedValue({ created: true })
+    const request = await adminRequest(`/admin/photos/${PHOTO_ID}`, 'PATCH')
+    request.json = async () => ({ action: 'approve' })
+
+    await invoke(PATCH, request)
+
+    expect(prisma.photo.updateMany).toHaveBeenCalledWith({
+      where: { id: PHOTO_ID },
+      data: { displayDerivativeStatus: 'READY' },
+    })
+  })
+
+  it('TASK-02: owner approve, generation failure records FAILED — never READY — and the approval itself still succeeds', async () => {
+    const prisma = makePrisma()
+    getPrismaClient.mockResolvedValue(prisma)
+    ensureDisplayDerivative.mockRejectedValue(new Error('blob boom'))
+    getGalleryRepository.mockResolvedValue(
+      makeRepository({ setPhotoStatusByOwner: vi.fn().mockResolvedValue(photoRecord({ status: 'VISIBLE' })) }),
+    )
+    const request = await ownerRequest(`/owner/photos/${PHOTO_ID}`, 'PATCH')
+    request.json = async () => ({ action: 'approve' })
+
+    const response = await invoke(PATCH, request)
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.photo.status).toBe('VISIBLE')
+    expect(prisma.photo.updateMany).toHaveBeenCalledWith({
+      where: { id: PHOTO_ID },
+      data: { displayDerivativeStatus: 'FAILED' },
+    })
+    expect(prisma.photo.updateMany).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: { displayDerivativeStatus: 'READY' } }),
+    )
   })
 })
 
