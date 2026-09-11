@@ -232,18 +232,27 @@ committed to the repository.
 
 ```bash
 npm run prisma:generate        # generate the Prisma client
-npm run prisma:migrate:dev     # create/apply a migration locally
-npm run db:migrate:deploy      # apply pending migrations (Production workflow)
+npm run prisma:migrate:dev     # create/apply a migration locally (LOCAL only — never Preview/Production)
+npm run db:migrate:preview     # apply pending migrations to Preview (guarded — see below)
+npm run db:migrate:production  # apply pending migrations to Production (guarded — see below)
 npm run db:health              # scripts/check-db-connection.js — connectivity check
 ```
 
-Production migrations require a controlled, explicit workflow — never a
-casual `prisma db push` against Production. Follow
+Production and Preview migrations require a controlled, explicit workflow —
+never a casual `prisma db push`, and never `prisma migrate deploy` invoked
+directly. `npm run db:migrate:preview` / `npm run db:migrate:production`
+(implemented in [`scripts/run-migration-safe.sh`](scripts/run-migration-safe.sh))
+are the only approved paths: each one runs
+[`scripts/db-migration-preflight.cjs`](scripts/db-migration-preflight.cjs) first
+and fails closed — refusing to run `prisma migrate deploy` at all — unless the
+connection is proven to be the correct environment's Neon endpoint, non-pooled,
+and authenticated as the owner-capable migration role (never the least-privilege
+runtime role behind `DATABASE_URL`). Follow
 [`docs/production-deploy-checklist.md`](docs/production-deploy-checklist.md)
 and the schema-change checklist in
 [`docs/testing.md`](docs/testing.md#prisma-schema-changes): a migration
-file must exist for every `schema.prisma` change, `prisma migrate deploy`
-must be run and verified with `prisma migrate status`, and critical flows
+file must exist for every `schema.prisma` change, the guarded wrapper must be
+run and verified with `prisma migrate status`, and critical flows
 (`/api/health/db`, dashboard login) must be smoke-tested afterward. Avoid
 destructive schema operations unless explicitly reviewed and justified —
 Production data is preserved by default.
@@ -390,6 +399,10 @@ locale redirection.
 - Never force-push to `main`.
 - Every Prisma schema change requires an explicit, reviewed migration —
   no ad hoc `prisma db push` against Production.
+- Migrations against Preview/Production always go through
+  `npm run db:migrate:preview` / `npm run db:migrate:production` — never
+  `prisma migrate deploy` directly, and never the runtime `DATABASE_URL`
+  for DDL. See [`scripts/db-migration-preflight.cjs`](scripts/db-migration-preflight.cjs).
 - Functional changes go through a Preview deployment before Production.
 - Verify the exact commit SHA behind any release before and after
   deploying it.

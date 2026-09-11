@@ -131,7 +131,9 @@ Handling scheduled cancellations requires the `Owner` fields added by migration 
 - `subscriptionCurrentPeriodEnd DateTime?`
 - `subscriptionCancelScheduledAt DateTime?`
 
-Deploy with `npx prisma migrate deploy`. Do **not** use `prisma db push` in production.
+Deploy with `npm run db:migrate:production` (never `npx prisma migrate deploy`
+directly — see [`docs/production-deploy-checklist.md`](production-deploy-checklist.md)
+for the guarded sequence). Do **not** use `prisma db push` in production.
 
 ## Residual Limitations
 

@@ -41,7 +41,7 @@ If a PR modifies `prisma/schema.prisma`, production deployment is not complete u
 
 1. a Prisma migration exists in `prisma/migrations/`
 2. `npm run db:health` passes against production
-3. `npm run db:migrate:deploy` has been executed successfully
+3. `npm run db:migrate:production` has been executed successfully (never `prisma migrate deploy` directly — this runs the pre-flight identity guardrail first and fails closed on a wrong role/environment; see `scripts/db-migration-preflight.cjs`)
 4. `npx prisma migrate status` reports the production database as up to date
 5. critical production flows are smoke-tested:
    - `/api/health/db`
@@ -58,7 +58,7 @@ Schema / Migration checklist
 [ ] Questa PR modifica prisma/schema.prisma?
 [ ] Se sì, esiste una nuova migration in prisma/migrations/?
 [ ] npm run db:health eseguito su production
-[ ] npm run db:migrate:deploy eseguito su production
+[ ] npm run db:migrate:production eseguito su production (mai `prisma migrate deploy` diretto)
 [ ] npx prisma migrate status conferma DB up to date
 [ ] /api/health/db ritorna status ok
 [ ] Login dashboard testato

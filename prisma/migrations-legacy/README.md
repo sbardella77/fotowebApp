@@ -55,13 +55,19 @@ This commit only changes the repository's migration history layout. It
 does **not** apply anything to Production and does **not** mark the new
 baseline as applied there.
 
-Before any future `prisma migrate deploy` runs against Production with
-this new history in place, a separate, controlled step must run exactly
-once against the correct Production database:
+Before any future migration runs against Production with this new history
+in place, a separate, controlled, one-time step must run exactly once
+against the correct Production database:
 
 ```
 prisma migrate resolve --applied 000000000000_squashed_migrations
 ```
+
+`migrate resolve` is deliberately a distinct, manual, one-time bookkeeping
+operation — it is not the routine deploy path and is not run by
+`scripts/run-migration-safe.sh`. Once resolved, all *subsequent* deploys
+must go through `npm run db:migrate:production` (never `prisma migrate
+deploy` directly) — see [`docs/production-deploy-checklist.md`](../../docs/production-deploy-checklist.md).
 
 No build or deploy automation in this repository runs `migrate deploy`
 automatically — that has already been audited separately.
