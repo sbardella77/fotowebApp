@@ -360,5 +360,6 @@ module.exports = {
   validateConnectionIdentity,
   runPreflight,
   machineLines,
+  createPrismaExecutor,
   main,
 }
