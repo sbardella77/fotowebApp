@@ -27,8 +27,23 @@ Use this checklist before and after every production deployment, especially when
 
 ## Post-deploy (mandatory for Prisma/auth changes)
 
-- [ ] Run `npx prisma migrate status` and confirm `Database schema is up to date!`.
-- [ ] Run `npx prisma migrate deploy` only if migrations are pending.
+**If a migration is pending, apply it only through the guarded sequence below.**
+Never invoke `prisma migrate deploy` (or `npm run prisma:migrate:deploy` /
+`npm run db:migrate:deploy`) directly against Preview or Production.
+
+Mandatory migration sequence:
+
+1. **ENV VERIFY** — decide the target explicitly: `preview` or `production`. Never let a tool infer it.
+2. **PRE-FLIGHT** — run `npm run db:migrate:preview` or `npm run db:migrate:production` (see [`scripts/run-migration-safe.sh`](../scripts/run-migration-safe.sh)). This prompts for `DIRECT_URL` (via `read -s`, never echoed, never written to a file) and runs [`scripts/db-migration-preflight.cjs`](../scripts/db-migration-preflight.cjs) first. The pre-flight fails closed — and the migration does **not** run — unless it proves: the connection is the expected environment's Neon endpoint, is non-pooled, is authenticated as the expected owner-capable role (`neondb_owner`, not a least-privilege runtime role), and actually owns every ordinary table in `public` (including `_prisma_migrations`, `Photo`, `BlobUploadSession`).
+3. **MIGRATE DEPLOY** — runs automatically, only if step 2 passed.
+4. **MIGRATION STATUS** — runs automatically; confirm `Database schema is up to date!`.
+5. **SCHEMA VERIFY** — manually confirm the specific columns/tables this migration was meant to add (e.g. via `information_schema.columns`) match what the migration SQL declares.
+
+Do **not**:
+- run `prisma migrate deploy` directly — always go through `npm run db:migrate:preview` / `npm run db:migrate:production`.
+- use the runtime `DATABASE_URL` (the least-privilege pooled connection) for any DDL/migration — migrations must use `DIRECT_URL` only, authenticated as the owner-capable role.
+- reach for `prisma migrate resolve` as the first response to a `P3018` failure. `migrate resolve` marks a migration as applied/rolled-back in bookkeeping only — it does not fix an ownership or environment-binding problem, and using it to "get past" an unexplained P3018 can mask a credential misconfiguration instead of fixing it. Run the pre-flight first; if it reports `REASON=UNEXPECTED_ROLE`, `REASON=UNEXPECTED_HOST`, or `REASON=OWNERSHIP_MISMATCH`, fix the credential/environment binding, don't paper over it with `migrate resolve`.
+
 - [ ] Run `/api/health/db` and confirm `{"status":"ok"}`.
 - [ ] Run `/api/owner/session` and confirm no `P2022` / schema-mismatch errors.
 - [ ] Run `/api/owner/forgot-password` with a non-existing email and confirm generic `200` response.
@@ -92,5 +107,6 @@ Use this checklist before and after every production deployment, especially when
 ## Emergency rollback note
 
 - Do **not** run `prisma migrate reset` or drop tables to fix schema errors.
-- If a deploy introduces a schema mismatch, apply pending migrations with `npx prisma migrate deploy`.
+- Do **not** run `prisma migrate resolve` as a first response to a failed migration (e.g. Postgres `42501` / Prisma `P3018` "must be owner of table ..."). That error means the migration connection is not the expected owner-capable role — fix the credential/environment binding (see pre-flight guardrail above), don't mark the migration resolved around it.
+- If a deploy introduces a schema mismatch, apply pending migrations with `npm run db:migrate:preview` or `npm run db:migrate:production` (never `npx prisma migrate deploy` directly) — see the mandatory migration sequence above.
 - If a code bug is exposed, revert the deployment and keep the schema migrations applied; do not roll back the database unless a destructive migration was deployed.

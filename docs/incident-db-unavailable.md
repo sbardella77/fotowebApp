@@ -73,24 +73,30 @@ postgresql://user:pass@ep-....us-east-1.aws.neon.tech:5432/db?sslmode=require
    npm run build
    ```
    (NOT `prisma migrate deploy && npm run build`)
-3. Run migrations separately after DB is back:
+3. Run migrations separately after DB is back, through the guarded wrapper
+   only — **never** `npx prisma migrate deploy` directly, even during an
+   incident:
    ```bash
-   npx vercel env pull .env.production
-   npm run db:migrate:deploy
-   ```
-   Or via Vercel CLI in a one-off command:
-   ```bash
-   vercel --prod
-   # Then run migration manually via a secure environment
+   npm run db:migrate:production
    ```
 
 ### Manual Migration
 
 ```bash
-# Ensure DIRECT_URL is set for migrations
-export DIRECT_URL="your-direct-connection-string"
-npx prisma migrate deploy
+npm run db:migrate:production
 ```
+
+This is the **only** approved way to run a migration against Production. It
+prompts for `DIRECT_URL` via `read -s` (never echoed, never written to a
+file) if it isn't already exported, then runs
+[`scripts/db-migration-preflight.cjs`](../scripts/db-migration-preflight.cjs)
+first — which fails closed and refuses to run `prisma migrate deploy` at all
+unless the connection is proven to be Production's actual endpoint, is
+non-pooled, and is authenticated as the owner-capable migration role. Do
+**not** bypass this by exporting `DIRECT_URL` and calling
+`npx prisma migrate deploy` directly — that skips the exact checks this
+runbook exists to enforce, especially risky mid-incident when it's tempting
+to move fast.
 
 ## Recovery Steps
 
@@ -179,19 +185,20 @@ Build Command: npm run build
 
 ### Post-Deploy Migration (Manual)
 
-After a successful deploy, run migrations from a secure environment:
+After a successful deploy, run migrations from a secure environment, through
+the guarded wrapper — never raw `prisma migrate deploy`:
 
 ```bash
-# Using Vercel CLI
-vercel env pull .env.production
-npm run db:migrate:deploy
+npm run db:migrate:production
 ```
 
-Or use a GitHub Action (see below).
+## GitHub Actions: Post-Deploy Migration (illustrative only — this workflow file does not exist)
 
-## GitHub Actions: Post-Deploy Migration
-
-Create `.github/workflows/db-migrate.yml`:
+No CI workflow currently runs migrations (`.github/workflows/ci.yml` only
+runs `prisma generate`) — this is intentional; migrations are deliberately a
+manual, guarded step, not an automatic one. **Do not** create a workflow that
+calls `prisma migrate deploy` directly. If a CI-triggered migration step is
+ever added, it must call the same guarded wrapper, e.g.:
 
 ```yaml
 name: Database Migration
@@ -209,13 +216,16 @@ jobs:
         with:
           node-version: 20
       - run: npm ci
-      - run: npx prisma migrate deploy
+      - run: npm run db:migrate:production
         env:
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 ```
 
-**Important**: Set `DIRECT_URL` and `DATABASE_URL` as repository secrets.
+`DIRECT_URL` pre-set via `env:` is picked up by `scripts/run-migration-safe.sh`
+without prompting (the interactive `read -s` prompt only triggers when
+`DIRECT_URL` is not already set), so the guarded wrapper works unchanged in
+CI. Do **not** set `DATABASE_URL` for this job — the wrapper and pre-flight
+never read it, by design (runtime and migration credentials stay separate).
 
 ## Prisma schema changes
 
@@ -223,7 +233,7 @@ If a PR modifies `prisma/schema.prisma`, production deployment is not complete u
 
 1. a Prisma migration exists in `prisma/migrations/`
 2. `npm run db:health` passes against production
-3. `npm run db:migrate:deploy` has been executed successfully
+3. `npm run db:migrate:production` has been executed successfully (never `prisma migrate deploy` directly)
 4. `npx prisma migrate status` reports the production database as up to date
 5. critical production flows are smoke-tested:
    - `/api/health/db`
@@ -240,7 +250,7 @@ Schema / Migration checklist
 [ ] Questa PR modifica prisma/schema.prisma?
 [ ] Se sì, esiste una nuova migration in prisma/migrations/?
 [ ] npm run db:health eseguito su production
-[ ] npm run db:migrate:deploy eseguito su production
+[ ] npm run db:migrate:production eseguito su production (mai `prisma migrate deploy` diretto)
 [ ] npx prisma migrate status conferma DB up to date
 [ ] /api/health/db ritorna status ok
 [ ] Login dashboard testato

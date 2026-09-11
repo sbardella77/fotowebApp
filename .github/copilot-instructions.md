@@ -76,9 +76,22 @@ NODE_OPTIONS='--max-old-space-size=512' next dev  # Memory optimization (already
 ```bash
 npm run prisma:generate         # Required after schema changes
 npm run prisma:migrate:dev      # Interactive migration (LOCAL only)
-npm run prisma:migrate:deploy   # Production migration
+npm run db:migrate:preview      # Apply pending migrations to Preview (guarded — see below)
+npm run db:migrate:production   # Apply pending migrations to Production (guarded — see below)
 npm run prisma:push             # Quick schema sync (for dev only, non-production)
 ```
+
+**NEVER run `prisma migrate deploy` (or `npx prisma migrate deploy`) directly
+against Preview or Production, and NEVER use `migrate dev` or `db push`
+against Preview/Production — those two are LOCAL-only.** `npm run
+prisma:migrate:deploy` / `npm run db:migrate:deploy` are intentionally
+blocked no-ops now (they print a pointer and exit 1). The only approved
+paths are `npm run db:migrate:preview` and `npm run db:migrate:production`
+(`scripts/run-migration-safe.sh`), which run
+`scripts/db-migration-preflight.cjs` first and refuse to run `prisma migrate
+deploy` at all unless the connection is proven to be the correct
+environment, non-pooled, and authenticated as the owner-capable migration
+role rather than the least-privilege runtime role.
 
 ### Data Migration
 ```bash
@@ -146,14 +159,14 @@ All POST/PATCH requests validated via Zod schemas in `/lib/server/schemas.js`:
 
 ### Adding a Database Migration
 1. Update `/prisma/schema.prisma`
-2. Run `npm run prisma:migrate:dev --name your_migration_name`
+2. Run `npm run prisma:migrate:dev --name your_migration_name` (local database only)
 3. Migration files auto-generated in `/prisma/migrations/`
-4. For production: commit migration file, run `npm run prisma:migrate:deploy`
+4. For Preview/Production: commit the migration file, then run `npm run db:migrate:preview` and/or `npm run db:migrate:production` — never `prisma migrate deploy` directly (see `scripts/db-migration-preflight.cjs`)
 
-### Switching to PostgreSQL
-1. Set `DATABASE_URL` environment variable
+### Switching to PostgreSQL (local development database)
+1. Set `DATABASE_URL` environment variable for your **local** database
 2. Run `npm run prisma:generate`
-3. Run `npm run prisma:migrate:dev` (or `deploy` if migrations exist)
+3. Run `npm run prisma:migrate:dev` (local only — for Preview/Production use `npm run db:migrate:preview` / `npm run db:migrate:production` instead)
 4. Optionally migrate data: `npm run migrate:local-to-prisma --execute`
 5. Set `DATA_ACCESS_DRIVER=prisma` (or leave unset to auto-detect)
 
