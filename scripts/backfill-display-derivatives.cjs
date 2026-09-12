@@ -4,16 +4,26 @@
 /**
  * Display-v1 backfill operator — native Node bootstrap (STEP 7.15f.1-c).
  *
- * Usage:
- *   node scripts/backfill-display-derivatives.js        (dry run, read only)
- *   node scripts/backfill-display-derivatives.js \
- *     --apply --confirm-production \
- *     --expected-visible=<N> --expected-missing=<N>     (writes missing display-v1 objects)
+ * Usage (canonical — this is the ONLY documented invocation; there is no
+ * `.js` variant of this file, only this `.cjs`):
+ *   node scripts/backfill-display-derivatives.cjs --env=preview        (dry run, read only)
+ *   node scripts/backfill-display-derivatives.cjs \
+ *     --env=production --apply --confirm-target=production \
+ *     --expected-visible=<N> --expected-missing=<N> --expected-reconcile=<N>
+ *                                                        (writes missing display-v1
+ *                                                         objects and reconciles status)
  *
- * This file contains ZERO Prisma/Blob/ensure/Sharp/targeting logic — that
- * all lives in lib/server/display-backfill.js, the real production module,
- * reused unmodified. This bootstrap only: enforces the environment policy,
- * resolves the installed (transitive) Vite runtime, starts it in a
+ * --env is required for every invocation, dry-run included — see
+ * lib/server/display-backfill.js's parseArgs and
+ * lib/server/backfill-target-identity.js for the full target-identity
+ * contract (Operator Target Safety): the operator refuses to proceed at
+ * all, in either mode, unless DATABASE_URL and BLOB_READ_WRITE_TOKEN can
+ * both be proven to belong to the declared --env.
+ *
+ * This file contains ZERO Prisma/Blob/ensure/Sharp/targeting/identity logic
+ * — that all lives in lib/server/display-backfill.js, the real production
+ * module, reused unmodified. This bootstrap only: enforces the environment
+ * policy, resolves the installed (transitive) Vite runtime, starts it in a
  * non-listening, in-process mode, imports the operator module through it,
  * and propagates the exit code.
  */

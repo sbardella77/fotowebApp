@@ -3,23 +3,30 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 
 // STEP 7.15f.1-c — display-v1 backfill operator core.
-// Extended by "Display Backfill Status Reconciliation" so that a successful
-// backfill run also reconciles Photo.displayDerivativeStatus, not just Blob
-// object existence — see lib/server/display-backfill.js's module doc comment
-// for the full rationale (a status left at LEGACY_UNVERIFIED after a
-// successful backfill was a false negative for the guest resolver).
+// Extended by:
+//  - "Display Backfill Status Reconciliation": a successful backfill run
+//    also reconciles Photo.displayDerivativeStatus, not just Blob object
+//    existence (a status left at LEGACY_UNVERIFIED after a successful
+//    backfill was a false negative for the guest resolver).
+//  - "Guest EXIF Plumbing + Backfill Reconciliation: Operator Target
+//    Safety": every invocation (dry-run included) now must declare
+//    --env=preview|production, and main() proves — via
+//    lib/server/backfill-target-identity.js's checkTargetIdentity — that
+//    the injected DATABASE_URL/BLOB_READ_WRITE_TOKEN pair actually belongs
+//    to that declared environment BEFORE any other dependency is touched.
+//    See tests/backfill-target-identity.test.js for that module's own
+//    direct, exhaustive coverage (the Preview/Production cross-mismatch
+//    matrix lives there); this file's identity-related tests focus on
+//    main()'s wiring and fail-closed short-circuiting.
 //
 // display-backfill.js is a pure function of (argv, dependencies): it never
 // reads process.env and never imports Vite/CLI plumbing, so every test here
 // uses fully synthetic, injected dependencies and touches zero Production
 // credentials. The status write itself is delegated to the shared, already
 // unit-tested lib/server/photo-display-derivative-status.js helper (see
-// tests/photo-display-derivative-status.test.js for its own direct coverage,
-// including the exact-shape assertion that only `displayDerivativeStatus` is
-// ever written) — this file focuses on target classification, gating, and
-// end-to-end wiring through main(). The native .cjs bootstrap (env policy,
-// Vite resolution, non-listening ModuleRunner) is covered separately in
-// tests/backfill-display-cli.test.js.
+// tests/photo-display-derivative-status.test.js). The native .cjs bootstrap
+// (env policy, Vite resolution, non-listening ModuleRunner) is covered
+// separately in tests/backfill-display-cli.test.js.
 
 vi.mock('@upstash/redis', () => ({ Redis: vi.fn() }))
 vi.mock('@vercel/blob', () => ({
@@ -59,6 +66,47 @@ function makeListBlobs(pathnames) {
 
 const VISIBLE_PATH = (id) => `derivatives/display-v1/${id}.jpg`
 
+// A fully self-consistent, synthetic environment table — distinct from the
+// real, shipped ENV_CONFIG (which is deliberately NOT_CONFIGURED for
+// blobStoreId/databaseRole and would fail closed on every test below). This
+// lets tests focused on generation/reconciliation logic get PAST the
+// identity gate with an explicit, readable, self-consistent fixture, while
+// tests/backfill-target-identity.test.js separately proves the real
+// ENV_CONFIG fails closed by default.
+const TEST_ENV_CONFIG = {
+  preview: {
+    expectedDirectHost: 'ep-test-preview.c-1.us-east-1.aws.neon.tech',
+    expectedDatabaseName: 'neondb',
+    expectedDatabaseRole: 'test_runtime_role',
+    expectedBlobStoreId: 'previewstore',
+  },
+  production: {
+    expectedDirectHost: 'ep-test-production.c-1.us-east-1.aws.neon.tech',
+    expectedDatabaseName: 'neondb',
+    expectedDatabaseRole: 'test_runtime_role',
+    expectedBlobStoreId: 'productionstore',
+  },
+}
+const PREVIEW_DB_URL = 'postgresql://user:pass@ep-test-preview-pooler.c-1.us-east-1.aws.neon.tech/neondb'
+const PRODUCTION_DB_URL = 'postgresql://user:pass@ep-test-production-pooler.c-1.us-east-1.aws.neon.tech/neondb'
+const PREVIEW_BLOB_TOKEN = 'vercel_blob_rw_previewstore_randomsuffix'
+const PRODUCTION_BLOB_TOKEN = 'vercel_blob_rw_productionstore_randomsuffix'
+
+/** A complete, PASSING identity fixture for --env=preview, merged into a dependencies object. */
+function validPreviewIdentity(overrides = {}) {
+  return {
+    databaseUrl: PREVIEW_DB_URL,
+    blobReadWriteToken: PREVIEW_BLOB_TOKEN,
+    queryLiveDatabaseIdentity: vi.fn().mockResolvedValue({ databaseName: 'neondb', databaseRole: 'test_runtime_role' }),
+    envConfig: TEST_ENV_CONFIG,
+    ...overrides,
+  }
+}
+
+function baseLogger() {
+  return { log: vi.fn(), warn: vi.fn(), error: vi.fn() }
+}
+
 // A real apply run now always attempts status writes (READY, on the
 // success branch, for every target it touches) even when no test is
 // specifically asserting on the log — suppress the noise the same way
@@ -73,62 +121,114 @@ afterEach(() => {
 })
 
 describe('parseArgs', () => {
-  it('no args -> dry run (apply=false)', () => {
-    expect(parseArgs([])).toEqual({
+  it('no args -> missing --env is an error (no environment inference, ever)', () => {
+    const result = parseArgs([])
+    expect(result).toHaveProperty('error')
+    expect(result.error).toMatch(/--env/)
+  })
+
+  it('--env=preview alone -> dry run (apply=false)', () => {
+    expect(parseArgs(['--env=preview'])).toEqual({
       apply: false,
-      confirmProduction: false,
+      env: 'preview',
+      confirmTarget: null,
       expectedVisible: null,
       expectedMissing: null,
       expectedReconcile: null,
     })
   })
 
+  it('rejects an invalid --env value', () => {
+    expect(parseArgs(['--env=staging'])).toHaveProperty('error')
+    expect(parseArgs(['--env=Production'])).toHaveProperty('error') // case-sensitive, no fuzzy matching
+  })
+
   it('rejects unknown flags', () => {
-    expect(parseArgs(['--yes'])).toHaveProperty('error')
-    expect(parseArgs(['--force'])).toHaveProperty('error')
-    expect(parseArgs(['--delete'])).toHaveProperty('error')
-    expect(parseArgs(['--cleanup'])).toHaveProperty('error')
-    expect(parseArgs(['--prune'])).toHaveProperty('error')
+    expect(parseArgs(['--env=preview', '--yes'])).toHaveProperty('error')
+    expect(parseArgs(['--env=preview', '--force'])).toHaveProperty('error')
+    expect(parseArgs(['--env=preview', '--delete'])).toHaveProperty('error')
+    expect(parseArgs(['--env=preview', '--cleanup'])).toHaveProperty('error')
+    expect(parseArgs(['--env=preview', '--prune'])).toHaveProperty('error')
+  })
+
+  it('the old, environment-blind --confirm-production flag no longer exists', () => {
+    expect(parseArgs(['--env=preview', '--confirm-production'])).toHaveProperty('error')
   })
 
   it('rejects non-integer/negative/decimal expected counters, including --expected-reconcile', () => {
-    expect(parseArgs(['--expected-visible=abc'])).toHaveProperty('error')
-    expect(parseArgs(['--expected-visible=-5'])).toHaveProperty('error')
-    expect(parseArgs(['--expected-visible=3.5'])).toHaveProperty('error')
-    expect(parseArgs(['--expected-reconcile=abc'])).toHaveProperty('error')
-    expect(parseArgs(['--expected-reconcile=-5'])).toHaveProperty('error')
-    expect(parseArgs(['--expected-reconcile=3.5'])).toHaveProperty('error')
+    expect(parseArgs(['--env=preview', '--expected-visible=abc'])).toHaveProperty('error')
+    expect(parseArgs(['--env=preview', '--expected-visible=-5'])).toHaveProperty('error')
+    expect(parseArgs(['--env=preview', '--expected-visible=3.5'])).toHaveProperty('error')
+    expect(parseArgs(['--env=preview', '--expected-reconcile=abc'])).toHaveProperty('error')
+    expect(parseArgs(['--env=preview', '--expected-reconcile=-5'])).toHaveProperty('error')
+    expect(parseArgs(['--env=preview', '--expected-reconcile=3.5'])).toHaveProperty('error')
   })
 
-  it('--apply alone (no confirm/counters) is an error', () => {
-    expect(parseArgs(['--apply'])).toHaveProperty('error')
+  it('--apply alone (no confirm-target/counters) is an error', () => {
+    expect(parseArgs(['--env=preview', '--apply'])).toHaveProperty('error')
   })
 
-  it('--apply + --confirm-production without counters is an error', () => {
-    expect(parseArgs(['--apply', '--confirm-production'])).toHaveProperty('error')
+  it('--apply + --confirm-target but missing expected counters is an error', () => {
+    expect(parseArgs(['--env=preview', '--apply', '--confirm-target=preview'])).toHaveProperty('error')
   })
 
-  it('--apply + --confirm-production + --expected-visible + --expected-missing but missing --expected-reconcile is an error', () => {
-    const result = parseArgs(['--apply', '--confirm-production', '--expected-visible=10', '--expected-missing=3'])
-    expect(result).toHaveProperty('error')
-    expect(result.error).toMatch(/--expected-reconcile/)
-  })
-
-  it('full valid apply invocation parses cleanly', () => {
+  it('7. Preview apply cannot be authorized with a Production confirmation', () => {
     const result = parseArgs([
+      '--env=preview',
       '--apply',
-      '--confirm-production',
+      '--confirm-target=production',
+      '--expected-visible=1',
+      '--expected-missing=0',
+      '--expected-reconcile=0',
+    ])
+    expect(result).toHaveProperty('error')
+    expect(result.error).toMatch(/does not match/)
+  })
+
+  it('8. Production apply cannot be authorized with a Preview confirmation', () => {
+    const result = parseArgs([
+      '--env=production',
+      '--apply',
+      '--confirm-target=preview',
+      '--expected-visible=1',
+      '--expected-missing=0',
+      '--expected-reconcile=0',
+    ])
+    expect(result).toHaveProperty('error')
+    expect(result.error).toMatch(/does not match/)
+  })
+
+  it('full valid Preview apply invocation parses cleanly', () => {
+    const result = parseArgs([
+      '--env=preview',
+      '--apply',
+      '--confirm-target=preview',
       '--expected-visible=10',
       '--expected-missing=3',
       '--expected-reconcile=2',
     ])
     expect(result).toEqual({
       apply: true,
-      confirmProduction: true,
+      env: 'preview',
+      confirmTarget: 'preview',
       expectedVisible: 10,
       expectedMissing: 3,
       expectedReconcile: 2,
     })
+  })
+
+  it('full valid Production apply invocation parses cleanly', () => {
+    const result = parseArgs([
+      '--env=production',
+      '--apply',
+      '--confirm-target=production',
+      '--expected-visible=10',
+      '--expected-missing=3',
+      '--expected-reconcile=2',
+    ])
+    expect(result.apply).toBe(true)
+    expect(result.env).toBe('production')
+    expect(result.confirmTarget).toBe('production')
   })
 })
 
@@ -244,6 +344,122 @@ describe('status reconciliation — target classification (Display Backfill Stat
   })
 })
 
+describe('main — target-identity gate (Operator Target Safety)', () => {
+  it('missing --env aborts before any dependency is touched', async () => {
+    const getPrismaClient = vi.fn()
+    const listBlobs = vi.fn()
+    const result = await main([], {
+      getPrismaClient,
+      listBlobs,
+      ensureDisplayDerivative: vi.fn(),
+      getPhotoBuffer: vi.fn(),
+      ...validPreviewIdentity(),
+      logger: baseLogger(),
+    })
+    expect(result.exitCode).toBe(1)
+    expect(getPrismaClient).not.toHaveBeenCalled()
+    expect(listBlobs).not.toHaveBeenCalled()
+  })
+
+  it('5. wrong --env (declares preview, DATABASE_URL is actually production) -> FAIL, zero ensure/updateMany/getPrisma calls', async () => {
+    const getPrismaClient = vi.fn()
+    const ensureDisplayDerivative = vi.fn()
+    const result = await main(['--env=preview'], {
+      getPrismaClient,
+      listBlobs: vi.fn(),
+      ensureDisplayDerivative,
+      getPhotoBuffer: vi.fn(),
+      ...validPreviewIdentity({ databaseUrl: PRODUCTION_DB_URL }),
+      logger: baseLogger(),
+    })
+    expect(result.exitCode).toBe(1)
+    expect(result.mode).toBe('identity-check')
+    expect(result.identity.reason).toBe('UNEXPECTED_DATABASE_HOST')
+    expect(getPrismaClient).not.toHaveBeenCalled()
+    expect(ensureDisplayDerivative).not.toHaveBeenCalled()
+  })
+
+  it('3. Preview DB + Production Blob -> FAIL (UNEXPECTED_BLOB_STORE), no live DB query attempted', async () => {
+    const queryLiveDatabaseIdentity = vi.fn()
+    const result = await main(['--env=preview'], {
+      getPrismaClient: vi.fn(),
+      listBlobs: vi.fn(),
+      ensureDisplayDerivative: vi.fn(),
+      getPhotoBuffer: vi.fn(),
+      ...validPreviewIdentity({ blobReadWriteToken: PRODUCTION_BLOB_TOKEN, queryLiveDatabaseIdentity }),
+      logger: baseLogger(),
+    })
+    expect(result.exitCode).toBe(1)
+    expect(result.identity.reason).toBe('UNEXPECTED_BLOB_STORE')
+    expect(queryLiveDatabaseIdentity).not.toHaveBeenCalled()
+  })
+
+  it('9. an identity failure results in zero ensure calls and zero updateMany calls, end to end', async () => {
+    const prisma = makePrisma({ total: 1, visibleCount: 1, hiddenCount: 0, rows: [{ id: 'p1', status: 'VISIBLE', url: 'https://x/a.jpg', size: 10, mimeType: 'image/jpeg', displayDerivativeStatus: 'LEGACY_UNVERIFIED' }] })
+    const ensureDisplayDerivative = vi.fn()
+    const result = await main(
+      ['--env=preview', '--apply', '--confirm-target=preview', '--expected-visible=1', '--expected-missing=1', '--expected-reconcile=0'],
+      {
+        getPrismaClient: async () => prisma,
+        listBlobs: makeListBlobs([]),
+        ensureDisplayDerivative,
+        getPhotoBuffer: vi.fn(),
+        ...validPreviewIdentity({ blobReadWriteToken: PRODUCTION_BLOB_TOKEN }), // mismatched -> fails
+        logger: baseLogger(),
+      },
+    )
+    expect(result.exitCode).toBe(1)
+    expect(ensureDisplayDerivative).not.toHaveBeenCalled()
+    expect(prisma.photo.updateMany).not.toHaveBeenCalled()
+    expect(prisma.photo.findUnique).not.toHaveBeenCalled()
+  })
+
+  it('a passing identity check prints TARGET_IDENTITY=PASS with ENV/DB/DB_ROLE/DB_BRANCH/BLOB_STORE, never a credential', async () => {
+    const rows = [{ id: 'p1', status: 'VISIBLE', url: 'https://x/a.jpg', size: 10, mimeType: 'image/jpeg', displayDerivativeStatus: 'LEGACY_UNVERIFIED' }]
+    const prisma = makePrisma({ total: 1, visibleCount: 1, hiddenCount: 0, rows })
+    const logger = baseLogger()
+
+    await main(['--env=preview'], {
+      getPrismaClient: async () => prisma,
+      listBlobs: makeListBlobs([]),
+      ensureDisplayDerivative: vi.fn(),
+      getPhotoBuffer: vi.fn(),
+      ...validPreviewIdentity(),
+      logger,
+    })
+
+    const printed = logger.log.mock.calls.map((c) => c.join(' ')).join('\n')
+    expect(printed).toContain('TARGET_IDENTITY=PASS')
+    expect(printed).toContain('ENV=preview')
+    expect(printed).toContain('DB=neondb')
+    expect(printed).toContain('DB_ROLE=test_runtime_role')
+    expect(printed).toContain('DB_BRANCH=ep-test-preview')
+    expect(printed).toContain('BLOB_STORE=previewstore')
+    expect(printed).not.toContain(PREVIEW_BLOB_TOKEN)
+    expect(printed).not.toContain('user:pass')
+  })
+
+  it('10. an identity PASS followed by dry-run (no --apply) remains mutation-free', async () => {
+    const rows = [{ id: 'p1', status: 'VISIBLE', url: 'https://x/a.jpg', size: 10, mimeType: 'image/jpeg', displayDerivativeStatus: 'LEGACY_UNVERIFIED' }]
+    const prisma = makePrisma({ total: 1, visibleCount: 1, hiddenCount: 0, rows })
+    const ensureDisplayDerivative = vi.fn()
+
+    const result = await main(['--env=preview'], {
+      getPrismaClient: async () => prisma,
+      listBlobs: makeListBlobs([]),
+      ensureDisplayDerivative,
+      getPhotoBuffer: vi.fn(),
+      ...validPreviewIdentity(),
+      logger: baseLogger(),
+    })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.mode).toBe('dry-run')
+    expect(ensureDisplayDerivative).not.toHaveBeenCalled()
+    expect(prisma.photo.updateMany).not.toHaveBeenCalled()
+  })
+})
+
 describe('main — dry run is strictly read-only', () => {
   it('default invocation performs zero ensure/source-fetch/mutation calls, including status writes', async () => {
     const rows = [{ id: 'p1', status: 'VISIBLE', url: 'https://x/a.jpg', size: 10, mimeType: 'image/jpeg', displayDerivativeStatus: 'LEGACY_UNVERIFIED' }]
@@ -251,13 +467,14 @@ describe('main — dry run is strictly read-only', () => {
     const listBlobs = makeListBlobs([])
     const ensureDisplayDerivative = vi.fn()
     const getPhotoBuffer = vi.fn()
-    const logger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    const logger = baseLogger()
 
-    const result = await main([], {
+    const result = await main(['--env=preview'], {
       getPrismaClient: async () => prisma,
       listBlobs,
       ensureDisplayDerivative,
       getPhotoBuffer,
+      ...validPreviewIdentity(),
       logger,
     })
 
@@ -273,9 +490,16 @@ describe('main — dry run is strictly read-only', () => {
     const rows = [{ id: 'super-secret-photo-id', status: 'VISIBLE', url: 'https://secret.example/x.jpg', size: 10, mimeType: 'image/jpeg', displayDerivativeStatus: 'LEGACY_UNVERIFIED' }]
     const prisma = makePrisma({ total: 1, visibleCount: 1, hiddenCount: 0, rows })
     const listBlobs = makeListBlobs([])
-    const logger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    const logger = baseLogger()
 
-    await main([], { getPrismaClient: async () => prisma, listBlobs, ensureDisplayDerivative: vi.fn(), getPhotoBuffer: vi.fn(), logger })
+    await main(['--env=preview'], {
+      getPrismaClient: async () => prisma,
+      listBlobs,
+      ensureDisplayDerivative: vi.fn(),
+      getPhotoBuffer: vi.fn(),
+      ...validPreviewIdentity(),
+      logger,
+    })
 
     const printed = logger.log.mock.calls.map((call) => call[0]).join('\n')
     for (const key of [
@@ -303,29 +527,31 @@ describe('main — dry run is strictly read-only', () => {
 describe('main — apply gates (all before ensure/source fetch)', () => {
   const rows = [{ id: 'p1', status: 'VISIBLE', url: 'https://x/a.jpg', size: 10, mimeType: 'image/jpeg', displayDerivativeStatus: 'LEGACY_UNVERIFIED' }]
 
-  it('--apply without --confirm-production aborts before ensure', async () => {
+  it('--apply without --confirm-target aborts before ensure', async () => {
     const prisma = makePrisma({ total: 1, visibleCount: 1, hiddenCount: 0, rows })
     const ensureDisplayDerivative = vi.fn()
-    const result = await main(['--apply'], {
+    const result = await main(['--env=preview', '--apply'], {
       getPrismaClient: async () => prisma,
       listBlobs: makeListBlobs([]),
       ensureDisplayDerivative,
       getPhotoBuffer: vi.fn(),
-      logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      ...validPreviewIdentity(),
+      logger: baseLogger(),
     })
     expect(result.exitCode).toBe(1)
     expect(ensureDisplayDerivative).not.toHaveBeenCalled()
     expect(prisma.photo.count).not.toHaveBeenCalled()
   })
 
-  it('--apply + --confirm-production but missing expected counters aborts before ensure', async () => {
+  it('--apply + --confirm-target but missing expected counters aborts before ensure', async () => {
     const ensureDisplayDerivative = vi.fn()
-    const result = await main(['--apply', '--confirm-production'], {
+    const result = await main(['--env=preview', '--apply', '--confirm-target=preview'], {
       getPrismaClient: async () => makePrisma(),
       listBlobs: makeListBlobs([]),
       ensureDisplayDerivative,
       getPhotoBuffer: vi.fn(),
-      logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      ...validPreviewIdentity(),
+      logger: baseLogger(),
     })
     expect(result.exitCode).toBe(1)
     expect(ensureDisplayDerivative).not.toHaveBeenCalled()
@@ -335,13 +561,14 @@ describe('main — apply gates (all before ensure/source fetch)', () => {
     const prisma = makePrisma({ total: 1, visibleCount: 1, hiddenCount: 0, rows })
     const ensureDisplayDerivative = vi.fn()
     const result = await main(
-      ['--apply', '--confirm-production', '--expected-visible=999', '--expected-missing=1', '--expected-reconcile=0'],
+      ['--env=preview', '--apply', '--confirm-target=preview', '--expected-visible=999', '--expected-missing=1', '--expected-reconcile=0'],
       {
         getPrismaClient: async () => prisma,
         listBlobs: makeListBlobs([]),
         ensureDisplayDerivative,
         getPhotoBuffer: vi.fn(),
-        logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        ...validPreviewIdentity(),
+        logger: baseLogger(),
       },
     )
     expect(result.exitCode).toBe(1)
@@ -352,13 +579,14 @@ describe('main — apply gates (all before ensure/source fetch)', () => {
     const prisma = makePrisma({ total: 1, visibleCount: 1, hiddenCount: 0, rows })
     const ensureDisplayDerivative = vi.fn()
     const result = await main(
-      ['--apply', '--confirm-production', '--expected-visible=1', '--expected-missing=999', '--expected-reconcile=0'],
+      ['--env=preview', '--apply', '--confirm-target=preview', '--expected-visible=1', '--expected-missing=999', '--expected-reconcile=0'],
       {
         getPrismaClient: async () => prisma,
         listBlobs: makeListBlobs([]),
         ensureDisplayDerivative,
         getPhotoBuffer: vi.fn(),
-        logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        ...validPreviewIdentity(),
+        logger: baseLogger(),
       },
     )
     expect(result.exitCode).toBe(1)
@@ -371,13 +599,14 @@ describe('main — apply gates (all before ensure/source fetch)', () => {
     const listBlobs = makeListBlobs([VISIBLE_PATH('p1')]) // blob present -> reconcile-only, not generation
     const ensureDisplayDerivative = vi.fn()
     const result = await main(
-      ['--apply', '--confirm-production', '--expected-visible=1', '--expected-missing=0', '--expected-reconcile=999'],
+      ['--env=preview', '--apply', '--confirm-target=preview', '--expected-visible=1', '--expected-missing=0', '--expected-reconcile=999'],
       {
         getPrismaClient: async () => prisma,
         listBlobs,
         ensureDisplayDerivative,
         getPhotoBuffer: vi.fn(),
-        logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        ...validPreviewIdentity(),
+        logger: baseLogger(),
       },
     )
     expect(result.exitCode).toBe(1)
@@ -390,13 +619,14 @@ describe('main — apply gates (all before ensure/source fetch)', () => {
     const prisma = makePrisma({ total: 1, visibleCount: 1, hiddenCount: 0, rows: badRows })
     const ensureDisplayDerivative = vi.fn()
     const result = await main(
-      ['--apply', '--confirm-production', '--expected-visible=1', '--expected-missing=1', '--expected-reconcile=0'],
+      ['--env=preview', '--apply', '--confirm-target=preview', '--expected-visible=1', '--expected-missing=1', '--expected-reconcile=0'],
       {
         getPrismaClient: async () => prisma,
         listBlobs: makeListBlobs([]),
         ensureDisplayDerivative,
         getPhotoBuffer: vi.fn(),
-        logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        ...validPreviewIdentity(),
+        logger: baseLogger(),
       },
     )
     expect(result.exitCode).toBe(1)
@@ -413,13 +643,14 @@ describe('main — apply gates (all before ensure/source fetch)', () => {
     const ensureDisplayDerivative = vi.fn()
     const getPhotoBuffer = vi.fn()
     const result = await main(
-      ['--apply', '--confirm-production', '--expected-visible=1', '--expected-missing=1', '--expected-reconcile=0'],
+      ['--env=preview', '--apply', '--confirm-target=preview', '--expected-visible=1', '--expected-missing=1', '--expected-reconcile=0'],
       {
         getPrismaClient: async () => prisma,
         listBlobs,
         ensureDisplayDerivative,
         getPhotoBuffer,
-        logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        ...validPreviewIdentity(),
+        logger: baseLogger(),
       },
     )
     expect(result.exitCode).toBe(1)
@@ -439,17 +670,46 @@ describe('main — apply gates (all before ensure/source fetch)', () => {
     const listBlobs = makeListBlobs(['derivatives/display-v1/orphan-no-photo.jpg'])
     const ensureDisplayDerivative = vi.fn().mockResolvedValue({ created: true })
     const result = await main(
-      ['--apply', '--confirm-production', '--expected-visible=1', '--expected-missing=1', '--expected-reconcile=0'],
+      ['--env=preview', '--apply', '--confirm-target=preview', '--expected-visible=1', '--expected-missing=1', '--expected-reconcile=0'],
       {
         getPrismaClient: async () => prisma,
         listBlobs,
         ensureDisplayDerivative,
         getPhotoBuffer: vi.fn().mockResolvedValue(Buffer.from('x')),
-        logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        ...validPreviewIdentity(),
+        logger: baseLogger(),
       },
     )
     expect(result.exitCode).toBe(0)
     expect(ensureDisplayDerivative).toHaveBeenCalledTimes(1)
+  })
+
+  it('Production apply works identically with Production identity/confirmation', async () => {
+    const prodRows = [{ id: 'p1', status: 'VISIBLE', url: 'https://x/a.jpg', size: 10, mimeType: 'image/jpeg', displayDerivativeStatus: 'LEGACY_UNVERIFIED' }]
+    const prisma = makePrisma({
+      total: 1,
+      visibleCount: 1,
+      hiddenCount: 0,
+      rows: prodRows,
+      findUniqueImpl: async () => ({ status: 'VISIBLE', url: 'https://x/a.jpg' }),
+    })
+    const ensureDisplayDerivative = vi.fn().mockResolvedValue({ created: true })
+    const result = await main(
+      ['--env=production', '--apply', '--confirm-target=production', '--expected-visible=1', '--expected-missing=1', '--expected-reconcile=0'],
+      {
+        getPrismaClient: async () => prisma,
+        listBlobs: makeListBlobs([]),
+        ensureDisplayDerivative,
+        getPhotoBuffer: vi.fn().mockResolvedValue(Buffer.from('x')),
+        databaseUrl: PRODUCTION_DB_URL,
+        blobReadWriteToken: PRODUCTION_BLOB_TOKEN,
+        queryLiveDatabaseIdentity: vi.fn().mockResolvedValue({ databaseName: 'neondb', databaseRole: 'test_runtime_role' }),
+        envConfig: TEST_ENV_CONFIG,
+        logger: baseLogger(),
+      },
+    )
+    expect(result.exitCode).toBe(0)
+    expect(result.applyResult.created).toBe(1)
   })
 })
 
@@ -466,13 +726,14 @@ describe('main — apply: per-item status revalidation', () => {
     const ensureDisplayDerivative = vi.fn()
     const getPhotoBuffer = vi.fn()
     const result = await main(
-      ['--apply', '--confirm-production', '--expected-visible=1', '--expected-missing=1', '--expected-reconcile=0'],
+      ['--env=preview', '--apply', '--confirm-target=preview', '--expected-visible=1', '--expected-missing=1', '--expected-reconcile=0'],
       {
         getPrismaClient: async () => prisma,
         listBlobs: makeListBlobs([]),
         ensureDisplayDerivative,
         getPhotoBuffer,
-        logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        ...validPreviewIdentity(),
+        logger: baseLogger(),
       },
     )
     expect(result.exitCode).toBe(0)
@@ -487,13 +748,14 @@ describe('main — apply: per-item status revalidation', () => {
     const prisma = makePrisma({ total: 1, visibleCount: 1, hiddenCount: 0, rows, findUniqueImpl: async () => null })
     const ensureDisplayDerivative = vi.fn()
     const result = await main(
-      ['--apply', '--confirm-production', '--expected-visible=1', '--expected-missing=1', '--expected-reconcile=0'],
+      ['--env=preview', '--apply', '--confirm-target=preview', '--expected-visible=1', '--expected-missing=1', '--expected-reconcile=0'],
       {
         getPrismaClient: async () => prisma,
         listBlobs: makeListBlobs([]),
         ensureDisplayDerivative,
         getPhotoBuffer: vi.fn(),
-        logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        ...validPreviewIdentity(),
+        logger: baseLogger(),
       },
     )
     expect(result.applyResult.skippedStatusChanged).toBe(1)
@@ -514,13 +776,14 @@ describe('main — apply: ensure integration, race, create, failure, and status 
       ensureImpl: async () => ({ created: false }),
     })
     const result = await main(
-      ['--apply', '--confirm-production', '--expected-visible=1', '--expected-missing=0', '--expected-reconcile=1'],
+      ['--env=preview', '--apply', '--confirm-target=preview', '--expected-visible=1', '--expected-missing=0', '--expected-reconcile=1'],
       {
         getPrismaClient: async () => prisma,
         listBlobs: makeListBlobs([VISIBLE_PATH('p1')]),
         ensureDisplayDerivative,
         getPhotoBuffer: vi.fn().mockResolvedValue(Buffer.from('x')),
-        logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        ...validPreviewIdentity(),
+        logger: baseLogger(),
       },
     )
     expect(result.applyResult.alreadyPresent).toBe(1)
@@ -535,13 +798,14 @@ describe('main — apply: ensure integration, race, create, failure, and status 
       ensureImpl: async () => ({ created: true }),
     })
     const result = await main(
-      ['--apply', '--confirm-production', '--expected-visible=1', '--expected-missing=1', '--expected-reconcile=0'],
+      ['--env=preview', '--apply', '--confirm-target=preview', '--expected-visible=1', '--expected-missing=1', '--expected-reconcile=0'],
       {
         getPrismaClient: async () => prisma,
         listBlobs: makeListBlobs([]),
         ensureDisplayDerivative,
         getPhotoBuffer: vi.fn().mockResolvedValue(Buffer.from('x')),
-        logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        ...validPreviewIdentity(),
+        logger: baseLogger(),
       },
     )
     expect(result.applyResult.created).toBe(1)
@@ -557,13 +821,14 @@ describe('main — apply: ensure integration, race, create, failure, and status 
       },
     })
     const result = await main(
-      ['--apply', '--confirm-production', '--expected-visible=1', '--expected-missing=1', '--expected-reconcile=0'],
+      ['--env=preview', '--apply', '--confirm-target=preview', '--expected-visible=1', '--expected-missing=1', '--expected-reconcile=0'],
       {
         getPrismaClient: async () => prisma,
         listBlobs: makeListBlobs([]),
         ensureDisplayDerivative,
         getPhotoBuffer: vi.fn().mockResolvedValue(Buffer.from('x')),
-        logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        ...validPreviewIdentity(),
+        logger: baseLogger(),
       },
     )
     expect(result.applyResult.created).toBe(0)
@@ -580,13 +845,14 @@ describe('main — apply: ensure integration, race, create, failure, and status 
       ensureImpl: async () => ({ created: true }),
     })
     const result = await main(
-      ['--apply', '--confirm-production', '--expected-visible=1', '--expected-missing=1', '--expected-reconcile=0'],
+      ['--env=preview', '--apply', '--confirm-target=preview', '--expected-visible=1', '--expected-missing=1', '--expected-reconcile=0'],
       {
         getPrismaClient: async () => prisma,
         listBlobs: makeListBlobs([]),
         ensureDisplayDerivative,
         getPhotoBuffer: vi.fn().mockResolvedValue(Buffer.from('x')),
-        logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        ...validPreviewIdentity(),
+        logger: baseLogger(),
       },
     )
     expect(result.applyResult.created).toBe(1)
@@ -598,21 +864,19 @@ describe('main — apply: ensure integration, race, create, failure, and status 
     const { prisma, ensureDisplayDerivative } = setupSingleTarget({
       findUniqueImpl: async () => ({ status: 'VISIBLE', url: '' }), // stale/irrelevant url, blob already present
       ensureImpl: async ({ getSourceBuffer }) => {
-        // A correct implementation for an already-present derivative never
-        // calls getSourceBuffer at all (see download-derivative.js's
-        // head-first probe) — simulate exactly that contract here.
         void getSourceBuffer
         return { created: false }
       },
     })
     const result = await main(
-      ['--apply', '--confirm-production', '--expected-visible=1', '--expected-missing=0', '--expected-reconcile=1'],
+      ['--env=preview', '--apply', '--confirm-target=preview', '--expected-visible=1', '--expected-missing=0', '--expected-reconcile=1'],
       {
         getPrismaClient: async () => prisma,
         listBlobs: makeListBlobs([VISIBLE_PATH('p1')]),
         ensureDisplayDerivative,
         getPhotoBuffer: vi.fn(),
-        logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        ...validPreviewIdentity(),
+        logger: baseLogger(),
       },
     )
     expect(result.applyResult.failed).toBe(0)
@@ -634,12 +898,13 @@ describe('main — apply: ensure integration, race, create, failure, and status 
       await getSourceBuffer()
       return { created: true }
     })
-    await main(['--apply', '--confirm-production', '--expected-visible=1', '--expected-missing=1', '--expected-reconcile=0'], {
+    await main(['--env=preview', '--apply', '--confirm-target=preview', '--expected-visible=1', '--expected-missing=1', '--expected-reconcile=0'], {
       getPrismaClient: async () => prisma,
       listBlobs: makeListBlobs([]),
       ensureDisplayDerivative,
       getPhotoBuffer,
-      logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      ...validPreviewIdentity(),
+      logger: baseLogger(),
     })
     expect(getPhotoBuffer).toHaveBeenCalledWith('https://fresh.example/a.jpg')
   })
@@ -647,7 +912,6 @@ describe('main — apply: ensure integration, race, create, failure, and status 
 
 describe('main — apply: rerun idempotency end-to-end', () => {
   it('a second full run over rows already reconciled to READY computes zero targets and performs zero further calls', async () => {
-    // First run: LEGACY_UNVERIFIED + blob present -> reconciled to READY.
     const firstRunRows = [{ id: 'p1', status: 'VISIBLE', url: 'https://x/a.jpg', size: 10, mimeType: 'image/jpeg', displayDerivativeStatus: 'LEGACY_UNVERIFIED' }]
     const firstPrisma = makePrisma({
       total: 1,
@@ -657,28 +921,28 @@ describe('main — apply: rerun idempotency end-to-end', () => {
       findUniqueImpl: async () => ({ status: 'VISIBLE', url: 'https://x/a.jpg' }),
     })
     const ensureDisplayDerivative = vi.fn().mockResolvedValue({ created: false })
-    await main(['--apply', '--confirm-production', '--expected-visible=1', '--expected-missing=0', '--expected-reconcile=1'], {
+    await main(['--env=preview', '--apply', '--confirm-target=preview', '--expected-visible=1', '--expected-missing=0', '--expected-reconcile=1'], {
       getPrismaClient: async () => firstPrisma,
       listBlobs: makeListBlobs([VISIBLE_PATH('p1')]),
       ensureDisplayDerivative,
       getPhotoBuffer: vi.fn(),
-      logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      ...validPreviewIdentity(),
+      logger: baseLogger(),
     })
     expect(firstPrisma.photo.updateMany).toHaveBeenCalledWith({ where: { id: 'p1' }, data: { displayDerivativeStatus: 'READY' } })
 
-    // Second run: same photo, now READY in the DB (simulating the write above
-    // having actually landed) -> must be a complete no-op.
     const secondRunRows = [{ id: 'p1', status: 'VISIBLE', url: 'https://x/a.jpg', size: 10, mimeType: 'image/jpeg', displayDerivativeStatus: 'READY' }]
     const secondPrisma = makePrisma({ total: 1, visibleCount: 1, hiddenCount: 0, rows: secondRunRows })
     const secondEnsure = vi.fn()
     const secondResult = await main(
-      ['--apply', '--confirm-production', '--expected-visible=1', '--expected-missing=0', '--expected-reconcile=0'],
+      ['--env=preview', '--apply', '--confirm-target=preview', '--expected-visible=1', '--expected-missing=0', '--expected-reconcile=0'],
       {
         getPrismaClient: async () => secondPrisma,
         listBlobs: makeListBlobs([VISIBLE_PATH('p1')]),
         ensureDisplayDerivative: secondEnsure,
         getPhotoBuffer: vi.fn(),
-        logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        ...validPreviewIdentity(),
+        logger: baseLogger(),
       },
     )
     expect(secondResult.exitCode).toBe(0)
@@ -707,12 +971,13 @@ describe('main — bounded writes: only displayDerivativeStatus is ever touched,
     const listBlobs = makeListBlobs([VISIBLE_PATH('reconcile-target')])
     const ensureDisplayDerivative = vi.fn().mockResolvedValue({ created: true })
 
-    await main(['--apply', '--confirm-production', '--expected-visible=2', '--expected-missing=1', '--expected-reconcile=1'], {
+    await main(['--env=preview', '--apply', '--confirm-target=preview', '--expected-visible=2', '--expected-missing=1', '--expected-reconcile=1'], {
       getPrismaClient: async () => prisma,
       listBlobs,
       ensureDisplayDerivative,
       getPhotoBuffer: vi.fn().mockResolvedValue(Buffer.from('x')),
-      logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      ...validPreviewIdentity(),
+      logger: baseLogger(),
     })
 
     expect(prisma.photo.updateMany).toHaveBeenCalledTimes(2)
@@ -743,15 +1008,16 @@ describe('main — failure continuation and exit code', () => {
       if (photoId === 'photo-bad') throw new Error('transform failed')
       return { created: true }
     })
-    const logger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    const logger = baseLogger()
 
     const result = await main(
-      ['--apply', '--confirm-production', '--expected-visible=2', '--expected-missing=2', '--expected-reconcile=0'],
+      ['--env=preview', '--apply', '--confirm-target=preview', '--expected-visible=2', '--expected-missing=2', '--expected-reconcile=0'],
       {
         getPrismaClient: async () => prisma,
         listBlobs: makeListBlobs([]),
         ensureDisplayDerivative,
         getPhotoBuffer: vi.fn().mockResolvedValue(Buffer.from('x')),
+        ...validPreviewIdentity(),
         logger,
       },
     )
@@ -798,12 +1064,13 @@ describe('main — bounded concurrency = 3', () => {
       return { created: true }
     })
 
-    await main(['--apply', '--confirm-production', '--expected-visible=10', '--expected-missing=10', '--expected-reconcile=0'], {
+    await main(['--env=preview', '--apply', '--confirm-target=preview', '--expected-visible=10', '--expected-missing=10', '--expected-reconcile=0'], {
       getPrismaClient: async () => prisma,
       listBlobs: makeListBlobs([]),
       ensureDisplayDerivative,
       getPhotoBuffer: vi.fn().mockResolvedValue(Buffer.from('x')),
-      logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      ...validPreviewIdentity(),
+      logger: baseLogger(),
     })
 
     expect(maxConcurrent).toBeLessThanOrEqual(3)
@@ -819,7 +1086,7 @@ describe('main — mixed-mode limitation does not apply', () => {
   })
 })
 
-describe('structural safety: no delete, no direct DB write', () => {
+describe('structural safety: no delete, no direct DB write, no hardcoded credential', () => {
   const source = readFileSync(join(process.cwd(), 'lib/server/display-backfill.js'), 'utf8')
 
   it('never imports or calls Blob del', () => {
@@ -836,9 +1103,14 @@ describe('structural safety: no delete, no direct DB write', () => {
     expect(source).toMatch(/import\s*\{\s*ensurePhotoDisplayDerivativeStatus\s*\}\s*from\s*'@\/lib\/server\/photo-display-derivative-status'/)
   })
 
+  it('delegates target-identity proof by importing checkTargetIdentity/ENV_CONFIG from backfill-target-identity.js — never reimplements the parse itself', () => {
+    expect(source).toMatch(/import\s*\{\s*checkTargetIdentity,\s*ENV_CONFIG\s*\}\s*from\s*'@\/lib\/server\/backfill-target-identity'/)
+    expect(source).not.toMatch(/vercel_blob_rw_[a-zA-Z0-9]/)
+  })
+
   it('CLI accepts no delete/cleanup/prune flags', async () => {
     for (const flag of ['--delete', '--cleanup', '--prune', '--force-delete']) {
-      expect(parseArgs([flag])).toHaveProperty('error')
+      expect(parseArgs(['--env=preview', flag])).toHaveProperty('error')
     }
   })
 })
@@ -859,5 +1131,7 @@ describe('createRealDependencies', () => {
     expect(typeof deps.listBlobs).toBe('function')
     expect(typeof deps.ensureDisplayDerivative).toBe('function')
     expect(typeof deps.getPhotoBuffer).toBe('function')
+    expect(typeof deps.queryLiveDatabaseIdentity).toBe('function')
+    expect(deps.envConfig).toBeDefined()
   })
 })
