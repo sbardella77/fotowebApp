@@ -4,6 +4,7 @@ import { getPrismaClient } from '@/lib/server/prisma-client'
 import { getEffectiveEventAccessState } from '@/lib/server/event-access'
 import { getPhotoBuffer, applyWatermark, getDownloadFileName } from '@/lib/server/download-utils'
 import { checkRateLimit, getClientIp, hashIdentifier, RATE_LIMITS } from '@/lib/server/rate-limiter'
+import { serializeProviderError } from '@/lib/server/safe-log'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -144,7 +145,7 @@ export async function GET(request) {
 
         await archive.finalize()
       } catch (archiveError) {
-        console.error(`${logPrefix} Archive error:`, archiveError)
+        console.error(`${logPrefix} Archive error:`, serializeProviderError('archiver', 'gallery_zip', archiveError))
         archive.abort()
       } finally {
         const duration = Date.now() - routeStart
