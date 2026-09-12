@@ -22,26 +22,30 @@ const BRANDED_CONTENT_TYPE = 'image/jpeg'
 const BRANDED_EXTENSION = '.jpg'
 
 /**
- * GET /api/download/photo?photoUrl={url}&eventSlug={slug}&type={standard|original}
+ * GET /api/download/photo?photoId={id}&type={standard|original}
  *
  * Serves a single photo download. Applies watermark for Free events.
  * Originals are served as-is (no processing) when requested.
+ *
+ * TASK-03 (Phase 1A): the contract now keys off the opaque Photo id
+ * instead of the original Blob URL + event slug. This is a prerequisite
+ * for the eventual guest DTO cutover (the public DTO cannot keep handing
+ * out the original URL just so this one endpoint has something to key
+ * off — the id is already present in the DTO regardless of what `url`
+ * ends up meaning). `type`, like before, is accepted for observability
+ * only and never decides branded vs. unbranded — that stays entirely
+ * server-side, from the event's own entitlement state.
  */
 export async function GET(request) {
   const logPrefix = '[download/photo]'
   const start = Date.now()
   try {
     const { searchParams } = new URL(request.url)
-    const photoUrl = searchParams.get('photoUrl')
-    const eventSlug = searchParams.get('eventSlug')
+    const photoId = searchParams.get('photoId')
     const type = searchParams.get('type') || 'standard'
 
-    if (!photoUrl || typeof photoUrl !== 'string') {
-      return NextResponse.json({ error: 'photoUrl is required' }, { status: 400 })
-    }
-
-    if (!eventSlug || typeof eventSlug !== 'string') {
-      return NextResponse.json({ error: 'eventSlug is required' }, { status: 400 })
+    if (!photoId || typeof photoId !== 'string') {
+      return NextResponse.json({ error: 'photoId is required' }, { status: 400 })
     }
 
     // Broad, Redis-backed, hashed-IP guard. Runs before ANY database work so
@@ -67,9 +71,32 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Database unavailable' }, { status: 503 })
     }
 
-    // Load event to check entitlement
+    // Single lookup by the opaque id. status: 'VISIBLE' is enforced here,
+    // not as a separate check, so a HIDDEN or nonexistent photoId produces
+    // the identical 404 below — never distinguishable from the outside.
+    const photo = await prisma.photo.findFirst({
+      where: {
+        id: photoId,
+        status: 'VISIBLE',
+      },
+      select: {
+        id: true,
+        eventId: true,
+        originalName: true,
+        storedName: true,
+        mimeType: true,
+        url: true,
+      },
+    })
+
+    if (!photo) {
+      return NextResponse.json({ error: 'Photo not found' }, { status: 404 })
+    }
+
+    // Event is derived from the photo's own eventId — never trusted from
+    // the client. eventSlug is no longer part of the request contract.
     const event = await prisma.event.findUnique({
-      where: { slug: eventSlug },
+      where: { id: photo.eventId },
       select: {
         id: true,
         slug: true,
@@ -80,26 +107,6 @@ export async function GET(request) {
     })
 
     if (!event) {
-      return NextResponse.json({ error: 'Event not found' }, { status: 404 })
-    }
-
-    // Find the photo belonging to this event
-    const photo = await prisma.photo.findFirst({
-      where: {
-        eventId: event.id,
-        url: photoUrl,
-        status: 'VISIBLE',
-      },
-      select: {
-        id: true,
-        originalName: true,
-        storedName: true,
-        mimeType: true,
-        url: true,
-      },
-    })
-
-    if (!photo) {
       return NextResponse.json({ error: 'Photo not found' }, { status: 404 })
     }
 

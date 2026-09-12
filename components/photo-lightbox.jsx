@@ -158,9 +158,9 @@ const PhotoLightbox = ({
 
   const performDownload = useCallback(
     async (quality) => {
-      if (!photo?.url || !event?.slug) return
+      if (!photo?.id) return
       try {
-        const apiUrl = `/api/download/photo?photoUrl=${encodeURIComponent(photo.url)}&eventSlug=${encodeURIComponent(event.slug)}&type=${quality}`
+        const apiUrl = `/api/download/photo?photoId=${encodeURIComponent(photo.id)}&type=${quality}`
         const response = await fetch(apiUrl)
         if (!response.ok) {
           throw new Error(`Download failed: ${response.status}`)

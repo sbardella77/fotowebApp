@@ -25,6 +25,13 @@ const MIGRATION_SRC = readFileSync(
 const ROUTE_SRC = readFileSync(resolve(import.meta.dirname, '..', 'app/api/[[...path]]/route.js'), 'utf8')
 const BLOB_COMPLETION_SRC = readFileSync(resolve(import.meta.dirname, '..', 'lib/server/blob-upload-completion.js'), 'utf8')
 const REPOSITORY_SRC = readFileSync(resolve(import.meta.dirname, '..', 'lib/server/prisma-gallery-repository.js'), 'utf8')
+// TASK-03 (Phase 1A): the READY/FAILED-recording try/catch itself was
+// extracted out of route.js's ensurePhotoDisplayDerivative (now a thin
+// delegating wrapper, unchanged in behavior, shared by every existing
+// call site) and into this dedicated module, so it can also be reused by
+// the legacy backfill mechanism. The structural invariant below now
+// lives here instead of in route.js.
+const STATUS_MODULE_SRC = readFileSync(resolve(import.meta.dirname, '..', 'lib/server/photo-display-derivative-status.js'), 'utf8')
 
 describe('DisplayDerivativeStatus enum semantics', () => {
   it('has exactly the four required values, nothing more or fewer', () => {
@@ -92,9 +99,18 @@ describe('both Photo-creation call sites explicitly set PENDING for genuinely ne
   })
 })
 
-describe('fail-closed invariant: the catch branch can only ever write FAILED, the success branch can only ever write READY', () => {
-  it('ensurePhotoDisplayDerivative source: the try/success branch writes READY and never FAILED', () => {
+describe('route.js ensurePhotoDisplayDerivative is a thin delegating wrapper (TASK-03 Phase 1A)', () => {
+  it('contains no try/catch of its own — the invariant below is enforced at its one delegate instead', () => {
     const fn = /async function ensurePhotoDisplayDerivative[\s\S]*?\n}\n/.exec(ROUTE_SRC)
+    expect(fn).not.toBeNull()
+    expect(fn[0]).not.toMatch(/\btry\s*\{/)
+    expect(fn[0]).toMatch(/ensurePhotoDisplayDerivativeStatus\(/)
+  })
+})
+
+describe('fail-closed invariant: the catch branch can only ever write FAILED, the success branch can only ever write READY', () => {
+  it('ensurePhotoDisplayDerivativeStatus source: the try/success branch writes READY and never FAILED', () => {
+    const fn = /export async function ensurePhotoDisplayDerivativeStatus[\s\S]*?\n\}\n/.exec(STATUS_MODULE_SRC)
     expect(fn).not.toBeNull()
 
     const src = fn[0]

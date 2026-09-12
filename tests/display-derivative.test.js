@@ -660,41 +660,69 @@ describe('dormancy — STEP 7.15e narrows this to "no browser/public-response wi
   }
   const isCatchAllRoute = (path) => path.endsWith('/api/[[...path]]/route.js')
 
-  it('generation is called ONLY from display-derivative.js and the reviewed catch-all route', async () => {
+  // TASK-03 (Phase 1A): the catch-all route's inline ensurePhotoDisplayDerivative
+  // (which used to call ensureDisplayDerivative directly) was extracted into
+  // lib/server/photo-display-derivative-status.js#ensurePhotoDisplayDerivativeStatus,
+  // shared by route.js and the eventual legacy-status backfill. route.js now
+  // calls that wrapper instead of ensureDisplayDerivative directly — the three
+  // tests below are updated to reflect exactly that, deliberately, not as a
+  // casual relaxation: the byte-returning primitive is still reachable from
+  // nowhere new, and every legitimate caller of ensureDisplayDerivative itself
+  // is still named and checked explicitly.
+  it('generation is called ONLY from display-derivative.js, the reviewed catch-all route, and its extracted status-recording wrapper', async () => {
     const offenders = (await productSources())
-      .filter(({ path }) => !path.endsWith('display-derivative.js') && !isCatchAllRoute(path))
+      .filter(({ path }) => !path.endsWith('display-derivative.js') && !isCatchAllRoute(path) && !path.endsWith('photo-display-derivative-status.js'))
       .filter(({ src }) => /getDisplayDerivative\s*\(|transformDisplayImage\s*\(|ensureDisplayDerivative\s*\(/.test(src))
       .map(({ path }) => path)
 
     expect(offenders).toEqual([])
   })
 
-  it('the catch-all route calls ONLY ensureDisplayDerivative — never the byte-returning primitive', async () => {
+  it('the catch-all route no longer calls ensureDisplayDerivative directly — it delegates to the extracted wrapper, never the byte-returning primitive', async () => {
     const [route] = (await productSources()).filter(({ path }) => isCatchAllRoute(path))
 
     expect(route.src).not.toMatch(/getDisplayDerivative\s*\(/)
     expect(route.src).not.toMatch(/transformDisplayImage\s*\(/)
-    expect(route.src).toMatch(/ensureDisplayDerivative\s*\(/)
+    expect(route.src).not.toMatch(/ensureDisplayDerivative\s*\(/)
+    expect(route.src).toMatch(/ensurePhotoDisplayDerivativeStatus\s*\(/)
   })
 
-  it('the only product importers are derivative-cleanup.js (path builder only), the catch-all route (ensure only), and the backfill operator (STEP 7.15f.1-c, ensure + path builder)', async () => {
+  it('the only product importers of display-derivative.js are derivative-cleanup.js (path builder only), the extracted status wrapper (ensure only), the backfill operator (ensure + path builder), and the guest-url resolver (path builder only)', async () => {
     const importers = (await productSources())
       .filter(({ path }) => !path.endsWith('display-derivative.js'))
-      .filter(({ src }) => /display-derivative/.test(src))
+      // TASK-03 (Phase 1A): a loose /display-derivative/ substring filter
+      // would now also match lib/server/photo-display-derivative-status.js
+      // (whose own filename contains that substring) being imported by
+      // route.js — which does NOT import from display-derivative.js
+      // itself. Anchored to an actual import statement from that exact
+      // module instead.
+      .filter(({ src }) => /from\s*'@\/lib\/server\/display-derivative'/.test(src))
 
     expect(importers.map(({ path }) => path.split('/').pop()).sort()).toEqual([
       'derivative-cleanup.js',
       'display-backfill.js',
-      'route.js',
+      'guest-photo-url.js',
+      'photo-display-derivative-status.js',
     ])
 
     const cleanup = importers.find(({ path }) => path.endsWith('derivative-cleanup.js'))
     const cleanupSpecifiers = /import\s*\{([^}]*)\}\s*from\s*'@\/lib\/server\/display-derivative'/.exec(cleanup.src)[1]
     expect(cleanupSpecifiers.split(',').map((s) => s.trim()).filter(Boolean)).toEqual(['buildDisplayDerivativePath'])
 
-    const route = importers.find(({ path }) => isCatchAllRoute(path))
-    const routeSpecifiers = /import\s*\{([^}]*)\}\s*from\s*'@\/lib\/server\/display-derivative'/.exec(route.src)[1]
-    expect(routeSpecifiers.split(',').map((s) => s.trim()).filter(Boolean)).toEqual(['ensureDisplayDerivative'])
+    // TASK-03 (Phase 1A): the catch-all route itself no longer imports from
+    // display-derivative.js at all — that import moved to the extracted
+    // status wrapper below, which the route imports instead.
+    const statusWrapper = importers.find(({ path }) => path.endsWith('photo-display-derivative-status.js'))
+    const statusWrapperSpecifiers = /import\s*\{([^}]*)\}\s*from\s*'@\/lib\/server\/display-derivative'/.exec(statusWrapper.src)[1]
+    expect(statusWrapperSpecifiers.split(',').map((s) => s.trim()).filter(Boolean)).toEqual(['ensureDisplayDerivative'])
+
+    // TASK-03 (Phase 1A): the not-yet-wired-in guest URL resolver only ever
+    // needs the deterministic path builder — it never calls ensure/get,
+    // since it is a pure read of an already-recorded status, never a
+    // generation trigger.
+    const guestUrl = importers.find(({ path }) => path.endsWith('guest-photo-url.js'))
+    const guestUrlSpecifiers = /import\s*\{([^}]*)\}\s*from\s*'@\/lib\/server\/display-derivative'/.exec(guestUrl.src)[1]
+    expect(guestUrlSpecifiers.split(',').map((s) => s.trim()).filter(Boolean)).toEqual(['buildDisplayDerivativePath'])
 
     // The backfill operator (lib/server/display-backfill.js) is not itself a
     // route or a route-adjacent file, so it's excluded from isCatchAllRoute
@@ -721,7 +749,19 @@ describe('dormancy — STEP 7.15e narrows this to "no browser/public-response wi
     expect(src).not.toContain('displayUrl')
   })
 
-  it('no product source has a displayUrl field, public URL construction, or Guest/OG/room-grid consumer of display-v1', async () => {
+  it('no product source has a literal `displayUrl` field or public URL construction (TASK-03 Phase 1A note below)', async () => {
+    // TASK-03 (Phase 1A) added lib/server/guest-photo-url.js
+    // (resolveGuestPhotoUrl) and event-social-image.js's
+    // resolveEventSocialImageSafe — real Guest/OG consumers of display-v1,
+    // but neither is wired into any DTO, page, or public response: neither
+    // repository-mappers.js's normalizePhotoRecord nor the actual
+    // resolveEventSocialImage call site in app/event/[slug]/page.js was
+    // touched (proven in tests/guest-photo-url-consumer-inventory.test.js).
+    // They also don't use the literal identifier `displayUrl` this check
+    // greps for, so this assertion still passes — the invariant it's
+    // actually enforcing (no browser/public-response wiring yet) holds for
+    // an independent, stronger reason: nothing calls these new functions
+    // from anywhere reachable by a guest request yet.
     const offenders = (await productSources())
       .filter(({ src }) => /displayUrl/.test(src))
       .map(({ path }) => path)
