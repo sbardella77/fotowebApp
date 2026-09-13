@@ -280,33 +280,168 @@ describe('checkTargetIdentity — Step 8 required matrix', () => {
   })
 })
 
-describe('fail-closed-by-default: the REAL, shipped ENV_CONFIG blocks both environments until a human fills in real values', () => {
-  it('preview: expectedBlobStoreId and expectedDatabaseRole are NOT_CONFIGURED sentinels today', () => {
-    expect(ENV_CONFIG.preview.expectedBlobStoreId).toBe(NOT_CONFIGURED)
-    expect(ENV_CONFIG.preview.expectedDatabaseRole).toBe(NOT_CONFIGURED)
+describe('the REAL, shipped ENV_CONFIG is now fully populated (2026-09-13) — NOT_CONFIGURED sentinel no longer used for either field', () => {
+  it('preview: expectedDatabaseRole and expectedBlobStoreId are real strings, not NOT_CONFIGURED', () => {
+    expect(ENV_CONFIG.preview.expectedDatabaseRole).not.toBe(NOT_CONFIGURED)
+    expect(ENV_CONFIG.preview.expectedBlobStoreId).not.toBe(NOT_CONFIGURED)
+    expect(ENV_CONFIG.preview.expectedDatabaseRole).toBe('snaprooms_runtime')
+    expect(ENV_CONFIG.preview.expectedBlobStoreId).toBe('ktMLxVXM7JB0Ry8a')
   })
 
-  it('production: expectedBlobStoreId and expectedDatabaseRole are NOT_CONFIGURED sentinels today', () => {
-    expect(ENV_CONFIG.production.expectedBlobStoreId).toBe(NOT_CONFIGURED)
-    expect(ENV_CONFIG.production.expectedDatabaseRole).toBe(NOT_CONFIGURED)
+  it('production: expectedDatabaseRole and expectedBlobStoreId are real strings, not NOT_CONFIGURED', () => {
+    expect(ENV_CONFIG.production.expectedDatabaseRole).not.toBe(NOT_CONFIGURED)
+    expect(ENV_CONFIG.production.expectedBlobStoreId).not.toBe(NOT_CONFIGURED)
+    expect(ENV_CONFIG.production.expectedDatabaseRole).toBe('snaprooms_prod_runtime')
+    expect(ENV_CONFIG.production.expectedBlobStoreId).toBe('NaLsKNg8Tnw8CDe3')
   })
 
-  it('a real-shaped Preview identity check against the SHIPPED ENV_CONFIG fails closed on BLOB_STORE_ID_NOT_CONFIGURED, never PASS', async () => {
-    const [directEndpoint, ...directRest] = ENV_CONFIG.preview.expectedDirectHost.split('.')
-    const realShapedPooledHost = [`${directEndpoint}-pooler`, ...directRest].join('.')
-    const result = await checkTargetIdentity({
-      env: 'preview',
-      databaseUrl: `postgresql://user:pass@${realShapedPooledHost}/neondb?sslmode=require`,
-      blobReadWriteToken: 'vercel_blob_rw_anything_x',
-      queryLiveDatabaseIdentity: vi.fn().mockResolvedValue({ databaseName: 'neondb', databaseRole: 'whatever' }),
-      // deliberately NOT passing envConfig — uses the real shipped ENV_CONFIG default
-    })
-    expect(result.ok).toBe(false)
-    expect(result.reason).toBe('BLOB_STORE_ID_NOT_CONFIGURED')
-  })
-
-  it('production hostname is genuinely distinct from preview\'s (a copy-paste-both-the-same bug would be silently unsafe)', () => {
+  it('every one of the four identity dimensions is genuinely distinct between environments (a copy-paste-both-the-same bug would otherwise be silently unsafe)', () => {
     expect(ENV_CONFIG.production.expectedDirectHost).not.toBe(ENV_CONFIG.preview.expectedDirectHost)
+    expect(ENV_CONFIG.production.expectedDatabaseRole).not.toBe(ENV_CONFIG.preview.expectedDatabaseRole)
+    expect(ENV_CONFIG.production.expectedBlobStoreId).not.toBe(ENV_CONFIG.preview.expectedBlobStoreId)
+  })
+
+  // The stored expectedBlobStoreId values are deliberately NOT identical to
+  // the operator-reported dashboard strings (store_ktMLxVXM7JB0Ry8a /
+  // store_NaLsKNg8Tnw8CDe3) — the leading `store_` was stripped, per the
+  // reasoning in this module's own doc comment: the installed @vercel/blob
+  // SDK's real parseStoreIdFromReadWriteToken is a naive 4-way underscore
+  // split that could not work on its own live traffic if the true embedded
+  // segment carried that prefix. These tests encode that reasoning as an
+  // executable, falsifiable claim rather than leaving it as only a comment.
+  describe('store-id prefix normalization is self-consistent with the real parser (flagged judgment call, not a re-typed operator value)', () => {
+    it('a token embedding the RAW (unprefixed) preview id parses to exactly ENV_CONFIG.preview.expectedBlobStoreId', () => {
+      const token = `vercel_blob_rw_${ENV_CONFIG.preview.expectedBlobStoreId}_somerandomsuffix`
+      expect(parseStoreIdFromReadWriteToken(token)).toBe(ENV_CONFIG.preview.expectedBlobStoreId)
+    })
+
+    it('a token embedding the RAW (unprefixed) production id parses to exactly ENV_CONFIG.production.expectedBlobStoreId', () => {
+      const token = `vercel_blob_rw_${ENV_CONFIG.production.expectedBlobStoreId}_somerandomsuffix`
+      expect(parseStoreIdFromReadWriteToken(token)).toBe(ENV_CONFIG.production.expectedBlobStoreId)
+    })
+
+    it('by contrast, a token embedding the ORIGINAL store_-prefixed dashboard string as one atomic segment would NOT match — demonstrating why the prefix was stripped', () => {
+      const dashboardStyleToken = 'vercel_blob_rw_store_ktMLxVXM7JB0Ry8a_somerandomsuffix'
+      const parsed = parseStoreIdFromReadWriteToken(dashboardStyleToken)
+      expect(parsed).not.toBe('store_ktMLxVXM7JB0Ry8a')
+      expect(parsed).toBe('store') // the naive split's actual behavior on that shape — proof this table would never match if left un-stripped
+    })
+  })
+
+  describe('a real-shaped Preview identity check against the SHIPPED ENV_CONFIG now PASSES with the correctly-shaped credential pair', () => {
+    it('PASS', async () => {
+      const [directEndpoint, ...directRest] = ENV_CONFIG.preview.expectedDirectHost.split('.')
+      const realShapedPooledHost = [`${directEndpoint}-pooler`, ...directRest].join('.')
+      const result = await checkTargetIdentity({
+        env: 'preview',
+        databaseUrl: `postgresql://user:pass@${realShapedPooledHost}/neondb?sslmode=require`,
+        blobReadWriteToken: `vercel_blob_rw_${ENV_CONFIG.preview.expectedBlobStoreId}_somerandomsuffix`,
+        queryLiveDatabaseIdentity: vi.fn().mockResolvedValue({
+          databaseName: ENV_CONFIG.preview.expectedDatabaseName,
+          databaseRole: ENV_CONFIG.preview.expectedDatabaseRole,
+        }),
+        // deliberately NOT passing envConfig — uses the real shipped ENV_CONFIG default
+      })
+      expect(result.ok).toBe(true)
+      expect(result.env).toBe('preview')
+    })
+  })
+
+  describe('a real-shaped Production identity check against the SHIPPED ENV_CONFIG now PASSES with the correctly-shaped credential pair', () => {
+    it('PASS', async () => {
+      const [directEndpoint, ...directRest] = ENV_CONFIG.production.expectedDirectHost.split('.')
+      const realShapedPooledHost = [`${directEndpoint}-pooler`, ...directRest].join('.')
+      const result = await checkTargetIdentity({
+        env: 'production',
+        databaseUrl: `postgresql://user:pass@${realShapedPooledHost}/neondb?sslmode=require`,
+        blobReadWriteToken: `vercel_blob_rw_${ENV_CONFIG.production.expectedBlobStoreId}_somerandomsuffix`,
+        queryLiveDatabaseIdentity: vi.fn().mockResolvedValue({
+          databaseName: ENV_CONFIG.production.expectedDatabaseName,
+          databaseRole: ENV_CONFIG.production.expectedDatabaseRole,
+        }),
+      })
+      expect(result.ok).toBe(true)
+      expect(result.env).toBe('production')
+    })
+  })
+
+  describe('the SHIPPED ENV_CONFIG still fails closed on every cross-environment mismatch (Step 8 matrix, real values)', () => {
+    function realShapedPooledHost(env) {
+      const [directEndpoint, ...directRest] = ENV_CONFIG[env].expectedDirectHost.split('.')
+      return [`${directEndpoint}-pooler`, ...directRest].join('.')
+    }
+    function realDbUrl(env) {
+      return `postgresql://user:pass@${realShapedPooledHost(env)}/neondb?sslmode=require`
+    }
+    function realToken(env) {
+      return `vercel_blob_rw_${ENV_CONFIG[env].expectedBlobStoreId}_somerandomsuffix`
+    }
+
+    it('Preview DB + Production Blob -> FAIL', async () => {
+      const result = await checkTargetIdentity({
+        env: 'preview',
+        databaseUrl: realDbUrl('preview'),
+        blobReadWriteToken: realToken('production'),
+        queryLiveDatabaseIdentity: vi.fn(),
+      })
+      expect(result.ok).toBe(false)
+      expect(result.reason).toBe('UNEXPECTED_BLOB_STORE')
+    })
+
+    it('Production DB + Preview Blob -> FAIL', async () => {
+      const result = await checkTargetIdentity({
+        env: 'production',
+        databaseUrl: realDbUrl('production'),
+        blobReadWriteToken: realToken('preview'),
+        queryLiveDatabaseIdentity: vi.fn(),
+      })
+      expect(result.ok).toBe(false)
+      expect(result.reason).toBe('UNEXPECTED_BLOB_STORE')
+    })
+
+    it('wrong --env (declares preview, DB is actually production) -> FAIL', async () => {
+      const result = await checkTargetIdentity({
+        env: 'preview',
+        databaseUrl: realDbUrl('production'),
+        blobReadWriteToken: realToken('preview'),
+        queryLiveDatabaseIdentity: vi.fn(),
+      })
+      expect(result.ok).toBe(false)
+      expect(result.reason).toBe('UNEXPECTED_DATABASE_HOST')
+    })
+
+    it('wrong live DB role for Preview -> FAIL', async () => {
+      const result = await checkTargetIdentity({
+        env: 'preview',
+        databaseUrl: realDbUrl('preview'),
+        blobReadWriteToken: realToken('preview'),
+        queryLiveDatabaseIdentity: vi.fn().mockResolvedValue({ databaseName: 'neondb', databaseRole: 'neondb_owner' }),
+      })
+      expect(result.ok).toBe(false)
+      expect(result.reason).toBe('UNEXPECTED_DATABASE_ROLE')
+    })
+
+    it('wrong live DB role for Production -> FAIL', async () => {
+      const result = await checkTargetIdentity({
+        env: 'production',
+        databaseUrl: realDbUrl('production'),
+        blobReadWriteToken: realToken('production'),
+        queryLiveDatabaseIdentity: vi.fn().mockResolvedValue({ databaseName: 'neondb', databaseRole: 'neondb_owner' }),
+      })
+      expect(result.ok).toBe(false)
+      expect(result.reason).toBe('UNEXPECTED_DATABASE_ROLE')
+    })
+
+    it('wrong store id for Preview (neither environment\'s real id) -> FAIL', async () => {
+      const result = await checkTargetIdentity({
+        env: 'preview',
+        databaseUrl: realDbUrl('preview'),
+        blobReadWriteToken: 'vercel_blob_rw_totallydifferentid_x',
+        queryLiveDatabaseIdentity: vi.fn(),
+      })
+      expect(result.ok).toBe(false)
+      expect(result.reason).toBe('UNEXPECTED_BLOB_STORE')
+    })
   })
 })
 
