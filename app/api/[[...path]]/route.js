@@ -126,7 +126,7 @@ import {
 } from '@/lib/server/storage'
 import { deleteEventScopedStoredFile } from '@/lib/server/event-scoped-storage-delete'
 import { deletePhotoDerivatives, deletePhotoDerivativesBatch } from '@/lib/server/derivative-cleanup'
-import { ensureDisplayDerivative } from '@/lib/server/display-derivative'
+import { ensurePhotoDisplayDerivativeStatus } from '@/lib/server/photo-display-derivative-status'
 import { getPhotoBuffer } from '@/lib/server/download-utils'
 import { validateRoomPhotoSource, PhotoSourceValidationError } from '@/lib/server/photo-source-validation'
 import { sendOpsAlert } from '@/lib/server/ops-alerts'
@@ -1459,35 +1459,12 @@ const uploadChunk = async (request) => {
  */
 async function ensurePhotoDisplayDerivative(photo, { operation, sourceBuffer }) {
   const prisma = await getPrismaClient()
-
-  try {
-    const result = await ensureDisplayDerivative({
-      photoId: photo.id,
-      getSourceBuffer: sourceBuffer ? async () => sourceBuffer : () => getPhotoBuffer(photo.url),
-    })
-    // READY means only this: a display derivative is confirmed to exist as
-    // the output of this pipeline (fresh transform+put, or a prior run's
-    // already-persisted object) — never inferred from anything else.
-    await prisma?.photo?.updateMany?.({
-      where: { id: photo.id },
-      data: { displayDerivativeStatus: 'READY' },
-    })?.catch((updateError) => {
-      console.warn(`[${operation}] Failed to record READY display derivative status for photo:`, photo.id, serializeProviderError('db', 'record_display_derivative_ready', updateError))
-    })
-    return result
-  } catch (error) {
-    // Safe context only: photoId (opaque) and the operation label. Never
-    // the source URL, storedName, originalName, or the raw error object —
-    // TASK-01 logging policy applies to this and every new log site below.
-    console.warn(`[${operation}] Display derivative generation failed for photo:`, photo.id, serializeProviderError('blob', 'ensure_photo_display_derivative', error))
-    await prisma?.photo?.updateMany?.({
-      where: { id: photo.id },
-      data: { displayDerivativeStatus: 'FAILED' },
-    })?.catch((updateError) => {
-      console.warn(`[${operation}] Failed to record FAILED display derivative status for photo:`, photo.id, serializeProviderError('db', 'record_display_derivative_failed', updateError))
-    })
-    return { created: false }
-  }
+  // TASK-03 (Phase 1A): the READY/FAILED recording logic now lives in
+  // lib/server/photo-display-derivative-status.js, shared with the legacy
+  // backfill mechanism. Behavior here is unchanged — same signature, same
+  // fallback to getPhotoBuffer(photo.url) when sourceBuffer is omitted,
+  // same swallow-and-log contract.
+  return ensurePhotoDisplayDerivativeStatus({ prisma, photo, operation, sourceBuffer })
 }
 
 const completeUpload = withTiming('completeUpload', async (request) => {

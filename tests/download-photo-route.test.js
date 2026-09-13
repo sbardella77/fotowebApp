@@ -16,6 +16,15 @@ import sharp from 'sharp'
 // buffer) and a cache HIT (stored bytes served), plus the two new temporary
 // 503 mappings. Derivative/lock concurrency itself is covered in
 // tests/download-photo-derivative.test.js.
+//
+// TASK-03 (Phase 1A) — the request contract changed from
+// photoUrl+eventSlug to a single opaque photoId. The photo lookup now
+// happens FIRST (by id + status), and the event is derived from the
+// found photo's own eventId — never trusted from the client. This file
+// was updated to match: every test that asserted on the old lookup order
+// or param names has been rewritten; nothing about the branded/unbranded/
+// derivative-cache/rate-limit behavior itself changed, and those
+// assertions are preserved as-is.
 
 vi.mock('@upstash/redis', () => ({ Redis: vi.fn() }))
 vi.mock('@/lib/server/prisma-client', () => ({ getPrismaClient: vi.fn() }))
@@ -46,6 +55,7 @@ const ALLOWED_ORIGIN = 'https://snaprooms.app'
 const IP = '203.0.113.55'
 const EVENT_ID = 'event-1'
 const SLUG = 'wedding-2026'
+const PHOTO_ID = 'photo-1'
 const PHOTO_URL = 'https://store123.public.blob.vercel-storage.com/events/wedding-2026/uuid-beach.png'
 
 const ORIGINAL_ENV = { ...process.env }
@@ -56,11 +66,13 @@ const restoreEnv = () => {
   Object.assign(process.env, ORIGINAL_ENV)
 }
 
-function makeRequest({ photoUrl = PHOTO_URL, eventSlug = SLUG, type = 'standard', ip = IP } = {}) {
+function makeRequest({ photoId = PHOTO_ID, type = 'standard', ip = IP, extraParams = {} } = {}) {
   const params = new URLSearchParams()
-  if (photoUrl !== null) params.set('photoUrl', photoUrl)
-  if (eventSlug !== null) params.set('eventSlug', eventSlug)
+  if (photoId !== null) params.set('photoId', photoId)
   if (type !== null) params.set('type', type)
+  for (const [key, value] of Object.entries(extraParams)) {
+    if (value !== null) params.set(key, value)
+  }
   return {
     url: `${ALLOWED_ORIGIN}/api/download/photo?${params.toString()}`,
     headers: { get: (name) => (name === 'x-forwarded-for' ? ip : null) },
@@ -91,7 +103,7 @@ function makePrisma({ event, photo, ownerPlan = null } = {}) {
 
 const FREE_EVENT = { id: EVENT_ID, slug: SLUG, billingTier: null, originalDownloadUnlocked: false, ownerId: null }
 const PAID_EVENT = { id: EVENT_ID, slug: SLUG, billingTier: 'pro_event', originalDownloadUnlocked: false, ownerId: null }
-const PHOTO = { id: 'photo-1', originalName: 'beach.png', storedName: 'uuid-beach.png', mimeType: 'image/png', url: PHOTO_URL }
+const PHOTO = { id: PHOTO_ID, eventId: EVENT_ID, originalName: 'beach.png', storedName: 'uuid-beach.png', mimeType: 'image/png', url: PHOTO_URL }
 
 function installHealthyRedisMock() {
   const counts = new Map()
@@ -162,24 +174,31 @@ function dispositionFilename(response) {
 }
 
 describe('parameter validation', () => {
-  it('missing photoUrl → 400, unchanged message', async () => {
+  it('missing photoId → 400, unchanged shape', async () => {
     const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
     await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
 
-    const response = await callRoute({ photoUrl: null })
+    const response = await callRoute({ photoId: null })
 
     expect(response.status).toBe(400)
-    expect(await response.json()).toEqual({ error: 'photoUrl is required' })
+    expect(await response.json()).toEqual({ error: 'photoId is required' })
   })
 
-  it('missing eventSlug → 400, unchanged message', async () => {
+  it('no longer accepts or requires photoUrl/eventSlug at all', async () => {
     const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
     await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
+    const { prisma, photoFindFirst } = makePrisma({ event: FREE_EVENT, photo: PHOTO })
+    const { getPrismaClient } = await import('@/lib/server/prisma-client')
+    getPrismaClient.mockResolvedValue(prisma)
 
-    const response = await callRoute({ eventSlug: null })
+    // Only photoId + type are ever read from the URL — legacy params, if
+    // sent anyway (e.g. a stale cached client), are simply ignored.
+    const response = await callRoute({ extraParams: { photoUrl: PHOTO_URL, eventSlug: SLUG } })
 
-    expect(response.status).toBe(400)
-    expect(await response.json()).toEqual({ error: 'eventSlug is required' })
+    expect(response.status).toBe(200)
+    expect(photoFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: PHOTO_ID, status: 'VISIBLE' } })
+    )
   })
 })
 
@@ -288,25 +307,25 @@ describe('broad pre-DB guard — download-photo-broad:ip:<hashed>, 5000/10min', 
 })
 
 describe('authorization / visibility must precede any expensive work', () => {
-  it('unknown event → 404, no photo lookup, no Blob fetch, no Sharp', async () => {
+  it('unknown/foreign photoId → 404, no event lookup, no Blob fetch, no Sharp', async () => {
     const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
     await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
-    const { prisma, photoFindFirst } = makePrisma({ event: null, photo: PHOTO })
+    const { prisma, eventFindUnique } = makePrisma({ event: FREE_EVENT, photo: null })
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(prisma)
 
-    const response = await callRoute()
+    const response = await callRoute({ photoId: 'photo-does-not-exist' })
 
     expect(response.status).toBe(404)
-    expect(await response.json()).toEqual({ error: 'Event not found' })
-    expect(photoFindFirst).not.toHaveBeenCalled()
+    expect(await response.json()).toEqual({ error: 'Photo not found' })
+    expect(eventFindUnique).not.toHaveBeenCalled()
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('photo not found / not VISIBLE → 404, no Blob fetch, no Sharp', async () => {
+  it('a HIDDEN photo 404s identically to a nonexistent one — never distinguishable', async () => {
     const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
     await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
-    const { prisma, photoFindFirst } = makePrisma({ event: FREE_EVENT, photo: null })
+    const { prisma, eventFindUnique } = makePrisma({ event: FREE_EVENT, photo: null })
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(prisma)
 
@@ -314,10 +333,11 @@ describe('authorization / visibility must precede any expensive work', () => {
 
     expect(response.status).toBe(404)
     expect(await response.json()).toEqual({ error: 'Photo not found' })
+    expect(eventFindUnique).not.toHaveBeenCalled()
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('the visibility filter still requires status VISIBLE and scopes to the event', async () => {
+  it('the photo lookup filters on id + status VISIBLE only — no client-supplied event scoping', async () => {
     const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
     await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
     const { prisma, photoFindFirst } = makePrisma({ event: FREE_EVENT, photo: PHOTO })
@@ -328,9 +348,36 @@ describe('authorization / visibility must precede any expensive work', () => {
 
     expect(photoFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { eventId: EVENT_ID, url: PHOTO_URL, status: 'VISIBLE' },
+        where: { id: PHOTO_ID, status: 'VISIBLE' },
       })
     )
+  })
+
+  it('the event is derived from the found photo\'s own eventId, never from a client param', async () => {
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
+    const { prisma, eventFindUnique } = makePrisma({ event: FREE_EVENT, photo: PHOTO })
+    const { getPrismaClient } = await import('@/lib/server/prisma-client')
+    getPrismaClient.mockResolvedValue(prisma)
+
+    await callRoute()
+
+    expect(eventFindUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: EVENT_ID } })
+    )
+  })
+
+  it('a photo whose event has vanished → 404, no Blob fetch, no Sharp (defensive, FK integrity notwithstanding)', async () => {
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
+    const { prisma } = makePrisma({ event: null, photo: PHOTO })
+    const { getPrismaClient } = await import('@/lib/server/prisma-client')
+    getPrismaClient.mockResolvedValue(prisma)
+
+    const response = await callRoute()
+
+    expect(response.status).toBe(404)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('database unavailable → 503, unchanged', async () => {
@@ -425,8 +472,8 @@ describe('unbranded regression (paid event) — passthrough unchanged', () => {
   })
 })
 
-describe('type parameter has no effect on the output contract (unchanged)', () => {
-  it('type=original and type=standard produce the same Content-Type and filename', async () => {
+describe('client cannot force branded/unbranded — server-side entitlement is the only authority', () => {
+  it('type=original and type=standard produce the same Content-Type and filename on a Free (branded) event', async () => {
     const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
     await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
@@ -437,6 +484,24 @@ describe('type parameter has no effect on the output contract (unchanged)', () =
 
     expect(original.headers.get('content-type')).toBe(standard.headers.get('content-type'))
     expect(dispositionFilename(original)).toBe(dispositionFilename(standard))
+    // Neither request produced the unbranded PNG passthrough — a Free
+    // event stays branded regardless of what `type` asks for.
+    expect(standard.headers.get('content-type')).toBe('image/jpeg')
+    expect(original.headers.get('content-type')).toBe('image/jpeg')
+  })
+
+  it('type=standard cannot force a branded (watermarked) response on an unbranded-entitled event', async () => {
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
+    const { getPrismaClient } = await import('@/lib/server/prisma-client')
+    getPrismaClient.mockResolvedValue(makePrisma({ event: PAID_EVENT, photo: PHOTO }).prisma)
+
+    const response = await callRoute({ type: 'standard' })
+
+    // Still the untouched PNG passthrough — `type` never overrides
+    // access.hasUnbrandedDownloads.
+    expect(response.headers.get('content-type')).toBe('image/png')
+    expect(blobPutMock).not.toHaveBeenCalled()
   })
 })
 
