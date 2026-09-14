@@ -1,16 +1,26 @@
 import RoomPageClient from '@/components/room-page-client'
 import { getGalleryRepository } from '@/lib/server/gallery-repository'
-import { resolveEventSocialImage } from '@/lib/server/event-social-image'
+import { resolveEventSocialImageSafe } from '@/lib/server/event-social-image'
 
 export async function generateMetadata({ params }) {
   const { slug } = params
 
   let event = null
+  let visiblePhotos = []
   try {
     const repository = await getGalleryRepository()
     event = await repository.getEventBySlug(slug)
+    if (event) {
+      // Raw rows (id/status/displayDerivativeStatus) for
+      // resolveEventSocialImageSafe's OWN safe resolution — deliberately
+      // NOT event.photos, which is already the guest-safe DTO shape
+      // (url pre-resolved, displayDerivativeStatus stripped) and would
+      // make this resolver a no-op. Never sent to any client — used only
+      // to pick one metadata image URL, server-side.
+      visiblePhotos = await repository.getVisiblePhotosForSocialImage(event.id)
+    }
   } catch {
-    // ignore, event stays null
+    // ignore, event/visiblePhotos stay at their defaults
   }
 
   if (!event) {
@@ -18,7 +28,7 @@ export async function generateMetadata({ params }) {
   }
 
   const title = `${event.name} | SnapRooms`
-  const socialImage = resolveEventSocialImage(event, event.photos || [])
+  const socialImage = resolveEventSocialImageSafe(event, visiblePhotos)
 
   return {
     title,

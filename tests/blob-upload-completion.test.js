@@ -539,9 +539,21 @@ describe('head verification', () => {
       prisma,
       headBlob,
     })
-    expect(result.photo.url).toBe(headUrl)
-    expect(result.photo.size).toBe(headSize)
+    // Guest EXIF Safe Delivery Cutover: result.photo is now the guest-safe
+    // DTO (normalizePhotoRecord, guestSafe: true by default) — a freshly
+    // created photo is never READY yet, so result.photo.url is null by
+    // design, regardless of what was actually written to the DB. This
+    // test's real subject is the DB WRITE's integrity (the title says so:
+    // "the Photo record's URL and size come from headResult/buffer, not
+    // the session"), so assert against the raw stored record instead of
+    // the post-normalization API response.
+    const storedPhoto = await prisma.photo.findUnique({ where: { id: result.photo.id } })
+    expect(storedPhoto.url).toBe(headUrl)
+    expect(storedPhoto.size).toBe(headSize)
     expect(headSize).not.toBe(204800)
+    // And confirm the guest-safety cutover itself: the API response never
+    // carries the original url for a non-READY (freshly created) photo.
+    expect(result.photo.url).toBeNull()
   })
 })
 
