@@ -159,11 +159,22 @@ const PhotoGalleryGrid = ({
             type="button"
             aria-label={`${t.photo} ${index + 1} / ${safePhotos.length}${photo.originalName ? `, ${photo.originalName}` : ''}`}
           >
-            <ImageWithLazyLoad
-              src={photo.url}
-              alt={photo.originalName || `${t.photo} ${index + 1}`}
-              className="transition-transform duration-300 group-hover:scale-105"
-            />
+            {photo.url ? (
+              <ImageWithLazyLoad
+                src={photo.url}
+                alt={photo.originalName || `${t.photo} ${index + 1}`}
+                className="transition-transform duration-300 group-hover:scale-105"
+              />
+            ) : (
+              // No safe derivative exists for this photo yet (PENDING /
+              // FAILED / LEGACY_UNVERIFIED) — explicit unavailable tile.
+              // NEVER fall back to an original source URL here: there is
+              // none in scope (the guest DTO only ever sends a derivative
+              // URL or null, see lib/server/guest-photo-url.js).
+              <div className="flex h-full w-full items-center justify-center bg-muted">
+                <ImageOff className="h-5 w-5 text-muted-foreground/40" />
+              </div>
+            )}
             <div className="absolute inset-0 bg-black/0 transition-colors duration-200 group-hover:bg-black/10" />
           </button>
         ))}

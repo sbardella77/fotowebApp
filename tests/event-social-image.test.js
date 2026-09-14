@@ -59,7 +59,7 @@ describe('resolveEventSocialImage (existing, unchanged — regression lock)', ()
   })
 })
 
-describe('resolveEventSocialImageSafe (new — future policy, not wired into any page)', () => {
+describe('resolveEventSocialImageSafe (Guest EXIF Safe Delivery Cutover — live in app/event/[slug]/page.js)', () => {
   it('null event → null', async () => {
     const { resolveEventSocialImageSafe } = await import('@/lib/server/event-social-image')
     expect(resolveEventSocialImageSafe(null, [])).toBeNull()
@@ -71,10 +71,25 @@ describe('resolveEventSocialImageSafe (new — future policy, not wired into any
     expect(resolveEventSocialImageSafe(event, [])).toBe('https://example.com/social.jpg')
   })
 
-  it('falls back to event.coverUrl, same as the existing resolver', async () => {
+  it('does NOT fall back to event.coverUrl (unlike the old resolver) — coverUrl is not proven EXIF-safe, so this fails closed to the next candidate', async () => {
     const { resolveEventSocialImageSafe } = await import('@/lib/server/event-social-image')
     const event = { coverUrl: 'https://example.com/cover.jpg' }
-    expect(resolveEventSocialImageSafe(event, [])).toBe('https://example.com/cover.jpg')
+    // No socialCoverUrl, no visible photos → falls all the way through to
+    // null rather than trusting coverUrl (see the doc comment on
+    // resolveEventSocialImageSafe for why: optimizeCoverBuffer can fall
+    // back to an unprocessed, potentially EXIF-bearing buffer).
+    expect(resolveEventSocialImageSafe(event, [])).toBeNull()
+  })
+
+  it('a READY photo is still preferred over a null result when coverUrl is present but skipped', async () => {
+    const { resolveEventSocialImageSafe } = await import('@/lib/server/event-social-image')
+    const event = { coverUrl: 'https://example.com/cover.jpg' }
+    const photos = [{ id: 'photo-1', status: 'VISIBLE', displayDerivativeStatus: 'READY', url: ORIGINAL_PHOTO_URL }]
+
+    const result = resolveEventSocialImageSafe(event, photos)
+
+    expect(result).toBe(`${VALID_ORIGIN}/derivatives/display-v1/photo-1.jpg`)
+    expect(result).not.toBe('https://example.com/cover.jpg')
   })
 
   it('a visible READY photo resolves to its derivative URL, never the original', async () => {
@@ -129,6 +144,22 @@ describe('resolveEventSocialImageSafe (new — future policy, not wired into any
           { id: 'photo-1', status: visibility, displayDerivativeStatus: status, url: ORIGINAL_PHOTO_URL },
         ])
         expect(result).not.toBe(ORIGINAL_PHOTO_URL)
+      }
+    }
+  })
+
+  it('never returns event.coverUrl under any combination of inputs (coverUrl safety is not proven)', async () => {
+    const { resolveEventSocialImageSafe } = await import('@/lib/server/event-social-image')
+    const COVER_URL = 'https://example.com/cover.jpg'
+    const statuses = ['LEGACY_UNVERIFIED', 'PENDING', 'READY', 'FAILED']
+    const visibilities = ['VISIBLE', 'HIDDEN']
+
+    for (const status of statuses) {
+      for (const visibility of visibilities) {
+        const result = resolveEventSocialImageSafe({ coverUrl: COVER_URL }, [
+          { id: 'photo-1', status: visibility, displayDerivativeStatus: status, url: ORIGINAL_PHOTO_URL },
+        ])
+        expect(result).not.toBe(COVER_URL)
       }
     }
   })

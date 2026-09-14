@@ -553,7 +553,20 @@ const PhotoLightbox = ({
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        <ImageWithLoading key={photo.id || photo.url} src={photo.url} alt={photo.originalName || t.photo} />
+        {photo.url ? (
+          <ImageWithLoading key={photo.id} src={photo.url} alt={photo.originalName || t.photo} />
+        ) : (
+          // No safe derivative exists for this photo yet (PENDING / FAILED /
+          // LEGACY_UNVERIFIED) — the lightbox must never open an original,
+          // even for an owner/entitled viewer (display and download are
+          // separate trust boundaries; see the download menu above, which
+          // is unaffected and still fetches by photoId through the
+          // entitlement-gated route).
+          <div className="flex flex-col items-center justify-center gap-2 text-foreground/40">
+            <ImageOff className="h-10 w-10" />
+            <span className="text-sm">{t.failedToLoadImage}</span>
+          </div>
+        )}
       </div>
 
       {/* Navigation arrows (desktop) */}
