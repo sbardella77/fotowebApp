@@ -18,6 +18,7 @@ export async function generateMetadata({ params }) {
         it: '/it/birthday-photo-sharing',
         fr: '/fr/birthday-photo-sharing',
         es: '/es/birthday-photo-sharing',
+        'pt-BR': '/pt-BR/birthday-photo-sharing',
       },
     },
   }

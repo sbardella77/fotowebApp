@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { dictionaries } from '@/lib/i18n/dictionaries'
 
-const LOCALES = ['en', 'de', 'it', 'fr', 'es']
+const LOCALES = ['en', 'de', 'it', 'fr', 'es', 'pt-BR']
 
 describe('dashboard.sessionExpired', () => {
   it.each(LOCALES)('%s: is a non-empty string', (locale) => {

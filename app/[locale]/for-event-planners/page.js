@@ -18,6 +18,7 @@ export async function generateMetadata({ params }) {
         it: '/it/for-event-planners',
         fr: '/fr/for-event-planners',
         es: '/es/for-event-planners',
+        'pt-BR': '/pt-BR/for-event-planners',
       },
     },
   }

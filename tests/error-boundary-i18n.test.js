@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { resolveErrorBoundaryLocale, getErrorBoundaryCopy } from '@/lib/i18n/error-boundary'
 
-const SUPPORTED_LOCALES = ['en', 'de', 'it', 'fr', 'es']
+const SUPPORTED_LOCALES = ['en', 'de', 'it', 'fr', 'es', 'pt-BR']
 const KEYS = [
   'globalTitle', 'globalBody',
   'dashboardTitle', 'dashboardBody',
@@ -39,6 +39,9 @@ describe('resolveErrorBoundaryLocale', () => {
     ['it-IT', 'it'],
     ['fr-FR', 'fr'],
     ['es-ES', 'es'],
+    ['pt-BR', 'pt-BR'],
+    ['pt', 'pt-BR'],
+    ['pt-PT', 'pt-BR'],
   ])('B. regional navigator value %s normalizes to %s', (tag, expected) => {
     stubDocument('')
     stubNavigator([tag])
@@ -163,5 +166,14 @@ describe('getErrorBoundaryCopy', () => {
     expect(copy.eventTitle).toBe('Diese Galerie konnte leider nicht geladen werden.')
     expect(copy.reloadPage).toBe('Seite neu laden')
     expect(copy.backToHome).toBe('Zurück zur Startseite')
+  })
+
+  it('pt-BR copy preserves the original hardcoded Brazilian Portuguese meaning', () => {
+    const copy = getErrorBoundaryCopy('pt-BR')
+    expect(copy.globalTitle).toBe('Algo deu errado')
+    expect(copy.dashboardTitle).toBe('Painel indisponível')
+    expect(copy.eventTitle).toBe('Não foi possível carregar esta galeria.')
+    expect(copy.reloadPage).toBe('Recarregar página')
+    expect(copy.backToHome).toBe('Voltar para o início')
   })
 })
