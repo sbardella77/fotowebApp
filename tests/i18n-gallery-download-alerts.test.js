@@ -7,7 +7,7 @@ import { dictionaries } from '@/lib/i18n/dictionaries'
 // literal text "undefined", because those two keys were missing from the
 // fr/es "dashboard" namespace and the call sites had no fallback.
 
-const LOCALES = ['en', 'de', 'it', 'fr', 'es']
+const LOCALES = ['en', 'de', 'it', 'fr', 'es', 'pt-BR']
 const KEYS = ['galleryDownloadLocked', 'galleryDownloadFailed']
 
 const ENGLISH_FALLBACKS = {

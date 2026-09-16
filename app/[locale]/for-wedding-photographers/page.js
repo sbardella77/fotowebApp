@@ -18,6 +18,7 @@ export async function generateMetadata({ params }) {
         it: '/it/for-wedding-photographers',
         fr: '/fr/for-wedding-photographers',
         es: '/es/for-wedding-photographers',
+        'pt-BR': '/pt-BR/for-wedding-photographers',
       },
     },
   }

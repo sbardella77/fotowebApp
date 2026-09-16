@@ -89,20 +89,35 @@ function detectLocale(request) {
       .map((part) => {
         const [lang, q = '1'] = part.trim().split(';q=')
         return {
-          code: lang.trim().split('-')[0].toLowerCase(),
+          code: lang.trim().toLowerCase(),
           q: parseFloat(q),
         }
       })
       .sort((a, b) => b.q - a.q)
 
     for (const { code } of languages) {
-      const exact = LOCALES.find((l) => l === code)
-      if (exact) return exact
+      const match = matchAcceptLanguageCode(code)
+      if (match) return match
     }
   }
 
   // 4. Default fallback
   return DEFAULT_LOCALE
+}
+
+/**
+ * Match a single lowercased Accept-Language tag against LOCALES: exact tag
+ * match first (so a region-qualified entry like "pt-BR" can match "pt-br"
+ * exactly), then fall back to primary-subtag match (so a bare "pt" or a
+ * "pt-PT" request still resolves to our only Portuguese variant instead of
+ * falling through to English).
+ */
+function matchAcceptLanguageCode(code) {
+  const exact = LOCALES.find((l) => l.toLowerCase() === code)
+  if (exact) return exact
+
+  const primary = code.split('-')[0]
+  return LOCALES.find((l) => l.toLowerCase().split('-')[0] === primary) || null
 }
 
 function detectLocaleFromCountry(request) {
@@ -123,6 +138,8 @@ function detectLocaleFromCountry(request) {
     IE: 'en',
     AU: 'en',
     CA: 'en',
+    BR: 'pt-BR',
+    PT: 'pt-BR',
   }
 
   return countryToLocale[country.toUpperCase()] || null
