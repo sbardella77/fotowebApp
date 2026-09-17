@@ -48,6 +48,14 @@ vi.stubGlobal('fetch', fetchMock)
 
 const DERIVATIVE_URL = 'https://store123.public.blob.vercel-storage.com/derivatives/wm-v2/photo-1.jpg'
 const DERIVATIVE_PATH = 'derivatives/wm-v2/photo-1.jpg'
+// Download Representation Contract v1: paid Standard now resolves through
+// the display-v1 derivative — its own Blob cache namespace, entirely
+// separate from the Free-event branded wm-v2 one above. Tests that need to
+// prove "the branded path isn't used" must assert against THIS path/lock
+// namespace, not against zero Blob activity globally.
+const DISPLAY_DERIVATIVE_URL = 'https://store123.public.blob.vercel-storage.com/derivatives/display-v1/photo-1.jpg'
+const DISPLAY_DERIVATIVE_PATH = 'derivatives/display-v1/photo-1.jpg'
+const DISPLAY_TRANSFORM_LOCK_KEY = 'display-photo-transform:v1:photo-1'
 /** In-memory stand-in for the Blob store, so a put makes later heads succeed. */
 const storedDerivatives = new Map()
 
@@ -435,8 +443,15 @@ describe('branded response contract (Free event)', () => {
   })
 })
 
-describe('unbranded regression (paid event) — passthrough unchanged', () => {
-  it('serves the source bytes untouched with the source Content-Type and extension', async () => {
+// Download Representation Contract v1 (PR #39): paid Standard used to be an
+// untouched source passthrough (PNG in, PNG out, byte-identical). That
+// passthrough contract is gone — paid Standard now resolves through the
+// same shared display-v1 derivative used elsewhere, deliberately dropping
+// EXIF and normalizing to a capped, re-encoded JPEG. Original quality is the
+// only representation that still passes the persisted source through
+// untouched (see the "paid Original — entitled" describe block below).
+describe('paid Standard — display-v1 derivative (Download Representation Contract v1)', () => {
+  it('serves the display-v1 JPEG derivative, not the raw source bytes', async () => {
     const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
     await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
@@ -446,13 +461,14 @@ describe('unbranded regression (paid event) — passthrough unchanged', () => {
     const body = Buffer.from(await response.arrayBuffer())
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('content-type')).toBe('image/png')
-    expect(dispositionFilename(response)).toBe('beach.png')
-    // Still PNG: the unbranded path must not enter JPEG-mode processing.
-    expect((await sharp(body).metadata()).format).toBe('png')
+    expect(response.headers.get('content-type')).toBe('image/jpeg')
+    expect(dispositionFilename(response)).toBe('beach.jpg')
+    // display-v1, not the source PNG: the paid Standard path now enters
+    // JPEG-mode processing like every other display-v1 consumer.
+    expect((await sharp(body).metadata()).format).toBe('jpeg')
   })
 
-  it('does not transcode — the unbranded body is byte-identical to the source', async () => {
+  it('transcodes — the paid Standard body is NOT byte-identical to the source (the old passthrough contract no longer applies)', async () => {
     const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
     await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
@@ -468,40 +484,124 @@ describe('unbranded regression (paid event) — passthrough unchanged', () => {
     const response = await callRoute()
     const body = Buffer.from(await response.arrayBuffer())
 
+    expect(Buffer.compare(body, source)).not.toBe(0)
+  })
+})
+
+// Original quality is the representation that still guarantees an untouched,
+// byte-identical copy of the persisted source — proven here for a
+// PAID_EVENT fixture, which is entitled (billingTier: 'pro_event' makes
+// canDownloadOriginal true; see lib/event-access.js).
+describe('paid Original — entitled (Download Representation Contract v1)', () => {
+  it('serves the exact persisted source bytes with the source MIME type and extension', async () => {
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
+    const { getPrismaClient } = await import('@/lib/server/prisma-client')
+    getPrismaClient.mockResolvedValue(makePrisma({ event: PAID_EVENT, photo: PHOTO }).prisma)
+
+    const source = await pngSource()
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      arrayBuffer: async () => source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength),
+    })
+
+    const response = await callRoute({ type: 'original' })
+    const body = Buffer.from(await response.arrayBuffer())
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toBe(PHOTO.mimeType)
+    expect(dispositionFilename(response)).toBe('beach.png')
     expect(Buffer.compare(body, source)).toBe(0)
+    expect((await sharp(body).metadata()).format).toBe('png')
+  })
+
+  it('never touches the display-v1 or wm-v2 derivative cache — Original is a direct source passthrough', async () => {
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
+    const { getPrismaClient } = await import('@/lib/server/prisma-client')
+    getPrismaClient.mockResolvedValue(makePrisma({ event: PAID_EVENT, photo: PHOTO }).prisma)
+
+    const response = await callRoute({ type: 'original' })
+
+    expect(response.status).toBe(200)
+    expect(blobHeadMock).not.toHaveBeenCalled()
+    expect(blobPutMock).not.toHaveBeenCalled()
+  })
+})
+
+// The Download Representation Contract gates Standard on hasUnbrandedDownloads
+// and Original on canDownloadOriginal independently (see
+// resolveDownloadRepresentation in lib/server/download-representation.js) —
+// it does not assume they're the same boolean. Today's real
+// lib/event-access.js derivation happens to always couple them
+// (hasUnbrandedDownloads === canDownloadOriginal), so a genuinely
+// "unbranded Standard but Original still locked" event cannot be produced
+// from a real Prisma-backed fixture right now; PAID_EVENT above is always
+// entitled to both. This test proves the ROUTE itself preserves that
+// independence end-to-end against whatever access object the resolver is
+// handed, rather than silently relying on the current coupling — the same
+// independence is proven at the resolver-unit level in
+// tests/download-representation.test.js.
+describe('Standard/Original entitlement independence at the route boundary', () => {
+  it('display-v1 Standard does not imply an entitled Original', async () => {
+    const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
+    await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
+    const { getPrismaClient } = await import('@/lib/server/prisma-client')
+    getPrismaClient.mockResolvedValue(makePrisma({ event: PAID_EVENT, photo: PHOTO }).prisma)
+    vi.doMock('@/lib/server/event-access', () => ({
+      getEffectiveEventAccessState: vi.fn().mockResolvedValue({
+        canDownloadOriginal: false,
+        hasUnbrandedDownloads: true,
+      }),
+    }))
+
+    const { GET } = await import('@/app/api/download/photo/route')
+
+    const standard = await GET(makeRequest({ type: 'standard' }))
+    expect(standard.status).toBe(200)
+    expect(standard.headers.get('content-type')).toBe('image/jpeg')
+
+    const original = await GET(makeRequest({ type: 'original' }))
+    expect(original.status).toBe(403)
+    expect(await original.json()).toEqual({ error: 'Original quality is not available for this event.' })
+
+    vi.doUnmock('@/lib/server/event-access')
   })
 })
 
 describe('client cannot force branded/unbranded — server-side entitlement is the only authority', () => {
-  it('type=original and type=standard produce the same Content-Type and filename on a Free (branded) event', async () => {
+  it('type=original is forbidden on a Free (branded) event — the client cannot force original quality', async () => {
     const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
     await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(makePrisma({ event: FREE_EVENT, photo: PHOTO }).prisma)
 
-    const standard = await callRoute({ type: 'standard' })
-    const original = await callRoute({ type: 'original' })
+    const response = await callRoute({ type: 'original' })
 
-    expect(original.headers.get('content-type')).toBe(standard.headers.get('content-type'))
-    expect(dispositionFilename(original)).toBe(dispositionFilename(standard))
-    // Neither request produced the unbranded PNG passthrough — a Free
-    // event stays branded regardless of what `type` asks for.
-    expect(standard.headers.get('content-type')).toBe('image/jpeg')
-    expect(original.headers.get('content-type')).toBe('image/jpeg')
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({ error: 'Original quality is not available for this event.' })
+    // Forbidden before any source fetch — fails closed, not merely re-branded.
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('type=standard cannot force a branded (watermarked) response on an unbranded-entitled event', async () => {
+  it('type=standard cannot force a branded (watermarked) response on an unbranded-entitled (paid) event — it gets display-v1, not wm-v2', async () => {
     const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
     await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(makePrisma({ event: PAID_EVENT, photo: PHOTO }).prisma)
 
     const response = await callRoute({ type: 'standard' })
+    const body = Buffer.from(await response.arrayBuffer())
 
-    // Still the untouched PNG passthrough — `type` never overrides
-    // access.hasUnbrandedDownloads.
-    expect(response.headers.get('content-type')).toBe('image/png')
-    expect(blobPutMock).not.toHaveBeenCalled()
+    // display-v1 is expected here — `type` never overrides
+    // access.hasUnbrandedDownloads, but that no longer means "no derivative
+    // at all"; it means "not the wm-v2 branded derivative" specifically.
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toBe('image/jpeg')
+    expect((await sharp(body).metadata()).format).toBe('jpeg')
+    expect(blobPutMock.mock.calls.map((c) => c[0])).not.toContain(DERIVATIVE_PATH)
+    expect(blobPutMock.mock.calls.map((c) => c[0])).toContain(DISPLAY_DERIVATIVE_PATH)
   })
 })
 
@@ -619,7 +719,7 @@ describe('branded derivative cache — route behavior', () => {
     vi.doUnmock('@/lib/server/download-derivative')
   })
 
-  it('the unbranded path never touches the derivative cache', async () => {
+  it('the paid Standard (display-v1) path never touches the wm-v2 branded derivative cache namespace', async () => {
     const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
     await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
@@ -628,9 +728,15 @@ describe('branded derivative cache — route behavior', () => {
     const response = await callRoute()
 
     expect(response.status).toBe(200)
-    expect(blobHeadMock).not.toHaveBeenCalled()
-    expect(blobPutMock).not.toHaveBeenCalled()
-    expect(setMock).not.toHaveBeenCalled()
+    // No wm-v2 branded activity at all...
+    expect(blobHeadMock).not.toHaveBeenCalledWith(DERIVATIVE_PATH)
+    expect(blobPutMock.mock.calls.map((c) => c[0])).not.toContain(DERIVATIVE_PATH)
+    expect(setMock).not.toHaveBeenCalledWith(expect.stringContaining('download-photo-transform'), expect.anything(), expect.anything())
+    // ...but display-v1 IS a real derivative cache namespace now — it costs
+    // a Blob head/put and its own distributed lock, same as wm-v2 does.
+    expect(blobHeadMock).toHaveBeenCalledWith(DISPLAY_DERIVATIVE_PATH)
+    expect(blobPutMock.mock.calls.map((c) => c[0])).toContain(DISPLAY_DERIVATIVE_PATH)
+    expect(setMock).toHaveBeenCalledWith(DISPLAY_TRANSFORM_LOCK_KEY, expect.anything(), expect.anything())
   })
 
   it('a hidden photo 404s without any derivative lookup', async () => {
@@ -646,25 +752,34 @@ describe('branded derivative cache — route behavior', () => {
     expect(blobPutMock).not.toHaveBeenCalled()
   })
 
-  it('after an entitlement flip to unbranded, the branded derivative is not consulted', async () => {
+  it('after an entitlement flip to unbranded, the branded (wm-v2) derivative is not reused/consulted — display-v1 is produced in its own cache namespace', async () => {
     const { evalMock, ttlMock, setMock } = installHealthyRedisMock()
     await setupRedis({ eval: evalMock, ttl: ttlMock, set: setMock })
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
 
-    // Free first: derivative gets created.
+    // Free first: the wm-v2 branded derivative gets created.
     getPrismaClient.mockResolvedValue(makePrisma({ event: FREE_EVENT, photo: PHOTO }).prisma)
     await callRoute()
     expect(storedDerivatives.has(DERIVATIVE_PATH)).toBe(true)
+    expect(storedDerivatives.has(DISPLAY_DERIVATIVE_PATH)).toBe(false)
 
-    // Now unlocked/paid: same photo must take the unbranded source path.
+    // Now unlocked/paid: same photo must take the display-v1 path — never
+    // re-reading the already-cached wm-v2 branded object.
     blobHeadMock.mockClear()
     getPrismaClient.mockResolvedValue(makePrisma({ event: PAID_EVENT, photo: PHOTO }).prisma)
     const response = await callRoute()
+    const body = Buffer.from(await response.arrayBuffer())
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('content-type')).toBe('image/png')
-    expect(dispositionFilename(response)).toBe('beach.png')
-    expect(blobHeadMock).not.toHaveBeenCalled()
+    expect(response.headers.get('content-type')).toBe('image/jpeg')
+    expect(dispositionFilename(response)).toBe('beach.jpg')
+    expect((await sharp(body).metadata()).format).toBe('jpeg')
+    // The wm-v2 branded object is never re-consulted even though it already
+    // exists from the Free request above...
+    expect(blobHeadMock).not.toHaveBeenCalledWith(DERIVATIVE_PATH)
+    // ...but display-v1's own cache namespace IS consulted/produced fresh.
+    expect(blobHeadMock).toHaveBeenCalledWith(DISPLAY_DERIVATIVE_PATH)
+    expect(storedDerivatives.has(DISPLAY_DERIVATIVE_PATH)).toBe(true)
   })
 })
 

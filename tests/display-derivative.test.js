@@ -687,7 +687,17 @@ describe('dormancy — STEP 7.15e narrows this to "no browser/public-response wi
     expect(route.src).toMatch(/ensurePhotoDisplayDerivativeStatus\s*\(/)
   })
 
-  it('the only product importers of display-derivative.js are derivative-cleanup.js (path builder only), the extracted status wrapper (ensure only), the backfill operator (ensure + path builder), and the guest-url resolver (path builder only)', async () => {
+  // Download Representation Contract v1: lib/server/download-representation.js
+  // is now the one intentional download-time consumer of the byte-returning
+  // getDisplayDerivative primitive. It is imported only by the shared
+  // representation resolver used by the authenticated download routes
+  // (single-photo, sync gallery, async gallery) — never by a Guest
+  // DTO/client/OG/room-grid/lightbox path. It does not derive a public URL
+  // and is not reachable from browser/public-response wiring, so it does not
+  // violate the "no browser/public-response wiring yet" invariant this
+  // describe block enforces. See tests/download-representation.test.js and
+  // tests/download-photo-route.test.js for the routes' entitlement behavior.
+  it('the only product importers of display-derivative.js are derivative-cleanup.js (path builder only), the extracted status wrapper (ensure only), the backfill operator (ensure + path builder), the guest-url resolver (path builder only), and download-representation.js — the single intentional server-side download consumer (get only) reached through the shared representation resolver, with no browser/client wiring added', async () => {
     const importers = (await productSources())
       .filter(({ path }) => !path.endsWith('display-derivative.js'))
       // TASK-03 (Phase 1A): a loose /display-derivative/ substring filter
@@ -701,6 +711,7 @@ describe('dormancy — STEP 7.15e narrows this to "no browser/public-response wi
     expect(importers.map(({ path }) => path.split('/').pop()).sort()).toEqual([
       'derivative-cleanup.js',
       'display-backfill.js',
+      'download-representation.js',
       'guest-photo-url.js',
       'photo-display-derivative-status.js',
     ])
@@ -736,6 +747,14 @@ describe('dormancy — STEP 7.15e narrows this to "no browser/public-response wi
       'buildDisplayDerivativePath',
       'ensureDisplayDerivative',
     ])
+
+    // download-representation.js only ever needs the byte-returning
+    // getDisplayDerivative primitive — it resolves an already-generated
+    // derivative's bytes for a download response, it never triggers
+    // ensure/generation itself and never builds a standalone path.
+    const downloadRepresentation = importers.find(({ path }) => path.endsWith('download-representation.js'))
+    const downloadRepresentationSpecifiers = /import\s*\{([^}]*)\}\s*from\s*'@\/lib\/server\/display-derivative'/.exec(downloadRepresentation.src)[1]
+    expect(downloadRepresentationSpecifiers.split(',').map((s) => s.trim()).filter(Boolean)).toEqual(['getDisplayDerivative'])
   })
 
   it('does not derive a public URL — that belongs to the DTO cutover step', async () => {
