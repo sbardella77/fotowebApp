@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { ZipArchive } from 'archiver'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { getEffectiveEventAccessState } from '@/lib/server/event-access'
-import { getPhotoBuffer, applyWatermark, getDownloadFileName } from '@/lib/server/download-utils'
+import { getDownloadFileName } from '@/lib/server/download-utils'
+import { resolveDownloadRepresentation } from '@/lib/server/download-representation'
 import { checkRateLimit, getClientIp, hashIdentifier, RATE_LIMITS } from '@/lib/server/rate-limiter'
 import { serializeProviderError } from '@/lib/server/safe-log'
 
@@ -70,9 +71,6 @@ export async function GET(request) {
       )
     }
 
-    // Check if individual photos should be branded
-    const branded = !access.hasUnbrandedDownloads
-
     // Fetch all visible photos for this event
     const photos = await prisma.photo.findMany({
       where: {
@@ -94,7 +92,7 @@ export async function GET(request) {
     const effectivePhotos = photos.slice(0, MAX_GALLERY_PHOTOS)
     const skippedCount = totalEligible - effectivePhotos.length
 
-    console.log(`${logPrefix} event=${event.slug} branded=${branded} billingTier=${event.billingTier} totalEligible=${totalEligible} effective=${effectivePhotos.length} skipped=${skippedCount}`)
+    console.log(`${logPrefix} event=${event.slug} branded=${!access.hasUnbrandedDownloads} billingTier=${event.billingTier} totalEligible=${totalEligible} effective=${effectivePhotos.length} skipped=${skippedCount}`)
 
     if (photos.length === 0) {
       return NextResponse.json({ error: 'No photos available for download' }, { status: 404 })
@@ -126,15 +124,13 @@ export async function GET(request) {
         for (let i = 0; i < effectivePhotos.length; i++) {
           const photo = effectivePhotos[i]
           try {
-            const buffer = await getPhotoBuffer(photo.url)
-            const fileName = getDownloadFileName(photo)
-
-            if (branded) {
-              const watermarked = await applyWatermark(buffer)
-              archive.append(watermarked, { name: fileName })
-            } else {
-              archive.append(buffer, { name: fileName })
-            }
+            const representation = await resolveDownloadRepresentation({
+              photo,
+              requestedQuality: 'standard',
+              access,
+            })
+            const fileName = getDownloadFileName(photo, { extension: representation.extension || undefined })
+            archive.append(representation.buffer, { name: fileName })
             processedCount += 1
           } catch (photoError) {
             console.error(`${logPrefix} Failed to process photo ${photo.id}:`, photoError.message)
