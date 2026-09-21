@@ -19,6 +19,7 @@ export async function generateMetadata({ params }) {
         fr: '/fr/privacy',
         es: '/es/privacy',
         'pt-BR': '/pt-BR/privacy',
+        'x-default': '/en/privacy',
       },
     },
   }

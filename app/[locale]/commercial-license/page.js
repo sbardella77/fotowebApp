@@ -19,6 +19,7 @@ export async function generateMetadata({ params }) {
         fr: '/fr/commercial-license',
         es: '/es/commercial-license',
         'pt-BR': '/pt-BR/commercial-license',
+        'x-default': '/en/commercial-license',
       },
     },
   }

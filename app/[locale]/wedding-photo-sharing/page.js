@@ -19,6 +19,7 @@ export async function generateMetadata({ params }) {
         fr: '/fr/wedding-photo-sharing',
         es: '/es/wedding-photo-sharing',
         'pt-BR': '/pt-BR/wedding-photo-sharing',
+        'x-default': '/en/wedding-photo-sharing',
       },
     },
   }

@@ -19,6 +19,7 @@ export async function generateMetadata({ params }) {
         fr: '/fr/private-party-photo-sharing',
         es: '/es/private-party-photo-sharing',
         'pt-BR': '/pt-BR/private-party-photo-sharing',
+        'x-default': '/en/private-party-photo-sharing',
       },
     },
   }

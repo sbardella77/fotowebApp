@@ -19,6 +19,7 @@ export async function generateMetadata({ params }) {
         fr: '/fr/corporate-event-photo-sharing',
         es: '/es/corporate-event-photo-sharing',
         'pt-BR': '/pt-BR/corporate-event-photo-sharing',
+        'x-default': '/en/corporate-event-photo-sharing',
       },
     },
   }

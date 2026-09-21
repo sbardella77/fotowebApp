@@ -19,6 +19,7 @@ export async function generateMetadata({ params }) {
         fr: '/fr/terms',
         es: '/es/terms',
         'pt-BR': '/pt-BR/terms',
+        'x-default': '/en/terms',
       },
     },
   }
