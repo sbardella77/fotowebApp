@@ -1929,7 +1929,7 @@ export default function DashboardPage() {
                     <div className="space-y-2 rounded-lg border border-border bg-secondary p-3">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-semibold text-foreground">{t.professional}</p>
-                        <p className="text-xs font-medium text-muted-foreground">{t.professionalMonthlyPrice || '€79 / month'}</p>
+                        <p className="text-xs font-medium text-muted-foreground">{t.professionalMonthlyPrice || '€24 / month'}</p>
                       </div>
                       <p className="text-xs text-muted-foreground">{t.professionalUnlimitedEvents}</p>
                       <Button
