@@ -51,7 +51,7 @@ export function DashboardTopBar({ experience, message, onDismissMessage, tCommon
               type="button"
               onClick={onDismissMessage}
               aria-label={tCommon?.close || 'Close'}
-              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/15 hover:text-foreground"
+              className="relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors before:absolute before:-inset-3 before:content-[''] hover:bg-primary/15 hover:text-foreground"
             >
               ×
             </button>

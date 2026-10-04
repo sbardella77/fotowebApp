@@ -160,7 +160,7 @@ function NewRoomShareBanner({ event, baseUrl, onDismiss, showToast, onShowQR }) 
             <p className="font-display text-base font-bold text-foreground">{t.inviteOthers}</p>
             <p className="mt-1 text-sm font-light leading-relaxed text-muted-foreground">{t.noAppNeeded}</p>
           </div>
-          <Button variant="ghost" size="sm" className="h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground" onClick={onDismiss}>
+          <Button variant="ghost" size="icon" aria-label={t.dismiss} className="shrink-0 text-muted-foreground hover:text-foreground" onClick={onDismiss}>
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -1574,7 +1574,7 @@ export default function RoomPageClient({ slug, isNew }) {
                       <p className="font-display text-base font-bold text-foreground">{t.inviteOthers}</p>
                       <p className="mt-1 text-sm font-light leading-relaxed text-muted-foreground">{t.viralDesc}</p>
                     </div>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground" onClick={() => setShowViralSection(false)}>
+                    <Button variant="ghost" size="icon" aria-label={t.dismiss} className="shrink-0 text-muted-foreground hover:text-foreground" onClick={() => setShowViralSection(false)}>
                       <X className="h-4 w-4" />
                     </Button>
                   </div>

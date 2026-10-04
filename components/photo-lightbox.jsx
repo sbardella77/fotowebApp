@@ -498,6 +498,7 @@ const PhotoLightbox = ({
           <Button
             size="icon"
             variant="ghost"
+            aria-label={t.closeLightbox}
             className="h-9 w-9 text-foreground/80 hover:bg-white/10 hover:text-foreground"
             onClick={(e) => {
               e.stopPropagation()
@@ -574,6 +575,7 @@ const PhotoLightbox = ({
         <>
           <button
             disabled={selectedIndex <= 0}
+            aria-label={t.previousPhoto}
             className="absolute left-2 top-1/2 hidden -translate-y-1/2 rounded-full bg-black/30 p-2 text-foreground/70 backdrop-blur-sm transition-all hover:bg-black/50 hover:text-foreground disabled:opacity-0 sm:left-4 sm:block"
             onClick={(e) => {
               e.stopPropagation()
@@ -584,6 +586,7 @@ const PhotoLightbox = ({
           </button>
           <button
             disabled={selectedIndex >= photos.length - 1}
+            aria-label={t.nextPhoto}
             className="absolute right-2 top-1/2 hidden -translate-y-1/2 rounded-full bg-black/30 p-2 text-foreground/70 backdrop-blur-sm transition-all hover:bg-black/50 hover:text-foreground disabled:opacity-0 sm:right-4 sm:block"
             onClick={(e) => {
               e.stopPropagation()
@@ -597,7 +600,7 @@ const PhotoLightbox = ({
 
       {/* Mobile swipe hint */}
       <div className="pointer-events-none absolute bottom-16 left-0 right-0 flex justify-center sm:hidden">
-        <div className="rounded-full bg-black/30 px-3 py-1 text-[10px] text-foreground/50 backdrop-blur-sm">
+        <div className="rounded-full bg-black/50 px-3 py-1 text-xs text-foreground/80 backdrop-blur-sm">
           {t.swipeToNavigate}
         </div>
       </div>
