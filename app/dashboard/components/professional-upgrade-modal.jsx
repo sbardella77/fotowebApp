@@ -90,7 +90,7 @@ export function ProfessionalUpgradeModal({
               <ul className="mt-3 space-y-1.5">
                 {(plan.id === 'monthly'
                   ? [t.flexibleMonthlyCancellation]
-                  : [t.twoMonthsFree, t.save158]
+                  : [t.twoMonthsFree, t.save48]
                 ).map((item) => (
                   <li key={item} className="flex items-start gap-1.5 text-xs text-muted-foreground">
                     <Check className="mt-0.5 h-3 w-3 shrink-0 text-accent-dark" />

@@ -73,7 +73,7 @@ export function MarketingNav({ variant = 'fixed', ctaAction = 'link' }) {
               <PopoverTrigger asChild>
                 <button
                   type="button"
-                  className={`${navLinkClass(isProfessionals)} hidden items-center gap-1 lg:inline-flex`}
+                  className={`${navLinkClass(isProfessionals)} inline-flex items-center gap-1`}
                   aria-current={isProfessionals ? 'page' : undefined}
                 >
                   {t.forProfessionals}
