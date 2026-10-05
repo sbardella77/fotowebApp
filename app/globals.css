@@ -412,6 +412,17 @@
       0 0 0 1px hsl(var(--accent-hover) / 0.3),
       0 2px 8px hsl(var(--accent-hover) / 0.25);
   }
+  /* Disabled state: the base lime gradient at the global disabled:opacity-50
+     fades to near-invisible against the light page background — it reads as
+     broken rather than "not ready yet". Swap to a flat neutral instead of
+     relying on opacity, and cancel the opacity utility so it stays legible. */
+  .cta-primary:disabled {
+    opacity: 1 !important;
+    background: hsl(var(--border-subtle));
+    color: hsl(var(--text-muted));
+    box-shadow: none;
+    transform: none;
+  }
 
   /* Dark theme CTA — sophisticated warm lime on graphite */
   .dark .cta-primary {
@@ -429,6 +440,13 @@
       0 6px 20px hsl(var(--accent) / 0.3),
       0 2px 4px hsl(0 0% 0% / 0.25);
     transform: translateY(-1px);
+  }
+  .dark .cta-primary:disabled {
+    opacity: 1 !important;
+    background: hsl(var(--border-subtle));
+    color: hsl(var(--text-muted));
+    box-shadow: none;
+    transform: none;
   }
   .dark .cta-primary:active {
     transform: translateY(0) scale(0.98);
