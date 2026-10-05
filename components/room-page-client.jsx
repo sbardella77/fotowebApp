@@ -223,8 +223,6 @@ export default function RoomPageClient({ slug, isNew }) {
   const [pendingFiles, setPendingFiles] = useState([])
   const [pendingMomentId, setPendingMomentId] = useState('')
   const [guestNameOpen, setGuestNameOpen] = useState(false)
-  const [galleryJob, setGalleryJob] = useState(null)
-  const [galleryJobPolling, setGalleryJobPolling] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(0)
   const [copied, setCopied] = useState(false)
@@ -257,8 +255,6 @@ export default function RoomPageClient({ slug, isNew }) {
   const { showToast, ToastComponent } = useToast()
   const fetchControllerRef = useRef(null)
   const photosControllerRef = useRef(null)
-  const galleryJobPollTimeoutRef = useRef(null)
-  const galleryJobPollAttemptsRef = useRef(0)
   const isFetchingRef = useRef(false)
   const pollTimeoutRef = useRef(null)
   const pollBackoffRef = useRef(3000)
@@ -863,80 +859,10 @@ export default function RoomPageClient({ slug, isNew }) {
       return
     }
 
-    // Async job for large galleries
-    try {
-      const createRes = await fetch(`/api/events/${activeEvent.slug}/gallery-download`, { method: 'POST' })
-      const createData = await createRes.json()
-      if (!createRes.ok) {
-        throw new Error(createData.error || 'Failed to start gallery download')
-      }
-      setGalleryJob(createData.job)
-      setGalleryJobPolling(true)
-      galleryJobPollAttemptsRef.current = 0
-      if (galleryJobPollTimeoutRef.current) {
-        window.clearTimeout(galleryJobPollTimeoutRef.current)
-        galleryJobPollTimeoutRef.current = null
-      }
-
-      const poll = async () => {
-        galleryJobPollTimeoutRef.current = null
-        try {
-          const statusRes = await fetch(`/api/events/${activeEvent.slug}/gallery-download`)
-          const statusData = await statusRes.json()
-          setGalleryJob(statusData.job)
-
-          const job = statusData.job
-          if (!job) {
-            setGalleryJobPolling(false)
-            setGalleryDownloadBusy(false)
-            return
-          }
-
-          if (job.status === 'READY') {
-            window.location.href = `/api/gallery-downloads/${job.id}/download`
-            setGalleryJobPolling(false)
-            setGalleryDownloadBusy(false)
-            trackEvent(EVENT_GALLERY_DOWNLOAD_COMPLETED, { room_slug: activeEvent.slug, source: 'room_page_async', photo_count: activeEvent.photoCount })
-            showToast(t.galleryReady || 'Gallery ready', 'success')
-            return
-          }
-
-          if (job.status === 'FAILED') {
-            setGalleryJobPolling(false)
-            setGalleryDownloadBusy(false)
-            const errorMsg = job.error || ''
-            if (errorMsg.toLowerCase().includes('too large') || errorMsg.includes('1000')) {
-              showToast(t.galleryExportTooLarge || 'Gallery too large for immediate export', 'error')
-            } else if (errorMsg.toLowerCase().includes('maximum') || errorMsg.toLowerCase().includes('attempts')) {
-              showToast(t.galleryExportRetryLater || 'Gallery export failed after multiple attempts. Please try again later.', 'error')
-            } else {
-              showToast(t.galleryDownloadFailed, 'error')
-            }
-            return
-          }
-
-          // PENDING or PROCESSING: continue polling (max ~100 attempts ≈ 5 minutes)
-          galleryJobPollAttemptsRef.current += 1
-          if (galleryJobPollAttemptsRef.current >= 100) {
-            setGalleryJobPolling(false)
-            setGalleryDownloadBusy(false)
-            showToast(t.galleryExportRetryLater || 'Gallery export failed after multiple attempts. Please try again later.', 'error')
-            return
-          }
-          galleryJobPollTimeoutRef.current = window.setTimeout(poll, 3000)
-        } catch (pollErr) {
-          console.error('[room] gallery job polling error:', pollErr)
-          setGalleryJobPolling(false)
-          setGalleryDownloadBusy(false)
-          showToast(t.galleryDownloadFailed, 'error')
-        }
-      }
-      poll()
-    } catch (err) {
-      console.error('[room] async gallery download failed:', err)
-      showToast(t.galleryDownloadFailed, 'error')
-      setGalleryDownloadBusy(false)
-    }
+    // Galleries above the sync limit: full export is temporarily unavailable.
+    // No async job is created or polled (the server refuses it too).
+    showToast(t.galleryLargeDownloadUnavailable || 'Downloading the full gallery is temporarily unavailable for very large galleries.', 'error')
+    setGalleryDownloadBusy(false)
   }
 
   const handleUnlockGalleryFromModal = () => {
@@ -966,16 +892,6 @@ export default function RoomPageClient({ slug, isNew }) {
       }
     }
   }
-
-  // Cancel any pending gallery-download poll on unmount
-  useEffect(() => {
-    return () => {
-      if (galleryJobPollTimeoutRef.current) {
-        window.clearTimeout(galleryJobPollTimeoutRef.current)
-        galleryJobPollTimeoutRef.current = null
-      }
-    }
-  }, [])
 
   useEffect(() => {
     loadEvent(slug)
@@ -1461,7 +1377,7 @@ export default function RoomPageClient({ slug, isNew }) {
                     className="border-border bg-raised hover:bg-elevated hover:text-foreground"
                   >
                     {galleryDownloadBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1.5 h-3.5 w-3.5" />}
-                    {galleryJobPolling ? (t.preparingGalleryDownload || 'Preparing...') : (t.downloadAll || 'Download all')}
+                    {t.downloadAll || 'Download all'}
                   </Button>
                 </div>
                 <div className="mt-3 flex items-center gap-2">
