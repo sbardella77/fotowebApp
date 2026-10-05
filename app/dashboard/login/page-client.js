@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { SnapRoomsIcon } from '@/components/marketing/logo'
@@ -10,6 +10,8 @@ import { useTranslations, useLocale } from '@/components/i18n-provider'
 import { localizedPath } from '@/lib/i18n/config'
 import { identifyUser } from '@/lib/analytics/track-client'
 import { getOwnerAnalyticsId } from '@/lib/analytics/identity'
+import { removeQueryParam } from '@/lib/client/owner-session-expiry'
+import { INACTIVITY_LOGOUT_QUERY_PARAM, INACTIVITY_LOGOUT_QUERY_VALUE } from '@/app/dashboard/components/idle-logout'
 
 export default function LoginPageClient({ redirect = '/dashboard' }) {
   const router = useRouter()
@@ -25,6 +27,16 @@ export default function LoginPageClient({ redirect = '/dashboard' }) {
   const [forgotEmail, setForgotEmail] = useState('')
   const [forgotBusy, setForgotBusy] = useState(false)
   const [forgotSent, setForgotSent] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get(INACTIVITY_LOGOUT_QUERY_PARAM) !== INACTIVITY_LOGOUT_QUERY_VALUE) return
+    setMessage(t.sessionExpiredInactivity)
+    const nextSearch = removeQueryParam(window.location.search, INACTIVITY_LOGOUT_QUERY_PARAM)
+    router.replace(`${window.location.pathname}${nextSearch}`)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const safeReadJson = async (response) => {
     const text = await response.text()

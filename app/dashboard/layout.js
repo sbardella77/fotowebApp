@@ -1,3 +1,5 @@
+import { DashboardIdleLogout } from '@/app/dashboard/components/idle-logout'
+
 export const metadata = {
   robots: {
     index: false,
@@ -6,5 +8,10 @@ export const metadata = {
 }
 
 export default function DashboardLayout({ children }) {
-  return <div className="min-h-screen bg-background">{children}</div>
+  return (
+    <div className="min-h-screen bg-background">
+      <DashboardIdleLogout />
+      {children}
+    </div>
+  )
 }
