@@ -157,7 +157,7 @@ export function LandingPage({
                       trackEvent(EVENT_HERO_CTA_CLICKED, { page_type: 'landing', variant: 'generic', position: 'hero' })
                       onCreateEvent()
                     }}
-                    disabled={isCreating || !eventName?.trim() || eventName.trim().length < 3 || !ownerEmail?.trim() || !ownerEmail.includes('@')}
+                    disabled={isCreating}
                     aria-label={isCreating ? 'Creating event...' : cta.hero}
                   >
                     {isCreating ? (
@@ -398,7 +398,7 @@ export function LandingPage({
                 size="lg"
                 className="h-12 w-full gap-2 rounded-xl px-8 text-base font-body font-bold whitespace-nowrap cta-primary tracking-tight"
                 onClick={onCreateEvent}
-                disabled={isCreating || !eventName?.trim() || eventName.trim().length < 3 || !ownerEmail?.trim() || !ownerEmail.includes('@')}
+                disabled={isCreating}
                 aria-label={isCreating ? 'Creating event...' : cta.final}
               >
                 {isCreating ? (
