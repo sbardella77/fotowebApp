@@ -40,8 +40,14 @@ export function HomePageClient({ locale = 'en' }) {
   const createEvent = async () => {
     const trimmedName = eventName?.trim()
     const trimmedEmail = ownerEmail?.trim()
-    if (!trimmedName || trimmedName.length < 3) return
-    if (!trimmedEmail || !trimmedEmail.includes('@')) return
+    if (!trimmedName || trimmedName.length < 3) {
+      setCreateError({ error: t.eventNameTooShort })
+      return
+    }
+    if (!trimmedEmail || !trimmedEmail.includes('@')) {
+      setCreateError({ error: t.enterValidEmail })
+      return
+    }
 
     trackEvent(EVENT_CREATE_ROOM_CLICKED, {
       page_type: 'landing',

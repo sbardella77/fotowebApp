@@ -82,8 +82,14 @@ export function PhotographersLandingPage({ locale }) {
   const createEvent = async () => {
     const trimmedName = eventName?.trim()
     const trimmedEmail = ownerEmail?.trim()
-    if (!trimmedName || trimmedName.length < 3) return
-    if (!trimmedEmail || !trimmedEmail.includes('@')) return
+    if (!trimmedName || trimmedName.length < 3) {
+      setCreateError({ error: tLanding.eventNameTooShort })
+      return
+    }
+    if (!trimmedEmail || !trimmedEmail.includes('@')) {
+      setCreateError({ error: tLanding.enterValidEmail })
+      return
+    }
 
     trackEvent(EVENT_HERO_CTA_CLICKED, {
       page_type: 'landing',

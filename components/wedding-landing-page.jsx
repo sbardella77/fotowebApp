@@ -85,8 +85,14 @@ export function WeddingLandingPage({ locale = 'en' }) {
   const createEvent = async () => {
     const trimmedName = eventName?.trim()
     const trimmedEmail = ownerEmail?.trim()
-    if (!trimmedName || trimmedName.length < 3) return
-    if (!trimmedEmail || !trimmedEmail.includes('@')) return
+    if (!trimmedName || trimmedName.length < 3) {
+      setCreateError({ error: tLanding.eventNameTooShort })
+      return
+    }
+    if (!trimmedEmail || !trimmedEmail.includes('@')) {
+      setCreateError({ error: tLanding.enterValidEmail })
+      return
+    }
 
     trackEvent(EVENT_HERO_CTA_CLICKED, { page_type: 'landing', variant: 'wedding', position: 'hero' })
     trackEvent(EVENT_CREATE_ROOM_CLICKED, { page_type: 'landing', variant: 'wedding' })
@@ -212,7 +218,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
                     size="lg"
                     className="mt-3 h-12 w-full gap-2 rounded-lg px-8 text-base font-body font-semibold whitespace-nowrap cta-primary"
                     onClick={createEvent}
-                    disabled={isCreating || !eventName?.trim() || eventName.trim().length < 3 || !ownerEmail?.trim() || !ownerEmail.includes('@')}
+                    disabled={isCreating}
                   >
                     {isCreating ? (
                       <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
@@ -675,7 +681,7 @@ export function WeddingLandingPage({ locale = 'en' }) {
                 size="lg"
                 className="h-12 gap-2 rounded-lg px-8 text-base font-body font-medium whitespace-nowrap cta-primary"
                 onClick={createEvent}
-                disabled={isCreating || !eventName?.trim() || eventName.trim().length < 3 || !ownerEmail?.trim() || !ownerEmail.includes('@')}
+                disabled={isCreating}
               >
                 {isCreating ? (
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
