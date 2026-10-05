@@ -134,6 +134,7 @@ export default function PhotographerUploadPageClient({ token }) {
 
           const formData = new FormData()
           formData.append('sessionId', initPayload.session.sessionId)
+          formData.append('uploadToken', initPayload.session.uploadToken)
           formData.append('chunkIndex', String(chunkIndex))
           formData.append('totalChunks', String(totalChunks))
           formData.append('chunk', chunkBlob, `${file.name}.part-${chunkIndex}`)
@@ -151,7 +152,7 @@ export default function PhotographerUploadPageClient({ token }) {
         const completeResponse = await fetch(`/api/photographer-upload/${token}/complete`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId: initPayload.session.sessionId }),
+          body: JSON.stringify({ sessionId: initPayload.session.sessionId, uploadToken: initPayload.session.uploadToken }),
         })
         const completePayload = await completeResponse.json()
 

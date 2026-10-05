@@ -500,6 +500,7 @@ export default function RoomPageClient({ slug, isNew }) {
           const chunkBlob = fileToUpload.slice(start, end)
           const formData = new FormData()
           formData.append('sessionId', initPayload.session.sessionId)
+          formData.append('uploadToken', initPayload.session.uploadToken)
           formData.append('chunkIndex', String(chunkIndex))
           formData.append('totalChunks', String(totalChunks))
           formData.append('chunk', chunkBlob, `${fileToUpload.name}.part-${chunkIndex}`)
@@ -519,7 +520,7 @@ export default function RoomPageClient({ slug, isNew }) {
         const completeResponse = await fetch('/api/uploads/complete', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId: initPayload.session.sessionId, uploaderName: guestName, caption: '', momentId: momentId || undefined }),
+          body: JSON.stringify({ sessionId: initPayload.session.sessionId, uploadToken: initPayload.session.uploadToken, uploaderName: guestName, caption: '', momentId: momentId || undefined }),
         })
         const completePayload = await completeResponse.json()
         if (!completeResponse.ok) {

@@ -391,7 +391,7 @@ describe('§45 local/chunk fallback: eager generation ordering and count', () =>
       return { created: true }
     })
 
-    const response = await doComplete({ sessionId: 'session-abc12345' })
+    const response = await doComplete({ sessionId: 'session-abc12345', uploadToken: 'token-abc12345678' })
     const body = await response.json()
 
     expect(order).toEqual(['assembled', 'commit', 'ensure'])
@@ -413,7 +413,7 @@ describe('§45 local/chunk fallback: eager generation ordering and count', () =>
     const createPhoto = vi.fn().mockRejectedValue(new Error('db write failed'))
     getGalleryRepository.mockResolvedValue(makePhotoRepository({ createPhoto }))
 
-    await expect(doComplete({ sessionId: 'session-abc12345' })).rejects.toThrow('db write failed')
+    await expect(doComplete({ sessionId: 'session-abc12345', uploadToken: 'token-abc12345678' })).rejects.toThrow('db write failed')
 
     expect(ensureDisplayDerivative).not.toHaveBeenCalled()
   })
@@ -431,7 +431,7 @@ describe('§45 local/chunk fallback: eager generation ordering and count', () =>
     getGalleryRepository.mockResolvedValue(makePhotoRepository({ createPhoto }))
     ensureDisplayDerivative.mockRejectedValue(new Error('blob boom'))
 
-    const response = await doComplete({ sessionId: 'session-abc12345' })
+    const response = await doComplete({ sessionId: 'session-abc12345', uploadToken: 'token-abc12345678' })
     const body = await response.json()
 
     expect(response.status).toBe(201)
@@ -451,7 +451,7 @@ describe('§45 local/chunk fallback: eager generation ordering and count', () =>
     const createPhoto = vi.fn()
     getGalleryRepository.mockResolvedValue(makePhotoRepository({ createPhoto }))
 
-    const response = await doComplete({ sessionId: 'session-abc12345' })
+    const response = await doComplete({ sessionId: 'session-abc12345', uploadToken: 'token-abc12345678' })
 
     expect(response.status).toBe(422)
     expect(createPhoto).not.toHaveBeenCalled()
@@ -480,7 +480,7 @@ describe('§45 local/chunk fallback: eager generation ordering and count', () =>
     getGalleryRepository.mockResolvedValue(makePhotoRepository({ createPhoto }))
     ensureDisplayDerivative.mockResolvedValue({ created: true })
 
-    const response = await doComplete({ sessionId: 'session-abc12345' })
+    const response = await doComplete({ sessionId: 'session-abc12345', uploadToken: 'token-abc12345678' })
 
     expect(response.status).toBe(201)
     expect(photoUpdateManyMock).toHaveBeenCalledWith({
@@ -503,7 +503,7 @@ describe('§45 local/chunk fallback: eager generation ordering and count', () =>
     getGalleryRepository.mockResolvedValue(makePhotoRepository({ createPhoto }))
     ensureDisplayDerivative.mockRejectedValue(new Error('blob boom'))
 
-    const response = await doComplete({ sessionId: 'session-abc12345' })
+    const response = await doComplete({ sessionId: 'session-abc12345', uploadToken: 'token-abc12345678' })
     const body = await response.json()
 
     expect(response.status).toBe(201)

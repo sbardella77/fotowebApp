@@ -73,7 +73,7 @@ import {
 } from '@/lib/server/rate-limiter'
 import { requireCsrfProtection, verifySameOriginRequest } from '@/lib/server/csrf'
 import { withTiming } from '@/lib/server/timing'
-import { readSessionMeta, getReceivedChunkSize } from '@/lib/server/storage/local-storage'
+import { readSessionMeta, getReceivedChunkSize, UploadTokenMismatchError } from '@/lib/server/storage/local-storage'
 import {
   createGalleryDownloadJob,
   getLatestGalleryDownloadJob,
@@ -1391,6 +1391,7 @@ const uploadChunk = async (request) => {
   const chunk = formData.get('chunk')
   const parsed = uploadChunkSchema.parse({
     sessionId: String(formData.get('sessionId') || ''),
+    uploadToken: String(formData.get('uploadToken') || ''),
     chunkIndex: Number(formData.get('chunkIndex')),
     totalChunks: Number(formData.get('totalChunks')),
   })
@@ -1411,6 +1412,12 @@ const uploadChunk = async (request) => {
     meta = await readSessionMeta(parsed.sessionId)
   } catch {
     return json({ error: 'Upload session not found or expired' }, 400)
+  }
+
+  // meta.uploadToken is absent only on sessions created before this check
+  // existed (in-flight across a deploy) — never block those retroactively.
+  if (meta.uploadToken && meta.uploadToken !== parsed.uploadToken) {
+    return json({ error: 'Invalid upload session' }, 403)
   }
 
   const receivedSoFar = await getReceivedChunkSize(parsed.sessionId)
@@ -1596,10 +1603,19 @@ const completeUpload = withTiming('completeUpload', async (request) => {
   const prisma = await getPrismaClient()
 
   const payload = localUploadCompleteSchema.parse(body)
-  const fileResult = await localStorageDriver.completeUploadSession({
-    sessionId: payload.sessionId,
-    photoId: randomUUID(),
-  })
+  let fileResult
+  try {
+    fileResult = await localStorageDriver.completeUploadSession({
+      sessionId: payload.sessionId,
+      uploadToken: payload.uploadToken,
+      photoId: randomUUID(),
+    })
+  } catch (error) {
+    if (error instanceof UploadTokenMismatchError) {
+      return json({ error: 'Invalid upload session' }, 403)
+    }
+    throw error
+  }
 
   const event = await repository.getEventBySlug(fileResult.eventSlug)
 
@@ -1868,10 +1884,19 @@ const completePrivateDeliveryUpload = async (request, slug) => {
   }
 
   const payload = privateDeliveryLocalUploadCompleteSchema.parse(body)
-  const fileResult = await localStorageDriver.completeUploadSession({
-    sessionId: payload.sessionId,
-    photoId: randomUUID(),
-  })
+  let fileResult
+  try {
+    fileResult = await localStorageDriver.completeUploadSession({
+      sessionId: payload.sessionId,
+      uploadToken: payload.uploadToken,
+      photoId: randomUUID(),
+    })
+  } catch (error) {
+    if (error instanceof UploadTokenMismatchError) {
+      return jsonPrivate({ error: 'Invalid upload session' }, 403)
+    }
+    throw error
+  }
 
   if (fileResult.eventSlug !== slug) {
     return jsonPrivate({ error: 'Room slug mismatch' }, 400)
@@ -2451,10 +2476,19 @@ const completePhotographerUpload = async (request, token) => {
   }
 
   const payload = privateDeliveryLocalUploadCompleteSchema.parse(body)
-  const fileResult = await localStorageDriver.completeUploadSession({
-    sessionId: payload.sessionId,
-    photoId: randomUUID(),
-  })
+  let fileResult
+  try {
+    fileResult = await localStorageDriver.completeUploadSession({
+      sessionId: payload.sessionId,
+      uploadToken: payload.uploadToken,
+      photoId: randomUUID(),
+    })
+  } catch (error) {
+    if (error instanceof UploadTokenMismatchError) {
+      return json({ error: 'Invalid upload session' }, 403)
+    }
+    throw error
+  }
 
   if (fileResult.eventSlug !== event.slug) {
     return json({ error: 'Room slug mismatch' }, 400)

@@ -989,6 +989,7 @@ export default function DashboardPage() {
 
           const formData = new FormData()
           formData.append('sessionId', initPayload.session.sessionId)
+          formData.append('uploadToken', initPayload.session.uploadToken)
           formData.append('chunkIndex', String(chunkIndex))
           formData.append('totalChunks', String(totalChunks))
           formData.append('chunk', chunkBlob, `${file.name}.part-${chunkIndex}`)
@@ -1006,7 +1007,7 @@ export default function DashboardPage() {
         const completeResponse = await csrfFetch(`/api/owner/events/${selectedEvent.slug}/private-delivery/complete`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId: initPayload.session.sessionId }),
+          body: JSON.stringify({ sessionId: initPayload.session.sessionId, uploadToken: initPayload.session.uploadToken }),
         })
         if (await consumeOwnerSessionFailure(completeResponse.status)) return
         const completePayload = await completeResponse.json()
