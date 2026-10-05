@@ -21,33 +21,14 @@ import { MarketingNav } from '@/components/marketing/nav'
 import { MarketingFooter } from '@/components/marketing/footer'
 import { trackEvent } from '@/lib/analytics/track-client'
 import { trackUpsellImpression, trackUpsellClick } from '@/lib/analytics/upsell'
-import { EVENT_HERO_CTA_CLICKED, EVENT_PRICING_LINK_CLICKED } from '@/lib/analytics/events'
+import { EVENT_PRICING_LINK_CLICKED } from '@/lib/analytics/events'
 import { PhoneMockup } from '@/components/marketing/phone-mockup'
 import { TrustStrip } from '@/components/marketing/trust-strip'
 import { HowItWorks } from '@/components/marketing/how-it-works'
 import { UseCasePreview } from '@/components/marketing/use-case-preview'
 import { ProblemSection } from '@/components/marketing/problem-section'
 import { SectionHeader } from '@/components/marketing/section-header'
-
-
-function useScrollReveal() {
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('revealed')
-            observer.unobserve(entry.target)
-          }
-        })
-      },
-      { threshold: 0.1, rootMargin: '0px 0px -48px 0px' }
-    )
-
-    document.querySelectorAll('.reveal').forEach((el) => observer.observe(el))
-    return () => observer.disconnect()
-  }, [])
-}
+import { useScrollReveal } from '@/lib/hooks/use-scroll-reveal'
 
 /* ── A/B Test Configuration ────────────────────────────────────────────── */
 const CTA_VARIANT = 'default' // 'default' | 'action' | 'personal' | 'short'
@@ -76,7 +57,7 @@ export function LandingPage({
   const t = useTranslations('landing')
   const tNav = useTranslations('nav')
   const cta = getCtaCopy(t, CTA_VARIANT)
-  useScrollReveal()
+  useScrollReveal({ rootMarginPx: 48 })
 
   useEffect(() => {
     if (createError?.limit === 'room_count') {
@@ -153,10 +134,7 @@ export function LandingPage({
                   <Button
                     size="lg"
                     className="mt-3 h-14 sm:h-12 w-full gap-2 rounded-xl px-8 text-base font-body font-bold whitespace-nowrap cta-primary tracking-tight"
-                    onClick={() => {
-                      trackEvent(EVENT_HERO_CTA_CLICKED, { page_type: 'landing', variant: 'generic', position: 'hero' })
-                      onCreateEvent()
-                    }}
+                    onClick={onCreateEvent}
                     disabled={isCreating}
                     aria-label={isCreating ? 'Creating event...' : cta.hero}
                   >

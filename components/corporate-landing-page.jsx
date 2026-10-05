@@ -1,7 +1,5 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import {
   PartyPopper,
@@ -30,12 +28,6 @@ import {
 } from '@/components/ui/accordion'
 import { MarketingNav } from '@/components/marketing-nav'
 import { MarketingFooter } from '@/components/marketing-footer'
-import { trackEvent, trackPageView } from '@/lib/analytics/track-client'
-import {
-  EVENT_LANDING_VIEW,
-  EVENT_HERO_CTA_CLICKED,
-  EVENT_CREATE_ROOM_CLICKED,
-} from '@/lib/analytics/events'
 import { useTranslations, useLocale } from '@/components/i18n-provider'
 import { localizedPath } from '@/lib/i18n/config'
 import { PhoneMockup } from '@/components/marketing/phone-mockup'
@@ -43,6 +35,8 @@ import { TrustStrip } from '@/components/marketing/trust-strip'
 import { HowItWorks } from '@/components/marketing/how-it-works'
 import { UseCaseCards } from '@/components/marketing/use-case-cards'
 import { SectionHeader } from '@/components/marketing/section-header'
+import { useScrollReveal } from '@/lib/hooks/use-scroll-reveal'
+import { useCreateEventForm } from '@/lib/hooks/use-create-event-form'
 
 const CORPORATE_PHOTOS = [
   { src: '/marketing-placeholder/corporate-stage-thumb.jpg' },
@@ -53,31 +47,7 @@ const CORPORATE_PHOTOS = [
   { src: '/marketing-placeholder/corporate-detail-thumb.jpg' },
 ]
 
-function useScrollReveal() {
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('revealed')
-            observer.unobserve(entry.target)
-          }
-        })
-      },
-      { threshold: 0.1, rootMargin: '0px 0px -40px 0px' }
-    )
-    document.querySelectorAll('.reveal').forEach((el) => observer.observe(el))
-    return () => observer.disconnect()
-  }, [])
-}
-
 export function CorporateLandingPage() {
-  const router = useRouter()
-  const [eventName, setEventName] = useState('')
-  const [ownerEmail, setOwnerEmail] = useState('')
-  const [isCreating, setIsCreating] = useState(false)
-  const [createError, setCreateError] = useState(null)
-
   const t = useTranslations('corporate')
   const tLanding = useTranslations('landing')
   const nav = useTranslations('nav')
@@ -85,59 +55,15 @@ export function CorporateLandingPage() {
 
   useScrollReveal()
 
-  useEffect(() => {
-    trackPageView('landing', { variant: 'corporate' })
-    trackEvent(EVENT_LANDING_VIEW, { variant: 'corporate' })
-  }, [])
-
-  const createEvent = async () => {
-    const trimmedName = eventName?.trim()
-    const trimmedEmail = ownerEmail?.trim()
-    if (!trimmedName || trimmedName.length < 3) {
-      setCreateError({ error: tLanding.eventNameTooShort })
-      return
-    }
-    if (!trimmedEmail || !trimmedEmail.includes('@')) {
-      setCreateError({ error: tLanding.enterValidEmail })
-      return
-    }
-
-    trackEvent(EVENT_HERO_CTA_CLICKED, {
-      page_type: 'landing',
-      variant: 'corporate',
-      position: 'hero',
-    })
-    trackEvent(EVENT_CREATE_ROOM_CLICKED, {
-      page_type: 'landing',
-      variant: 'corporate',
-    })
-
-    setIsCreating(true)
-    setCreateError(null)
-    try {
-      const response = await fetch('/api/events', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: trimmedName, ownerEmail: trimmedEmail }),
-      })
-      let payload
-      try {
-        payload = await response.json()
-      } catch {
-        payload = { error: `${tLanding.serverError} (${response.status}). ${tLanding.pleaseTryAgain}` }
-      }
-      if (response.ok && payload.event?.slug) {
-        router.push(`/event/${payload.event.slug}?new=1`)
-      } else if (!response.ok) {
-        setCreateError(payload)
-      }
-    } catch (e) {
-      console.error('[createEvent] Error:', e)
-      setCreateError({ error: e.message || tLanding.genericError })
-    } finally {
-      setIsCreating(false)
-    }
-  }
+  const {
+    eventName,
+    setEventName,
+    ownerEmail,
+    setOwnerEmail,
+    isCreating,
+    createError,
+    createEvent,
+  } = useCreateEventForm({ variant: 'corporate', locale })
 
   return (
     <div className="relative min-h-screen bg-background font-body text-foreground">
