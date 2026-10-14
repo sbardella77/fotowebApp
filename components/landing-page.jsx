@@ -28,6 +28,7 @@ import { HowItWorks } from '@/components/marketing/how-it-works'
 import { UseCasePreview } from '@/components/marketing/use-case-preview'
 import { ProblemSection } from '@/components/marketing/problem-section'
 import { SectionHeader } from '@/components/marketing/section-header'
+import { LandingFaqSection } from '@/components/marketing/landing-faq-section'
 import { useScrollReveal } from '@/lib/hooks/use-scroll-reveal'
 
 /* ── A/B Test Configuration ────────────────────────────────────────────── */
@@ -334,6 +335,22 @@ export function LandingPage({
           </div>
         </div>
       </section>
+
+      {/* FAQ */}
+      <LandingFaqSection
+        title={t.faqTitle}
+        sectionClassName="relative border-t border-border py-24 sm:py-32"
+        questions={[
+          { q: t.faq1Question, a: t.faq1Answer },
+          { q: t.faq2Question, a: t.faq2Answer },
+          { q: t.faq3Question, a: t.faq3Answer },
+          { q: t.faq4Question, a: t.faq4Answer },
+          { q: t.faq5Question, a: t.faq5Answer },
+          { q: t.faq6Question, a: t.faq6Answer },
+          { q: t.faq7Question, a: t.faq7Answer },
+          { q: t.faq8Question, a: t.faq8Answer },
+        ]}
+      />
 
       {/* Final CTA */}
       <section className="border-t border-border py-24 sm:py-32" aria-label="Get started">
