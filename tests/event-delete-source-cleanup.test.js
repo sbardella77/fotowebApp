@@ -72,7 +72,8 @@ vi.mock('@/lib/server/gallery-repository', () => ({
   getGalleryRepositoryMode: vi.fn().mockResolvedValue('local'),
 }))
 
-import { DELETE } from '@/app/api/[[...path]]/route'
+import { DELETE as CATCHALL_DELETE } from '@/app/api/[[...path]]/route'
+import { DELETE as EVENT_SLUG_DELETE } from '@/app/api/events/[slug]/route'
 import { deletePhotoDerivativesBatch } from '@/lib/server/derivative-cleanup'
 import { deleteStoredFile } from '@/lib/server/storage'
 import { sendOpsAlert } from '@/lib/server/ops-alerts'
@@ -164,7 +165,16 @@ function managementRequest(path, { token = MANAGEMENT_TOKEN } = {}) {
   }
 }
 
-const invoke = (request) => DELETE(request, { params: { path: request.__path.split('/').filter(Boolean) } })
+// `/events/:slug` (management-token path) was extracted to a discrete route
+// (app/api/events/[slug]/route.js), while `/owner/events/:slug` is still
+// served by the catch-all — dispatch to whichever one now owns the path.
+const invoke = (request) => {
+  const segments = request.__path.split('/').filter(Boolean)
+  if (segments[0] === 'events' && segments.length === 2) {
+    return EVENT_SLUG_DELETE(request, { params: { slug: segments[1] } })
+  }
+  return CATCHALL_DELETE(request, { params: { path: segments } })
+}
 
 /** Minimal Prisma double — owner session verification needs sessionVersion. */
 const makePrisma = () => ({

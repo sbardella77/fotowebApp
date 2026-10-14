@@ -125,7 +125,7 @@ describe('Private Delivery blob branch — upload-blob:private-event:<eventId>, 
     getPrismaClient.mockResolvedValue(prisma)
     const rateLimit = await spyOnLegacyRateLimit()
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
 
     expect(sessionFindUnique).toHaveBeenCalledWith({ where: { id: 'session-id-999' }, select: { uploadKind: true, eventId: true } })
@@ -146,7 +146,7 @@ describe('Private Delivery blob branch — upload-blob:private-event:<eventId>, 
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
 
     getPrismaClient.mockResolvedValue(makePrismaWithSession({ uploadKind: BlobUploadKind.PRIVATE_DELIVERY, eventId: EVENT_A }).prisma)
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     await POST(makeTokenRequest({ clientPayload: JSON.stringify({ sessionId: 'session-aaa1' }) }), { params: { path: ['uploads', 'blob'] } })
     await POST(makeTokenRequest({ clientPayload: JSON.stringify({ sessionId: 'session-bbb2' }) }), { params: { path: ['uploads', 'blob'] } })
 
@@ -163,7 +163,7 @@ describe('Private Delivery blob branch — upload-blob:private-event:<eventId>, 
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
 
     getPrismaClient.mockResolvedValue(makePrismaWithSession({ uploadKind: BlobUploadKind.PRIVATE_DELIVERY, eventId: EVENT_A }).prisma)
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     await POST(makeTokenRequest({ clientPayload: JSON.stringify({ sessionId: 'session-ccc3' }) }), { params: { path: ['uploads', 'blob'] } })
 
     getPrismaClient.mockResolvedValue(makePrismaWithSession({ uploadKind: BlobUploadKind.PRIVATE_DELIVERY, eventId: EVENT_B }).prisma)
@@ -185,7 +185,7 @@ describe('Private Delivery blob branch — upload-blob:private-event:<eventId>, 
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(prisma)
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     const allowedResponse = await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
     expect(allowedResponse.status).not.toBe(429)
 
@@ -205,7 +205,7 @@ describe('Private Delivery blob branch — upload-blob:private-event:<eventId>, 
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(prisma)
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     const response = await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
 
     expect(evalMock).toHaveBeenCalled()
@@ -220,7 +220,7 @@ describe('Private Delivery blob branch — upload-blob:private-event:<eventId>, 
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(prisma)
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     const doRequest = () => POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
 
     let last
@@ -246,7 +246,7 @@ describe('Private Delivery blob branch — upload-blob:private-event:<eventId>, 
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(prisma)
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
 
     expect(sessionFindUnique).toHaveBeenCalledTimes(1)
@@ -263,7 +263,7 @@ describe('Private Delivery blob branch — upload-blob:private-event:<eventId>, 
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(prisma)
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     await POST(makeTokenRequest({ clientPayload: JSON.stringify({ sessionId: 'session-id-999' }) }), { params: { path: ['uploads', 'blob'] } })
 
     const keysUsed = evalMock.mock.calls.map((call) => call[1][0])
@@ -292,7 +292,7 @@ describe('Guest (ROOM_PHOTO) preservation — own guest-event bucket, never priv
     getPrismaClient.mockResolvedValue(prisma)
     const rateLimit = await spyOnLegacyRateLimit()
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
 
     expect(rateLimit).not.toHaveBeenCalled()
@@ -313,7 +313,7 @@ describe('Photographer preservation — untouched upload-blob:photographer-event
     getPrismaClient.mockResolvedValue(prisma)
     const rateLimit = await spyOnLegacyRateLimit()
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
 
     const keysUsed = evalMock.mock.calls.map((call) => call[1][0])
@@ -334,7 +334,7 @@ describe('Malformed/unresolved sessions — unchanged legacy fallback, no crash'
     getPrismaClient.mockResolvedValue(prisma)
     const rateLimit = await spyOnLegacyRateLimit()
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     const response = await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
 
     expect(response.status).not.toBe(500)
@@ -350,7 +350,7 @@ describe('Malformed/unresolved sessions — unchanged legacy fallback, no crash'
     getPrismaClient.mockResolvedValue(prisma)
     const rateLimit = await spyOnLegacyRateLimit()
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     const response = await POST(makeTokenRequest({ clientPayload: 'not-json{{' }), { params: { path: ['uploads', 'blob'] } })
 
     expect(response.status).not.toBe(500)
@@ -366,7 +366,7 @@ describe('Malformed/unresolved sessions — unchanged legacy fallback, no crash'
     getPrismaClient.mockResolvedValue(prisma)
     const rateLimit = await spyOnLegacyRateLimit()
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
 
     expect(rateLimit).toHaveBeenCalledWith(`upload-blob:ip:${IP}`, 30, 10 * 60 * 1000)
@@ -382,7 +382,7 @@ describe('Malformed/unresolved sessions — unchanged legacy fallback, no crash'
     getPrismaClient.mockResolvedValue(prisma)
     const rateLimit = await spyOnLegacyRateLimit()
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
 
     expect(rateLimit).toHaveBeenCalledWith(`upload-blob:ip:${IP}`, 30, 10 * 60 * 1000)

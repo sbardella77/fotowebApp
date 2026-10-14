@@ -203,10 +203,10 @@ describe('24 — an ABUSE_SENSITIVE endpoint (createGalleryDownload) ignores bac
     await installRedis({ evalImpl: evalMock, ttlImpl: ttlMock })
     await setupCommonMocks()
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/events/[slug]/gallery-download/route')
     const response = await POST(
       makeRequest({ body: {} }),
-      { params: { path: ['events', 'some-slug', 'gallery-download'] } },
+      { params: { slug: 'some-slug' } },
     )
 
     // Falls through to the (mocked) "event not found" path rather than
