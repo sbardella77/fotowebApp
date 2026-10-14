@@ -75,9 +75,9 @@ import { requireCsrfProtection, verifySameOriginRequest } from '@/lib/server/csr
 import { withTiming } from '@/lib/server/timing'
 import { readSessionMeta, getReceivedChunkSize, UploadTokenMismatchError } from '@/lib/server/storage/local-storage'
 import {
-  createGalleryDownloadJob,
+  GALLERY_EXPORT_UNAVAILABLE_CODE,
   getLatestGalleryDownloadJob,
-  processGalleryDownloadJobIfPending,
+  toClientGalleryDownloadJob,
 } from '@/lib/server/gallery-download-job'
 import { trackServerEvent } from '@/lib/analytics/track-server'
 import { getOwnerAnalyticsId } from '@/lib/analytics/identity'
@@ -603,39 +603,56 @@ const createGalleryDownload = withTiming('createGalleryDownload', async (request
     return json({ error: 'Gallery download is not available for this event' }, 403)
   }
 
-  const job = await createGalleryDownloadJob(event.id)
-  return json({ job })
+  // Async (persisted) gallery export is disabled until a private export
+  // store exists. Refused server-side so a stale client cannot recreate the
+  // old public-ZIP flow; galleries within the sync limit use
+  // /api/download/gallery instead.
+  return json(
+    {
+      error: 'Full gallery export is temporarily unavailable for this gallery',
+      code: GALLERY_EXPORT_UNAVAILABLE_CODE,
+    },
+    409
+  )
 })
 
 const getGalleryDownload = withTiming('getGalleryDownload', async (request, slug) => {
+  const clientIp = getClientIp(request)
+  const rateLimitCheck = await checkRateLimit(
+    `gallery-download:status:ip:${hashIdentifier(clientIp)}:event:${slug}`,
+    RATE_LIMITS.galleryDownloadStatus.ip.max,
+    RATE_LIMITS.galleryDownloadStatus.ip.window
+  )
+  if (rateLimitCheck.limited) return buildRateLimitResponse(rateLimitCheck)
+
   const repository = await getGalleryRepository()
   const event = await repository.getEventBySlug(slug)
   if (!event) {
     return json({ error: 'Event not found' }, 404)
   }
 
+  const prisma = await getPrismaClient()
+  if (!prisma) {
+    return json({ error: 'Database unavailable' }, 503)
+  }
+
+  // Entitlement is recomputed on every poll — never trusted from the client
+  // and never assumed from the job having been created earlier. If it cannot
+  // be resolved, fail closed.
+  let access
+  try {
+    access = await getEffectiveEventAccessState(prisma, event)
+  } catch (accessError) {
+    console.error('[getGalleryDownload] entitlement resolution failed:', serializeProviderError('db', 'gallery_download_status', accessError))
+    return json({ error: 'Gallery download status is temporarily unavailable' }, 503)
+  }
+  if (access?.canDownloadGallery !== true) {
+    return json({ error: 'Gallery download is not available for this event' }, 403)
+  }
+
+  // Read-only: this endpoint never processes, generates or uploads anything.
   const job = await getLatestGalleryDownloadJob(event.id)
-  if (!job) {
-    return json({ job: null })
-  }
-
-  if (job.status === 'PENDING') {
-    const twoMinutesAgo = Date.now() - 2 * 60 * 1000
-    const processedRecently = job.processedAt && job.processedAt.getTime() > twoMinutesAgo
-    if (!processedRecently) {
-      try {
-        await processGalleryDownloadJobIfPending(job.id, event)
-        const refreshed = await getLatestGalleryDownloadJob(event.id)
-        return json({ job: refreshed })
-      } catch (processingError) {
-        console.error('[getGalleryDownload] processing failed:', serializeProviderError('db', 'gallery_download_processing', processingError))
-        const refreshed = await getLatestGalleryDownloadJob(event.id)
-        return json({ job: refreshed })
-      }
-    }
-  }
-
-  return json({ job })
+  return json({ job: toClientGalleryDownloadJob(job) })
 })
 
 const getAppUrl = (request) => {

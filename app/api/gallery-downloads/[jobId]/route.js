@@ -1,30 +1,18 @@
 import { NextResponse } from 'next/server'
-import { getPrismaClient } from '@/lib/server/prisma-client'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(request, { params }) {
-  const { jobId } = params
-  const prisma = await getPrismaClient()
-
-  if (!prisma) {
-    return NextResponse.json({ error: 'Database unavailable' }, { status: 503 })
-  }
-
-  const job = await prisma.galleryDownloadJob.findUnique({
-    where: { id: jobId },
-  })
-
-  if (!job) {
-    return NextResponse.json({ error: 'Download not found' }, { status: 404 })
-  }
-
-  if (job.status !== 'READY' || !job.resultUrl) {
-    return NextResponse.json(
-      { error: 'Gallery download is not ready yet', status: job.status },
-      { status: 409 }
-    )
-  }
-
-  return NextResponse.redirect(job.resultUrl)
+/**
+ * Legacy Gallery ZIP download capability — permanently retired.
+ *
+ * This endpoint used to look up a GalleryDownloadJob by jobId alone and
+ * redirect to its public Blob resultUrl (IDOR). It now answers 410 Gone for
+ * every request without touching the database or Blob storage, so a real
+ * jobId and a random one are indistinguishable and nothing is disclosed.
+ */
+export async function GET() {
+  return NextResponse.json(
+    { error: 'This download link is no longer available.', code: 'gone' },
+    { status: 410, headers: { 'Cache-Control': 'no-store' } }
+  )
 }
