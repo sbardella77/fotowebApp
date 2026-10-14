@@ -28,6 +28,7 @@ import { TrustStrip } from '@/components/marketing/trust-strip'
 import { UseCaseCards } from '@/components/marketing/use-case-cards'
 import { UseCasePreview } from '@/components/marketing/use-case-preview'
 import { SectionHeader } from '@/components/marketing/section-header'
+import { LandingFinalCtaSimple } from '@/components/marketing/landing-final-cta-simple'
 import { useScrollReveal } from '@/lib/hooks/use-scroll-reveal'
 import { useCreateEventForm } from '@/lib/hooks/use-create-event-form'
 
@@ -404,28 +405,15 @@ export function PlannersLandingPage({ locale }) {
       </section>
 
       {/* Final CTA */}
-      <section className="relative py-24 sm:py-32">
-        <div className="container px-4">
-          <div className="mx-auto max-w-2xl text-center reveal">
-            <h2 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-              {t.finalTitle}
-            </h2>
-            <p className="mt-3 text-muted-foreground">
-              {t.finalDesc}
-            </p>
-            <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Button size="lg" className="cta-primary" asChild>
-                <a href={localizedPath(locale, '/')}>{t.finalCta}</a>
-              </Button>
-              <Button size="lg" variant="outline" className="border-border bg-transparent hover:bg-white/[0.03]" asChild>
-                <a href={localizedPath(locale, '/pricing')}>
-                  {t.viewPricing}
-                </a>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </section>
+      <LandingFinalCtaSimple
+        title={t.finalTitle}
+        desc={t.finalDesc}
+        primaryHref={localizedPath(locale, '/')}
+        primaryLabel={t.finalCta}
+        secondaryHref={localizedPath(locale, '/pricing')}
+        secondaryLabel={t.viewPricing}
+        sectionClassName="relative py-24 sm:py-32"
+      />
 
       <MarketingFooter />
     </div>
