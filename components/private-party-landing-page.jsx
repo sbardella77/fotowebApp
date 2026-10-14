@@ -8,7 +8,6 @@ import {
   Wine,
   Music,
   Flame,
-  Shield,
   Lock,
   EyeOff,
   ArrowRight,
@@ -19,12 +18,6 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion'
 import { MarketingNav } from '@/components/marketing-nav'
 import { MarketingFooter } from '@/components/marketing-footer'
 import { useTranslations, useLocale } from '@/components/i18n-provider'
@@ -33,6 +26,10 @@ import { PhoneMockup } from '@/components/marketing/phone-mockup'
 import { TrustStrip } from '@/components/marketing/trust-strip'
 import { HowItWorks } from '@/components/marketing/how-it-works'
 import { SectionHeader } from '@/components/marketing/section-header'
+import { LandingTrustSection } from '@/components/marketing/landing-trust-section'
+import { LandingCrossLinkSection } from '@/components/marketing/landing-cross-link-section'
+import { LandingFaqSection } from '@/components/marketing/landing-faq-section'
+import { LandingFinalCtaSimple } from '@/components/marketing/landing-final-cta-simple'
 import { useScrollReveal } from '@/lib/hooks/use-scroll-reveal'
 import { useCreateEventForm } from '@/lib/hooks/use-create-event-form'
 
@@ -325,176 +322,63 @@ export function PrivatePartyLandingPage() {
       </section>
 
       {/* Trust */}
-      <section className="border-t border-border bg-card py-20 sm:py-28">
-        <div className="container px-4">
-          <div className="mx-auto max-w-3xl text-center reveal">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-secondary border border-border text-primary shadow-subtle">
-              <Shield className="h-6 w-6" />
-            </div>
-            <h2 className="mt-5 font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-              {t.privacyTitle}
-            </h2>
-            <p className="mt-3 text-muted-foreground">
-              {t.privacyDesc}
-            </p>
-          </div>
-
-          <div className="mx-auto mt-10 grid max-w-4xl grid-cols-1 gap-5 sm:grid-cols-3">
-            {[
-              { title: t.privacyFeature1Title, desc: t.privacyFeature1Desc },
-              { title: t.privacyFeature2Title, desc: t.privacyFeature2Desc },
-              { title: t.privacyFeature3Title, desc: t.privacyFeature3Desc },
-            ].map((item, i) => (
-              <div
-                key={item.title}
-                className="reveal min-w-0 rounded-2xl border border-border bg-surface p-5 text-center shadow-elevated"
-                style={{ transitionDelay: `${i * 60}ms` }}
-              >
-                <h3 className="font-display text-sm font-semibold text-foreground">{item.title}</h3>
-                <p className="mt-2 text-xs text-muted-foreground">{item.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <LandingTrustSection
+        title={t.privacyTitle}
+        desc={t.privacyDesc}
+        items={[
+          { title: t.privacyFeature1Title, desc: t.privacyFeature1Desc },
+          { title: t.privacyFeature2Title, desc: t.privacyFeature2Desc },
+          { title: t.privacyFeature3Title, desc: t.privacyFeature3Desc },
+        ]}
+      />
 
       {/* Cross-link — other ways to use SnapRooms */}
-      <section className="border-t border-border py-20 sm:py-28">
-        <div className="container px-4">
-          <div className="reveal"><SectionHeader label={t.crossLabel} title={t.crossTitle} /></div>
-          <div className="mx-auto mt-12 grid max-w-2xl gap-4 sm:grid-cols-2">
-            {[
-              {
-                href: localizedPath(locale, '/birthday-photo-sharing'),
-                icon: PartyPopper,
-                title: t.crossBirthdayQ,
-                desc: t.crossBirthdayDesc,
-                cta: t.crossBirthdayCta,
-                photoSrc: '/marketing-placeholder/usecase-birthday-card.jpg',
-              },
-              {
-                href: localizedPath(locale, '/wedding-photo-sharing'),
-                icon: Heart,
-                title: t.crossWeddingQ,
-                desc: t.crossWeddingDesc,
-                cta: t.crossWeddingCta,
-                photoSrc: '/marketing-placeholder/wedding-couple-card.jpg',
-              },
-            ].map((item, i) => (
-              <a
-                key={item.href}
-                href={item.href}
-                className="reveal group relative flex min-h-[220px] flex-col justify-end overflow-hidden rounded-2xl border border-border shadow-subtle transition-all duration-300 hover:-translate-y-1 hover:shadow-elevated"
-                style={{ transitionDelay: `${i * 70}ms` }}
-              >
-                <Image
-                  src={item.photoSrc}
-                  alt=""
-                  fill
-                  sizes="(min-width: 640px) 50vw, 100vw"
-                  className="object-cover transition-transform duration-500 group-hover:scale-105"
-                />
-                <div
-                  className="absolute inset-0"
-                  aria-hidden="true"
-                  style={{ background: 'linear-gradient(180deg, transparent 30%, hsl(0 0% 8% / 0.75) 100%)' }}
-                />
-                <div className="relative p-5">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15 backdrop-blur-sm">
-                    <item.icon className="h-4.5 w-4.5 text-white" aria-hidden="true" />
-                  </div>
-                  <h3 className="mt-3 font-display text-base font-bold tracking-tight text-white">{item.title}</h3>
-                  <p className="mt-1 text-xs text-white/80 leading-relaxed line-clamp-2">{item.desc}</p>
-                  <span className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-semibold text-white">
-                    {item.cta}
-                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
-                  </span>
-                </div>
-              </a>
-            ))}
-          </div>
-        </div>
-      </section>
+      <LandingCrossLinkSection
+        label={t.crossLabel}
+        title={t.crossTitle}
+        items={[
+          {
+            href: localizedPath(locale, '/birthday-photo-sharing'),
+            icon: PartyPopper,
+            title: t.crossBirthdayQ,
+            desc: t.crossBirthdayDesc,
+            cta: t.crossBirthdayCta,
+            photoSrc: '/marketing-placeholder/usecase-birthday-card.jpg',
+          },
+          {
+            href: localizedPath(locale, '/wedding-photo-sharing'),
+            icon: Heart,
+            title: t.crossWeddingQ,
+            desc: t.crossWeddingDesc,
+            cta: t.crossWeddingCta,
+            photoSrc: '/marketing-placeholder/wedding-couple-card.jpg',
+          },
+        ]}
+      />
 
       {/* FAQ */}
-      <section className="relative py-24 sm:py-32">
-        <div className="container px-4">
-          <div className="mx-auto max-w-3xl">
-            <div className="text-center reveal">
-              <SectionHeader title={t.faqTitle} />
-            </div>
-
-            <div className="mt-10 reveal">
-              <Accordion type="single" collapsible className="space-y-3">
-                {[
-                  {
-                    q: t.faq1Question,
-                    a: t.faq1Answer,
-                  },
-                  {
-                    q: t.faq2Question,
-                    a: t.faq2Answer,
-                  },
-                  {
-                    q: t.faq3Question,
-                    a: t.faq3Answer,
-                  },
-                  {
-                    q: t.faq4Question,
-                    a: t.faq4Answer,
-                  },
-                  {
-                    q: t.faq5Question,
-                    a: t.faq5Answer,
-                  },
-                  {
-                    q: t.faq6Question,
-                    a: t.faq6Answer,
-                  },
-                ].map((faq, i) => (
-                  <AccordionItem
-                    key={i}
-                    value={`item-${i}`}
-                    className="rounded-2xl border border-border bg-surface px-5 shadow-elevated"
-                  >
-                    <AccordionTrigger className="text-left text-sm font-semibold text-foreground hover:no-underline">
-                      {faq.q}
-                    </AccordionTrigger>
-                    <AccordionContent className="text-sm text-muted-foreground">
-                      {faq.a}
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
-              </Accordion>
-            </div>
-          </div>
-        </div>
-      </section>
+      <LandingFaqSection
+        title={t.faqTitle}
+        questions={[
+          { q: t.faq1Question, a: t.faq1Answer },
+          { q: t.faq2Question, a: t.faq2Answer },
+          { q: t.faq3Question, a: t.faq3Answer },
+          { q: t.faq4Question, a: t.faq4Answer },
+          { q: t.faq5Question, a: t.faq5Answer },
+          { q: t.faq6Question, a: t.faq6Answer },
+        ]}
+      />
 
       {/* Final CTA */}
-      <section className="relative pb-16 sm:pb-24">
-        <div className="container px-4">
-          <div className="mx-auto max-w-2xl text-center reveal">
-            <h2 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-              {t.finalTitle}
-            </h2>
-            <p className="mt-3 text-muted-foreground">
-              {t.finalDesc}
-            </p>
-            <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Button size="lg" className="cta-primary" asChild>
-                <a href={localizedPath(locale, '/')}>{t.finalCta}</a>
-              </Button>
-              <Button size="lg" variant="outline" className="border-border bg-transparent hover:bg-white/[0.03]" asChild>
-                <a href={localizedPath(locale, '/pricing')}>{t.viewPricing}</a>
-              </Button>
-            </div>
-            <p className="mt-4 font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
-              {t.finalMicrocopy}
-            </p>
-          </div>
-        </div>
-      </section>
+      <LandingFinalCtaSimple
+        title={t.finalTitle}
+        desc={t.finalDesc}
+        primaryHref={localizedPath(locale, '/')}
+        primaryLabel={t.finalCta}
+        secondaryHref={localizedPath(locale, '/pricing')}
+        secondaryLabel={t.viewPricing}
+        helperText={t.finalMicrocopy}
+      />
 
       <MarketingFooter />
     </div>
