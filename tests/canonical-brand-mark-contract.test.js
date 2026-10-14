@@ -95,9 +95,15 @@ describe('Guest Room brand-only exception (narrow, explicitly approved)', () => 
   })
 
   it('the functional RoomNotFound empty-state Camera icon is untouched (not a brand lockup)', () => {
-    // No adjacent "SnapRooms" wordmark or home Link — genuinely decorative,
-    // must remain a plain Lucide icon, not be swapped for the brand mark.
-    expect(source).toContain('<Camera className="h-7 w-7" />')
+    // RoomNotFound was extracted to components/room/room-not-found.jsx during
+    // the room-page-client refactor; the page still renders it, and the icon
+    // itself (no adjacent "SnapRooms" wordmark or home Link — genuinely
+    // decorative) must remain a plain Lucide icon, not be swapped for the
+    // brand mark.
+    expect(source).toContain("from '@/components/room/room-not-found'")
+    expect(source).toContain('<RoomNotFound />')
+    const roomNotFoundSource = readComponent('components/room/room-not-found.jsx')
+    expect(roomNotFoundSource).toContain('<Camera className="h-7 w-7" />')
   })
 
   it('upload/CTA/Moments/analytics/gallery/event-state logic is untouched — only the icon markup and one import line changed', () => {
