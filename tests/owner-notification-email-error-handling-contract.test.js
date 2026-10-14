@@ -3,7 +3,12 @@ import { readFileSync } from 'fs'
 import { resolve } from 'path'
 
 const ROOT = resolve(import.meta.dirname, '..')
-const source = readFileSync(resolve(ROOT, 'app/api/[[...path]]/route.js'), 'utf8')
+// sendOwnerNotificationEmail moved from the catch-all to
+// lib/server/event-routes.js as part of the /events route extraction;
+// forgotOwnerPassword/resendOwnerAccess (owner-session endpoints) are still
+// served by the catch-all.
+const source = readFileSync(resolve(ROOT, 'lib/server/event-routes.js'), 'utf8')
+const catchallSource = readFileSync(resolve(ROOT, 'app/api/[[...path]]/route.js'), 'utf8')
 
 // Discovered during live-Preview QA: sendOwnerNotificationEmail discarded the
 // Resend SDK's own { data, error } result entirely, so an API-level send
@@ -38,12 +43,12 @@ describe('sendOwnerNotificationEmail — surfaces Resend API-level send errors',
 // facing contract — only the server-side logging needed fixing here.
 describe('forgotOwnerPassword — surfaces Resend API-level send errors', () => {
   it('captures the error field from its resend.emails.send() call', () => {
-    expect(source).toMatch(/const \{ error: forgotSendError \} = await resend\.emails\.send\(/)
+    expect(catchallSource).toMatch(/const \{ error: forgotSendError \} = await resend\.emails\.send\(/)
   })
 
   it('logs a send-level error without changing the anti-enumeration response', () => {
-    expect(source).toContain('[forgotOwnerPassword] Resend error:')
-    expect(source).toContain("message: 'If an account with this email exists, a password reset link has been sent.'")
+    expect(catchallSource).toContain('[forgotOwnerPassword] Resend error:')
+    expect(catchallSource).toContain("message: 'If an account with this email exists, a password reset link has been sent.'")
   })
 })
 
@@ -52,21 +57,21 @@ describe('forgotOwnerPassword — surfaces Resend API-level send errors', () => 
 // access link" route) also discarded the Resend { error } result.
 describe('resendOwnerAccess — surfaces Resend API-level send errors', () => {
   it('captures the error field from its resend.emails.send() call', () => {
-    expect(source).toMatch(/const \{ error: resendAccessSendError \} = await resend\.emails\.send\(/)
+    expect(catchallSource).toMatch(/const \{ error: resendAccessSendError \} = await resend\.emails\.send\(/)
   })
 
   it('logs a send-level error without changing the anti-enumeration response', () => {
-    expect(source).toContain('[resendOwnerAccess] Resend error:')
-    const fnStart = source.indexOf('const resendOwnerAccess = async')
-    const nextFnStart = source.indexOf('const recoverOwnerAccess = async')
-    const fnBody = source.slice(fnStart, nextFnStart)
+    expect(catchallSource).toContain('[resendOwnerAccess] Resend error:')
+    const fnStart = catchallSource.indexOf('const resendOwnerAccess = async')
+    const nextFnStart = catchallSource.indexOf('const recoverOwnerAccess = async')
+    const fnBody = catchallSource.slice(fnStart, nextFnStart)
     expect(fnBody).toContain("message: 'If an account with this email exists, a password reset link has been sent.'")
   })
 
   it('never logs the raw token, only the structured Resend error object', () => {
-    const fnStart = source.indexOf('const resendOwnerAccess = async')
-    const nextFnStart = source.indexOf('const recoverOwnerAccess = async')
-    const fnBody = source.slice(fnStart, nextFnStart)
+    const fnStart = catchallSource.indexOf('const resendOwnerAccess = async')
+    const nextFnStart = catchallSource.indexOf('const recoverOwnerAccess = async')
+    const fnBody = catchallSource.slice(fnStart, nextFnStart)
     const errorLogLine = fnBody.split('\n').find((l) => l.includes('[resendOwnerAccess] Resend error:'))
     expect(errorLogLine).not.toMatch(/rawToken/)
   })

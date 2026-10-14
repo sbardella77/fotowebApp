@@ -150,8 +150,8 @@ describe('1 — toClientGalleryDownloadJob is a strict allowlist', () => {
 
 describe('2/3 — GET /api/events/:slug/gallery-download', () => {
   const callStatus = async (slug = EVENT.slug) => {
-    const { GET } = await import('@/app/api/[[...path]]/route')
-    const response = await GET(makeRequest(), { params: { path: ['events', slug, 'gallery-download'] } })
+    const { GET } = await import('@/app/api/events/[slug]/gallery-download/route')
+    const response = await GET(makeRequest(), { params: { slug } })
     return { response, body: await response.json() }
   }
 
@@ -203,10 +203,10 @@ describe('2/3 — GET /api/events/:slug/gallery-download', () => {
 
   it('is rate limited (60 / 10 min per IP + event)', async () => {
     await setupMocks()
-    const { GET } = await import('@/app/api/[[...path]]/route')
+    const { GET } = await import('@/app/api/events/[slug]/gallery-download/route')
     const statuses = []
     for (let i = 0; i < 61; i++) {
-      const response = await GET(makeRequest({ ip: '198.51.100.9' }), { params: { path: ['events', EVENT.slug, 'gallery-download'] } })
+      const response = await GET(makeRequest({ ip: '198.51.100.9' }), { params: { slug: EVENT.slug } })
       statuses.push(response.status)
     }
     expect(statuses.slice(0, 60).every((s) => s === 200)).toBe(true)
@@ -290,8 +290,8 @@ describe('5 — GET /api/gallery-downloads/[jobId] is retired (410, no IDOR)', (
 
 describe('6 — POST /api/events/:slug/gallery-download refuses async creation', () => {
   const callCreate = async (slug = EVENT.slug) => {
-    const { POST } = await import('@/app/api/[[...path]]/route')
-    const response = await POST(makeRequest({ method: 'POST' }), { params: { path: ['events', slug, 'gallery-download'] } })
+    const { POST } = await import('@/app/api/events/[slug]/gallery-download/route')
+    const response = await POST(makeRequest({ method: 'POST' }), { params: { slug } })
     return { response, body: await response.json() }
   }
 
@@ -395,8 +395,8 @@ describe('8 — GET /api/download/gallery still streams a Standard ZIP', () => {
 describe('9 — a Gallery ZIP URL is never logged', () => {
   it('status GET on a job carrying a public resultUrl logs no URL', async () => {
     await setupMocks()
-    const { GET } = await import('@/app/api/[[...path]]/route')
-    await GET(makeRequest(), { params: { path: ['events', EVENT.slug, 'gallery-download'] } })
+    const { GET } = await import('@/app/api/events/[slug]/gallery-download/route')
+    await GET(makeRequest(), { params: { slug: EVENT.slug } })
     const logged = allLoggedText()
     expect(logged).not.toContain('blob.vercel-storage.com')
     expect(logged).not.toContain(PUBLIC_ZIP_URL)

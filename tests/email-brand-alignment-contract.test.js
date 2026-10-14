@@ -5,9 +5,19 @@ import { buildEmail } from '../lib/server/email/email-layout'
 
 const ROOT = resolve(import.meta.dirname, '..')
 const ROUTE_PATH = 'app/api/[[...path]]/route.js'
+// saveEventByEmail and sendOwnerNotificationEmail (3 of the 5 buildEmail()
+// call sites originally inline in the catch-all) moved to
+// lib/server/event-routes.js as part of the /events route extraction — the
+// brand-alignment contract they're asserting on applies to this code
+// wherever it now lives, not to one specific file.
+const EVENT_ROUTES_PATH = 'lib/server/event-routes.js'
 
 function readComponent(relPath) {
   return readFileSync(resolve(ROOT, relPath), 'utf8')
+}
+
+function readRouteSources() {
+  return readComponent(ROUTE_PATH) + '\n' + readComponent(EVENT_ROUTES_PATH)
 }
 
 // V4 brand alignment: transactional emails previously hand-rolled their own
@@ -17,7 +27,7 @@ function readComponent(relPath) {
 // instead of a second, newly-invented design system.
 describe('customer-facing transactional emails carry no legacy gold branding', () => {
   it('route.js contains zero occurrences of the legacy gold hex', () => {
-    const source = readComponent(ROUTE_PATH)
+    const source = readRouteSources()
     expect(source).not.toContain('#d4a853')
   })
 
@@ -27,14 +37,14 @@ describe('customer-facing transactional emails carry no legacy gold branding', (
   })
 
   it('all five route.js email call sites import and use buildEmail from the shared layout helper', () => {
-    const source = readComponent(ROUTE_PATH)
+    const source = readRouteSources()
     expect(source).toContain("import { buildEmail } from '@/lib/server/email/email-layout'")
     const buildEmailCallCount = (source.match(/buildEmail\(\{/g) || []).length
     expect(buildEmailCallCount).toBe(5)
   })
 
   it('each buildEmail() call in route.js pins locale to "en" (these templates have never been localized — buildEmail defaults to "de")', () => {
-    const source = readComponent(ROUTE_PATH)
+    const source = readRouteSources()
     const calls = source.match(/buildEmail\(\{[\s\S]*?\n\s*\}\)/g) || []
     expect(calls.length).toBe(5)
     calls.forEach((call) => {
@@ -43,15 +53,16 @@ describe('customer-facing transactional emails carry no legacy gold branding', (
   })
 
   it('saveEventByEmail preserves the plain-link fallback via the new opt-in linkBox param', () => {
-    const source = readComponent(ROUTE_PATH)
-    const fnStart = source.indexOf('const saveEventByEmail = async')
-    const fnEnd = source.indexOf('\nconst getManagementTokenFromRequest')
+    // saveEventByEmail moved to lib/server/event-routes.js.
+    const source = readComponent(EVENT_ROUTES_PATH)
+    const fnStart = source.indexOf('export const saveEventByEmail = async')
+    const fnEnd = source.indexOf('\nexport const saveEventOwner')
     const fnBody = source.slice(fnStart, fnEnd)
     expect(fnBody).toMatch(/linkBox:\s*\{\s*label:\s*'Room link'/)
   })
 
   it('resend.emails.send() call sites in route.js pass buildEmail() output through unmodified (subject/text/html), not new inline HTML', () => {
-    const source = readComponent(ROUTE_PATH)
+    const source = readRouteSources()
     // None of the five send() calls should contain a literal <div style= HTML
     // blob anymore — that pattern only exists now inside email-layout.js.
     const sendCallBlocks = source.match(/await resend\.emails\.send\(\{[\s\S]*?\n\s*\}\)/g) || []

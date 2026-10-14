@@ -21,6 +21,7 @@ const ROUTE = [
   readFileSync(resolve(import.meta.dirname, '..', 'app/api/uploads/chunk/route.js'), 'utf8'),
   readFileSync(resolve(import.meta.dirname, '..', 'app/api/uploads/complete/route.js'), 'utf8'),
   readFileSync(resolve(import.meta.dirname, '..', 'lib/server/blob-upload-token-route.js'), 'utf8'),
+  readFileSync(resolve(import.meta.dirname, '..', 'lib/server/event-routes.js'), 'utf8'),
 ].join('\n')
 const WEBHOOK = readFileSync(resolve(import.meta.dirname, '..', 'app/api/stripe/webhook/route.js'), 'utf8')
 const CHECKOUT = readFileSync(resolve(import.meta.dirname, '..', 'app/api/stripe/checkout-session/route.js'), 'utf8')
