@@ -133,7 +133,7 @@ describe('Broad pre-DB guard — blob-token-broad:ip:<hashed>, 5000/10min', () =
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(makePrismaWithSession(null).prisma)
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
 
     const keysUsed = evalMock.mock.calls.map((call) => call[1][0])
@@ -153,7 +153,7 @@ describe('Broad pre-DB guard — blob-token-broad:ip:<hashed>, 5000/10min', () =
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(prisma)
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     const response = await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
     const body = await response.json()
 
@@ -175,7 +175,7 @@ describe('Broad pre-DB guard — blob-token-broad:ip:<hashed>, 5000/10min', () =
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(prisma)
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     const response = await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
 
     expect(response.status).not.toBe(429)
@@ -189,7 +189,7 @@ describe('Broad pre-DB guard — blob-token-broad:ip:<hashed>, 5000/10min', () =
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(prisma)
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     const response = await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
 
     expect(evalMock).toHaveBeenCalled()
@@ -212,7 +212,7 @@ describe('Photographer blob branch — upload-blob:photographer-event:<eventId>,
     getPrismaClient.mockResolvedValue(prisma)
     const rateLimit = await spyOnLegacyRateLimit()
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
 
     expect(sessionFindUnique).toHaveBeenCalledWith({ where: { id: 'session-id-123' }, select: { uploadKind: true, eventId: true } })
@@ -234,7 +234,7 @@ describe('Photographer blob branch — upload-blob:photographer-event:<eventId>,
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(prisma)
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     const response = await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
     const body = await response.json()
 
@@ -251,7 +251,7 @@ describe('Photographer blob branch — upload-blob:photographer-event:<eventId>,
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(prisma)
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     const response = await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
 
     expect(response.status).not.toBe(429)
@@ -265,7 +265,7 @@ describe('Photographer blob branch — upload-blob:photographer-event:<eventId>,
     getPrismaClient.mockResolvedValue(
       makePrismaWithSession({ uploadKind: BlobUploadKind.PHOTOGRAPHER_UPLOAD, eventId: PHOTOGRAPHER_EVENT_ID }).prisma,
     )
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     await POST(makeTokenRequest({ clientPayload: JSON.stringify({ sessionId: 'session-aaa1' }) }), { params: { path: ['uploads', 'blob'] } })
     await POST(makeTokenRequest({ clientPayload: JSON.stringify({ sessionId: 'session-bbb2' }) }), { params: { path: ['uploads', 'blob'] } })
 
@@ -293,7 +293,7 @@ describe('Photographer blob branch — upload-blob:photographer-event:<eventId>,
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(prisma)
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
 
     const keysUsed = evalMock.mock.calls.map((call) => call[1][0])
@@ -309,7 +309,7 @@ describe('Photographer blob branch — upload-blob:photographer-event:<eventId>,
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(prisma)
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     const doRequest = () => POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
 
     let last
@@ -344,7 +344,7 @@ describe('Guest (ROOM_PHOTO) blob branch — upload-blob:guest-event:<eventId>, 
     getPrismaClient.mockResolvedValue(prisma)
     const rateLimit = await spyOnLegacyRateLimit()
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
 
     expect(sessionFindUnique).toHaveBeenCalledWith({ where: { id: 'session-id-123' }, select: { uploadKind: true, eventId: true } })
@@ -364,7 +364,7 @@ describe('Guest (ROOM_PHOTO) blob branch — upload-blob:guest-event:<eventId>, 
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(prisma)
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     const response = await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
     const body = await response.json()
 
@@ -381,7 +381,7 @@ describe('Guest (ROOM_PHOTO) blob branch — upload-blob:guest-event:<eventId>, 
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(prisma)
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     const response = await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
 
     expect(response.status).not.toBe(429)
@@ -399,7 +399,7 @@ describe('Default branch — unchanged legacy upload-blob:ip, 30/10min', () => {
     getPrismaClient.mockResolvedValue(prisma)
     const rateLimit = await spyOnLegacyRateLimit()
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
 
     expect(rateLimit).not.toHaveBeenCalled()
@@ -413,7 +413,7 @@ describe('Default branch — unchanged legacy upload-blob:ip, 30/10min', () => {
     getPrismaClient.mockResolvedValue(prisma)
     const rateLimit = await spyOnLegacyRateLimit()
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     const response = await POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
 
     expect(response.status).not.toBe(500)
@@ -429,7 +429,7 @@ describe('Default branch — unchanged legacy upload-blob:ip, 30/10min', () => {
     getPrismaClient.mockResolvedValue(prisma)
     const rateLimit = await spyOnLegacyRateLimit()
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     const response = await POST(makeTokenRequest({ clientPayload: 'not-json{{' }), { params: { path: ['uploads', 'blob'] } })
 
     expect(response.status).not.toBe(500)
@@ -445,7 +445,7 @@ describe('Default branch — unchanged legacy upload-blob:ip, 30/10min', () => {
     getPrismaClient.mockResolvedValue(prisma)
     const rateLimit = await spyOnLegacyRateLimit()
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     const response = await POST(makeTokenRequest({ clientPayload: null }), { params: { path: ['uploads', 'blob'] } })
 
     expect(response.status).not.toBe(500)
@@ -460,7 +460,7 @@ describe('Default branch — unchanged legacy upload-blob:ip, 30/10min', () => {
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
     getPrismaClient.mockResolvedValue(prisma)
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     const doRequest = () => POST(makeTokenRequest(), { params: { path: ['uploads', 'blob'] } })
 
     let last
@@ -493,7 +493,7 @@ describe('Callback branch (blob.upload-completed) is untouched by any of the new
       json: async () => ({ type: 'blob.upload-completed', payload: {} }),
     }
 
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/blob/route')
     await POST(request, { params: { path: ['uploads', 'blob'] } })
 
     expect(evalMock).not.toHaveBeenCalled()

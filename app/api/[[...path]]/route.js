@@ -1,9 +1,5 @@
 import { createHash, randomUUID } from 'crypto'
-import { BlobError, head } from '@vercel/blob'
-import { handleUpload } from '@vercel/blob/client'
-import { normalizeContributorId } from '@/lib/server/contributor-id'
-import { classifyGalleryUploadActor } from '@/lib/server/gallery-upload-actor'
-import { normalizePhotoRecord } from '@/lib/server/repository-mappers'
+import { head } from '@vercel/blob'
 import {
   generateManagementToken,
   hashManagementToken,
@@ -23,8 +19,6 @@ import {
   adminPasswordSchema,
   blobUploadSessionCompleteSchema,
   createEventSchema,
-  localUploadCompleteSchema,
-  MAX_CHUNK_SIZE_BYTES,
   MAX_FILE_SIZE_BYTES,
   MAX_PRIVATE_DELIVERY_FILE_SIZE_BYTES,
   privateDeliveryLocalUploadCompleteSchema,
@@ -32,8 +26,6 @@ import {
   saveOwnerEmailSchema,
   slugify,
   updateEventSchema,
-  uploadChunkSchema,
-  uploadInitSchema,
 } from '@/lib/server/schemas'
 import {
   ADMIN_COOKIE_NAME,
@@ -73,7 +65,7 @@ import {
 } from '@/lib/server/rate-limiter'
 import { requireCsrfProtection, verifySameOriginRequest } from '@/lib/server/csrf'
 import { withTiming } from '@/lib/server/timing'
-import { readSessionMeta, getReceivedChunkSize, UploadTokenMismatchError } from '@/lib/server/storage/local-storage'
+import { UploadTokenMismatchError } from '@/lib/server/storage/local-storage'
 import {
   GALLERY_EXPORT_UNAVAILABLE_CODE,
   getLatestGalleryDownloadJob,
@@ -90,7 +82,6 @@ import {
   EVENT_OWNER_LOGGED_IN,
   EVENT_RATE_LIMIT_HIT,
   EVENT_FREE_ROOM_LIMIT_HIT,
-  EVENT_FREE_PHOTO_LIMIT_HIT,
   EVENT_PRIVATE_DELIVERY_UPLOAD_STARTED,
   EVENT_PRIVATE_DELIVERY_UPLOAD_COMPLETED,
   EVENT_PRIVATE_DELIVERY_DELETED,
@@ -106,35 +97,24 @@ import { createServerBoundBlobUploadInit } from '@/lib/server/blob-upload-init'
 import {
   BlobUploadCompletionError,
   completePrivateAssetBlobUpload,
-  completeRoomPhotoBlobUpload,
 } from '@/lib/server/blob-upload-completion'
-import {
-  BlobUploadTokenRequestError,
-  createLazyServerBoundBlobUploadCallbacks,
-  getBlobUploadRequestKind,
-  parseCanonicalSessionPayload,
-  validateBlobUploadCallbackUrl,
-} from '@/lib/server/blob-upload-token'
+import { handleBlobUploadTokenRequest } from '@/lib/server/blob-upload-token-route'
 import { getAdminAuthDriver, getDataAccessDriver, getPrismaClient } from '@/lib/server/prisma-client'
 import {
   deleteStoredFile,
   getStoredNameFromBlobPathname,
   getStorageDriver,
   getStorageMode,
-  isVercelBlobStorageConfigured,
   localStorageDriver,
 } from '@/lib/server/storage'
 import { deleteEventScopedStoredFile } from '@/lib/server/event-scoped-storage-delete'
 import { deletePhotoDerivatives, deletePhotoDerivativesBatch } from '@/lib/server/derivative-cleanup'
 import { ensurePhotoDisplayDerivativeStatus } from '@/lib/server/photo-display-derivative-status'
-import { getPhotoBuffer } from '@/lib/server/download-utils'
-import { validateRoomPhotoSource, PhotoSourceValidationError } from '@/lib/server/photo-source-validation'
 import { sendOpsAlert } from '@/lib/server/ops-alerts'
 import { serializeProviderError } from '@/lib/server/safe-log'
 import {
   checkOwnerRoomCreationEntitlement,
   checkPrivateDeliveryEntitlement,
-  checkRoomUploadEntitlement,
 } from '@/lib/server/entitlements'
 import { getEffectiveEventAccessState } from '@/lib/server/event-access'
 import { resolveCanonicalOwner } from '@/lib/server/owner-resolution'
@@ -1118,339 +1098,6 @@ const deleteEvent = withTiming('deleteEvent', async (request, slug) => {
   return json({ deleted: true })
 })
 
-const initUpload = async (request) => {
-  // Broad, Redis-backed, hashed-IP guard — the only thing that runs before
-  // any database access, bounding gross pre-DB exposure from a single IP.
-  // Guest-exclusive route: distinct from the shared blob-token-broad guard.
-  const clientIp = getClientIp(request)
-  const broadInitLimit = await checkRateLimit(
-    `guest-init-broad:ip:${hashIdentifier(clientIp)}`,
-    RATE_LIMITS.guestInitBroad.ip.max,
-    RATE_LIMITS.guestInitBroad.ip.window,
-  )
-  if (broadInitLimit.limited) {
-    return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
-  }
-
-  const payload = uploadInitSchema.parse(await request.json())
-  const repository = await getGalleryRepository()
-  const event = await repository.getEventBySlug(payload.eventSlug)
-
-  if (!event) {
-    return json({ error: 'Event not found' }, 404)
-  }
-
-  // eventId-scoped primary product-level throttle — runs only once the
-  // Event has been resolved, before entitlement checks or session creation.
-  const initEventLimit = await checkRateLimit(
-    `guest-init-event:${event.id}`,
-    RATE_LIMITS.guestInitEvent.event.max,
-    RATE_LIMITS.guestInitEvent.event.window,
-  )
-  if (initEventLimit.limited) {
-    return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
-  }
-
-  // Enforce photo limit for Free rooms
-  const prisma = await getPrismaClient()
-  if (prisma) {
-    const entitlement = await checkRoomUploadEntitlement(prisma, event)
-    if (!entitlement.allowed) {
-      trackServerEvent(
-        EVENT_FREE_PHOTO_LIMIT_HIT,
-        {
-          room_slug: event.slug,
-          event_id: event.id,
-          current_photos: entitlement.current,
-          limit: entitlement.max,
-        },
-        { distinctId: `room:${event.slug}`, personProfile: false }
-      )
-      return json({
-        error: `This room has reached its ${entitlement.max}-photo limit.`,
-        limit: 'photo_count',
-        current: entitlement.current,
-        max: entitlement.max,
-        upgradePath: entitlement.upgradePath,
-      }, 403)
-    }
-  }
-
-  const storageDriver = getStorageDriver()
-
-  // Best-effort, analytics-only — never trusted for security/billing/gating.
-  // A malformed/missing value normalizes to null and never blocks the
-  // upload (see lib/server/contributor-id.js).
-  const contributorId = normalizeContributorId(payload.contributorId)
-
-  // Analytics attribution only — never authorization. Resolved once, here,
-  // from the request's own owner-session cookie (never client-supplied),
-  // and bound into the session so it cannot be altered by the completion
-  // payload. A missing/invalid/mismatched session simply classifies as
-  // 'guest' and never blocks or degrades the upload. See
-  // lib/server/gallery-upload-actor.js.
-  const verifiedOwnerEmail = await getOwnerAuthentication(request)
-  const uploadActorType = classifyGalleryUploadActor({
-    verifiedOwnerEmail,
-    eventOwnerEmail: event.ownerEmail,
-  })
-
-  if (storageDriver.mode === 'vercel-blob') {
-    if (!prisma) {
-      return json(
-        { error: 'Database is required for secure Blob uploads' },
-        503,
-      )
-    }
-
-    const session = await createServerBoundBlobUploadInit({
-      prisma,
-      storageDriver,
-      event,
-      payload,
-      uploadKind: BlobUploadKind.ROOM_PHOTO,
-      handleUploadUrl: '/api/uploads/blob',
-      uploaderName: payload.uploaderName,
-      caption: payload.caption,
-      momentId: payload.momentId,
-      contributorId,
-      uploadActorType,
-    })
-
-    return json({ session }, 201)
-  }
-
-  const session = await storageDriver.initUploadSession({ ...payload, contributorId, uploadActorType })
-  return json({ session }, 201)
-}
-
-const issueBlobUploadToken = async (request) => {
-  // 1. Parse body once — needed for classification and handleUpload
-  let body
-  try {
-    body = await request.json()
-  } catch {
-    return json({ error: 'Invalid request body' }, 400)
-  }
-
-  // 2. Strict classification — unknown types return 400 without Prisma access
-  let requestKind
-  try {
-    requestKind = getBlobUploadRequestKind(body)
-  } catch (error) {
-    if (error instanceof BlobUploadTokenRequestError) {
-      return json({ error: error.publicMessage, code: error.code }, error.status)
-    }
-    return json({ error: 'Invalid request body' }, 400)
-  }
-  const callbackRequest = requestKind === 'callback'
-
-  // 3. For token-generation requests: rate limiting and callbackUrl
-  //    validation, before BLOB_READ_WRITE_TOKEN check and handleUpload.
-  //    Rate limiting is now two-stage:
-  //      a. A broad, Redis-backed, hashed-IP guard runs first and is the
-  //         ONLY thing that runs before any database access — it exists
-  //         purely to bound pre-lookup DB exposure from a single IP
-  //         sending syntactically-valid-but-arbitrary session ids, and is
-  //         deliberately far above any single flow's own policy.
-  //      b. Once past (a), a read-only BlobUploadSession lookup resolves
-  //         uploadKind/eventId (never mutates — the real claim happens
-  //         later, inside onBeforeGenerateToken, unchanged). Photographer
-  //         and private-delivery sessions each get their own eventId-scoped
-  //         bucket; room-photo and unresolved/malformed sessions fall
-  //         through to the existing shared legacy IP limiter, unchanged.
-  if (!callbackRequest) {
-    const clientIp = getClientIp(request)
-
-    const broadGuard = await checkRateLimit(
-      `blob-token-broad:ip:${hashIdentifier(clientIp)}`,
-      RATE_LIMITS.uploadBlobBroad.ip.max,
-      RATE_LIMITS.uploadBlobBroad.ip.window,
-    )
-    if (broadGuard.limited) {
-      return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
-    }
-
-    let sessionId = null
-    try {
-      ;({ sessionId } = parseCanonicalSessionPayload(body?.payload?.clientPayload))
-    } catch {
-      // Malformed/absent clientPayload — leave sessionId null, fall
-      // through to the default (legacy) branch below. The authoritative
-      // parse/validation still happens later, unchanged, in
-      // onBeforeGenerateToken.
-    }
-
-    let resolvedSession = null
-    if (sessionId) {
-      const prismaForLookup = await getPrismaClient()
-      if (prismaForLookup) {
-        resolvedSession = await prismaForLookup.blobUploadSession.findUnique({
-          where: { id: sessionId },
-          select: { uploadKind: true, eventId: true },
-        })
-      }
-    }
-
-    if (resolvedSession?.uploadKind === BlobUploadKind.PHOTOGRAPHER_UPLOAD && resolvedSession.eventId) {
-      const photographerBlobLimit = await checkRateLimit(
-        `upload-blob:photographer-event:${resolvedSession.eventId}`,
-        RATE_LIMITS.photographerBlobEvent.event.max,
-        RATE_LIMITS.photographerBlobEvent.event.window,
-      )
-      if (photographerBlobLimit.limited) {
-        return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
-      }
-    } else if (resolvedSession?.uploadKind === BlobUploadKind.PRIVATE_DELIVERY && resolvedSession.eventId) {
-      const privateDeliveryBlobLimit = await checkRateLimit(
-        `upload-blob:private-event:${resolvedSession.eventId}`,
-        RATE_LIMITS.privateDeliveryBlobEvent.event.max,
-        RATE_LIMITS.privateDeliveryBlobEvent.event.window,
-      )
-      if (privateDeliveryBlobLimit.limited) {
-        return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
-      }
-    } else if (resolvedSession?.uploadKind === BlobUploadKind.ROOM_PHOTO && resolvedSession.eventId) {
-      // Deliberately set above guestInitEvent/guestCompleteEvent (1500 >
-      // 1000, see RATE_LIMITS.guestBlobEvent) — the Guest client only
-      // reaches this stage after a successful init in the same attempt, so
-      // this bucket cannot bind before init's under normal traffic.
-      const guestBlobLimit = await checkRateLimit(
-        `upload-blob:guest-event:${resolvedSession.eventId}`,
-        RATE_LIMITS.guestBlobEvent.event.max,
-        RATE_LIMITS.guestBlobEvent.event.window,
-      )
-      if (guestBlobLimit.limited) {
-        return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
-      }
-    } else {
-      // Default branch: unresolved or malformed — unchanged legacy shared
-      // IP limiter.
-      const limit = rateLimit(`upload-blob:ip:${clientIp}`, RATE_LIMITS.uploadBlob.ip.max, RATE_LIMITS.uploadBlob.ip.window)
-      if (limit.limited) {
-        return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
-      }
-    }
-
-    try {
-      validateBlobUploadCallbackUrl(body, request.url)
-    } catch (error) {
-      if (error instanceof BlobUploadTokenRequestError) {
-        return json({ error: error.publicMessage, code: error.code }, error.status)
-      }
-      return json({ error: 'Unable to initialize Blob upload' }, 400)
-    }
-  }
-
-  // 4. Verify Blob token is configured
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    return json(
-      { error: 'Server misconfiguration: BLOB_READ_WRITE_TOKEN is missing' },
-      500,
-    )
-  }
-
-  if (!isVercelBlobStorageConfigured()) {
-    return json({ error: 'Vercel Blob is not configured' }, 500)
-  }
-
-  // 5. Build lazy callbacks — independent of step 3b's own eager lookup
-  //    (a plain read, no claim). Prisma is resolved here only when
-  //    handleUpload invokes onBeforeGenerateToken or onUploadCompleted.
-  const callbacks = createLazyServerBoundBlobUploadCallbacks({
-    getPrisma: getPrismaClient,
-  })
-
-  // 6. Delegate to @vercel/blob handleUpload
-  try {
-    const result = await handleUpload({
-      body,
-      request,
-      onBeforeGenerateToken: callbacks.onBeforeGenerateToken,
-      onUploadCompleted: callbacks.onUploadCompleted,
-    })
-
-    return Response.json(result)
-  } catch (error) {
-    if (error instanceof BlobUploadTokenRequestError) {
-      // 503 on database_unavailable lets Vercel retry the callback
-      return json({ error: error.publicMessage, code: error.code }, error.status)
-    }
-
-    if (error instanceof BlobError) {
-      // Invalid signature or malformed Blob request — return static 400
-      return json({ error: 'Invalid Blob upload request.' }, 400)
-    }
-
-    if (isDatabaseUnavailableError(error)) {
-      throw error
-    }
-
-    if (callbackRequest) {
-      // Unknown error on callback path: rethrow so Vercel can retry
-      throw error
-    }
-
-    // Unknown error on token-generation path: opaque 400
-    console.error('[issueBlobUploadToken] token generation error')
-    return json({ error: 'Unable to initialize Blob upload' }, 400)
-  }
-}
-
-const uploadChunk = async (request) => {
-  const clientIp = getClientIp(request)
-  const limit = rateLimit(`upload-chunk:ip:${clientIp}`, RATE_LIMITS.uploadChunk.ip.max, RATE_LIMITS.uploadChunk.ip.window)
-  if (limit.limited) {
-    return json({ error: 'Too many upload chunks. Please try again later.' }, 429)
-  }
-
-  const formData = await request.formData()
-  const chunk = formData.get('chunk')
-  const parsed = uploadChunkSchema.parse({
-    sessionId: String(formData.get('sessionId') || ''),
-    uploadToken: String(formData.get('uploadToken') || ''),
-    chunkIndex: Number(formData.get('chunkIndex')),
-    totalChunks: Number(formData.get('totalChunks')),
-  })
-
-  if (!(chunk instanceof File)) {
-    return json({ error: 'chunk file is required' }, 400)
-  }
-
-  const chunkBuffer = Buffer.from(await chunk.arrayBuffer())
-
-  if (chunkBuffer.byteLength > MAX_CHUNK_SIZE_BYTES) {
-    return json({ error: 'Chunk exceeds server limit' }, 400)
-  }
-
-  // Validate session exists and enforce cumulative size limit
-  let meta
-  try {
-    meta = await readSessionMeta(parsed.sessionId)
-  } catch {
-    return json({ error: 'Upload session not found or expired' }, 400)
-  }
-
-  // meta.uploadToken is absent only on sessions created before this check
-  // existed (in-flight across a deploy) — never block those retroactively.
-  if (meta.uploadToken && meta.uploadToken !== parsed.uploadToken) {
-    return json({ error: 'Invalid upload session' }, 403)
-  }
-
-  const receivedSoFar = await getReceivedChunkSize(parsed.sessionId)
-  if (receivedSoFar + chunkBuffer.length > meta.fileSize) {
-    return json({ error: 'Cumulative chunk size exceeds declared file size' }, 413)
-  }
-
-  await localStorageDriver.saveChunk({
-    sessionId: parsed.sessionId,
-    chunkIndex: parsed.chunkIndex,
-    chunkBuffer,
-  })
-
-  return json({ uploaded: true, chunkIndex: parsed.chunkIndex, totalChunks: parsed.totalChunks })
-}
-
 /**
  * Best-effort display-v1 generation for one Photo (STEP 7.15e).
  *
@@ -1490,237 +1137,6 @@ async function ensurePhotoDisplayDerivative(photo, { operation, sourceBuffer }) 
   // same swallow-and-log contract.
   return ensurePhotoDisplayDerivativeStatus({ prisma, photo, operation, sourceBuffer })
 }
-
-const completeUpload = withTiming('completeUpload', async (request) => {
-  // Broad, Redis-backed, hashed-IP guard — runs before any database access.
-  // Guest-exclusive route: distinct from the shared blob-token-broad guard.
-  const clientIp = getClientIp(request)
-  const broadCompleteLimit = await checkRateLimit(
-    `guest-complete-broad:ip:${hashIdentifier(clientIp)}`,
-    RATE_LIMITS.guestCompleteBroad.ip.max,
-    RATE_LIMITS.guestCompleteBroad.ip.window,
-  )
-  if (broadCompleteLimit.limited) {
-    return json({ error: 'Too many upload completions. Please try again later.' }, 429)
-  }
-
-  const body = await request.json()
-  const storageDriver = getStorageDriver()
-
-  if (storageDriver.mode === 'vercel-blob') {
-    // ── Server-bound Vercel Blob path ─────────────────────────────────────
-    let payload
-    try {
-      payload = blobUploadSessionCompleteSchema.parse(body)
-    } catch {
-      return json({ error: 'Invalid request body' }, 400)
-    }
-
-    const prisma = await getPrismaClient()
-    if (
-      !prisma ||
-      typeof prisma.blobUploadSession !== 'object' ||
-      prisma.blobUploadSession === null
-    ) {
-      return json({ error: 'Upload service is temporarily unavailable.', code: 'database_unavailable' }, 503)
-    }
-
-    // Read-only pre-resolution lookup, limiter-identity only — never
-    // mutates, never claims the session. completeRoomPhotoBlobUpload below
-    // remains the sole authoritative source for session state/claiming.
-    // The guest-complete-event bucket must be applied ONLY for resolved
-    // ROOM_PHOTO sessions with a real eventId: a Photographer/Private
-    // Delivery/unresolved session presented here must not poison this
-    // bucket (see STEP 7.13c review correction).
-    const resolvedCompleteSession = await prisma.blobUploadSession.findUnique({
-      where: { id: payload.sessionId },
-      select: { eventId: true, uploadKind: true },
-    })
-
-    if (resolvedCompleteSession?.uploadKind === BlobUploadKind.ROOM_PHOTO && resolvedCompleteSession.eventId) {
-      const guestCompleteEventLimit = await checkRateLimit(
-        `guest-complete-event:${resolvedCompleteSession.eventId}`,
-        RATE_LIMITS.guestCompleteEvent.event.max,
-        RATE_LIMITS.guestCompleteEvent.event.window,
-      )
-      if (guestCompleteEventLimit.limited) {
-        return json({ error: 'Too many upload completions. Please try again later.' }, 429)
-      }
-    }
-
-    let result
-    try {
-      result = await completeRoomPhotoBlobUpload({
-        prisma,
-        sessionId: payload.sessionId,
-        headBlob: (pathname) => head(pathname),
-        deleteBlob: (url) => deleteStoredFile(url),
-        fetchSourceBuffer: (url) => getPhotoBuffer(url),
-        checkEntitlement: checkRoomUploadEntitlement,
-      })
-    } catch (error) {
-      if (error instanceof BlobUploadCompletionError) {
-        if (error.code === 'photo_limit' && error.details) {
-          trackServerEvent(
-            EVENT_FREE_PHOTO_LIMIT_HIT,
-            {
-              room_slug: error.details.eventSlug,
-              event_id: error.details.eventId,
-              current_photos: error.details.current,
-              limit: error.details.max,
-            },
-            { distinctId: `room:${error.details.eventSlug}`, personProfile: false },
-          )
-        }
-        return json(
-          {
-            error: error.publicMessage,
-            code: error.code,
-            ...(error.details || {}),
-          },
-          error.status,
-        )
-      }
-      throw error
-    }
-
-    // Eager, best-effort, post-commit (STEP 7.15e). `result.photo` is only
-    // ever populated once the transaction has committed — including the
-    // idempotent-retry branch, which returns the SAME already-committed
-    // Photo. Calling this unconditionally (not only when `!idempotent`) is
-    // deliberate: a retry after a first-attempt generation failure gets
-    // another chance for free, and a retry after success costs only one
-    // Blob `head` thanks to the ensure-mode cache-HIT path.
-    //
-    // result.sourceBuffer (STEP 7.15g) is the exact buffer already fetched
-    // and validated during completion — present only on a fresh (non-
-    // idempotent) success, undefined on the idempotent path, in which case
-    // this falls back to its own fetch exactly as before.
-    await ensurePhotoDisplayDerivative(result.photo, { operation: 'completeUpload', sourceBuffer: result.sourceBuffer })
-
-    const repository = await getGalleryRepository()
-    const freshEvent = await repository.getEventBySlug(result.eventSlug)
-
-    return json(
-      {
-        // normalizePhotoRecord strips server-only attribution metadata
-        // (uploadActorType) before this reaches the client — parity with
-        // the local-upload path, where repository.createPhoto() already
-        // normalizes its return value the same way.
-        photo: normalizePhotoRecord(result.photo),
-        event: freshEvent,
-        idempotent: result.idempotent,
-      },
-      result.idempotent ? 200 : 201,
-    )
-  }
-
-  // ── Local (chunked) upload path ───────────────────────────────────────────
-  const repository = await getGalleryRepository()
-  const prisma = await getPrismaClient()
-
-  const payload = localUploadCompleteSchema.parse(body)
-  let fileResult
-  try {
-    fileResult = await localStorageDriver.completeUploadSession({
-      sessionId: payload.sessionId,
-      uploadToken: payload.uploadToken,
-      photoId: randomUUID(),
-    })
-  } catch (error) {
-    if (error instanceof UploadTokenMismatchError) {
-      return json({ error: 'Invalid upload session' }, 403)
-    }
-    throw error
-  }
-
-  const event = await repository.getEventBySlug(fileResult.eventSlug)
-
-  if (!event) {
-    return json({ error: 'Event not found while finalizing upload' }, 404)
-  }
-
-  // Final guard: enforce photo limit for Free rooms
-  if (prisma) {
-    const entitlement = await checkRoomUploadEntitlement(prisma, event)
-    if (!entitlement.allowed) {
-      trackServerEvent(
-        EVENT_FREE_PHOTO_LIMIT_HIT,
-        {
-          room_slug: event.slug,
-          event_id: event.id,
-          current_photos: entitlement.current,
-          limit: entitlement.max,
-        },
-        { distinctId: `room:${event.slug}`, personProfile: false }
-      )
-      return json({
-        error: `This room has reached its ${entitlement.max}-photo limit.`,
-        limit: 'photo_count',
-        current: entitlement.current,
-        max: entitlement.max,
-        upgradePath: entitlement.upgradePath,
-      }, 403)
-    }
-  }
-
-  // Source-integrity validation (STEP 7.15g) — parity with the Blob path.
-  // Reads the just-assembled file exactly once; reused below for eager
-  // display generation instead of a second read. Dev-only in practice
-  // (localStorageDriver refuses to run under VERCEL), but the same
-  // content-integrity contract applies here as on the Blob path.
-  let localSourceBuffer
-  try {
-    localSourceBuffer = await getPhotoBuffer(fileResult.url)
-  } catch {
-    return json({ error: 'Upload service is temporarily unavailable.', code: 'image_validation_unavailable' }, 503)
-  }
-
-  let validatedLocalSource
-  try {
-    validatedLocalSource = await validateRoomPhotoSource(localSourceBuffer, { declaredMimeType: fileResult.mimeType })
-  } catch (error) {
-    if (error instanceof PhotoSourceValidationError) {
-      const code = error.code === 'IMAGE_CONTENT_TYPE_MISMATCH' ? 'image_content_type_mismatch' : 'invalid_image_content'
-      return json({ error: 'This file could not be processed as an image.', code }, 422)
-    }
-    throw error
-  }
-
-  const photo = await repository.createPhoto({
-    eventId: event.id,
-    originalName: fileResult.originalName,
-    storedName: fileResult.storedName,
-    mimeType: validatedLocalSource.actualMimeType,
-    size: validatedLocalSource.size,
-    url: fileResult.url,
-    uploaderName: payload.uploaderName,
-    caption: payload.caption,
-    momentId: payload.momentId || undefined,
-    // Unlike uploaderName/caption/momentId above, contributorId is read
-    // exclusively from the session (fileResult, sourced from meta.json at
-    // init time) — never from this complete-request body — for parity with
-    // the Vercel Blob path's session-authoritative contract.
-    contributorId: fileResult.contributorId,
-    // Same session-authoritative contract as contributorId: uploadActorType
-    // was resolved server-side at init time and must never be re-derived or
-    // accepted from this completion request body.
-    uploadActorType: fileResult.uploadActorType,
-  })
-
-  // Eager, best-effort, post-commit (STEP 7.15e) — parity with the Blob path.
-  // `createPhoto` has already resolved successfully above, so `photo.id`/
-  // `photo.url` are for a durably-committed row. Reuses the same buffer
-  // already fetched and validated above — no second read.
-  await ensurePhotoDisplayDerivative(photo, { operation: 'completeUpload', sourceBuffer: localSourceBuffer })
-
-  const freshEvent = await repository.getEventBySlug(event.slug)
-
-  return json({
-    photo,
-    event: freshEvent,
-  }, 201)
-})
 
 const listPrivateDeliveryAssets = async (request, slug) => {
   const ownerEmail = await requireOwner(request)
@@ -1803,7 +1219,7 @@ const initPrivateDeliveryUpload = async (request, slug) => {
 }
 
 const issuePrivateDeliveryBlobToken = async (request) => {
-  return issueBlobUploadToken(request)
+  return handleBlobUploadTokenRequest(request)
 }
 
 const completePrivateDeliveryUpload = async (request, slug) => {
@@ -2378,7 +1794,7 @@ const initPhotographerUpload = async (request, token) => {
 }
 
 const issuePhotographerBlobToken = async (request) => {
-  return issueBlobUploadToken(request)
+  return handleBlobUploadTokenRequest(request)
 }
 
 const completePhotographerUpload = async (request, token) => {
@@ -3935,23 +3351,10 @@ async function handleRoute(request, { params }) {
       }
     }
 
-    if (segments[0] === 'uploads') {
-      if (segments.length === 2 && segments[1] === 'init' && method === 'POST') {
-        return initUpload(request)
-      }
-
-      if (segments.length === 2 && segments[1] === 'blob' && method === 'POST') {
-        return issueBlobUploadToken(request)
-      }
-
-      if (segments.length === 2 && segments[1] === 'chunk' && method === 'POST') {
-        return uploadChunk(request)
-      }
-
-      if (segments.length === 2 && segments[1] === 'complete' && method === 'POST') {
-        return completeUpload(request)
-      }
-    }
+    // NOTE: /uploads/init, /uploads/blob, /uploads/chunk, /uploads/complete
+    // were extracted to discrete handlers — see app/api/uploads/*/route.js.
+    // Next.js prefers the static route over this catch-all, so requests to
+    // those paths never reach here; kept out of this dispatcher entirely.
 
     return json({ error: `Route /${segments.join('/')} not found` }, 404)
   } catch (error) {

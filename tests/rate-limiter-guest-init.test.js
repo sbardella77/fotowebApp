@@ -117,7 +117,7 @@ afterEach(() => {
 })
 
 async function doInit(body = INIT_PAYLOAD, { ip = IP } = {}) {
-  const { POST } = await import('@/app/api/[[...path]]/route')
+  const { POST } = await import('@/app/api/uploads/init/route')
   return POST(makeRequest(body, { ip }), { params: { path: ['uploads', 'init'] } })
 }
 

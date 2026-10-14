@@ -10,7 +10,18 @@ import { resolve } from 'path'
 // coverage in tests/stripe-webhook-*.test.js — this file must not weaken or
 // duplicate that, only prove the identity contract at each call site).
 
-const ROUTE = readFileSync(resolve(import.meta.dirname, '..', 'app/api/[[...path]]/route.js'), 'utf8')
+// ROUTE spans the legacy catch-all plus every discrete route handler it has
+// been split into so far (app/api/uploads/*/route.js) — the static identity
+// contract checked below applies to this code wherever it now lives, not to
+// one specific file.
+const ROUTE = [
+  readFileSync(resolve(import.meta.dirname, '..', 'app/api/[[...path]]/route.js'), 'utf8'),
+  readFileSync(resolve(import.meta.dirname, '..', 'app/api/uploads/init/route.js'), 'utf8'),
+  readFileSync(resolve(import.meta.dirname, '..', 'app/api/uploads/blob/route.js'), 'utf8'),
+  readFileSync(resolve(import.meta.dirname, '..', 'app/api/uploads/chunk/route.js'), 'utf8'),
+  readFileSync(resolve(import.meta.dirname, '..', 'app/api/uploads/complete/route.js'), 'utf8'),
+  readFileSync(resolve(import.meta.dirname, '..', 'lib/server/blob-upload-token-route.js'), 'utf8'),
+].join('\n')
 const WEBHOOK = readFileSync(resolve(import.meta.dirname, '..', 'app/api/stripe/webhook/route.js'), 'utf8')
 const CHECKOUT = readFileSync(resolve(import.meta.dirname, '..', 'app/api/stripe/checkout-session/route.js'), 'utf8')
 const UNLOCK = readFileSync(resolve(import.meta.dirname, '..', 'app/api/stripe/unlock-download/route.js'), 'utf8')

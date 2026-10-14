@@ -76,7 +76,7 @@ vi.mock('@/lib/server/download-utils', () => ({
   getPhotoBuffer: vi.fn().mockResolvedValue(Buffer.from('source-bytes')),
 }))
 
-import { POST } from '@/app/api/[[...path]]/route'
+import { POST } from '@/app/api/uploads/complete/route'
 import { getGalleryRepository } from '@/lib/server/gallery-repository'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { getStorageDriver, localStorageDriver } from '@/lib/server/storage'
