@@ -119,7 +119,7 @@ afterEach(() => {
 })
 
 async function doComplete(body = { sessionId: SESSION_ID }, { ip = IP } = {}) {
-  const { POST } = await import('@/app/api/[[...path]]/route')
+  const { POST } = await import('@/app/api/uploads/complete/route')
   return POST(makeRequest(body, { ip }), { params: { path: ['uploads', 'complete'] } })
 }
 

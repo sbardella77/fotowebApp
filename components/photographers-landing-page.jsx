@@ -26,6 +26,8 @@ import { PhoneMockup } from '@/components/marketing/phone-mockup'
 import { TrustStrip } from '@/components/marketing/trust-strip'
 import { HowItWorks } from '@/components/marketing/how-it-works'
 import { SectionHeader } from '@/components/marketing/section-header'
+import { LandingCrossLinkSection } from '@/components/marketing/landing-cross-link-section'
+import { LandingFinalCtaSimple } from '@/components/marketing/landing-final-cta-simple'
 import { useScrollReveal } from '@/lib/hooks/use-scroll-reveal'
 import { useCreateEventForm } from '@/lib/hooks/use-create-event-form'
 
@@ -362,83 +364,37 @@ export function PhotographersLandingPage({ locale }) {
       </section>
 
       {/* Cross-link — other ways to use SnapRooms */}
-      <section className="border-t border-border py-20 sm:py-28">
-        <div className="container px-4">
-          <div className="reveal"><SectionHeader label={t.crossLabel} title={t.crossTitle} /></div>
-          <div className="mx-auto mt-12 grid max-w-2xl gap-4 sm:grid-cols-2">
-            {[
-              {
-                href: localizedPath(locale, '/wedding-photo-sharing'),
-                icon: Heart,
-                title: tLanding.weddings,
-                desc: tLanding.weddingsDesc,
-                photoSrc: '/marketing-placeholder/wedding-couple-card.jpg',
-              },
-              {
-                href: localizedPath(locale, '/for-event-planners'),
-                icon: Users,
-                title: nav.forPlanners,
-                desc: tLanding.plannersCardDesc,
-                photoSrc: '/marketing-placeholder/usecase-planner-card.jpg',
-              },
-            ].map((item, i) => (
-              <a
-                key={item.href}
-                href={item.href}
-                className="reveal group relative flex min-h-[220px] flex-col justify-end overflow-hidden rounded-2xl border border-border shadow-subtle transition-all duration-300 hover:-translate-y-1 hover:shadow-elevated"
-                style={{ transitionDelay: `${i * 70}ms` }}
-              >
-                <Image
-                  src={item.photoSrc}
-                  alt=""
-                  fill
-                  sizes="(min-width: 640px) 50vw, 100vw"
-                  className="object-cover transition-transform duration-500 group-hover:scale-105"
-                />
-                <div
-                  className="absolute inset-0"
-                  aria-hidden="true"
-                  style={{ background: 'linear-gradient(180deg, transparent 30%, hsl(0 0% 8% / 0.75) 100%)' }}
-                />
-                <div className="relative p-5">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15 backdrop-blur-sm">
-                    <item.icon className="h-4.5 w-4.5 text-white" aria-hidden="true" />
-                  </div>
-                  <h3 className="mt-3 font-display text-base font-bold tracking-tight text-white">{item.title}</h3>
-                  {item.desc && <p className="mt-1 text-xs text-white/80 leading-relaxed line-clamp-2">{item.desc}</p>}
-                  <span className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-semibold text-white">
-                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
-                  </span>
-                </div>
-              </a>
-            ))}
-          </div>
-        </div>
-      </section>
+      <LandingCrossLinkSection
+        label={t.crossLabel}
+        title={t.crossTitle}
+        items={[
+          {
+            href: localizedPath(locale, '/wedding-photo-sharing'),
+            icon: Heart,
+            title: tLanding.weddings,
+            desc: tLanding.weddingsDesc,
+            photoSrc: '/marketing-placeholder/wedding-couple-card.jpg',
+          },
+          {
+            href: localizedPath(locale, '/for-event-planners'),
+            icon: Users,
+            title: nav.forPlanners,
+            desc: tLanding.plannersCardDesc,
+            photoSrc: '/marketing-placeholder/usecase-planner-card.jpg',
+          },
+        ]}
+      />
 
       {/* Final CTA */}
-      <section className="relative py-24 sm:py-32">
-        <div className="container px-4">
-          <div className="mx-auto max-w-2xl text-center reveal">
-            <h2 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-              {t.finalTitle}
-            </h2>
-            <p className="mt-3 text-muted-foreground">
-              {t.finalDesc}
-            </p>
-            <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Button size="lg" className="cta-primary" asChild>
-                <a href={localizedPath(locale, '/')}>{t.finalCta}</a>
-              </Button>
-              <Button size="lg" variant="outline" className="border-border bg-transparent hover:bg-white/[0.03]" asChild>
-                <a href={localizedPath(locale, '/pricing')}>
-                  {t.viewPricing}
-                </a>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </section>
+      <LandingFinalCtaSimple
+        title={t.finalTitle}
+        desc={t.finalDesc}
+        primaryHref={localizedPath(locale, '/')}
+        primaryLabel={t.finalCta}
+        secondaryHref={localizedPath(locale, '/pricing')}
+        secondaryLabel={t.viewPricing}
+        sectionClassName="relative py-24 sm:py-32"
+      />
 
       <MarketingFooter />
     </div>

@@ -59,6 +59,7 @@ vi.mock('@/lib/server/gallery-repository', () => ({
 }))
 
 import { DELETE, PATCH } from '@/app/api/[[...path]]/route'
+import { DELETE as EVENT_SLUG_DELETE } from '@/app/api/events/[slug]/route'
 import { deletePhotoDerivatives, deletePhotoDerivativesBatch } from '@/lib/server/derivative-cleanup'
 import { deleteStoredFile } from '@/lib/server/storage'
 import { getGalleryRepository } from '@/lib/server/gallery-repository'
@@ -574,7 +575,11 @@ describe('§35 event delete uses an AUTHORITATIVE, untruncated id snapshot', () 
     })
     getGalleryRepository.mockResolvedValue(repository)
 
-    const response = await invoke(DELETE, managementRequest(`/events/${SLUG}`))
+    // DELETE /events/:slug (management-token path) was extracted to a
+    // discrete route (app/api/events/[slug]/route.js); it takes a `slug`
+    // param rather than the catch-all's `path` array, so it is invoked
+    // directly here instead of through the shared `invoke` helper.
+    const response = await EVENT_SLUG_DELETE(managementRequest(`/events/${SLUG}`), { params: { slug: SLUG } })
 
     expect(response.status).toBe(200)
     expect(repository.listPhotoIdsByEventId).toHaveBeenCalledWith(EVENT_ID)

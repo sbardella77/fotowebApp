@@ -197,7 +197,7 @@ describe('PUBLIC endpoints — unchanged Access-Control-* headers', () => {
   })
 
   it('POST /api/uploads/init keeps public CORS headers (even on 404)', async () => {
-    const { POST } = await import('@/app/api/[[...path]]/route')
+    const { POST } = await import('@/app/api/uploads/init/route')
     const response = await POST(
       makeRequest({ method: 'POST', body: { eventSlug: 'unknown-slug', fileName: 'a.jpg', fileSize: 100, mimeType: 'image/jpeg', totalChunks: 1 } }),
       { params: { path: ['uploads', 'init'] } },

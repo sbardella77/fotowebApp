@@ -515,28 +515,36 @@ describe('inertness — STEP 7.15d.3 narrows this to "exactly one reviewed calle
   // it as a shortcut.
   const productSources = async () => {
     const { readFileSync, readdirSync, statSync } = await import('fs')
-    const { join, resolve } = await import('path')
+    const { join, resolve, relative } = await import('path')
 
-    const roots = ['app', 'lib', 'components', 'hooks'].map((d) => resolve(import.meta.dirname, '..', d))
+    const repoRoot = resolve(import.meta.dirname, '..')
+    const roots = ['app', 'lib', 'components', 'hooks'].map((d) => resolve(repoRoot, d))
     const found = []
     const walk = (dir) => {
       for (const entry of readdirSync(dir)) {
         const p = join(dir, entry)
         if (statSync(p).isDirectory()) walk(p)
-        else if (/\.(js|jsx)$/.test(entry)) found.push({ path: p, src: readFileSync(p, 'utf8') })
+        else if (/\.(js|jsx)$/.test(entry)) found.push({ path: relative(repoRoot, p), src: readFileSync(p, 'utf8') })
       }
     }
     roots.forEach(walk)
     return found
   }
 
-  it('the only product caller of listPhotoSourcesByEventId is the catch-all route', async () => {
+  it('the only product callers of listPhotoSourcesByEventId are the event-delete code paths', async () => {
     const callers = (await productSources())
       .filter(({ path }) => !/prisma-gallery-repository\.js$|mock-db\.js$/.test(path))
       .filter(({ src }) => /listPhotoSourcesByEventId/.test(src))
-      .map(({ path }) => path.split('/').slice(-4).join('/'))
+      .map(({ path }) => path)
+      .sort()
 
-    expect(callers).toEqual(['app/api/[[...path]]/route.js'])
+    // deleteEvent (the reviewed cutover) moved from the catch-all into
+    // lib/server/event-routes.js, shared by the discrete DELETE
+    // /events/:slug route and the admin-session delete path. The owner
+    // dashboard's deleteOwnerEvent (its own, separately-reviewed cutover)
+    // still lives in the catch-all and does its own pre-commit snapshot the
+    // same way — no other caller exists anywhere else in the app.
+    expect(callers).toEqual(['app/api/[[...path]]/route.js', 'lib/server/event-routes.js'])
   })
 
   it('neither repository logs a source url', async () => {

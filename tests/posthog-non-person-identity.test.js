@@ -10,7 +10,19 @@ import { resolve } from 'path'
 // documented $process_person_profile:false mechanism (confirmed supported
 // by the installed posthog-node SDK — see lib/analytics/track-server.js).
 
-const ROUTE = readFileSync(resolve(import.meta.dirname, '..', 'app/api/[[...path]]/route.js'), 'utf8')
+// ROUTE spans the legacy catch-all plus every discrete route handler it has
+// been split into so far (app/api/uploads/*/route.js) — the static
+// distinctId/personProfile contract checked below applies to this code
+// wherever it now lives, not to one specific file.
+const ROUTE = [
+  readFileSync(resolve(import.meta.dirname, '..', 'app/api/[[...path]]/route.js'), 'utf8'),
+  readFileSync(resolve(import.meta.dirname, '..', 'app/api/uploads/init/route.js'), 'utf8'),
+  readFileSync(resolve(import.meta.dirname, '..', 'app/api/uploads/blob/route.js'), 'utf8'),
+  readFileSync(resolve(import.meta.dirname, '..', 'app/api/uploads/chunk/route.js'), 'utf8'),
+  readFileSync(resolve(import.meta.dirname, '..', 'app/api/uploads/complete/route.js'), 'utf8'),
+  readFileSync(resolve(import.meta.dirname, '..', 'lib/server/blob-upload-token-route.js'), 'utf8'),
+  readFileSync(resolve(import.meta.dirname, '..', 'lib/server/event-routes.js'), 'utf8'),
+].join('\n')
 const WEBHOOK = readFileSync(resolve(import.meta.dirname, '..', 'app/api/stripe/webhook/route.js'), 'utf8')
 const UNLOCK = readFileSync(resolve(import.meta.dirname, '..', 'app/api/stripe/unlock-download/route.js'), 'utf8')
 const CHECKOUT = readFileSync(resolve(import.meta.dirname, '..', 'app/api/stripe/checkout-session/route.js'), 'utf8')
