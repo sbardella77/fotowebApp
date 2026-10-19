@@ -9,6 +9,9 @@ on:
 jobs:
   test-and-build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
 
     steps:
       - name: Checkout repository
@@ -31,3 +34,9 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Validate PR release scope
+        if: github.event_name == 'pull_request'
+        run: node scripts/check-pr-release-scope.mjs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
