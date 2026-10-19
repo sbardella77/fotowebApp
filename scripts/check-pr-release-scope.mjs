@@ -58,6 +58,38 @@ function fail(message) {
 }
 
 /**
+ * Parse `gh api --paginate --jq '.[] | {...}'` output into an array of
+ * objects.
+ *
+ * `--paginate` fetches every page of the PR's changed-files list, but
+ * applies the `--jq` filter to EACH page separately and concatenates the
+ * raw text output across pages. A `--jq` filter that wraps results in an
+ * array (e.g. `'[.[] | {...}]'`) therefore produces multiple separate
+ * JSON array literals concatenated back-to-back for any PR spanning more
+ * than one page (100+ changed files) — which is not valid JSON and would
+ * throw on `JSON.parse`. This script instead uses an unwrapped `--jq`
+ * filter (one JSON object per line, effectively NDJSON), which
+ * concatenates safely across any number of pages: each line is parsed
+ * independently here.
+ *
+ * Fails closed: any unparsable line fails the whole batch rather than
+ * silently skipping it.
+ */
+export function parseGhApiNdjsonOutput(raw) {
+  if (typeof raw !== 'string') return null
+  const lines = raw.split('\n').map((line) => line.trim()).filter(Boolean)
+  const parsed = []
+  for (const line of lines) {
+    try {
+      parsed.push(JSON.parse(line))
+    } catch {
+      return null
+    }
+  }
+  return parsed
+}
+
+/**
  * Parse a unified-diff patch (as returned by GitHub's PR-files API, which
  * omits the `--- a/`/`+++ b/` file headers) into just its changed lines.
  * Context lines (leading space) and hunk headers (`@@ ... @@`) are
@@ -70,6 +102,14 @@ export function parsePatchChangedLines(patch) {
     .filter((line) => line.startsWith('+') || line.startsWith('-'))
     .filter((line) => !line.startsWith('+++') && !line.startsWith('---'))
     .map((line) => ({ marker: line[0], content: line.slice(1).trim() }))
+}
+
+/**
+ * Whether a single path string falls inside the default-deny policy.
+ * Treats a missing/empty path as non-offending (nothing to flag).
+ */
+export function isPathOffending(path) {
+  return typeof path === 'string' && path.length > 0 && OFFENDER_PATTERN.test(path)
 }
 
 /**
@@ -104,24 +144,38 @@ export function evaluateException(filename, patch) {
 
 /**
  * Pure decision function: given the PR's changed files (each with its
- * filename and patch text, exactly as GitHub's API reports them), decide
- * whether the PR passes release-scope validation.
+ * filename, previous filename when renamed, and patch text, exactly as
+ * GitHub's API reports them), decide whether the PR passes release-scope
+ * validation.
  *
- * @param {{filename: string, patch?: string}[]} filesWithPatches
+ * Checks BOTH `filename` (the file's current/new path) and
+ * `previous_filename` (its path before a rename, when present) against
+ * the default-deny pattern. Without this, a PR could rename a sensitive
+ * file (e.g. app/api/stripe/webhook/route.js) to a non-matching path
+ * while also modifying its contents — the new `filename` alone would
+ * never trigger the denylist, letting arbitrary changes to that file's
+ * logic bypass the guard entirely. Any exception is still evaluated
+ * against the file's *current* path only, so a rename-away never
+ * incidentally inherits an exception meant for the original path.
+ *
+ * @param {{filename: string, previous_filename?: string, patch?: string}[]} filesWithPatches
  * @returns {{ ok: boolean, offenders: string[], exceptions: string[] }}
  */
 export function evaluateFiles(filesWithPatches) {
   const offenders = []
   const exceptionsUsed = []
 
-  for (const { filename, patch } of filesWithPatches) {
-    if (!OFFENDER_PATTERN.test(filename)) continue
+  for (const { filename, previous_filename: previousFilename, patch } of filesWithPatches) {
+    const touchesSensitivePath = isPathOffending(filename) || isPathOffending(previousFilename)
+    if (!touchesSensitivePath) continue
 
     const { allowed, reason } = evaluateException(filename, patch)
     if (allowed) {
       exceptionsUsed.push(`${filename} (${reason})`)
     } else {
-      offenders.push(`${filename} — ${reason}`)
+      const renameNote =
+        previousFilename && previousFilename !== filename ? ` (renamed from ${previousFilename})` : ''
+      offenders.push(`${filename}${renameNote} — ${reason}`)
     }
   }
 
@@ -150,21 +204,19 @@ function main() {
   let raw
   try {
     raw = execSync(
-      `gh api repos/${repo}/pulls/${prNumber}/files --paginate --jq '[.[] | {filename: .filename, patch: .patch}]'`,
+      `gh api repos/${repo}/pulls/${prNumber}/files --paginate --jq '.[] | {filename: .filename, previous_filename: .previous_filename, patch: .patch}'`,
       { encoding: 'utf8', maxBuffer: 1024 * 1024 * 16 }
     )
   } catch (e) {
     return fail(`gh api call for PR changed files failed: ${e.message}`)
   }
 
-  let filesWithPatches
-  try {
-    filesWithPatches = JSON.parse(raw)
-  } catch (e) {
-    return fail(`could not parse gh api response as JSON: ${e.message}`)
+  const filesWithPatches = parseGhApiNdjsonOutput(raw)
+  if (filesWithPatches === null) {
+    return fail('could not parse gh api response (malformed line in paginated output) — fails closed')
   }
 
-  if (!Array.isArray(filesWithPatches) || filesWithPatches.length === 0) {
+  if (filesWithPatches.length === 0) {
     return fail('GitHub API returned zero changed files for this PR — cannot authoritatively validate scope')
   }
 

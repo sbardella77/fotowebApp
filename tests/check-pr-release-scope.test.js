@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest'
 import {
   OFFENDER_PATTERN,
   PATH_DIFF_EXCEPTIONS,
+  isPathOffending,
   parsePatchChangedLines,
+  parseGhApiNdjsonOutput,
   evaluateException,
   evaluateFiles,
 } from '../scripts/check-pr-release-scope.mjs'
@@ -150,5 +152,158 @@ describe('evaluateFiles — end-to-end PR scope decision', () => {
 describe('PATH_DIFF_EXCEPTIONS contract', () => {
   it('currently defines exactly one exception, scoped to the Stripe webhook file', () => {
     expect(Object.keys(PATH_DIFF_EXCEPTIONS)).toEqual([WEBHOOK_PATH])
+  })
+})
+
+describe('isPathOffending', () => {
+  it('flags sensitive paths and treats missing/empty paths as non-offending', () => {
+    expect(isPathOffending(WEBHOOK_PATH)).toBe(true)
+    expect(isPathOffending('lib/analytics/sanitize-url.js')).toBe(false)
+    expect(isPathOffending(undefined)).toBe(false)
+    expect(isPathOffending(null)).toBe(false)
+    expect(isPathOffending('')).toBe(false)
+  })
+})
+
+describe('rename bypass (CI-GOV-001 finding, CI-GOV-002 fix)', () => {
+  it('REJECTS a PR that renames the Stripe webhook file to a non-matching path while changing its contents — the rename itself must not bypass the default-deny policy', () => {
+    const files = [
+      {
+        filename: 'lib/payment-handler.js',
+        previous_filename: WEBHOOK_PATH,
+        patch: '-  if (verifySignature(req)) {\n+  // signature check removed\n+  if (true) {',
+      },
+    ]
+    const result = evaluateFiles(files)
+    expect(result.ok).toBe(false)
+    expect(result.offenders[0]).toContain('lib/payment-handler.js')
+    expect(result.offenders[0]).toContain(`renamed from ${WEBHOOK_PATH}`)
+  })
+
+  it('REJECTS a rename-away even when the new path alone would look completely innocuous', () => {
+    const files = [
+      {
+        filename: 'components/totally-unrelated-component.jsx',
+        previous_filename: 'prisma/schema.prisma',
+        patch: '+model Backdoor { id String @id }',
+      },
+    ]
+    expect(evaluateFiles(files).ok).toBe(false)
+  })
+
+  it('a rename-away does NOT inherit the webhook file\'s exception just because the content happens to match', () => {
+    const files = [
+      {
+        filename: 'lib/renamed-webhook.js',
+        previous_filename: WEBHOOK_PATH,
+        patch: '-stripe_customer_id: session.customer,',
+      },
+    ]
+    const result = evaluateFiles(files)
+    expect(result.ok).toBe(false)
+    expect(result.offenders[0]).toContain('no exception is defined for lib/renamed-webhook.js')
+  })
+
+  it('still ALLOWS the approved exception when filename and previous_filename are the same (no rename, ordinary edit)', () => {
+    const files = [{ filename: WEBHOOK_PATH, previous_filename: WEBHOOK_PATH, patch: '-stripe_customer_id: session.customer,' }]
+    expect(evaluateFiles(files).ok).toBe(true)
+  })
+
+  it('correctly flags a rename INTO a sensitive path even with no previous_filename match', () => {
+    const files = [{ filename: WEBHOOK_PATH, previous_filename: 'lib/old-handler.js', patch: '+amount_total: 0,' }]
+    const result = evaluateFiles(files)
+    expect(result.ok).toBe(false)
+  })
+})
+
+describe('multi-page pagination parsing (CI-GOV-001 finding, CI-GOV-002 fix)', () => {
+  it('parses NDJSON-style output (one JSON object per line) correctly', () => {
+    const raw = [
+      '{"filename":"lib/a.js","patch":"+x"}',
+      '{"filename":"lib/b.js","patch":"+y"}',
+    ].join('\n')
+    expect(parseGhApiNdjsonOutput(raw)).toEqual([
+      { filename: 'lib/a.js', patch: '+x' },
+      { filename: 'lib/b.js', patch: '+y' },
+    ])
+  })
+
+  it('handles output concatenated across multiple simulated API pages without throwing', () => {
+    // Simulates what `gh api --paginate --jq '.[] | {...}'` actually produces
+    // across two pages: each page's objects, one per line, concatenated.
+    const page1 = ['{"filename":"lib/a.js","patch":"+x"}', '{"filename":"lib/b.js","patch":"+y"}'].join('\n')
+    const page2 = ['{"filename":"lib/c.js","patch":"+z"}'].join('\n')
+    const raw = `${page1}\n${page2}\n`
+    const parsed = parseGhApiNdjsonOutput(raw)
+    expect(parsed).toHaveLength(3)
+    expect(parsed.map((f) => f.filename)).toEqual(['lib/a.js', 'lib/b.js', 'lib/c.js'])
+  })
+
+  it('fails closed (returns null) on a malformed/truncated line rather than silently dropping it', () => {
+    const raw = '{"filename":"lib/a.js","patch":"+x"}\n{"filename": truncated'
+    expect(parseGhApiNdjsonOutput(raw)).toBeNull()
+  })
+
+  it('fails closed on completely empty input by returning an empty array (caller treats zero files as a failure)', () => {
+    expect(parseGhApiNdjsonOutput('')).toEqual([])
+    expect(parseGhApiNdjsonOutput('   \n  \n')).toEqual([])
+  })
+
+  it('fails closed (null) on non-string input', () => {
+    expect(parseGhApiNdjsonOutput(undefined)).toBeNull()
+    expect(parseGhApiNdjsonOutput(null)).toBeNull()
+  })
+
+  it('demonstrates the OLD array-wrapped jq approach would have broken on multi-page output (regression context, not a call into production code)', () => {
+    const page1Array = '[{"filename":"lib/a.js"}]'
+    const page2Array = '[{"filename":"lib/b.js"}]'
+    const oldStyleConcatenated = page1Array + page2Array
+    expect(() => JSON.parse(oldStyleConcatenated)).toThrow()
+  })
+})
+
+describe('malicious/adversarial diff shapes (CI-GOV-002 security regression tests)', () => {
+  it('REJECTS a diff that adds a webhook-signature bypass disguised alongside the approved removal', () => {
+    const files = [
+      {
+        filename: WEBHOOK_PATH,
+        patch: [
+          '-        stripe_customer_id: session.customer,',
+          '+        stripe_customer_id: session.customer, // TODO remove',
+        ].join('\n'),
+      },
+    ]
+    expect(evaluateFiles(files).ok).toBe(false)
+  })
+
+  it('REJECTS a diff that duplicates the approved removal many times interspersed with one unauthorized addition', () => {
+    const lines = []
+    for (let i = 0; i < 20; i++) lines.push('-stripe_customer_id: session.customer,')
+    lines.splice(10, 0, '+adminOverride: true,')
+    const files = [{ filename: WEBHOOK_PATH, patch: lines.join('\n') }]
+    expect(evaluateFiles(files).ok).toBe(false)
+  })
+
+  it('REJECTS when previous_filename is present but filename/previous_filename are swapped by a malformed API response (defensive: still checks both fields independently)', () => {
+    const files = [
+      { filename: 'app/api/stripe/webhook/route.js', previous_filename: 'app/api/stripe/webhook/route.js', patch: '+anything' },
+    ]
+    expect(evaluateFiles(files).ok).toBe(false)
+  })
+
+  it('does not let an unrelated file borrow the webhook exception by claiming a fake previous_filename', () => {
+    const files = [
+      {
+        filename: 'lib/innocuous.js',
+        previous_filename: 'lib/also-innocuous.js',
+        patch: '-stripe_customer_id: session.customer,',
+      },
+    ]
+    // Neither filename nor previous_filename is offending, so this file is
+    // skipped entirely (not an offender, not exception-evaluated) — correct,
+    // since it never touched a sensitive path in the first place.
+    const result = evaluateFiles(files)
+    expect(result.ok).toBe(true)
+    expect(result.exceptions).toEqual([])
   })
 })
