@@ -1,0 +1,46 @@
+name: Release Scope Guard
+
+# Deliberately a separate workflow from ci.yml, triggered by
+# pull_request_target rather than pull_request.
+#
+# pull_request_target runs with the BASE branch's workflow file and, by
+# default, checks out the BASE branch's code — not the PR's own, possibly
+# modified, copy of scripts/check-pr-release-scope.mjs. This is pinned
+# explicitly below (ref: base.sha) rather than left implicit, so a PR
+# cannot weaken or bypass this guard by editing the very script that
+# enforces it: the script that actually runs here is always the
+# repository-owner-reviewed version, never whatever a PR proposes.
+#
+# The job still evaluates the PR's real, current diff — it does so via
+# the GitHub API (PR files + patch content), which reports the PR's
+# actual changes regardless of what is or isn't checked out locally.
+#
+# This job intentionally has no write permissions and never executes any
+# code from the PR branch itself.
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout base branch only (never the PR's own code)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Validate PR release scope
+        run: node scripts/check-pr-release-scope.mjs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
