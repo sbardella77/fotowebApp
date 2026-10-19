@@ -39,6 +39,29 @@ describe('PostHog privacy-minimization config contract (GEO-PRIVACY-003)', () =>
   })
 })
 
+describe('PostHog hook integration contract (GEO-PRIVACY-003C)', () => {
+  const source = read('lib/analytics/posthog-client.js')
+
+  it('retains sanitize_properties rather than migrating to before_send, with the decision documented', () => {
+    expect(source).toContain('sanitize_properties:')
+    expect(source).not.toMatch(/\bbefore_send\s*:/)
+    expect(source).toMatch(/deprecat/i)
+    expect(source).toMatch(/\$set_once/)
+  })
+
+  it('the sanitizer module now also covers $initial_referrer', () => {
+    const sanitizeSource = read('lib/analytics/sanitize-url.js')
+    expect(sanitizeSource).toContain('$initial_referrer')
+    expect(sanitizeSource).toContain('$current_url')
+    expect(sanitizeSource).toContain('$referrer')
+  })
+
+  it('$initial_referring_domain is explicitly documented as intentionally untouched, not silently omitted', () => {
+    const sanitizeSource = read('lib/analytics/sanitize-url.js')
+    expect(sanitizeSource).toMatch(/\$initial_referring_domain[\s\S]{0,400}(hostname|NOT)/i)
+  })
+})
+
 describe('explicit funnel tracking call sites are unchanged (GEO-PRIVACY-003 must not affect measurement)', () => {
   const source = read('lib/analytics/track-client.js')
 
