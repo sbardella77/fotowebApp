@@ -77,16 +77,8 @@ describe('explicit funnel tracking call sites are unchanged (GEO-PRIVACY-003 mus
   })
 })
 
-describe('no out-of-scope code was touched (GEO-PRIVACY-003 validation rule 4)', () => {
-  it('no Stripe, database, auth, or event-photo files appear in the diff against origin/main', () => {
-    const { execSync } = require('child_process')
-    // Compares the working tree (committed or not) against origin/main, so
-    // this holds true whether or not the current changes are committed yet.
-    const diff = execSync('git diff --name-only origin/main', { cwd: ROOT, encoding: 'utf8' })
-    const files = diff.split('\n').filter(Boolean)
-    const offenders = files.filter((f) =>
-      /stripe|prisma|schema\.prisma|app\/api\/events|app\/event\/|app\/dashboard\/login|password/i.test(f)
-    )
-    expect(offenders).toEqual([])
-  })
-})
+// Release-scope validation (GEO-PRIVACY-003 validation rule 4) previously lived
+// here as a `git diff --name-only origin/main` check, but that ref is not
+// guaranteed to exist in every checkout (e.g. GitHub Actions' default clone).
+// It now runs as a pre-merge CI step (scripts/check-pr-release-scope.mjs)
+// against the GitHub API's authoritative PR changed-files list instead.
