@@ -3,6 +3,9 @@ import { notFound } from 'next/navigation'
 import { LOCALES } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/utils'
 import { normalizePricingPlanParam } from '@/lib/pricing-deep-link'
+import { JsonLd } from '@/lib/structured-data/json-ld'
+import { getMarketingPageGraph } from '@/lib/structured-data/page-graph'
+import { collectFaqPairs } from '@/lib/structured-data/faq'
 
 export async function generateMetadata({ params }) {
   const { locale } = params
@@ -35,5 +38,18 @@ export default function Pricing({ params, searchParams }) {
   const highlightPlan = normalizePricingPlanParam(searchParams?.plan)
   const eventSlug = searchParams?.eventSlug || null
   const billingInterval = searchParams?.billing === 'annual' ? 'annual' : null
-  return <PricingPage locale={locale} fromDashboard={fromDashboard} highlightPlan={highlightPlan} eventSlug={eventSlug} billingInterval={billingInterval} />
+  const t = getDictionary(locale)
+  const graph = getMarketingPageGraph({
+    locale,
+    path: '/pricing',
+    name: t.pricing.title + ' — SnapRooms',
+    description: t.pricing.description,
+    questions: collectFaqPairs(t.pricing, 'pricingFaq', 8),
+  })
+  return (
+    <>
+      <JsonLd data={graph} />
+      <PricingPage locale={locale} fromDashboard={fromDashboard} highlightPlan={highlightPlan} eventSlug={eventSlug} billingInterval={billingInterval} />
+    </>
+  )
 }
