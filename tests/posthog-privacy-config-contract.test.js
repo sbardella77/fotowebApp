@@ -34,8 +34,8 @@ describe('PostHog privacy-minimization config contract (GEO-PRIVACY-003)', () =>
     expect(source).not.toMatch(/people\.set_once|register_once|first_touch/i)
   })
 
-  it('no consent/opt-in/opt-out behavior was added', () => {
-    expect(source).not.toMatch(/opt_in_capturing|opt_out_capturing|has_opted_in|has_opted_out/)
+  it('consent-gated withdrawal (opt_out_capturing) now exists — PRIVACY-CONSENT-001B deliberately supersedes the earlier "no consent behavior" baseline captured here; see tests/analytics-consent-gate.test.js for full gating coverage', () => {
+    expect(source).toMatch(/opt_out_capturing\(\)/)
   })
 })
 
