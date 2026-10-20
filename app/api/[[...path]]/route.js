@@ -441,7 +441,7 @@ const initPrivateDeliveryUpload = async (request, slug) => {
 
   trackServerEvent(
     EVENT_PRIVATE_DELIVERY_UPLOAD_STARTED,
-    { room_slug: slug, file_name: payload.fileName, file_size: payload.fileSize },
+    { room_slug: slug, file_size: payload.fileSize },
     { distinctId: getOwnerAnalyticsId(event.ownerId), personProfile: true }
   )
 
@@ -1016,7 +1016,7 @@ const initPhotographerUpload = async (request, token) => {
 
   trackServerEvent(
     EVENT_PHOTOGRAPHER_UPLOAD_STARTED,
-    { room_slug: event.slug, file_name: payload.fileName, file_size: payload.fileSize },
+    { room_slug: event.slug, file_size: payload.fileSize },
     { distinctId: `room:${event.slug}`, personProfile: false }
   )
 

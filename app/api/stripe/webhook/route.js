@@ -302,7 +302,6 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
         event_id: eventId,
         room_slug: session.metadata?.roomSlug || null,
         stripe_session_id: session.id,
-        stripe_customer_id: session.customer,
       },
       // No Owner auth is required for this purchase (guest or owner) — never
       // fall back to session.customer_email here, only the opaque Stripe
@@ -322,7 +321,6 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
         event_id: eventId,
         room_slug: session.metadata?.roomSlug || null,
         stripe_session_id: session.id,
-        stripe_customer_id: session.customer,
       },
       // No Owner auth is required for this purchase (guest or owner) — never
       // fall back to session.customer_email here, only the opaque Stripe
@@ -510,7 +508,6 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
         event_id: eventId,
         room_slug: session.metadata?.roomSlug || null,
         stripe_session_id: session.id,
-        stripe_customer_id: session.customer,
       },
       { distinctId: getOwnerAnalyticsId(ownerId), personProfile: true }
     )
@@ -525,7 +522,6 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
         event_id: eventId,
         room_slug: session.metadata?.roomSlug || null,
         stripe_session_id: session.id,
-        stripe_customer_id: session.customer,
       },
       { distinctId: getOwnerAnalyticsId(ownerId), personProfile: true }
     )
@@ -627,7 +623,6 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
         billing_intent: intent,
         stripe_session_id: session.id,
         stripe_subscription_id: session.subscription,
-        stripe_customer_id: session.customer,
       },
       { distinctId: getOwnerAnalyticsId(owner.id), personProfile: true }
     )
@@ -641,7 +636,6 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
         source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
         stripe_session_id: session.id,
         stripe_subscription_id: session.subscription,
-        stripe_customer_id: session.customer,
       },
       { distinctId: getOwnerAnalyticsId(owner.id), personProfile: true }
     )
@@ -1753,7 +1747,6 @@ async function fulfillExtraFreeEventCredit({ prisma, session, ownerId, intent, s
       product_type: session.metadata?.productType || 'extra_free_event',
       restrictions: session.metadata?.restrictions || 'free_plan',
       stripe_session_id: session.id,
-      stripe_customer_id: session.customer,
       extra_event_credits: updatedOwner.extraEventCredits,
     },
     { distinctId: getOwnerAnalyticsId(ownerId), personProfile: true }
@@ -1769,7 +1762,6 @@ async function fulfillExtraFreeEventCredit({ prisma, session, ownerId, intent, s
       restrictions: session.metadata?.restrictions || 'free_plan',
       source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
       stripe_session_id: session.id,
-      stripe_customer_id: session.customer,
       extra_event_credits: updatedOwner.extraEventCredits,
     },
     { distinctId: getOwnerAnalyticsId(ownerId), personProfile: true }
