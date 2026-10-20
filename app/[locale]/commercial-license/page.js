@@ -2,6 +2,8 @@ import { CommercialLicensePage } from '@/components/commercial-license-page'
 import { notFound } from 'next/navigation'
 import { LOCALES } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/utils'
+import { JsonLd } from '@/lib/structured-data/json-ld'
+import { getMarketingPageGraph } from '@/lib/structured-data/page-graph'
 
 export async function generateMetadata({ params }) {
   const { locale } = params
@@ -28,5 +30,17 @@ export async function generateMetadata({ params }) {
 export default function CommercialLicense({ params }) {
   const { locale } = params
   if (!LOCALES.includes(locale)) notFound()
-  return <CommercialLicensePage locale={locale} />
+  const t = getDictionary(locale)
+  const graph = getMarketingPageGraph({
+    locale,
+    path: '/commercial-license',
+    name: t.meta.commercialTitle,
+    description: t.meta.commercialDescription,
+  })
+  return (
+    <>
+      <JsonLd data={graph} />
+      <CommercialLicensePage locale={locale} />
+    </>
+  )
 }

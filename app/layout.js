@@ -2,6 +2,7 @@ import './globals.css'
 import { Space_Grotesk, Inter, JetBrains_Mono } from 'next/font/google'
 import { cookies } from 'next/headers'
 import { AnalyticsProvider } from '@/components/analytics-provider'
+import { CookieConsentBanner } from '@/components/cookie-consent-banner'
 import { I18nProvider } from '@/components/i18n-provider'
 import { LocaleHtmlAttributes } from '@/components/locale-html-attributes'
 import { LOCALES, DEFAULT_LOCALE, LOCALE_COOKIE_NAME } from '@/lib/i18n/config'
@@ -74,6 +75,7 @@ function App({ children }) {
           <AnalyticsProvider>
             {children}
           </AnalyticsProvider>
+          <CookieConsentBanner />
         </I18nProvider>
       </body>
     </html>

@@ -2,6 +2,9 @@ import { CorporateLandingPage } from '@/components/corporate-landing-page'
 import { notFound } from 'next/navigation'
 import { LOCALES } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/utils'
+import { JsonLd } from '@/lib/structured-data/json-ld'
+import { getMarketingPageGraph } from '@/lib/structured-data/page-graph'
+import { collectFaqPairs } from '@/lib/structured-data/faq'
 
 export async function generateMetadata({ params }) {
   const { locale } = params
@@ -28,5 +31,18 @@ export async function generateMetadata({ params }) {
 export default function CorporateEventPhotoSharing({ params }) {
   const { locale } = params
   if (!LOCALES.includes(locale)) notFound()
-  return <CorporateLandingPage locale={locale} />
+  const t = getDictionary(locale)
+  const graph = getMarketingPageGraph({
+    locale,
+    path: '/corporate-event-photo-sharing',
+    name: t.meta.corporateTitle,
+    description: t.meta.corporateDescription,
+    questions: collectFaqPairs(t.corporate, 'faq', 6),
+  })
+  return (
+    <>
+      <JsonLd data={graph} />
+      <CorporateLandingPage locale={locale} />
+    </>
+  )
 }

@@ -302,15 +302,18 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
         event_id: eventId,
         room_slug: session.metadata?.roomSlug || null,
         stripe_session_id: session.id,
-        stripe_customer_id: session.customer,
       },
       // No Owner auth is required for this purchase (guest or owner) — never
-      // fall back to session.customer_email here, only the opaque Stripe
-      // customer id or the room's own eventId. No reliable Person exists
-      // for this branch, so this is captured as a non-person event —
+      // fall back to session.customer_email or the Stripe customer id here,
+      // only the room's own slug/eventId. A raw Stripe customer id would
+      // let PostHog link separate anonymous guest purchases together via
+      // distinctId even with personProfile:false (PRIVACY-SERVER-003A/B) —
+      // the room-scoped identifier gives the same within-room correlation
+      // without that cross-purchase linkage. No reliable Person exists for
+      // this branch, so this is captured as a non-person event —
       // $process_person_profile:false means this value can never become a
       // PostHog Person regardless.
-      { distinctId: session.customer || eventId, personProfile: false }
+      { distinctId: `room:${session.metadata?.roomSlug || eventId}`, personProfile: false }
     )
 
     trackServerEvent(
@@ -322,15 +325,18 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
         event_id: eventId,
         room_slug: session.metadata?.roomSlug || null,
         stripe_session_id: session.id,
-        stripe_customer_id: session.customer,
       },
       // No Owner auth is required for this purchase (guest or owner) — never
-      // fall back to session.customer_email here, only the opaque Stripe
-      // customer id or the room's own eventId. No reliable Person exists
-      // for this branch, so this is captured as a non-person event —
+      // fall back to session.customer_email or the Stripe customer id here,
+      // only the room's own slug/eventId. A raw Stripe customer id would
+      // let PostHog link separate anonymous guest purchases together via
+      // distinctId even with personProfile:false (PRIVACY-SERVER-003A/B) —
+      // the room-scoped identifier gives the same within-room correlation
+      // without that cross-purchase linkage. No reliable Person exists for
+      // this branch, so this is captured as a non-person event —
       // $process_person_profile:false means this value can never become a
       // PostHog Person regardless.
-      { distinctId: session.customer || eventId, personProfile: false }
+      { distinctId: `room:${session.metadata?.roomSlug || eventId}`, personProfile: false }
     )
 
     console.log(`[stripe/webhook] Event ${updatedEvent.slug} unlocked for original quality downloads`)
@@ -505,12 +511,10 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
     trackServerEvent(
       EVENT_CHECKOUT_COMPLETED,
       {
-        owner_id: ownerId,
         billing_intent: intent,
         event_id: eventId,
         room_slug: session.metadata?.roomSlug || null,
         stripe_session_id: session.id,
-        stripe_customer_id: session.customer,
       },
       { distinctId: getOwnerAnalyticsId(ownerId), personProfile: true }
     )
@@ -518,14 +522,12 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
     trackServerEvent(
       EVENT_UPSELL_CONVERSION,
       {
-        owner_id: ownerId,
         billing_intent: intent,
         upsell_type: session.metadata?.upsellType || intent,
         source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
         event_id: eventId,
         room_slug: session.metadata?.roomSlug || null,
         stripe_session_id: session.id,
-        stripe_customer_id: session.customer,
       },
       { distinctId: getOwnerAnalyticsId(ownerId), personProfile: true }
     )
@@ -623,11 +625,9 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
     trackServerEvent(
       EVENT_CHECKOUT_COMPLETED,
       {
-        owner_id: owner.id,
         billing_intent: intent,
         stripe_session_id: session.id,
         stripe_subscription_id: session.subscription,
-        stripe_customer_id: session.customer,
       },
       { distinctId: getOwnerAnalyticsId(owner.id), personProfile: true }
     )
@@ -635,13 +635,11 @@ async function handleCheckoutSessionCompleted({ event, prisma, attempt }) {
     trackServerEvent(
       EVENT_UPSELL_CONVERSION,
       {
-        owner_id: owner.id,
         billing_intent: intent,
         upsell_type: session.metadata?.upsellType || intent,
         source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
         stripe_session_id: session.id,
         stripe_subscription_id: session.subscription,
-        stripe_customer_id: session.customer,
       },
       { distinctId: getOwnerAnalyticsId(owner.id), personProfile: true }
     )
@@ -1748,12 +1746,10 @@ async function fulfillExtraFreeEventCredit({ prisma, session, ownerId, intent, s
   trackServerEvent(
     EVENT_CHECKOUT_COMPLETED,
     {
-      owner_id: ownerId,
       billing_intent: intent,
       product_type: session.metadata?.productType || 'extra_free_event',
       restrictions: session.metadata?.restrictions || 'free_plan',
       stripe_session_id: session.id,
-      stripe_customer_id: session.customer,
       extra_event_credits: updatedOwner.extraEventCredits,
     },
     { distinctId: getOwnerAnalyticsId(ownerId), personProfile: true }
@@ -1762,14 +1758,12 @@ async function fulfillExtraFreeEventCredit({ prisma, session, ownerId, intent, s
   trackServerEvent(
     EVENT_UPSELL_CONVERSION,
     {
-      owner_id: ownerId,
       billing_intent: intent,
       upsell_type: session.metadata?.upsellType || 'extra_event',
       product_type: session.metadata?.productType || 'extra_free_event',
       restrictions: session.metadata?.restrictions || 'free_plan',
       source: session.metadata?.upsellSource || session.metadata?.entryPoint || 'unknown',
       stripe_session_id: session.id,
-      stripe_customer_id: session.customer,
       extra_event_credits: updatedOwner.extraEventCredits,
     },
     { distinctId: getOwnerAnalyticsId(ownerId), personProfile: true }

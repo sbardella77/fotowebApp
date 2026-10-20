@@ -2,6 +2,8 @@ import { PhotographersLandingPage } from '@/components/photographers-landing-pag
 import { notFound } from 'next/navigation'
 import { LOCALES } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/utils'
+import { JsonLd } from '@/lib/structured-data/json-ld'
+import { getMarketingPageGraph } from '@/lib/structured-data/page-graph'
 
 export async function generateMetadata({ params }) {
   const { locale } = params
@@ -28,5 +30,17 @@ export async function generateMetadata({ params }) {
 export default function ForWeddingPhotographers({ params }) {
   const { locale } = params
   if (!LOCALES.includes(locale)) notFound()
-  return <PhotographersLandingPage locale={locale} />
+  const t = getDictionary(locale)
+  const graph = getMarketingPageGraph({
+    locale,
+    path: '/for-wedding-photographers',
+    name: t.meta.photographersTitle,
+    description: t.meta.photographersDescription,
+  })
+  return (
+    <>
+      <JsonLd data={graph} />
+      <PhotographersLandingPage locale={locale} />
+    </>
+  )
 }

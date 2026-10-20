@@ -2,6 +2,9 @@ import { BirthdayLandingPage } from '@/components/birthday-landing-page'
 import { notFound } from 'next/navigation'
 import { LOCALES } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/utils'
+import { JsonLd } from '@/lib/structured-data/json-ld'
+import { getMarketingPageGraph } from '@/lib/structured-data/page-graph'
+import { collectFaqPairs } from '@/lib/structured-data/faq'
 
 export async function generateMetadata({ params }) {
   const { locale } = params
@@ -28,5 +31,18 @@ export async function generateMetadata({ params }) {
 export default function BirthdayPhotoSharing({ params }) {
   const { locale } = params
   if (!LOCALES.includes(locale)) notFound()
-  return <BirthdayLandingPage locale={locale} />
+  const t = getDictionary(locale)
+  const graph = getMarketingPageGraph({
+    locale,
+    path: '/birthday-photo-sharing',
+    name: t.meta.birthdayTitle,
+    description: t.meta.birthdayDescription,
+    questions: collectFaqPairs(t.birthday, 'faq', 6),
+  })
+  return (
+    <>
+      <JsonLd data={graph} />
+      <BirthdayLandingPage locale={locale} />
+    </>
+  )
 }

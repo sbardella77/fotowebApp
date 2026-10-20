@@ -158,8 +158,14 @@ describe('6. guest browser events: no persistent guest identity is ever invented
 
 describe('7. Stripe guest purchase (high_quality_download, no Owner auth): no Stripe customer/session as Person', () => {
   it('the two guest-or-owner webhook call sites use personProfile:false', () => {
-    const matches = WEBHOOK.match(/distinctId: session\.customer \|\| eventId, personProfile: false/g) || []
+    // PRIVACY-SERVER-003B deliberately supersedes the original
+    // `session.customer || eventId` distinctId baseline: a raw Stripe
+    // Customer ID let PostHog link separate anonymous guest purchases
+    // together even under personProfile:false. It is now room-scoped
+    // instead — see tests/posthog-server-identifier-minimization.test.js.
+    const matches = WEBHOOK.match(/distinctId: `room:\$\{session\.metadata\?\.roomSlug \|\| eventId\}`, personProfile: false/g) || []
     expect(matches.length).toBe(2)
+    expect(WEBHOOK).not.toMatch(/distinctId:\s*session\.customer\b/)
   })
 
   it('unlock-download guest branch (no owner) uses a non-person room identity, not a Stripe id', () => {

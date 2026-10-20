@@ -4,6 +4,7 @@ import { useTranslations, useLocale } from '@/components/i18n-provider'
 import { localizedPath } from '@/lib/i18n/config'
 import { InstallCta } from '@/components/install-cta'
 import { SnapRoomsLogo } from '@/components/marketing/logo'
+import { OPEN_PREFERENCES_EVENT } from '@/components/cookie-consent-banner'
 
 export function MarketingFooter() {
   const t = useTranslations('footer')
@@ -52,6 +53,15 @@ export function MarketingFooter() {
               <ul className="mt-4 space-y-2.5">
                 <li><a href={localizedPath(locale, '/privacy')} className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.privacy}</a></li>
                 <li><a href={localizedPath(locale, '/terms')} className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.terms}</a></li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => window.dispatchEvent(new Event(OPEN_PREFERENCES_EVENT))}
+                    className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    {t.cookiePreferences}
+                  </button>
+                </li>
                 <li><a href="/dashboard/login" className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.organizerSignIn}</a></li>
               </ul>
             </div>
