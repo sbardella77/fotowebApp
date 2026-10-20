@@ -40,6 +40,8 @@ When a visitor rejects or withdraws consent, the client:
 
 **What is captured (confirmed from source, `lib/analytics/events.js`):** named product-usage events only (e.g. page views, button clicks), explicitly without PII in event names. Session Replay and autocapture are both explicitly disabled in the SDK configuration (`disable_session_recording: true`, `autocapture: false`) — this is a code-level guarantee independent of the PostHog project dashboard's own toggle state.
 
+**Identifier accuracy note:** this is pseudonymous, not anonymous, for signed-in Owners. `lib/analytics/track-client.js`'s `identifyUser()` is called on the Owner login path (confirmed in `app/dashboard/login/page-client.js`), which links the browser's PostHog events to a stable identifier (`owner:<Owner.id>`, from `lib/analytics/identity.js` — never email, but reversible to the Owner's account by anyone with access to both systems). Guests are not identified this way and remain on PostHog's own auto-generated technical ID.
+
 **What is NOT captured:** automatic screen recordings, automatic click-tracking of every DOM element, or any event not explicitly listed in `lib/analytics/events.js`.
 
 ---
