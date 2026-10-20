@@ -1,7 +1,8 @@
 # SnapRooms Cookie Policy
 
-> **Status:** Technical cookies only — no consent banner required today.  
-> **Last reviewed:** 2026-06-01
+> **Status:** Consent-gated analytics cookies are implemented (PRIVACY-CONSENT-001). Strictly necessary cookies continue to require no consent.
+> **Last reviewed:** 2026-10-20
+> **DPO/legal sign-off:** NOT YET OBTAINED — see §6. Treat every figure in this document marked "pending DPO verification" as provisional until confirmed by a qualified Data Protection Officer or counsel.
 
 ---
 
@@ -13,52 +14,56 @@
 | `snaprooms_owner_session` | Owner dashboard session | ✅ Yes | Yes | Production | `Lax` | `/` | 7 days | Server (login) |
 | `event_gallery_admin_session` | Admin session | ✅ Yes | Yes | Production | `Lax` | `/` | 7 days | Server (login) |
 | `sidebar_state` | Dashboard sidebar UI state | ✅ Yes | No | HTTPS only | `Lax` | `/` | 7 days | Client JS |
+| `snaprooms_cookie_consent` | Stores the visitor's analytics consent decision (`unknown`/`accepted`/`rejected`/`withdrawn`) | ✅ Yes (it is the consent record itself, not a tracking cookie) | No | HTTPS only | `Lax` | `/` | 395 days (pending DPO verification — see §2) | Client JS (`lib/consent/cookie.js`) |
+| PostHog persistence (`ph_<project-key>_posthog`) | PostHog's own analytics identifier/state, stored via `localStorage` and, per the installed SDK's default persistence mode, potentially also a cookie of the same name | ❌ No — only set after consent | No | Governed by the PostHog SDK, not configured by this app | Governed by the PostHog SDK | Governed by the PostHog SDK | Governed by PostHog's own default retention — **pending DPO verification, see §2** | PostHog SDK (`posthog-js`), loaded only after consent |
 
 **Cookies NOT present:**
 - `snaprooms_csrf` — not implemented (SameSite=Lax on session cookie provides baseline protection)
-- `snaprooms_cookie_consent` — not required today (no non-essential cookies)
 - `__vercel_toolbar` — Vercel tooling cookie; not set by application code
 
 ---
 
-## 2. Why No Banner Is Needed Today
+## 2. Consent Mechanism (current)
 
-Under EU **ePrivacy Directive** and **GDPR**, a cookie consent banner is required only when setting **non-essential** cookies (profiling, marketing, analytics that identify individuals across sites, etc.).
+SnapRooms now sets one **non-essential, consent-gated** analytics integration (PostHog) alongside its pre-existing strictly necessary cookies. A cookie consent banner is shown to every visitor who has not yet made a choice ("Accept all" / "Reject non-essential" / "Manage preferences"), implemented in `components/cookie-consent-banner.jsx` and reopenable at any time via the "Cookie Preferences" link in the footer.
 
-SnapRooms currently sets **only technical/necessary cookies**:
+**Three separate lifetimes apply — do not conflate them:**
 
-- **Authentication** — required to keep users logged in (`snaprooms_owner_session`, `event_gallery_admin_session`)
-- **Preferences** — required to remember language and UI state (`NEXT_LOCALE`, `sidebar_state`)
+1. **Consent-preference lifetime** — how long the visitor's accept/reject/withdraw choice itself is remembered, before the banner is shown again. Currently `395 days` (`CONSENT_MAX_AGE_DAYS` in `lib/consent/state.js`), chosen as a commonly-cited EU-guidance upper bound. **Pending DPO verification** for this product's specific jurisdiction(s) — not yet a confirmed legal requirement.
+2. **Analytics identifier lifetime** — how long PostHog's own `ph_<project-key>_posthog` identifier persists in the visitor's browser (localStorage, and potentially a same-named cookie depending on the SDK's default persistence mode). This is governed entirely by the `posthog-js` SDK's own defaults, which this application does not override (no `persistence` option is set — confirmed by reading `lib/analytics/posthog-client.js`). **Pending DPO verification** — the exact default lifetime should be confirmed against the installed SDK version rather than assumed.
+3. **Analytics event retention** — how long captured event data is retained on PostHog's servers once sent. This is **not configured by this application's code at all** — it is governed solely by PostHog's own project/account settings and any data-processing agreement in place. **Pending DPO verification** — no figure is asserted here because none has been confirmed.
 
-**Third-party tracking:**
-- PostHog is loaded client-side via `posthog-js` with `respect_dnt: true` (respects Do-Not-Track browser settings)
-- No Google Analytics, Meta Pixel, TikTok Pixel, Hotjar, or advertising cookies are loaded
+When a visitor rejects or withdraws consent, the client:
+- Never loads the PostHog SDK at all (if not yet accepted), or
+- Calls `opt_out_capturing()` and removes the `ph_<project-key>_posthog` persistence key (if previously accepted) — see `lib/analytics/posthog-client.js` for the exact mechanism and its documented rationale.
+- Never touches `snaprooms_cookie_consent` itself, `NEXT_LOCALE`, or any session cookie.
 
-> **Conclusion:** A cookie banner is **not required today** because all cookies are strictly necessary for the functioning of the service.
+**What is captured (confirmed from source, `lib/analytics/events.js`):** named product-usage events only (e.g. page views, button clicks), explicitly without PII in event names. Session Replay and autocapture are both explicitly disabled in the SDK configuration (`disable_session_recording: true`, `autocapture: false`) — this is a code-level guarantee independent of the PostHog project dashboard's own toggle state.
 
----
+**Identifier accuracy note:** this is pseudonymous, not anonymous, for signed-in Owners. `lib/analytics/track-client.js`'s `identifyUser()` is called on the Owner login path (confirmed in `app/dashboard/login/page-client.js`), which links the browser's PostHog events to a stable identifier (`owner:<Owner.id>`, from `lib/analytics/identity.js` — never email, but reversible to the Owner's account by anyone with access to both systems). Guests are not identified this way and remain on PostHog's own auto-generated technical ID.
 
-## 3. When a Banner Will Be Required
-
-A cookie consent mechanism **must** be introduced before adding any of the following:
-
-- Google Analytics 4 (or any analytics that tracks users across sessions/pages with identifiable data)
-- Meta Pixel / TikTok Pixel / LinkedIn Insight Tag (advertising/retargeting)
-- Hotjar / FullStory / LogRocket (behavioral recording)
-- Any cookie used for profiling, remarketing, or cross-site tracking
-
-**Implementation requirements for future banner:**
-- Pre-select only **"Necessary"** category
-- **Do not pre-select** Marketing, Analytics, or Functional categories
-- Provide **"Accept All"**, **"Reject Non-Essential"**, and **"Manage Preferences"** options
-- Store consent preference in `snaprooms_cookie_consent` (or equivalent)
-- Block non-essential scripts until consent is obtained
-- Allow users to revoke/change consent at any time (e.g. via footer link)
-- Log consent timestamp and choice for legal records
+**What is NOT captured:** automatic screen recordings, automatic click-tracking of every DOM element, or any event not explicitly listed in `lib/analytics/events.js`.
 
 ---
 
-## 4. Production Checklist — `OWNER_SESSION_SECRET`
+## 3. Server-Side Analytics (separate, unaffected by this banner)
+
+SnapRooms also sends server-side analytics events via a separate `posthog-node` integration (`lib/analytics/track-server.js`, `lib/server/posthog-query.js`), used for internal business metrics. **This pipeline is independent of the client-side consent gate described above and is not affected by a visitor's accept/reject/withdraw choice in the browser banner.** Whether and how this separate server-side pipeline itself requires a distinct legal basis or disclosure is tracked as a known open item (see PRIVACY-DPO-003) and is out of scope for this document's cookie inventory, since it does not set any browser cookie.
+
+---
+
+## 4. Known Open Items Requiring DPO/Legal Sign-Off
+
+None of the following are resolved by this document — they are listed here precisely so they are not silently assumed:
+
+- Confirm or adjust the 395-day consent-preference lifetime for SnapRooms' actual jurisdiction(s) of operation.
+- Confirm PostHog's current Data Processing Agreement status, applicable international data-transfer safeguards, and subprocessor list for this specific account/project — not inferred from the ingestion region configured in code.
+- Confirm the actual analytics-event retention period configured on PostHog's side.
+- Confirm whether the separate server-side `posthog-node` pipeline (§3) requires its own consent/disclosure treatment.
+
+---
+
+## 5. Production Checklist — `OWNER_SESSION_SECRET`
 
 The owner session token is signed with `OWNER_SESSION_SECRET`. In **production**, the app **will throw** if this variable is missing (no silent fallback).
 
@@ -80,10 +85,10 @@ openssl rand -hex 32
 
 ---
 
-## 5. Client-Side Storage Audit
+## 6. Client-Side Storage Audit
 
-No `localStorage` or `sessionStorage` is used for tracking. The only client-side persistence is via cookies listed above.
+`localStorage` is used by the PostHog SDK (only after consent) to persist its own analytics identifier — this is the one documented exception to the prior "no localStorage" state. No other client-side storage beyond the cookies listed in §1 is used for tracking.
 
 ---
 
-*This policy should be reviewed by legal counsel before commercial launch in the EU.*
+*This policy should be reviewed by qualified legal counsel / a Data Protection Officer before relying on it as a compliance record — see §4 for the specific items still outstanding.*

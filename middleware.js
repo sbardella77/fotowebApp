@@ -75,13 +75,9 @@ function detectLocale(request) {
     return cookie.value
   }
 
-  // 2. Geo-location (country-based)
-  const countryLocale = detectLocaleFromCountry(request)
-  if (countryLocale) {
-    return countryLocale
-  }
-
-  // 3. Accept-Language header
+  // 2. Accept-Language header — an explicit, user-authored preference takes
+  // priority over geo-IP, which only approximates language from network
+  // location and can be wrong for travelers, VPNs, and multilingual countries.
   const acceptLanguage = request.headers.get('accept-language')
   if (acceptLanguage) {
     const languages = acceptLanguage
@@ -99,6 +95,13 @@ function detectLocale(request) {
       const match = matchAcceptLanguageCode(code)
       if (match) return match
     }
+  }
+
+  // 3. Geo-location (country-based) — fallback when no supported
+  // Accept-Language preference is present.
+  const countryLocale = detectLocaleFromCountry(request)
+  if (countryLocale) {
+    return countryLocale
   }
 
   // 4. Default fallback
