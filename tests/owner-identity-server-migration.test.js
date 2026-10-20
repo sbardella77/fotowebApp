@@ -131,8 +131,16 @@ describe('Stripe webhook (app/api/stripe/webhook/route.js) — owner events migr
   })
 
   it('the high_quality_download event (guest or owner, no auth required) drops customer_email entirely rather than gaining a fabricated owner identity', () => {
-    const matches = WEBHOOK.match(/distinctId: session\.customer \|\| eventId/g) || []
+    // PRIVACY-SERVER-003B deliberately supersedes the original
+    // `session.customer || eventId` distinctId baseline captured here: a
+    // raw Stripe Customer ID let PostHog link separate anonymous guest
+    // purchases together even under personProfile:false. It is now a
+    // room-scoped identifier instead — see
+    // tests/posthog-server-identifier-minimization.test.js for full
+    // coverage of that change.
+    const matches = WEBHOOK.match(/distinctId: `room:\$\{session\.metadata\?\.roomSlug \|\| eventId\}`/g) || []
     expect(matches.length).toBe(2)
+    expect(WEBHOOK).not.toMatch(/distinctId:.*session\.customer\b/)
     expect(WEBHOOK).not.toMatch(/distinctId:.*session\.customer_email/)
   })
 })

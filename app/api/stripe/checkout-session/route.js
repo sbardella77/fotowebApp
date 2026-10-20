@@ -356,7 +356,6 @@ export async function POST(request) {
       trackServerEvent(
         EXTRA_FREE_EVENT_CHECKOUT_CREATED,
         {
-          owner_id: owner.id,
           pending_checkout_id: extraFreeEventCheckout.id,
           source: upsellSource || body.entryPoint || 'create_room_modal',
           post_purchase_action: postPurchaseAction,
@@ -369,7 +368,6 @@ export async function POST(request) {
     trackServerEvent(
       EVENT_CHECKOUT_STARTED,
       {
-        owner_id: owner.id,
         billing_intent: intent,
         entry_point: body.entryPoint || 'dashboard',
         room_slug: event?.slug || null,
@@ -383,7 +381,6 @@ export async function POST(request) {
     trackServerEvent(
       EVENT_UPSELL_CHECKOUT_START,
       {
-        owner_id: owner.id,
         billing_intent: intent,
         upsell_type: upsellType || intent,
         source: upsellSource || body.entryPoint || 'unknown',

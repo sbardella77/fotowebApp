@@ -18,8 +18,9 @@ describe('server-side PostHog event property minimization (PRIVACY-SERVER-001)',
     expect(fulfillmentSource).not.toContain('stripe_customer_id')
   })
 
-  it('session.customer is still used as a non-person distinctId where it previously was — removal is scoped to the properties object, not distinctId/personProfile', () => {
-    expect(webhookSource).toMatch(/distinctId:\s*session\.customer\s*\|\|\s*eventId,\s*personProfile:\s*false/g)
+  it('session.customer (the Stripe Customer ID) is no longer used as a distinctId — PRIVACY-SERVER-003B deliberately supersedes this baseline: a raw Stripe id let PostHog link separate anonymous guest purchases together even under personProfile:false, so it was replaced with a room-scoped identifier; see tests/posthog-server-identifier-minimization.test.js for full coverage', () => {
+    expect(webhookSource).not.toMatch(/distinctId:\s*session\.customer/)
+    expect(webhookSource).toMatch(/distinctId:\s*`room:\$\{session\.metadata\?\.roomSlug \|\| eventId\}`,\s*personProfile:\s*false/g)
   })
 
   it('stripe_session_id, stripe_subscription_id, and other approved transaction-scoped identifiers remain present', () => {
