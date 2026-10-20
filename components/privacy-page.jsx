@@ -130,6 +130,7 @@ export function PrivacyPage({ locale = 'en' }) {
               <ul className="space-y-2">
                 <Bullet>{t.analyticsDataCollected}</Bullet>
                 <Bullet>{t.analyticsNoConsentNoData}</Bullet>
+                <Bullet>{t.analyticsServerSideNote}</Bullet>
                 <Bullet>{t.analyticsWithdrawal}</Bullet>
               </ul>
               <p className="mt-2 italic">{t.analyticsProcessorNote}</p>
