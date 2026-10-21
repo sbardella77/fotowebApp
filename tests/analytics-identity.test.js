@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'fs'
+import { readFileSync, mkdirSync, writeFileSync, rmSync } from 'fs'
 import { resolve } from 'path'
 import { execSync } from 'child_process'
 import { getOwnerAnalyticsId } from '@/lib/analytics/identity'
@@ -76,12 +76,38 @@ describe('client/server convergence — single implementation, no duplicates', (
   })
 
   it('no second getOwnerAnalyticsId-like implementation exists elsewhere in the repo', () => {
+    // Scoped to the actual source directories where an implementation could
+    // plausibly live, instead of the repo root — a whole-tree grep has to
+    // walk node_modules (hundreds of MB) before the exclusions below ever
+    // apply to it, which measured 2-4s locally and left thin margin against
+    // Vitest's default 5000ms test timeout under CI load (CI-GOV-012A).
+    // node_modules/.next exclusions are kept as defense-in-depth even though
+    // scoping already keeps this out of both.
     const output = execSync(
-      `grep -rln "function getOwnerAnalyticsId" --include="*.js" --include="*.jsx" . | grep -v node_modules | grep -v "\\.next" | grep -v "^\\./tests/"`,
+      `grep -rln "function getOwnerAnalyticsId" --include="*.js" --include="*.jsx" app lib components hooks scripts | grep -v node_modules | grep -v "\\.next"`,
       { cwd: resolve(import.meta.dirname, '..'), encoding: 'utf8' },
     )
     const files = output.trim().split('\n').filter(Boolean).map((f) => f.replace(/^\.\//, ''))
     expect(files).toEqual(['lib/analytics/identity.js'])
+  })
+
+  it('a duplicate getOwnerAnalyticsId-like implementation under a scanned directory would be caught', () => {
+    const DUPLICATE_SOURCE = 'export function getOwnerAnalyticsId(x) { return x }\n'
+    const tmpDir = resolve(import.meta.dirname, '..', 'lib', '__tmp-identity-duplicate-check__')
+    const tmpFile = resolve(tmpDir, 'duplicate.js')
+    mkdirSync(tmpDir, { recursive: true })
+    writeFileSync(tmpFile, DUPLICATE_SOURCE)
+    try {
+      const output = execSync(
+        `grep -rln "function getOwnerAnalyticsId" --include="*.js" --include="*.jsx" app lib components hooks scripts | grep -v node_modules | grep -v "\\.next"`,
+        { cwd: resolve(import.meta.dirname, '..'), encoding: 'utf8' },
+      )
+      const files = output.trim().split('\n').filter(Boolean).map((f) => f.replace(/^\.\//, ''))
+      expect(files).toContain('lib/__tmp-identity-duplicate-check__/duplicate.js')
+      expect(files.length).toBeGreaterThan(1)
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true })
+    }
   })
 
   const CLIENT_FILES = [

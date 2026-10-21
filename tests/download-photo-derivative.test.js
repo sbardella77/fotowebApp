@@ -129,20 +129,11 @@ describe('identity: path and lock key', () => {
     expect(key).not.toContain('.jpg')
   })
 
-  it('a watermark version change moves BOTH the derivative path and the lock key', async () => {
-    // Explicit reset (on top of the one in beforeEach) so this test cannot
-    // observe a 'download-derivative' module instance already evaluated
-    // against v1 by an earlier test in this file — vi.doMock only affects
-    // imports that happen after it runs, so any stale cached instance would
-    // silently keep returning v1 and make this assertion flaky under worker
-    // scheduling that differs between local runs and CI.
-    vi.resetModules()
-    mockWatermarkVersion('v2')
-    const mod = await loadModule()
-
-    expect(mod.buildDerivativePath(PHOTO_ID)).toBe(`derivatives/wm-v2/${PHOTO_ID}.jpg`)
-    expect(mod.buildTransformLockKey(PHOTO_ID)).toBe(`download-photo-transform:v2:${PHOTO_ID}`)
-  })
+  // The watermark-version-change assertion (both the derivative path and
+  // the lock key move together under a version bump) now lives in its own
+  // dedicated file — tests/download-photo-derivative-version-identity.test.js
+  // — which mocks the watermark module statically instead of swapping it
+  // mid-file (CI-GOV-012B; see that file's header comment for why).
 
   it('freezes the timing policy derived in STEP 7.14b.0', async () => {
     const mod = await loadModule()
