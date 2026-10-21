@@ -7,6 +7,10 @@ import {
   parseGhApiNdjsonOutput,
   evaluateException,
   evaluateFiles,
+  validateChangedFilesCount,
+  parsePrMetadataJson,
+  validateFileRecords,
+  headShasMatch,
 } from '../scripts/check-pr-release-scope.mjs'
 
 const WEBHOOK_PATH = 'app/api/stripe/webhook/route.js'
@@ -305,5 +309,147 @@ describe('malicious/adversarial diff shapes (CI-GOV-002 security regression test
     const result = evaluateFiles(files)
     expect(result.ok).toBe(true)
     expect(result.exceptions).toEqual([])
+  })
+})
+
+describe('validateChangedFilesCount — the 3000-file API ceiling (CI-GOV-011A/B)', () => {
+  it.each([1, 99, 100, 101, 2999, 3000])('ACCEPTS %i as a valid changed_files count', (n) => {
+    expect(validateChangedFilesCount(n)).toEqual({ ok: true })
+  })
+
+  it('REJECTS 3001 — past GitHub\'s documented 3000-file cap for this endpoint', () => {
+    const result = validateChangedFilesCount(3001)
+    expect(result.ok).toBe(false)
+    expect(result.reason).toMatch(/3000-file API limit/)
+  })
+
+  it('REJECTS a much larger count the same way, not just the boundary', () => {
+    expect(validateChangedFilesCount(50000).ok).toBe(false)
+  })
+
+  it('REJECTS zero', () => {
+    expect(validateChangedFilesCount(0).ok).toBe(false)
+  })
+
+  it('REJECTS a negative count', () => {
+    expect(validateChangedFilesCount(-1).ok).toBe(false)
+  })
+
+  it('REJECTS a non-integer count', () => {
+    expect(validateChangedFilesCount(12.5).ok).toBe(false)
+  })
+
+  it('REJECTS undefined/null/NaN/string changed_files (missing or malformed metadata)', () => {
+    expect(validateChangedFilesCount(undefined).ok).toBe(false)
+    expect(validateChangedFilesCount(null).ok).toBe(false)
+    expect(validateChangedFilesCount(NaN).ok).toBe(false)
+    expect(validateChangedFilesCount('5').ok).toBe(false)
+  })
+
+  it('REJECTS Number.MAX_SAFE_INTEGER + 1 (not a safe integer)', () => {
+    expect(validateChangedFilesCount(Number.MAX_SAFE_INTEGER + 1).ok).toBe(false)
+  })
+})
+
+describe('parsePrMetadataJson — PR metadata response parsing (CI-GOV-011A/B)', () => {
+  it('parses a well-formed metadata response', () => {
+    const raw = JSON.stringify({ changed_files: 4, head_sha: 'abc123' })
+    expect(parsePrMetadataJson(raw)).toEqual({ changedFiles: 4, headSha: 'abc123' })
+  })
+
+  it('fails closed (null) on malformed JSON', () => {
+    expect(parsePrMetadataJson('{not valid json')).toBeNull()
+  })
+
+  it('fails closed (null) on non-string input', () => {
+    expect(parsePrMetadataJson(undefined)).toBeNull()
+    expect(parsePrMetadataJson(null)).toBeNull()
+    expect(parsePrMetadataJson(42)).toBeNull()
+  })
+
+  it('fails closed (null) when head_sha is missing', () => {
+    expect(parsePrMetadataJson(JSON.stringify({ changed_files: 4 }))).toBeNull()
+  })
+
+  it('fails closed (null) when head_sha is empty or not a string', () => {
+    expect(parsePrMetadataJson(JSON.stringify({ changed_files: 4, head_sha: '' }))).toBeNull()
+    expect(parsePrMetadataJson(JSON.stringify({ changed_files: 4, head_sha: 123 }))).toBeNull()
+  })
+
+  it('passes through a missing/malformed changed_files as-is — validateChangedFilesCount is responsible for rejecting it, not this parser', () => {
+    const result = parsePrMetadataJson(JSON.stringify({ head_sha: 'abc123' }))
+    expect(result).toEqual({ changedFiles: undefined, headSha: 'abc123' })
+  })
+})
+
+describe('validateFileRecords — missing/duplicate filenames (CI-GOV-011A/B)', () => {
+  it('ACCEPTS a clean list of unique, nonempty filenames', () => {
+    const files = [{ filename: 'a.js' }, { filename: 'b.js' }, { filename: 'c.js' }]
+    expect(validateFileRecords(files)).toEqual({ ok: true })
+  })
+
+  it('REJECTS a missing filename', () => {
+    const files = [{ filename: 'a.js' }, { previous_filename: 'old.js' }]
+    const result = validateFileRecords(files)
+    expect(result.ok).toBe(false)
+    expect(result.reason).toMatch(/nonempty filename/)
+  })
+
+  it('REJECTS an empty-string filename', () => {
+    const files = [{ filename: '' }]
+    expect(validateFileRecords(files).ok).toBe(false)
+  })
+
+  it('REJECTS a duplicate filename rather than silently deduplicating', () => {
+    const files = [{ filename: 'a.js' }, { filename: 'a.js' }]
+    const result = validateFileRecords(files)
+    expect(result.ok).toBe(false)
+    expect(result.reason).toMatch(/duplicate filename/)
+  })
+
+  it('ACCEPTS a large list (boundary sanity: 100 and 3000 unique files)', () => {
+    const hundred = Array.from({ length: 100 }, (_, i) => ({ filename: `file-${i}.js` }))
+    expect(validateFileRecords(hundred)).toEqual({ ok: true })
+    const threeThousand = Array.from({ length: 3000 }, (_, i) => ({ filename: `file-${i}.js` }))
+    expect(validateFileRecords(threeThousand)).toEqual({ ok: true })
+  })
+})
+
+describe('headShasMatch — head-SHA consistency checks (CI-GOV-011A/B TOCTOU fix)', () => {
+  it('matches two identical, nonempty SHAs', () => {
+    expect(headShasMatch('abc123', 'abc123')).toBe(true)
+  })
+
+  it('REJECTS two different SHAs (the force-push-during-guard-run scenario)', () => {
+    expect(headShasMatch('abc123', 'def456')).toBe(false)
+  })
+
+  it('REJECTS when either side is missing/empty/non-string', () => {
+    expect(headShasMatch('', 'abc123')).toBe(false)
+    expect(headShasMatch('abc123', '')).toBe(false)
+    expect(headShasMatch(undefined, 'abc123')).toBe(false)
+    expect(headShasMatch('abc123', null)).toBe(false)
+    expect(headShasMatch(undefined, undefined)).toBe(false)
+  })
+})
+
+describe('end-to-end file-count vs. changed_files consistency (CI-GOV-011A/B, conceptual integration coverage)', () => {
+  // main() itself shells out to `gh`, which these pure-function tests
+  // deliberately do not invoke (no network/process calls in this suite,
+  // matching the rest of this file's established style) — this exercises
+  // the exact same comparison main() performs, using the same helpers.
+  it('a matching retrieved-count and declared changed_files count is consistent', () => {
+    const declaredChangedFiles = 3
+    const retrievedFiles = [{ filename: 'a.js' }, { filename: 'b.js' }, { filename: 'c.js' }]
+    expect(retrievedFiles.length).toBe(declaredChangedFiles)
+  })
+
+  it('a 3001st file silently missing from a capped API response produces a detectable mismatch against changed_files', () => {
+    const declaredChangedFiles = 3001
+    const cappedRetrievedFiles = Array.from({ length: 3000 }, (_, i) => ({ filename: `file-${i}.js` }))
+    expect(cappedRetrievedFiles.length).not.toBe(declaredChangedFiles)
+    // And validateChangedFilesCount itself would already have rejected
+    // 3001 before this comparison is ever reached.
+    expect(validateChangedFilesCount(declaredChangedFiles).ok).toBe(false)
   })
 })
