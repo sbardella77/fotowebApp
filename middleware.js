@@ -7,17 +7,42 @@ import {
   PRIVATE_PATH_PREFIXES,
 } from '@/lib/i18n/config'
 
+// CSP nonce hardening: script-src previously needed 'unsafe-inline' to allow
+// the one inline <script> in app/layout.js (a DataCloneError suppressor).
+// Generating a per-request nonce here — and only here, since it must differ
+// on every request — lets script-src drop 'unsafe-inline' entirely. The
+// static Content-Security-Policy in next.config.js was removed for the same
+// reason: a second, static CSP header would still allow 'unsafe-inline' via
+// CSP's "multiple policies are ANDed, but 'unsafe-inline' is only ignored
+// within a policy that itself defines a nonce/hash" rule.
+export function buildCsp(nonce) {
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}'`,
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://api.fontshare.com",
+    "font-src 'self' https://fonts.gstatic.com https://api.fontshare.com",
+    "img-src 'self' blob: data: https:",
+    "connect-src 'self' https:",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+  ].join('; ')
+}
+
 /**
  * SnapRooms locale middleware.
  *
  * - Skips API, static assets, and private app routes.
  * - If the URL already has a valid locale prefix, sets the cookie and continues.
  * - Otherwise detects the best locale and redirects to the locale-prefixed URL.
+ * - Every HTML-rendering response carries a fresh CSP nonce, forwarded to
+ *   Server Components via the x-nonce request header and echoed back in the
+ *   Content-Security-Policy response header.
  */
 export function middleware(request) {
   const { pathname } = request.nextUrl
 
-  // Skip static files and Next.js internals
+  // Skip static files and Next.js internals — not HTML, no nonce/CSP needed.
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon') ||
@@ -29,9 +54,19 @@ export function middleware(request) {
     return NextResponse.next()
   }
 
-  // Skip private / auth / app routes entirely
+  const nonce = crypto.randomUUID().replace(/-/g, '')
+  const csp = buildCsp(nonce)
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('x-nonce', nonce)
+
+  function withCsp(response) {
+    response.headers.set('Content-Security-Policy', csp)
+    return response
+  }
+
+  // Skip private / auth / app routes entirely (still HTML — still needs the nonce/CSP).
   if (PRIVATE_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
-    return NextResponse.next()
+    return withCsp(NextResponse.next({ request: { headers: requestHeaders } }))
   }
 
   // Check if path already starts with a supported locale
@@ -40,7 +75,7 @@ export function middleware(request) {
 
   if (hasLocalePrefix) {
     // Persist explicit locale choice in a cookie
-    const response = NextResponse.next()
+    const response = withCsp(NextResponse.next({ request: { headers: requestHeaders } }))
     response.cookies.set(LOCALE_COOKIE_NAME, firstSegment, {
       path: '/',
       maxAge: 60 * 60 * 24 * 365,
@@ -56,13 +91,14 @@ export function middleware(request) {
     (p) => pathname === p || pathname.startsWith(`${p}/`)
   )
   if (!isKnownPublicPath) {
-    return NextResponse.next()
+    return withCsp(NextResponse.next({ request: { headers: requestHeaders } }))
   }
 
   // Detect best locale
   const locale = detectLocale(request)
 
-  // Redirect to locale-prefixed path, preserving query params
+  // Redirect to locale-prefixed path, preserving query params. No body is
+  // rendered, so no nonce/CSP is needed on the redirect response itself.
   const newUrl = request.nextUrl.clone()
   newUrl.pathname = `/${locale}${pathname}`
   return NextResponse.redirect(newUrl)
