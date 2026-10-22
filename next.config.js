@@ -30,19 +30,9 @@ const nextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
           { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
-          {
-            key: "Content-Security-Policy",
-            value:
-              "default-src 'self'; " +
-              "script-src 'self' 'unsafe-inline'; " +
-              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://api.fontshare.com; " +
-              "font-src 'self' https://fonts.gstatic.com https://api.fontshare.com; " +
-              "img-src 'self' blob: data: https:; " +
-              "connect-src 'self' https:; " +
-              "frame-ancestors 'none'; " +
-              "base-uri 'self'; " +
-              "form-action 'self'",
-          },
+          // Content-Security-Policy is set dynamically in middleware.js with a
+          // per-request nonce (script-src no longer needs 'unsafe-inline') —
+          // it cannot be static here, since the nonce must differ per request.
         ],
       },
     ];

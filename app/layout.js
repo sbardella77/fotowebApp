@@ -1,6 +1,6 @@
 import './globals.css'
 import { Space_Grotesk, Inter, JetBrains_Mono } from 'next/font/google'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { AnalyticsProvider } from '@/components/analytics-provider'
 import { CookieConsentBanner } from '@/components/cookie-consent-banner'
 import { I18nProvider } from '@/components/i18n-provider'
@@ -61,11 +61,12 @@ export const viewport = {
 function App({ children }) {
   const cookieLocale = cookies().get(LOCALE_COOKIE_NAME)?.value
   const locale = LOCALES.includes(cookieLocale) ? cookieLocale : DEFAULT_LOCALE
+  const nonce = headers().get('x-nonce')
 
   return (
     <html lang={locale} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: 'window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);' }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: 'window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);' }} />
       </head>
       <body
         className={`${spaceGrotesk.variable} ${inter.variable} ${jetbrainsMono.variable} min-h-screen bg-background font-sans text-foreground antialiased`}
