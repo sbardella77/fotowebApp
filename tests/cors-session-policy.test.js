@@ -112,6 +112,7 @@ beforeEach(async () => {
     listEventsByOwnerEmail: vi.fn().mockResolvedValue([]),
     getEventBySlug: vi.fn().mockResolvedValue(null),
     getEventBySlugAndOwner: vi.fn().mockResolvedValue(null),
+    getPhotographerLinkByTokenHash: vi.fn().mockResolvedValue(null),
   })
 })
 

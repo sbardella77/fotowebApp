@@ -14,8 +14,23 @@ vi.mock('@/lib/server/prisma-client', () => ({
   getPrismaClient: vi.fn(),
 }))
 
+// getPhotographerLinkFromToken (route.js) now resolves tokens through
+// repository.getPhotographerLinkByTokenHash instead of an inline prisma
+// query. This shim delegates to whatever `getPrismaClient` mock the test
+// has already installed (via makeFakePrisma's `event.findFirst`, same as
+// before STEP 7.10a's successor), so every existing test below keeps
+// working unchanged — only the lookup's entry point moved.
 vi.mock('@/lib/server/gallery-repository', () => ({
-  getGalleryRepository: vi.fn().mockResolvedValue({}),
+  getGalleryRepository: vi.fn().mockImplementation(async () => ({
+    async getPhotographerLinkByTokenHash(tokenHash) {
+      const { getPrismaClient } = await import('@/lib/server/prisma-client')
+      const prisma = await getPrismaClient()
+      if (!prisma?.event?.findFirst) return null
+      const event = await prisma.event.findFirst({ where: { photographerUploadTokenHash: tokenHash } })
+      if (!event) return null
+      return { event, link: { id: `link-${tokenHash.slice(0, 8)}`, tokenHash } }
+    },
+  })),
   getGalleryRepositoryMode: vi.fn().mockResolvedValue('local'),
 }))
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { CreditCard, LayoutDashboard, LogOut, Sparkles, User, BarChart3, Tag } from 'lucide-react'
+import { CreditCard, LayoutDashboard, LogOut, Sparkles, User, BarChart3, Tag, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { trackUpsellImpression, trackUpsellClick } from '@/lib/analytics/upsell'
 import { useLocale } from '@/components/i18n-provider'
@@ -96,6 +96,13 @@ export function DashboardSidebar({
               {tCommon.viewPricing ?? 'Pricing'}
             </a>
           )}
+          <a
+            href="/dashboard/account"
+            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-primary/5 hover:text-foreground transition-colors"
+          >
+            <Settings className="h-4 w-4" />
+            {t.accountSettingsTitle ?? 'Account settings'}
+          </a>
         </div>
 
         {showSidebarUpsell && (

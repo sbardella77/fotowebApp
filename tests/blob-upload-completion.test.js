@@ -1728,4 +1728,44 @@ describe('Cross-module namespace contract', () => {
     expect(result.asset.url).toContain(realisticPathname)
     expect(result.idempotent).toBe(false)
   })
+
+  it('75. PHOTOGRAPHER_UPLOAD con photographerLinkId → scritto sul PrivateAsset creato', async () => {
+    const session = makePrivateSession({ uploadKind: BlobUploadKind.PHOTOGRAPHER_UPLOAD })
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const result = await completePrivateAssetBlobUpload({
+      ...makeDefaultPrivateArgs(),
+      prisma,
+      expectedUploadKind: BlobUploadKind.PHOTOGRAPHER_UPLOAD,
+      photographerLinkId: 'link-1',
+    })
+    expect(result.asset.photographerLinkId).toBe('link-1')
+    const [asset] = [...prisma._assets.values()]
+    expect(asset.photographerLinkId).toBe('link-1')
+  })
+
+  it('76. PRIVATE_DELIVERY (owner) → photographerLinkId resta null anche se passato per errore', async () => {
+    const session = makePrivateSession({ uploadKind: BlobUploadKind.PRIVATE_DELIVERY })
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const result = await completePrivateAssetBlobUpload({
+      ...makeDefaultPrivateArgs(),
+      prisma,
+      expectedUploadKind: BlobUploadKind.PRIVATE_DELIVERY,
+      photographerLinkId: 'link-1',
+    })
+    expect(result.asset.photographerLinkId).toBeNull()
+  })
+
+  it('77. PHOTOGRAPHER_UPLOAD senza photographerLinkId → resta null (nessun throw)', async () => {
+    const session = makePrivateSession({ uploadKind: BlobUploadKind.PHOTOGRAPHER_UPLOAD })
+    const event = makeEvent()
+    const prisma = makeFakePrisma({ sessions: [session], events: [event] })
+    const result = await completePrivateAssetBlobUpload({
+      ...makeDefaultPrivateArgs(),
+      prisma,
+      expectedUploadKind: BlobUploadKind.PHOTOGRAPHER_UPLOAD,
+    })
+    expect(result.asset.photographerLinkId).toBeNull()
+  })
 })

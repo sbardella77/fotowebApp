@@ -179,6 +179,20 @@ function makeFakePrisma({ sessions = [], events = [], privateAssets = [] } = {})
   }
 }
 
+// getPhotographerLinkFromToken (route.js) resolves tokens through
+// repository.getPhotographerLinkByTokenHash now, not an inline prisma
+// query — this shim delegates to the same fake prisma's event.findFirst
+// these tests already set up, wrapped in the new { event, link } shape.
+function makeFakeGalleryRepoForPhotographer(prisma) {
+  return {
+    async getPhotographerLinkByTokenHash(tokenHash) {
+      const event = await prisma.event.findFirst({ where: { photographerUploadTokenHash: tokenHash } })
+      if (!event) return null
+      return { event, link: { id: 'link-1', tokenHash } }
+    },
+  }
+}
+
 function makeSession(overrides = {}) {
   return {
     id: 'session-1',
@@ -316,7 +330,7 @@ describe('12 — POST /photographer-upload/:token/complete: entitlement revoked 
     getPrismaClient.mockResolvedValue(prisma)
 
     const { getGalleryRepository } = await import('@/lib/server/gallery-repository')
-    getGalleryRepository.mockResolvedValue({})
+    getGalleryRepository.mockResolvedValue(makeFakeGalleryRepoForPhotographer(prisma))
 
     const { head } = await import('@vercel/blob')
     head.mockResolvedValue(makeHeadResult())
@@ -398,11 +412,12 @@ describe('13b — owner does not own the room', () => {
 
 describe('13c — invalid photographer token', () => {
   it('returns 403 "Invalid or expired link" without calling head(), entitlement, or deleteStoredFile', async () => {
+    const prisma = makeFakePrisma({ events: [] }) // no event matches any token hash
     const { getPrismaClient } = await import('@/lib/server/prisma-client')
-    getPrismaClient.mockResolvedValue(makeFakePrisma({ events: [] })) // no event matches any token hash
+    getPrismaClient.mockResolvedValue(prisma)
 
     const { getGalleryRepository } = await import('@/lib/server/gallery-repository')
-    getGalleryRepository.mockResolvedValue({})
+    getGalleryRepository.mockResolvedValue(makeFakeGalleryRepoForPhotographer(prisma))
 
     const { head } = await import('@vercel/blob')
     const { checkPrivateDeliveryEntitlement } = await import('@/lib/server/entitlements')

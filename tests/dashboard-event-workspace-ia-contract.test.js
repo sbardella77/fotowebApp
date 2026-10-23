@@ -131,11 +131,10 @@ describe('Content grouping — Photos', () => {
 })
 
 describe('Content grouping — Delivery', () => {
-  it('15: Delivery contains Download all, Private Delivery, and the photographer link block', () => {
+  it('15: Delivery contains Download all, Private Delivery, and the photographer links manager', () => {
     expect(DELIVERY).toContain('onGalleryDownload')
     expect(DELIVERY).toContain('hasPrivateDelivery')
-    expect(DELIVERY).toContain('onGeneratePhotoLink')
-    expect(DELIVERY).toContain('onRevokePhotoLink')
+    expect(DELIVERY).toContain('PhotographerLinksManager')
   })
 
   it('16: Private Delivery gating is preserved exactly (still conditional, not always rendered)', () => {

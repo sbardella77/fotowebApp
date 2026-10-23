@@ -18,6 +18,7 @@ import {
   adminModerationSchema,
   adminPasswordSchema,
   blobUploadSessionCompleteSchema,
+  createPhotographerUploadLinkSchema,
   MAX_FILE_SIZE_BYTES,
   MAX_PRIVATE_DELIVERY_FILE_SIZE_BYTES,
   privateDeliveryLocalUploadCompleteSchema,
@@ -50,6 +51,7 @@ import {
   findValidPasswordResetToken,
 } from '@/lib/server/password-reset-tokens'
 import { getGalleryRepository } from '@/lib/server/gallery-repository'
+import { PhotographerLinkLimitError } from '@/lib/server/prisma-gallery-repository'
 import { createPasswordHash, verifyPassword, validatePassword } from '@/lib/server/owner-password'
 import {
   checkRateLimit,
@@ -77,7 +79,6 @@ import {
   EVENT_PRIVATE_DELIVERY_UPLOAD_COMPLETED,
   EVENT_PRIVATE_DELIVERY_DELETED,
   EVENT_PHOTOGRAPHER_UPLOAD_LINK_CREATED,
-  EVENT_PHOTOGRAPHER_UPLOAD_LINK_REGENERATED,
   EVENT_PHOTOGRAPHER_UPLOAD_LINK_REVOKED,
   EVENT_PHOTOGRAPHER_UPLOAD_STARTED,
   EVENT_PHOTOGRAPHER_UPLOAD_COMPLETED,
@@ -313,19 +314,14 @@ const clearOwnerSessionCookie = (response) => {
   return response
 }
 
-const getPhotographerEventFromToken = async (token) => {
+// Returns { event, link } for a live (non-revoked, non-expired) photographer
+// link, or null. Replaces the old single-token-per-event lookup now that an
+// event can have several independent PhotographerUploadLink rows.
+const getPhotographerLinkFromToken = async (token) => {
   if (!token) return null
-  const prisma = await getPrismaClient()
-  if (!prisma) return null
+  const repository = await getGalleryRepository()
   const tokenHash = hashPhotographerUploadToken(token)
-  const event = await prisma.event.findFirst({
-    where: { photographerUploadTokenHash: tokenHash },
-  })
-  if (!event) return null
-  if (event.photographerUploadTokenExpiresAt && new Date(event.photographerUploadTokenExpiresAt) < new Date()) {
-    return null
-  }
-  return event
+  return repository.getPhotographerLinkByTokenHash(tokenHash)
 }
 
 /**
@@ -651,14 +647,29 @@ const createPhotographerUploadLink = async (request, slug) => {
     }
   }
 
+  let label = null
+  try {
+    const body = await request.json().catch(() => ({}))
+    label = createPhotographerUploadLinkSchema.parse(body).label ?? null
+  } catch (zodError) {
+    return jsonPrivate({ error: formatZodError(zodError) }, 400)
+  }
+
   const token = generatePhotographerUploadToken()
   const tokenHash = hashPhotographerUploadToken(token)
-  const isRegeneration = Boolean(event.photographerUploadTokenHash)
 
-  await repository.setPhotographerUploadToken(slug, { tokenHash })
+  let link
+  try {
+    link = await repository.createPhotographerUploadLink(event.id, { tokenHash, label })
+  } catch (error) {
+    if (error instanceof PhotographerLinkLimitError) {
+      return jsonPrivate({ error: error.message }, 400)
+    }
+    throw error
+  }
 
   trackServerEvent(
-    isRegeneration ? EVENT_PHOTOGRAPHER_UPLOAD_LINK_REGENERATED : EVENT_PHOTOGRAPHER_UPLOAD_LINK_CREATED,
+    EVENT_PHOTOGRAPHER_UPLOAD_LINK_CREATED,
     { room_slug: slug },
     { distinctId: getOwnerAnalyticsId(event.ownerId), personProfile: true }
   )
@@ -667,10 +678,33 @@ const createPhotographerUploadLink = async (request, slug) => {
   if (!appUrl) {
     return jsonPrivate({ error: 'Unable to create upload link. Please try again later.' }, 500)
   }
-  return jsonPrivate({ token, url: `${appUrl}/photographer-upload/${token}` })
+  return jsonPrivate({ linkId: link.id, label: link.label, token, url: `${appUrl}/photographer-upload/${token}` })
 }
 
-const deletePhotographerUploadLink = async (request, slug) => {
+const listPhotographerUploadLinksHandler = async (request, slug) => {
+  const ownerEmail = await requireOwner(request)
+  if (typeof ownerEmail !== 'string') return ownerEmail
+
+  const repository = await getGalleryRepository()
+  const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
+  if (!event) {
+    return jsonPrivate({ error: 'Room not found' }, 404)
+  }
+
+  const links = await repository.listPhotographerUploadLinks(event.id)
+  return jsonPrivate({
+    links: links.map(({ id, label, createdAt, expiresAt, revokedAt, photoCount }) => ({
+      id,
+      label,
+      createdAt,
+      expiresAt,
+      revokedAt,
+      photoCount,
+    })),
+  })
+}
+
+const deletePhotographerUploadLink = async (request, slug, linkId) => {
   const ownerEmail = await requireOwnerWithCsrf(request)
   if (typeof ownerEmail !== 'string') return ownerEmail
 
@@ -683,7 +717,10 @@ const deletePhotographerUploadLink = async (request, slug) => {
     return jsonPrivate({ error: 'Room not found' }, 404)
   }
 
-  await repository.setPhotographerUploadToken(slug, { tokenHash: null, expiresAt: null })
+  const revoked = await repository.revokePhotographerUploadLink(event.id, linkId)
+  if (!revoked) {
+    return jsonPrivate({ error: 'Photographer link not found' }, 404)
+  }
 
   trackServerEvent(
     EVENT_PHOTOGRAPHER_UPLOAD_LINK_REVOKED,
@@ -932,10 +969,11 @@ const deleteOwnerEventMoment = async (request, slug, momentId) => {
 }
 
 const getPhotographerUploadEvent = async (request, token) => {
-  const event = await getPhotographerEventFromToken(token)
-  if (!event) {
+  const resolved = await getPhotographerLinkFromToken(token)
+  if (!resolved) {
     return json({ error: 'Invalid or expired link' }, 403)
   }
+  const { event } = resolved
 
   const prisma = await getPrismaClient()
   if (prisma) {
@@ -950,7 +988,7 @@ const getPhotographerUploadEvent = async (request, token) => {
 
 const initPhotographerUpload = async (request, token) => {
   // The raw token is attacker-controlled until
-  // getPhotographerEventFromToken() validates it below (a DB lookup) — so
+  // getPhotographerLinkFromToken() validates it below (a DB lookup) — so
   // a broad, hashed-IP guard must run BEFORE both the token-hash bucket
   // and that lookup, bounding arbitrary-token cardinality pre-DB.
   const clientIp = getClientIp(request)
@@ -973,10 +1011,11 @@ const initPhotographerUpload = async (request, token) => {
     return json({ error: 'Too many upload attempts. Please try again later.' }, 429)
   }
 
-  const event = await getPhotographerEventFromToken(token)
-  if (!event) {
+  const resolved = await getPhotographerLinkFromToken(token)
+  if (!resolved) {
     return json({ error: 'Invalid or expired link' }, 403)
   }
+  const { event } = resolved
 
   const payload = privateDeliveryUploadInitSchema.parse(await request.json())
   if (payload.eventSlug !== event.slug) {
@@ -1051,10 +1090,11 @@ const completePhotographerUpload = async (request, token) => {
     return json({ error: 'Too many upload completions. Please try again later.' }, 429)
   }
 
-  const event = await getPhotographerEventFromToken(token)
-  if (!event) {
+  const resolved = await getPhotographerLinkFromToken(token)
+  if (!resolved) {
     return json({ error: 'Invalid or expired link' }, 403)
   }
+  const { event, link } = resolved
 
   const body = await request.json()
   const repository = await getGalleryRepository()
@@ -1092,6 +1132,7 @@ const completePhotographerUpload = async (request, token) => {
         expectedEventId: event.id,
         expectedEventSlug: event.slug,
         expectedUploadKind: BlobUploadKind.PHOTOGRAPHER_UPLOAD,
+        photographerLinkId: link.id,
         headBlob: (pathname) => head(pathname),
         deleteBlob: (url) => deleteStoredFile(url),
         checkEntitlement: checkPrivateDeliveryEntitlement,
@@ -1165,6 +1206,7 @@ const completePhotographerUpload = async (request, token) => {
     size: fileResult.size,
     url: fileResult.url,
     uploadedByRole: 'photographer',
+    photographerLinkId: link.id,
   })
 
   trackServerEvent(
@@ -1177,13 +1219,14 @@ const completePhotographerUpload = async (request, token) => {
 }
 
 const listPhotographerAssets = async (request, token) => {
-  const event = await getPhotographerEventFromToken(token)
-  if (!event) {
+  const resolved = await getPhotographerLinkFromToken(token)
+  if (!resolved) {
     return json({ error: 'Invalid or expired link' }, 403)
   }
+  const { link } = resolved
 
   const repository = await getGalleryRepository()
-  const assets = await repository.listPrivateAssetsByEventIdAndRole(event.id, 'photographer')
+  const assets = await repository.listPrivateAssetsByPhotographerLinkId(link.id)
   return json({ assets })
 }
 
@@ -2178,8 +2221,68 @@ const getOwnerEvent = async (request, slug) => {
     return jsonPrivate({ error: 'Event not found' }, 404)
   }
 
-  const { managementTokenHash, photographerUploadTokenHash, ...safeEvent } = event
-  return jsonPrivate({ event: { ...safeEvent, hasPhotographerUploadLink: Boolean(photographerUploadTokenHash) } })
+  const now = new Date()
+  const links = await repository.listPhotographerUploadLinks(event.id)
+  const hasPhotographerUploadLink = links.some(
+    (link) => !link.revokedAt && (!link.expiresAt || new Date(link.expiresAt) > now),
+  )
+
+  const { managementTokenHash, ...safeEvent } = event
+  return jsonPrivate({ event: { ...safeEvent, hasPhotographerUploadLink } })
+}
+
+const getOwnerEventAnalytics = async (request, slug) => {
+  const ownerEmail = await requireOwner(request)
+  if (typeof ownerEmail !== 'string') {
+    return ownerEmail
+  }
+
+  const repository = await getGalleryRepository()
+  const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
+  if (!event) {
+    return jsonPrivate({ error: 'Event not found' }, 404)
+  }
+
+  const prisma = await getPrismaClient()
+  if (!prisma) {
+    return jsonPrivate({ error: 'Service temporarily unavailable, please retry' }, 503)
+  }
+
+  const [views, uploads, uploadsByActorRaw, upsellByEventName] = await Promise.all([
+    prisma.eventPageView.count({ where: { eventId: event.id } }),
+    prisma.photo.count({ where: { eventId: event.id, status: 'VISIBLE' } }),
+    prisma.photo.groupBy({
+      by: ['uploadActorType'],
+      where: { eventId: event.id, status: 'VISIBLE' },
+      _count: { id: true },
+    }),
+    prisma.upsellEvent.groupBy({
+      by: ['eventName'],
+      where: { eventId: event.id },
+      _count: { id: true },
+    }),
+  ])
+
+  const uploadsByActor = uploadsByActorRaw.reduce((acc, row) => {
+    acc[row.uploadActorType || 'unknown'] = row._count.id
+    return acc
+  }, {})
+
+  const funnelCount = (eventName) => upsellByEventName.find((row) => row.eventName === eventName)?._count.id || 0
+
+  return jsonPrivate({
+    views,
+    uploads,
+    uploadsByActor,
+    viewToUploadRate: views > 0 ? uploads / views : null,
+    originalQualityUnlocked: Boolean(event.originalDownloadUnlocked),
+    upsellFunnel: {
+      impressions: funnelCount('upsell_impression'),
+      clicks: funnelCount('upsell_click'),
+      checkoutStarts: funnelCount('upsell_checkout_start'),
+      conversions: funnelCount('upsell_conversion'),
+    },
+  })
 }
 
 const updateOwnerEvent = async (request, slug) => {
@@ -2224,6 +2327,58 @@ const updateOwnerEvent = async (request, slug) => {
 
   const updatedEvent = await repository.updateEvent(slug, payload)
   return jsonPrivate({ event: updatedEvent })
+}
+
+const getOwnerNotificationPreferences = async (request) => {
+  const ownerEmail = await requireOwner(request)
+  if (typeof ownerEmail !== 'string') {
+    return ownerEmail
+  }
+
+  const owner = await resolveCanonicalOwner(ownerEmail)
+  if (!owner) {
+    return jsonPrivate({ error: 'Owner not found' }, 404)
+  }
+
+  return jsonPrivate({ emailNotificationsEnabled: owner.emailNotificationsEnabled })
+}
+
+const updateOwnerNotificationPreferences = async (request) => {
+  const ownerEmail = await requireOwnerWithCsrf(request)
+  if (typeof ownerEmail !== 'string') {
+    return ownerEmail
+  }
+
+  const rateLimitCheck = await checkOwnerRateLimit(request, ownerEmail, OWNER_WRITE_LIMITS.accountSettingsWrite)
+  if (rateLimitCheck) return rateLimitCheck
+
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return jsonPrivate({ error: 'Invalid JSON body' }, 400)
+  }
+
+  if (typeof body?.enabled !== 'boolean') {
+    return jsonPrivate({ error: '"enabled" must be a boolean' }, 400)
+  }
+
+  const owner = await resolveCanonicalOwner(ownerEmail)
+  if (!owner) {
+    return jsonPrivate({ error: 'Owner not found' }, 404)
+  }
+
+  const prisma = await getPrismaClient()
+  if (!prisma) {
+    return jsonPrivate({ error: 'Service temporarily unavailable, please retry' }, 503)
+  }
+
+  const updatedOwner = await prisma.owner.update({
+    where: { id: owner.id },
+    data: { emailNotificationsEnabled: body.enabled },
+  })
+
+  return jsonPrivate({ emailNotificationsEnabled: updatedOwner.emailNotificationsEnabled })
 }
 
 const deleteOwnerEvent = withTiming('deleteOwnerEvent', async (request, slug) => {
@@ -2440,12 +2595,24 @@ async function handleRoute(request, { params }) {
         return setupOwnerPassword(request)
       }
 
+      if (segments.length === 3 && segments[1] === 'account' && segments[2] === 'notifications' && method === 'GET') {
+        return getOwnerNotificationPreferences(request)
+      }
+
+      if (segments.length === 3 && segments[1] === 'account' && segments[2] === 'notifications' && method === 'PATCH') {
+        return updateOwnerNotificationPreferences(request)
+      }
+
       if (segments.length === 2 && segments[1] === 'events' && method === 'GET') {
         return listOwnerEvents(request)
       }
 
       if (segments.length === 3 && segments[1] === 'events' && method === 'GET') {
         return getOwnerEvent(request, segments[2])
+      }
+
+      if (segments.length === 4 && segments[1] === 'events' && segments[3] === 'analytics' && method === 'GET') {
+        return getOwnerEventAnalytics(request, segments[2])
       }
 
       if (segments.length === 3 && segments[1] === 'events' && method === 'PATCH') {
@@ -2484,12 +2651,16 @@ async function handleRoute(request, { params }) {
         return deletePrivateDeliveryAsset(request, segments[2])
       }
 
-      if (segments.length === 4 && segments[1] === 'events' && segments[3] === 'photographer-link' && method === 'POST') {
+      if (segments.length === 4 && segments[1] === 'events' && segments[3] === 'photographer-links' && method === 'POST') {
         return createPhotographerUploadLink(request, segments[2])
       }
 
-      if (segments.length === 4 && segments[1] === 'events' && segments[3] === 'photographer-link' && method === 'DELETE') {
-        return deletePhotographerUploadLink(request, segments[2])
+      if (segments.length === 4 && segments[1] === 'events' && segments[3] === 'photographer-links' && method === 'GET') {
+        return listPhotographerUploadLinksHandler(request, segments[2])
+      }
+
+      if (segments.length === 5 && segments[1] === 'events' && segments[3] === 'photographer-links' && method === 'DELETE') {
+        return deletePhotographerUploadLink(request, segments[2], segments[4])
       }
 
       if (segments.length === 4 && segments[1] === 'events' && segments[3] === 'cover' && method === 'POST') {
