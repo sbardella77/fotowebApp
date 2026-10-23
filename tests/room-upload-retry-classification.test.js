@@ -5,7 +5,8 @@ import { resolve } from 'path'
 // STEP 7.13a — Guest room-photo upload: HTTP 429 from every fetch-controlled
 // stage (init, complete [both Vercel-blob and local/chunked paths], chunk)
 // must immediately stop the whole-file retry loop, instead of being retried
-// up to 3x (see STEP 7.13 §C for the amplification this closes).
+// up to MAX_UPLOAD_ATTEMPTS times (see STEP 7.13 §C for the amplification
+// this closes).
 //
 // STEP 7.15g.1 extends the same mechanism to HTTP 422 (deterministic
 // source-content rejection from the STEP 7.15g validator): since all four
@@ -17,6 +18,18 @@ import { resolve } from 'path'
 // stop the loop after one attempt now also covers 422. This file adds
 // explicit 422-labeled assertions alongside the existing ones so the two
 // statuses are never allowed to drift apart silently.
+//
+// Roadmap item 7 (upload resilience on flaky networks) restructured
+// uploadSingleFile: the local/chunked path's session is now created once
+// and reused across outer retry attempts (so a network blip resumes from
+// the next unsent chunk instead of re-uploading everything), each chunk
+// gets its own short retry before propagating to the outer loop, and the
+// outer loop waits for navigator.onLine before each attempt. The
+// classification contract this file proves (which statuses are retryable,
+// where photo_count always wins, the single isRetryableUploadHttpStatus
+// seam) is explicitly unchanged by that restructuring — only the ordering
+// of the four fetch-controlled blocks in source and the attempt
+// count/backoff formula moved, both updated below.
 //
 // The blob-token-generation request (issued internally by @vercel/blob's
 // upload() client SDK) is explicitly OUT of scope for this STEP — its
@@ -41,7 +54,7 @@ const ROOM = readFileSync(resolve(import.meta.dirname, '..', 'components/room-pa
 
 function extractUploadSingleFile(source) {
   const startMarker = 'const uploadSingleFile = async'
-  const endMarker = 'const MAX_FILE_SIZE ='
+  const endMarker = 'const retryUpload = (localId) =>'
   const startIdx = source.indexOf(startMarker)
   const endIdx = source.indexOf(endMarker, startIdx)
   expect(startIdx).toBeGreaterThan(-1)
@@ -60,23 +73,28 @@ function sliceAfter(source, marker, length = 700) {
   return source.slice(idx, idx + length)
 }
 
-const INIT_BLOCK = sliceAfter(FN, "if (!initResponse.ok) {")
-const VERCEL_COMPLETE_BLOCK = sliceAfter(FN, "if (!completeResponse.ok) {")
-const CHUNK_BLOCK = sliceAfter(FN, "if (!chunkResponse.ok) {")
-// The local/chunked complete block is the SECOND "if (!completeResponse.ok)"
-// occurrence — find it explicitly.
-function secondOccurrenceBlock(source, marker, length = 700) {
+const INIT_BLOCK = sliceAfter(FN, 'if (!initResponse.ok) {')
+const CHUNK_BLOCK = sliceAfter(FN, 'if (!chunkResponse.ok) {')
+// uploadRemainingLocalChunks (the local/chunked path's helper) is now
+// defined BEFORE the outer attempt loop so it can close over the
+// chunkSession/nextChunkIndex resume state — so its own
+// "if (!completeResponse.ok)" block is the FIRST occurrence in FN, and the
+// Vercel-blob path's (inside the loop) is the SECOND. This is the opposite
+// order from before the roadmap-item-7 restructuring.
+function occurrenceBlock(source, marker, which, length = 700) {
   const first = source.indexOf(marker)
   expect(first).toBeGreaterThan(-1)
+  if (which === 1) return source.slice(first, first + length)
   const second = source.indexOf(marker, first + 1)
   expect(second).toBeGreaterThan(first)
   return source.slice(second, second + length)
 }
-const LOCAL_COMPLETE_BLOCK = secondOccurrenceBlock(FN, "if (!completeResponse.ok) {")
+const LOCAL_COMPLETE_BLOCK = occurrenceBlock(FN, 'if (!completeResponse.ok) {', 1)
+const VERCEL_COMPLETE_BLOCK = occurrenceBlock(FN, 'if (!completeResponse.ok) {', 2)
 
 describe('Guest upload — helper import', () => {
-  it('imports isRetryableUploadHttpStatus from lib/upload-utils', () => {
-    expect(ROOM).toContain("import { runWithConcurrency, isRetryableUploadHttpStatus } from '@/lib/upload-utils'")
+  it('imports isRetryableUploadHttpStatus and waitForOnline from lib/upload-utils', () => {
+    expect(ROOM).toContain("import { runWithConcurrency, isRetryableUploadHttpStatus, waitForOnline } from '@/lib/upload-utils'")
   })
 })
 
@@ -134,6 +152,10 @@ describe('Guest upload — complete (local/chunked path) 429 classification', ()
     expect(LOCAL_COMPLETE_BLOCK).toContain('const err = new Error(completePayload.error || t.uploadError)')
     expect(LOCAL_COMPLETE_BLOCK).toContain('if (!isRetryableUploadHttpStatus(completeResponse.status)) err.nonRetryable = true')
   })
+
+  it('a 403 at complete time marks the session invalid (forces a fresh init on the next attempt)', () => {
+    expect(LOCAL_COMPLETE_BLOCK).toContain('if (completeResponse.status === 403) err.sessionInvalid = true')
+  })
 })
 
 describe('Guest upload — chunk 429 classification', () => {
@@ -141,12 +163,18 @@ describe('Guest upload — chunk 429 classification', () => {
     expect(CHUNK_BLOCK).toContain('const err = new Error(chunkPayload.error || t.chunkFailed)')
     expect(CHUNK_BLOCK).toContain('if (!isRetryableUploadHttpStatus(chunkResponse.status)) err.nonRetryable = true')
   })
+
+  it('a 400 or 403 marks the session invalid, not just nonRetryable — forces resume via a fresh init instead of hammering a dead session', () => {
+    expect(CHUNK_BLOCK).toContain("if (chunkResponse.status === 400 || chunkResponse.status === 403) {")
+    expect(CHUNK_BLOCK).toContain('err.sessionInvalid = true')
+  })
 })
 
-describe('Guest upload — retry loop mechanics are untouched', () => {
-  it('still attempts exactly 3 times with the existing linear backoff', () => {
-    expect(FN).toContain('for (let attempt = 0; attempt < 3; attempt++)')
-    expect(FN).toContain('await new Promise((r) => setTimeout(r, 800 * attempt))')
+describe('Guest upload — retry loop mechanics', () => {
+  it('attempts up to MAX_UPLOAD_ATTEMPTS (5) times with capped exponential backoff', () => {
+    expect(ROOM).toContain('const MAX_UPLOAD_ATTEMPTS = 5')
+    expect(FN).toContain('for (let attempt = 0; attempt < MAX_UPLOAD_ATTEMPTS; attempt++)')
+    expect(FN).toContain('await new Promise((r) => setTimeout(r, Math.min(1000 * 2 ** attempt, 8000)))')
   })
 
   it('isRetryable() still only consults error.nonRetryable — no new global bypass', () => {
@@ -172,6 +200,16 @@ describe('Guest upload — retry loop mechanics are untouched', () => {
     const uploadCallBlock = FN.slice(uploadCallIdx, uploadCallIdx + 500)
     expect(uploadCallBlock).not.toContain('isRetryableUploadHttpStatus')
   })
+
+  it('waits for navigator.onLine before each outer attempt and before each chunk attempt', () => {
+    const matches = FN.match(/await waitForOnline\(\)/g) || []
+    expect(matches.length).toBe(2)
+  })
+
+  it('the local-chunk path resumes from nextChunkIndex instead of restarting at 0 on an outer retry', () => {
+    expect(FN).toContain('for (let chunkIndex = nextChunkIndex; chunkIndex < totalChunks; chunkIndex += 1)')
+    expect(FN).toContain('if (chunkSession) {')
+  })
 })
 
 describe('Guest upload — HTTP 422 (STEP 7.15g.1) reaches the same shared classifier as 429', () => {
@@ -192,7 +230,7 @@ describe('Guest upload — HTTP 422 (STEP 7.15g.1) reaches the same shared class
 })
 
 describe('Guest upload — generic transient failures remain retryable (unchanged)', () => {
-  it('every nonRetryable assignment is either the pre-existing unconditional photo_count case or the new conditional 429 case — nothing else sets it', () => {
+  it('every nonRetryable assignment is either the pre-existing unconditional photo_count case or the conditional status-classified case — nothing else sets it', () => {
     const lines = FN.split('\n').filter((l) => l.includes('nonRetryable = true'))
     expect(lines.length).toBe(7)
 
@@ -201,7 +239,7 @@ describe('Guest upload — generic transient failures remain retryable (unchange
 
     // 3 pre-existing photo_count blocks (init, vercel-complete, local-complete).
     expect(unconditional.length).toBe(3)
-    // 4 new conditional 429-classification sites (init, vercel-complete, local-complete, chunk).
+    // 4 conditional status-classification sites (init, vercel-complete, local-complete, chunk).
     expect(conditional.length).toBe(4)
     expect(unconditional.length + conditional.length).toBe(lines.length)
   })

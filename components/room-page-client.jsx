@@ -24,7 +24,7 @@ import { EventQRModal } from '@/components/event-qr-modal'
 import { SnapRoomsIcon } from '@/components/marketing/logo'
 import { getSortedRenderablePhotos, getRenderablePhotos } from '@/lib/photo-utils'
 import { optimizeImage } from '@/lib/client-image-optimizer'
-import { runWithConcurrency, isRetryableUploadHttpStatus } from '@/lib/upload-utils'
+import { runWithConcurrency, isRetryableUploadHttpStatus, waitForOnline } from '@/lib/upload-utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -138,6 +138,12 @@ export default function RoomPageClient({ slug, isNew }) {
   const galleryRef = useRef(null)
   const roomViewTracked = useRef(false)
   const uploadCompletedTracked = useRef(false)
+  // localId -> { file, optimizedFile, momentId } for files currently shown
+  // with status ERROR in `uploads`, so a manual retry can re-run the exact
+  // same upload without asking the guest to re-pick from their gallery.
+  // Entries are removed once that file's upload finally succeeds (whether
+  // via auto-retry or a manual retry click).
+  const pendingFilesRef = useRef(new Map())
   const guestNameTracked = useRef(false)
   const { showToast, ToastComponent } = useToast()
   const fetchControllerRef = useRef(null)
@@ -156,6 +162,12 @@ export default function RoomPageClient({ slug, isNew }) {
       .then((response) => response.json())
       .then((data) => setOwnerSession(data))
       .catch(() => setOwnerSession({ authenticated: false, email: null }))
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      pendingFilesRef.current.clear()
+    }
   }, [])
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
@@ -258,10 +270,13 @@ export default function RoomPageClient({ slug, isNew }) {
     }
   }
 
+  const MAX_UPLOAD_ATTEMPTS = 5
+
   const uploadSingleFile = async (file, optimizedFile, momentId) => {
     if (!activeEvent?.slug) return false
     const localId = `${file.name}-${file.lastModified}`
     const fileToUpload = optimizedFile || file
+    pendingFilesRef.current.set(localId, { file, optimizedFile, momentId })
 
     setUploads((current) => {
       if (current.some((u) => u.id === localId)) {
@@ -286,19 +301,120 @@ export default function RoomPageClient({ slug, isNew }) {
       return true
     }
 
+    const totalChunks = Math.ceil(fileToUpload.size / CHUNK_SIZE)
+    // Only meaningful for the local chunked path below — a session opened
+    // there is reused across outer retry attempts (so a network blip
+    // resumes from the next unsent chunk instead of discarding every chunk
+    // the server already has). The Vercel Blob path never persists a
+    // session across attempts: it re-inits fresh each retry, unchanged
+    // from before, since resuming its own multipart protocol isn't
+    // something this change touches.
+    let chunkSession = null
+    let nextChunkIndex = 0
+
+    // Defined once (not inside the retry loop) so it closes over the
+    // mutable chunkSession/nextChunkIndex above and both reads and
+    // advances the SAME counters across outer attempts.
+    const uploadRemainingLocalChunks = async () => {
+      updateUpload({ progress: 8, status: UPLOAD_STATUS.UPLOADING })
+      for (let chunkIndex = nextChunkIndex; chunkIndex < totalChunks; chunkIndex += 1) {
+        const start = chunkIndex * CHUNK_SIZE
+        const end = Math.min(start + CHUNK_SIZE, fileToUpload.size)
+        const chunkBlob = fileToUpload.slice(start, end)
+
+        const CHUNK_MAX_ATTEMPTS = 3
+        for (let chunkAttempt = 0; ; chunkAttempt += 1) {
+          try {
+            if (typeof navigator !== 'undefined' && !navigator.onLine) {
+              updateUpload({ status: UPLOAD_STATUS.UPLOADING, detail: t.waitingForConnection || 'Waiting for connection…' })
+              await waitForOnline()
+            }
+            const formData = new FormData()
+            formData.append('sessionId', chunkSession.sessionId)
+            formData.append('uploadToken', chunkSession.uploadToken)
+            formData.append('chunkIndex', String(chunkIndex))
+            formData.append('totalChunks', String(totalChunks))
+            formData.append('chunk', chunkBlob, `${fileToUpload.name}.part-${chunkIndex}`)
+            const chunkResponse = await fetch('/api/uploads/chunk', { method: 'POST', body: formData })
+            const chunkPayload = await chunkResponse.json()
+            if (!chunkResponse.ok) {
+              const err = new Error(chunkPayload.error || t.chunkFailed)
+              if (chunkResponse.status === 400 || chunkResponse.status === 403) {
+                // Session gone/invalid server-side — no point retrying more
+                // chunks against it; force a fresh init instead.
+                err.sessionInvalid = true
+              }
+              if (!isRetryableUploadHttpStatus(chunkResponse.status)) err.nonRetryable = true
+              throw err
+            }
+            nextChunkIndex = chunkIndex + 1
+            break
+          } catch (chunkError) {
+            if (chunkError.nonRetryable || chunkError.sessionInvalid || chunkAttempt >= CHUNK_MAX_ATTEMPTS - 1) {
+              throw chunkError
+            }
+            await new Promise((r) => setTimeout(r, Math.min(500 * 2 ** chunkAttempt, 4000)))
+          }
+        }
+
+        updateUpload({
+          progress: 10 + Math.round((nextChunkIndex / totalChunks) * 75),
+          status: UPLOAD_STATUS.UPLOADING,
+          detail: `${t.uploadedChunks} ${nextChunkIndex}/${totalChunks}`,
+        })
+      }
+
+      const completeResponse = await fetch('/api/uploads/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: chunkSession.sessionId, uploadToken: chunkSession.uploadToken, uploaderName: guestName, caption: '', momentId: momentId || undefined }),
+      })
+      const completePayload = await completeResponse.json()
+      if (!completeResponse.ok) {
+        if (completePayload.limit === 'photo_count') {
+          setPhotoLimitError(completePayload)
+          updateUpload({ status: UPLOAD_STATUS.ERROR, errorMessage: t.roomPhotoLimitReached })
+          const err = new Error('photo_limit')
+          err.nonRetryable = true
+          throw err
+        }
+        const err = new Error(completePayload.error || t.uploadError)
+        if (completeResponse.status === 403) err.sessionInvalid = true
+        if (!isRetryableUploadHttpStatus(completeResponse.status)) err.nonRetryable = true
+        throw err
+      }
+      updateUpload({ progress: 100, status: UPLOAD_STATUS.DONE })
+      setActiveEvent(completePayload.event)
+      setGalleryError('')
+    }
+
     let lastError
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < MAX_UPLOAD_ATTEMPTS; attempt++) {
       try {
+        // Never burn an attempt against a connection we already know is
+        // down — wait for it to come back (or a generous timeout) first.
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          updateUpload({ status: UPLOAD_STATUS.UPLOADING, detail: t.waitingForConnection || 'Waiting for connection…' })
+          await waitForOnline()
+        }
+
         if (attempt > 0) {
           updateUpload({
             progress: 5,
             status: UPLOAD_STATUS.UPLOADING,
-            detail: `${t.uploadingPhotos} (${tCommon.retry} ${attempt}/2)`,
+            detail: `${t.uploadingPhotos} (${tCommon.retry} ${attempt}/${MAX_UPLOAD_ATTEMPTS - 1})`,
           })
-          await new Promise((r) => setTimeout(r, 800 * attempt))
+          await new Promise((r) => setTimeout(r, Math.min(1000 * 2 ** attempt, 8000)))
         }
 
-        const totalChunks = Math.ceil(fileToUpload.size / CHUNK_SIZE)
+        // Resuming an already-open local-chunk session from a previous
+        // attempt: skip straight to uploading the remaining chunks.
+        if (chunkSession) {
+          await uploadRemainingLocalChunks()
+          pendingFilesRef.current.delete(localId)
+          return true
+        }
+
         const initResponse = await fetch('/api/uploads/init', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -373,57 +489,22 @@ export default function RoomPageClient({ slug, isNew }) {
           updateUpload({ progress: 100, status: UPLOAD_STATUS.DONE })
           setActiveEvent(completePayload.event)
           setGalleryError('')
+          pendingFilesRef.current.delete(localId)
           return true
         }
 
-        updateUpload({ progress: 8, status: UPLOAD_STATUS.UPLOADING })
-        for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex += 1) {
-          const start = chunkIndex * CHUNK_SIZE
-          const end = Math.min(start + CHUNK_SIZE, fileToUpload.size)
-          const chunkBlob = fileToUpload.slice(start, end)
-          const formData = new FormData()
-          formData.append('sessionId', initPayload.session.sessionId)
-          formData.append('uploadToken', initPayload.session.uploadToken)
-          formData.append('chunkIndex', String(chunkIndex))
-          formData.append('totalChunks', String(totalChunks))
-          formData.append('chunk', chunkBlob, `${fileToUpload.name}.part-${chunkIndex}`)
-          const chunkResponse = await fetch('/api/uploads/chunk', { method: 'POST', body: formData })
-          const chunkPayload = await chunkResponse.json()
-          if (!chunkResponse.ok) {
-            const err = new Error(chunkPayload.error || t.chunkFailed)
-            if (!isRetryableUploadHttpStatus(chunkResponse.status)) err.nonRetryable = true
-            throw err
-          }
-          updateUpload({
-            progress: 10 + Math.round(((chunkIndex + 1) / totalChunks) * 75),
-            status: UPLOAD_STATUS.UPLOADING,
-            detail: `${t.uploadedChunks} ${chunkIndex + 1}/${totalChunks}`,
-          })
-        }
-        const completeResponse = await fetch('/api/uploads/complete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId: initPayload.session.sessionId, uploadToken: initPayload.session.uploadToken, uploaderName: guestName, caption: '', momentId: momentId || undefined }),
-        })
-        const completePayload = await completeResponse.json()
-        if (!completeResponse.ok) {
-          if (completePayload.limit === 'photo_count') {
-            setPhotoLimitError(completePayload)
-            updateUpload({ status: UPLOAD_STATUS.ERROR, errorMessage: t.roomPhotoLimitReached })
-            const err = new Error('photo_limit')
-            err.nonRetryable = true
-            throw err
-          }
-          const err = new Error(completePayload.error || t.uploadError)
-          if (!isRetryableUploadHttpStatus(completeResponse.status)) err.nonRetryable = true
-          throw err
-        }
-        updateUpload({ progress: 100, status: UPLOAD_STATUS.DONE })
-        setActiveEvent(completePayload.event)
-        setGalleryError('')
+        // ── Local chunked path (dev / non-Vercel-Blob storage only) ──────
+        chunkSession = initPayload.session
+        nextChunkIndex = 0
+        await uploadRemainingLocalChunks()
+        pendingFilesRef.current.delete(localId)
         return true
       } catch (error) {
         lastError = error
+        if (error.sessionInvalid) {
+          chunkSession = null
+          nextChunkIndex = 0
+        }
         if (!isRetryable(error)) break
       }
     }
@@ -431,6 +512,12 @@ export default function RoomPageClient({ slug, isNew }) {
     console.error('Upload failed after retries', lastError)
     updateUpload({ status: UPLOAD_STATUS.ERROR, errorMessage: tCommon.failed })
     return false
+  }
+
+  const retryUpload = (localId) => {
+    const pending = pendingFilesRef.current.get(localId)
+    if (!pending) return
+    uploadSingleFile(pending.file, pending.optimizedFile, pending.momentId)
   }
 
   const MAX_FILE_SIZE = 25 * 1024 * 1024
@@ -1200,7 +1287,7 @@ export default function RoomPageClient({ slug, isNew }) {
 
             <input ref={heroFileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={onFilesSelected} aria-label={t.addPhotos} />
 
-            <UploadProgressList uploads={uploads} t={t} tCommon={tCommon} />
+            <UploadProgressList uploads={uploads} onRetry={retryUpload} canRetry={(id) => pendingFilesRef.current.has(id)} t={t} tCommon={tCommon} />
 
             {/* Latest photos — right after the primary action, for social proof */}
             <div ref={galleryRef} className="mt-8 rounded-2xl border border-border bg-surface shadow-card">
