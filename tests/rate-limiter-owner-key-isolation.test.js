@@ -201,7 +201,7 @@ describe('Cross-category isolation — the live false-429 bug is fixed', () => {
 
     const { POST } = await import('@/app/api/[[...path]]/route')
     const request = await buildOwnerRequest({})
-    const response = await POST(request, { params: { path: ['owner', 'events', SLUG, 'photographer-link'] } })
+    const response = await POST(request, { params: { path: ['owner', 'events', SLUG, 'photographer-links'] } })
 
     expect(response.status).not.toBe(429)
     const keysUsed = evalMock.mock.calls.map((c) => c[1][0])
@@ -219,7 +219,7 @@ describe('Cross-category isolation — the live false-429 bug is fixed', () => {
     await POST(await buildOwnerRequest({ coverDataUrl: 'x' }), { params: { path: ['owner', 'events', SLUG, 'cover'] } })
     await POST(await buildOwnerRequest({ eventSlug: SLUG, fileName: 'a.jpg', fileSize: 100, mimeType: 'image/jpeg', totalChunks: 1 }), { params: { path: ['owner', 'events', SLUG, 'private-delivery', 'init'] } })
     await POST(await buildOwnerRequest({ name: 'x' }), { params: { path: ['owner', 'events', SLUG, 'moments'] } })
-    await POST(await buildOwnerRequest({}), { params: { path: ['owner', 'events', SLUG, 'photographer-link'] } })
+    await POST(await buildOwnerRequest({}), { params: { path: ['owner', 'events', SLUG, 'photographer-links'] } })
     await POST(await buildOwnerRequest({}, { method: 'PATCH' }), { params: { path: ['owner', 'events', SLUG] } })
     await POST(await buildOwnerRequest({ action: 'approve' }, { method: 'PATCH' }), { params: { path: ['owner', 'photos', 'photo-1'] } })
 
@@ -266,8 +266,8 @@ describe('Intended within-category sharing is preserved', () => {
     await mockRepository()
 
     const { POST } = await import('@/app/api/[[...path]]/route')
-    await POST(await buildOwnerRequest({}), { params: { path: ['owner', 'events', SLUG, 'photographer-link'] } })
-    await POST(await buildOwnerRequest({}, { method: 'DELETE' }), { params: { path: ['owner', 'events', SLUG, 'photographer-link'] } })
+    await POST(await buildOwnerRequest({}), { params: { path: ['owner', 'events', SLUG, 'photographer-links'] } })
+    await POST(await buildOwnerRequest({}, { method: 'DELETE' }), { params: { path: ['owner', 'events', SLUG, 'photographer-links', 'link-1'] } })
 
     const { hashIdentifier } = await import('@/lib/server/rate-limiter')
     const expectedKey = `owner:photographer-link-write:${hashIdentifier(OWNER_EMAIL)}`
