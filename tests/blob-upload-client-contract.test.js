@@ -27,15 +27,20 @@ function extractVercelBranch(source) {
  * Extracts a slice around the local/chunked complete fetch call.
  * The Room client Vercel branch ends with `return true` — there is no
  * `} else {`. Both branches call fetch('/api/uploads/complete'), so we
- * return a window around the SECOND occurrence (local path).
+ * return a window around one of the two occurrences.
+ *
+ * Roadmap item 7 (upload resilience) moved the local/chunked path's helper
+ * (uploadRemainingLocalChunks) to be defined BEFORE the outer retry loop,
+ * so it can close over the resumable chunkSession/nextChunkIndex state.
+ * That makes its fetch('/api/uploads/complete') call the FIRST occurrence
+ * in source now, with the Vercel-blob branch's (inside the loop) second —
+ * the opposite order from before that change.
  */
 function extractRoomLocalCompleteFetch(source) {
   const marker = "fetch('/api/uploads/complete'"
   const firstIdx = source.indexOf(marker)
   if (firstIdx === -1) return ''
-  const secondIdx = source.indexOf(marker, firstIdx + 1)
-  if (secondIdx === -1) return ''
-  return source.slice(secondIdx, secondIdx + 500)
+  return source.slice(firstIdx, firstIdx + 500)
 }
 
 /**

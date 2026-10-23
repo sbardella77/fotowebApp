@@ -118,11 +118,14 @@ describe('logout() is deliberately left untouched (STEP scope: session-expiry UX
 })
 
 describe('Covered call-site count', () => {
-  it('16: exactly 18 call sites in page.js invoke consumeOwnerSessionFailure', () => {
+  it('16: exactly 16 call sites in page.js invoke consumeOwnerSessionFailure', () => {
     const matches = DASHBOARD_PAGE.match(/consumeOwnerSessionFailure\(/g) || []
-    // 18 call sites + 0 (the definition itself uses "= async (status) =>",
-    // not a call, so it is not counted here).
-    expect(matches.length).toBe(18)
+    // 16 call sites + 0 (the definition itself uses "= async (status) =>",
+    // not a call, so it is not counted here). Was 18 before the
+    // photographer-link handlers (2 call sites) moved out of page.js into
+    // PhotographerLinksManager, which takes onOwnerSessionFailure as a prop
+    // instead of calling consumeOwnerSessionFailure directly.
+    expect(matches.length).toBe(16)
   })
 })
 
