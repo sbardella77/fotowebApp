@@ -13,8 +13,8 @@ vi.mock('fs/promises', () => ({
   appendFile: vi.fn().mockResolvedValue(undefined),
 }))
 
-import { rm, writeFile, readFile, stat } from 'fs/promises'
-import { localStorageDriver } from '@/lib/server/storage/local-storage'
+import { rm, writeFile, readFile, readdir, stat } from 'fs/promises'
+import { localStorageDriver, cleanupExpiredLocalSessions } from '@/lib/server/storage/local-storage'
 
 const STORAGE_ROOT = path.join(process.cwd(), 'public', 'uploads')
 
@@ -278,5 +278,65 @@ describe('localStorageDriver uploadActorType propagation (init → meta → comp
     })
 
     expect(result.uploadActorType).toBeNull()
+  })
+})
+
+describe('cleanupExpiredLocalSessions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('returns scanned=0, removed=0 when TEMP_ROOT does not exist', async () => {
+    readdir.mockRejectedValueOnce(new Error('ENOENT'))
+    const result = await cleanupExpiredLocalSessions()
+    expect(result).toEqual({ scanned: 0, removed: 0 })
+    expect(rm).not.toHaveBeenCalled()
+  })
+
+  it('removes a session older than maxAgeMs and keeps a fresh one', async () => {
+    readdir.mockResolvedValueOnce(['old-session', 'fresh-session'])
+    readFile.mockImplementation(async (filePath) => {
+      if (String(filePath).includes('old-session')) {
+        return JSON.stringify({ sessionId: 'old-session', createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString() })
+      }
+      return JSON.stringify({ sessionId: 'fresh-session', createdAt: new Date().toISOString() })
+    })
+
+    const result = await cleanupExpiredLocalSessions()
+
+    expect(result).toEqual({ scanned: 2, removed: 1 })
+    expect(rm).toHaveBeenCalledOnce()
+    expect(rm.mock.calls[0][0]).toContain('old-session')
+  })
+
+  it('removes a session whose meta.json is missing or corrupt', async () => {
+    readdir.mockResolvedValueOnce(['broken-session'])
+    readFile.mockRejectedValueOnce(new Error('ENOENT'))
+
+    const result = await cleanupExpiredLocalSessions()
+
+    expect(result).toEqual({ scanned: 1, removed: 1 })
+    expect(rm).toHaveBeenCalledOnce()
+    expect(rm.mock.calls[0][0]).toContain('broken-session')
+  })
+
+  it('removes a session with an unparseable createdAt', async () => {
+    readdir.mockResolvedValueOnce(['bad-date-session'])
+    readFile.mockResolvedValueOnce(JSON.stringify({ sessionId: 'bad-date-session', createdAt: 'not-a-date' }))
+
+    const result = await cleanupExpiredLocalSessions()
+
+    expect(result).toEqual({ scanned: 1, removed: 1 })
+    expect(rm).toHaveBeenCalledOnce()
+  })
+
+  it('respects a custom maxAgeMs', async () => {
+    readdir.mockResolvedValueOnce(['recent-session'])
+    readFile.mockResolvedValueOnce(JSON.stringify({ sessionId: 'recent-session', createdAt: new Date(Date.now() - 5000).toISOString() }))
+
+    const result = await cleanupExpiredLocalSessions(1000)
+
+    expect(result).toEqual({ scanned: 1, removed: 1 })
+    expect(rm).toHaveBeenCalledOnce()
   })
 })

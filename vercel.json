@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/cleanup-photo-derivatives",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/cleanup-local-upload-sessions",
+      "schedule": "0 7 * * *"
     }
   ]
 }
