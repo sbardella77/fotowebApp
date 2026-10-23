@@ -241,6 +241,12 @@ export default function RoomPageClient({ slug, isNew }) {
           has_moments: viewedMoments.length > 0,
           moment_count: viewedMoments.length,
         })
+        // Anonymous first-party view counter for the owner's per-event
+        // analytics (not the PostHog event above) — only for actual guest
+        // views, never the owner checking their own gallery.
+        if (!viewedIsHost && payload.event?.slug) {
+          fetch(`/api/events/${payload.event.slug}/view`, { method: 'POST', keepalive: true }).catch(() => {})
+        }
       }
     } catch (error) {
       if (error.name === 'AbortError') {

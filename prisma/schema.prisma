@@ -140,6 +140,7 @@ model Event {
   galleryDownloadJobs               GalleryDownloadJob[]
   moments                           EventMoment[]
   blobUploadSessions                BlobUploadSession[]
+  pageViews                         EventPageView[]
 
   @@index([createdAt])
   @@index([ownerId])
@@ -163,35 +164,35 @@ model EventMoment {
 }
 
 model Photo {
-  id              String       @id @default(uuid())
-  eventId         String
-  originalName    String
-  storedName      String
-  mimeType        String
-  size            Int
-  url             String
-  uploaderName    String?
-  caption         String?
-  status          PhotoStatus  @default(VISIBLE)
-  uploadSource    String       @default("mobile")
-  width           Int?
-  height          Int?
-  momentId        String?
-  contributorId   String?
+  id                      String                  @id @default(uuid())
+  eventId                 String
+  originalName            String
+  storedName              String
+  mimeType                String
+  size                    Int
+  url                     String
+  uploaderName            String?
+  caption                 String?
+  status                  PhotoStatus             @default(VISIBLE)
+  uploadSource            String                  @default("mobile")
+  width                   Int?
+  height                  Int?
+  momentId                String?
+  contributorId           String?
   // Server-derived only — never trust a client-supplied value. 'owner' when
   // the request carried a valid owner session matching this photo's event
   // owner at upload time, 'guest' otherwise. NULL on rows created before
   // this field existed: unknown, never treated as 'guest'. Analytics
   // attribution only — never used for authorization/entitlements.
-  uploadActorType String?
+  uploadActorType         String?
   // See DisplayDerivativeStatus above for the exact semantics. Schema
   // default is the conservative LEGACY_UNVERIFIED value — new-upload call
   // sites explicitly pass PENDING instead of relying on this default.
   displayDerivativeStatus DisplayDerivativeStatus @default(LEGACY_UNVERIFIED)
-  moment          EventMoment? @relation(fields: [momentId], references: [id], onDelete: SetNull)
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  event           Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  moment                  EventMoment?            @relation(fields: [momentId], references: [id], onDelete: SetNull)
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+  event                   Event                   @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@index([eventId, createdAt(sort: Desc)])
   @@index([status, createdAt(sort: Desc)])
@@ -291,6 +292,16 @@ model UpsellEvent {
   @@index([eventName, upsellType])
   @@index([source])
   @@index([createdAt])
+  @@index([eventId])
+}
+
+model EventPageView {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([eventId, createdAt])
 }
 
 model BlobUploadSession {
