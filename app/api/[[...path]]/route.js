@@ -2226,6 +2226,58 @@ const updateOwnerEvent = async (request, slug) => {
   return jsonPrivate({ event: updatedEvent })
 }
 
+const getOwnerNotificationPreferences = async (request) => {
+  const ownerEmail = await requireOwner(request)
+  if (typeof ownerEmail !== 'string') {
+    return ownerEmail
+  }
+
+  const owner = await resolveCanonicalOwner(ownerEmail)
+  if (!owner) {
+    return jsonPrivate({ error: 'Owner not found' }, 404)
+  }
+
+  return jsonPrivate({ emailNotificationsEnabled: owner.emailNotificationsEnabled })
+}
+
+const updateOwnerNotificationPreferences = async (request) => {
+  const ownerEmail = await requireOwnerWithCsrf(request)
+  if (typeof ownerEmail !== 'string') {
+    return ownerEmail
+  }
+
+  const rateLimitCheck = await checkOwnerRateLimit(request, ownerEmail, OWNER_WRITE_LIMITS.accountSettingsWrite)
+  if (rateLimitCheck) return rateLimitCheck
+
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return jsonPrivate({ error: 'Invalid JSON body' }, 400)
+  }
+
+  if (typeof body?.enabled !== 'boolean') {
+    return jsonPrivate({ error: '"enabled" must be a boolean' }, 400)
+  }
+
+  const owner = await resolveCanonicalOwner(ownerEmail)
+  if (!owner) {
+    return jsonPrivate({ error: 'Owner not found' }, 404)
+  }
+
+  const prisma = await getPrismaClient()
+  if (!prisma) {
+    return jsonPrivate({ error: 'Service temporarily unavailable, please retry' }, 503)
+  }
+
+  const updatedOwner = await prisma.owner.update({
+    where: { id: owner.id },
+    data: { emailNotificationsEnabled: body.enabled },
+  })
+
+  return jsonPrivate({ emailNotificationsEnabled: updatedOwner.emailNotificationsEnabled })
+}
+
 const deleteOwnerEvent = withTiming('deleteOwnerEvent', async (request, slug) => {
   const ownerEmail = await requireOwnerWithCsrf(request)
   if (typeof ownerEmail !== 'string') {
@@ -2438,6 +2490,14 @@ async function handleRoute(request, { params }) {
 
       if (segments.length === 2 && segments[1] === 'setup' && method === 'POST') {
         return setupOwnerPassword(request)
+      }
+
+      if (segments.length === 3 && segments[1] === 'account' && segments[2] === 'notifications' && method === 'GET') {
+        return getOwnerNotificationPreferences(request)
+      }
+
+      if (segments.length === 3 && segments[1] === 'account' && segments[2] === 'notifications' && method === 'PATCH') {
+        return updateOwnerNotificationPreferences(request)
       }
 
       if (segments.length === 2 && segments[1] === 'events' && method === 'GET') {
