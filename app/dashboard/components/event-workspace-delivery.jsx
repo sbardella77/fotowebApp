@@ -2,17 +2,14 @@
 
 import {
   Archive,
-  CheckCircle2,
-  Copy,
   Download,
   FolderHeart,
-  LinkIcon,
   Loader2,
-  RefreshCw,
   Trash2,
   Upload,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { PhotographerLinksManager } from './photographer-links-manager'
 
 export function EventWorkspaceDelivery({
   event,
@@ -27,13 +24,9 @@ export function EventWorkspaceDelivery({
   onPrivateDownload,
   onPrivateDelete,
   busyDetail,
-  photographerLink,
-  photographerLinkBusy,
-  photographerLinkCopied,
-  onGeneratePhotoLink,
-  onCopyPhotoLink,
-  onRevokePhotoLink,
+  onOwnerSessionFailure,
   t,
+  tCommon,
 }) {
   return (
     <div>
@@ -104,53 +97,7 @@ export function EventWorkspaceDelivery({
               )}
             </div>
 
-            {/* Photographer Link */}
-            <div className="mt-5 rounded-xl border border-border bg-secondary p-4">
-              <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent-dark">{t.photographerLink}</span>
-              <p className="mt-1 text-xs font-light leading-relaxed text-muted-foreground">{t.photographerLinkDesc}</p>
-              <div className="mt-3">
-                {!photographerLink && !event?.hasPhotographerUploadLink && (
-                  <Button size="sm" variant="outline" className="border-border bg-surface hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent-dark" disabled={photographerLinkBusy} onClick={onGeneratePhotoLink}>
-                    {photographerLinkBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <LinkIcon className="mr-1.5 h-3.5 w-3.5" />}
-                    {t.generateLink}
-                  </Button>
-                )}
-                {!photographerLink && event?.hasPhotographerUploadLink && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-xs text-muted-foreground">{t.linkAlreadyExists}</p>
-                    <Button size="sm" variant="outline" className="border-border bg-surface hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent-dark" disabled={photographerLinkBusy} onClick={onGeneratePhotoLink}>
-                      {photographerLinkBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
-                      {t.regenerate}
-                    </Button>
-                    <Button size="sm" variant="destructive" className="h-8" disabled={photographerLinkBusy} onClick={onRevokePhotoLink}>
-                      <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                      {t.revoke}
-                    </Button>
-                  </div>
-                )}
-                {photographerLink && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2">
-                      <span className="truncate text-xs text-foreground">{photographerLink}</span>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button size="sm" variant="outline" className="border-border bg-surface hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent-dark" onClick={onCopyPhotoLink}>
-                        {photographerLinkCopied ? <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> : <Copy className="mr-1.5 h-3.5 w-3.5" />}
-                        {photographerLinkCopied ? t.copied : t.copyLink}
-                      </Button>
-                      <Button size="sm" variant="outline" className="border-border bg-surface hover:bg-elevated hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent-dark" disabled={photographerLinkBusy} onClick={onGeneratePhotoLink}>
-                        {photographerLinkBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
-                        {t.regenerate}
-                      </Button>
-                      <Button size="sm" variant="destructive" className="h-8" disabled={photographerLinkBusy} onClick={onRevokePhotoLink}>
-                        <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                        {t.revoke}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+            <PhotographerLinksManager event={event} onOwnerSessionFailure={onOwnerSessionFailure} t={t} tCommon={tCommon} />
           </div>
         </div>
       )}
