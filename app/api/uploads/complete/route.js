@@ -22,6 +22,9 @@ import { getPhotoBuffer } from '@/lib/server/download-utils'
 import { validateRoomPhotoSource, PhotoSourceValidationError } from '@/lib/server/photo-source-validation'
 import { checkRoomUploadEntitlement } from '@/lib/server/entitlements'
 import { ensurePhotoDisplayDerivativeStatus } from '@/lib/server/photo-display-derivative-status'
+import { incrementPendingPhotoDigest } from '@/lib/server/photo-digest'
+import { notifyPhotoThresholdReachedOnce } from '@/lib/server/photo-threshold-notification'
+import { getAppUrl } from '@/lib/server/event-routes'
 import { json } from '@/lib/server/api-response'
 
 export const runtime = 'nodejs'
@@ -123,6 +126,11 @@ export const POST = withTiming('completeUpload', async (request) => {
             },
             { distinctId: `room:${error.details.eventSlug}`, personProfile: false },
           )
+          await notifyPhotoThresholdReachedOnce(prisma, {
+            eventId: error.details.eventId,
+            max: error.details.max,
+            appUrl: getAppUrl(),
+          })
         }
         return json(
           {
@@ -149,6 +157,13 @@ export const POST = withTiming('completeUpload', async (request) => {
     // idempotent) success, undefined on the idempotent path, in which case
     // this falls back to its own fetch exactly as before.
     await ensurePhotoDisplayDerivative(result.photo, { operation: 'completeUpload', sourceBuffer: result.sourceBuffer })
+
+    // Best-effort, same pattern as ensurePhotoDisplayDerivative above — never
+    // blocks the response. Only on a fresh photo, not the idempotent-retry
+    // branch, so a retried completion never double-counts the same upload.
+    if (!result.idempotent) {
+      await incrementPendingPhotoDigest(prisma, result.photo.eventId)
+    }
 
     const repository = await getGalleryRepository()
     const freshEvent = await repository.getEventBySlug(result.eventSlug)
@@ -206,6 +221,11 @@ export const POST = withTiming('completeUpload', async (request) => {
         },
         { distinctId: `room:${event.slug}`, personProfile: false }
       )
+      await notifyPhotoThresholdReachedOnce(prisma, {
+        eventId: event.id,
+        max: entitlement.max,
+        appUrl: getAppUrl(),
+      })
       return json({
         error: `This room has reached its ${entitlement.max}-photo limit.`,
         limit: 'photo_count',
@@ -265,6 +285,10 @@ export const POST = withTiming('completeUpload', async (request) => {
   // `photo.url` are for a durably-committed row. Reuses the same buffer
   // already fetched and validated above — no second read.
   await ensurePhotoDisplayDerivative(photo, { operation: 'completeUpload', sourceBuffer: localSourceBuffer })
+
+  if (prisma) {
+    await incrementPendingPhotoDigest(prisma, event.id)
+  }
 
   const freshEvent = await repository.getEventBySlug(event.slug)
 
