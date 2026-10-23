@@ -1,5 +1,5 @@
 import { uploadChunkSchema, MAX_CHUNK_SIZE_BYTES } from '@/lib/server/schemas'
-import { rateLimit, getClientIp, RATE_LIMITS } from '@/lib/server/rate-limiter'
+import { checkRateLimit, getClientIp, hashIdentifier, RATE_LIMITS } from '@/lib/server/rate-limiter'
 import { readSessionMeta, getReceivedChunkSize } from '@/lib/server/storage/local-storage'
 import { localStorageDriver } from '@/lib/server/storage'
 import { json } from '@/lib/server/api-response'
@@ -12,8 +12,19 @@ export const runtime = 'nodejs'
 // comment on app/api/uploads/init/route.js for why that matches the
 // original's behavior.
 export async function POST(request) {
+  // Redis-backed, hashed-IP guard — aligned with the init/complete routes'
+  // limiter instead of the deprecated in-memory-only `rateLimit`. No
+  // per-event scope here (unlike init/complete/blob): this route only runs
+  // against the local storage driver, which is disabled on Vercel
+  // (assertWritableLocalStorage) and only exercised in dev/self-hosted
+  // deployments, so the extra DB lookup to resolve an event from
+  // meta.eventSlug isn't worth it.
   const clientIp = getClientIp(request)
-  const limit = rateLimit(`upload-chunk:ip:${clientIp}`, RATE_LIMITS.uploadChunk.ip.max, RATE_LIMITS.uploadChunk.ip.window)
+  const limit = await checkRateLimit(
+    `upload-chunk:ip:${hashIdentifier(clientIp)}`,
+    RATE_LIMITS.uploadChunk.ip.max,
+    RATE_LIMITS.uploadChunk.ip.window,
+  )
   if (limit.limited) {
     return json({ error: 'Too many upload chunks. Please try again later.' }, 429)
   }
