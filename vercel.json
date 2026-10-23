@@ -17,6 +17,10 @@
       "schedule": "0 6 * * *"
     },
     {
+      "path": "/api/cron/cleanup-local-upload-sessions",
+      "schedule": "0 7 * * *"
+    },
+    {
       "path": "/api/cron/notify-photo-digest",
       "schedule": "0 * * * *"
     },
