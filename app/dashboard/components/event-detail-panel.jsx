@@ -11,6 +11,7 @@ import { normalizeEvent } from '@/lib/dashboard-data-helpers'
 import { EventWorkspaceOverview } from './event-workspace-overview'
 import { EventWorkspacePhotos } from './event-workspace-photos'
 import { EventWorkspaceDelivery } from './event-workspace-delivery'
+import { EventWorkspaceAnalytics } from './event-workspace-analytics'
 import { EventWorkspaceSettings } from './event-workspace-settings'
 
 const TAB_LIST_CLASS =
@@ -131,6 +132,7 @@ export function EventDetailPanel({
           <TabsTrigger value="overview" className={TAB_TRIGGER_CLASS}>{t.workspaceOverview}</TabsTrigger>
           <TabsTrigger value="photos" className={TAB_TRIGGER_CLASS}>{t.workspacePhotos}</TabsTrigger>
           <TabsTrigger value="delivery" className={TAB_TRIGGER_CLASS}>{t.workspaceDelivery}</TabsTrigger>
+          <TabsTrigger value="analytics" className={TAB_TRIGGER_CLASS}>{t.workspaceAnalytics || 'Analytics'}</TabsTrigger>
           <TabsTrigger value="settings" className={TAB_TRIGGER_CLASS}>{t.workspaceSettings}</TabsTrigger>
         </TabsList>
 
@@ -183,6 +185,14 @@ export function EventDetailPanel({
               onGeneratePhotoLink={onGeneratePhotoLink}
               onCopyPhotoLink={onCopyPhotoLink}
               onRevokePhotoLink={onRevokePhotoLink}
+              t={t}
+            />
+          </TabsContent>
+
+          <TabsContent value="analytics" forceMount className={TAB_CONTENT_CLASS}>
+            <EventWorkspaceAnalytics
+              event={event}
+              onOwnerSessionFailure={onOwnerSessionFailure}
               t={t}
             />
           </TabsContent>
