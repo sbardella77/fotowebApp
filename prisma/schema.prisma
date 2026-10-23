@@ -131,6 +131,7 @@ model Event {
   retentionPolicy                   String?
   archiveLocked                     Boolean                  @default(false)
   gracePeriodUntil                  DateTime?
+  expiredAt                         DateTime?
   coverUrl                          String?
   pendingDigestPhotoCount           Int                      @default(0)
   lastPhotoDigestSentAt             DateTime?

@@ -71,16 +71,15 @@ CTAs in each reminder:
 - Download full gallery
 - Extend storage / SnapRooms Vault (when available)
 
-## Cleanup Job (Future)
+## Cleanup Job
 
-A future Vercel Cron job will:
+Status of the 4-step pipeline:
 
-1. Find events where `retentionUntil < now()` and `archiveLocked = false` and not covered by Vault.
-2. Set `status = 'EXPIRED'` (or add an `expiredAt` timestamp).
-3. Notify the owner.
-4. After an additional grace period (e.g. 7–14 days), soft-delete blobs and DB records.
+1. **Implemented** — `app/api/cron/mark-expired-events` (daily) finds expired events (reusing `resolveEventRetentionState`, the same resolver the dashboard UI uses) and sets `Event.expiredAt`. The flag is reversible: a later run clears it back to `null` if the event is no longer expired (plan upgrade, Vault extension, `archiveLocked` set). It never touches `Photo`, `PrivateAsset`, or any stored blob.
+2. **Implemented separately** — reminder emails at T-30/T-7/T-0 days (`app/api/cron/notify-event-expiring`, a separate change — see PR history for its own status).
+3. **Not implemented** — after an additional grace period (e.g. 7–14 days), soft-delete blobs and DB records.
 
-**Important:** No destructive cleanup is enabled yet. The current implementation is read-only and informational.
+**Important:** No destructive cleanup is enabled yet. `expiredAt` is informational/reversible bookkeeping only, not a trigger for any deletion. **Legal review is still required** before step 3 (or any other destructive cleanup) is implemented — see below.
 
 ## GDPR / Privacy Notes
 
