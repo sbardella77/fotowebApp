@@ -157,12 +157,12 @@ describe('OWNER_WRITE_LIMITS — every entry (including dead configs) has a vali
 // ─── Call-site signatures unchanged (structural) ───────────────────────────
 
 describe('checkOwnerRateLimit call sites remain textually unchanged (no 4th scope argument added)', () => {
-  it('all 14 call sites still pass only (request, ownerEmail, OWNER_WRITE_LIMITS.<category>)', async () => {
+  it('all 15 call sites still pass only (request, ownerEmail, OWNER_WRITE_LIMITS.<category>)', async () => {
     const { readFileSync } = await import('fs')
     const { resolve } = await import('path')
     const source = readFileSync(resolve(import.meta.dirname, '..', 'app/api/[[...path]]/route.js'), 'utf8')
     const matches = source.match(/checkOwnerRateLimit\(request, ownerEmail, OWNER_WRITE_LIMITS\.\w+\)/g) || []
-    expect(matches.length).toBe(14)
+    expect(matches.length).toBe(15)
   })
 })
 
