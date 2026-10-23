@@ -113,45 +113,58 @@ model OwnerPasswordResetToken {
 }
 
 model Event {
-  id                                String               @id @default(uuid())
-  slug                              String               @unique
+  id                                String                   @id @default(uuid())
+  slug                              String                   @unique
   name                              String
   ownerEmail                        String?
   ownerId                           String?
-  owner                             Owner?               @relation(fields: [ownerId], references: [id])
+  owner                             Owner?                   @relation(fields: [ownerId], references: [id])
   managementTokenHash               String?
   coverPhotoId                      String?
   billingTier                       String?
   stripeCheckoutSessionId           String?
   billingPurchasedAt                DateTime?
-  originalDownloadUnlocked          Boolean              @default(false)
+  originalDownloadUnlocked          Boolean                  @default(false)
   originalDownloadCheckoutSessionId String?
-  photographerUploadTokenHash       String?
-  photographerUploadTokenExpiresAt  DateTime?
   retentionUntil                    DateTime?
   vaultExtendedUntil                DateTime?
   retentionPolicy                   String?
-  archiveLocked                     Boolean              @default(false)
+  archiveLocked                     Boolean                  @default(false)
   gracePeriodUntil                  DateTime?
   coverUrl                          String?
-  pendingDigestPhotoCount           Int                  @default(0)
+  pendingDigestPhotoCount           Int                      @default(0)
   lastPhotoDigestSentAt             DateTime?
   photoThresholdNotifiedAt          DateTime?
   retentionReminderT30SentAt        DateTime?
   retentionReminderT7SentAt         DateTime?
   retentionReminderT0SentAt         DateTime?
-  createdAt                         DateTime             @default(now())
-  updatedAt                         DateTime             @updatedAt
+  createdAt                         DateTime                 @default(now())
+  updatedAt                         DateTime                 @updatedAt
   photos                            Photo[]
   privateAssets                     PrivateAsset[]
   galleryDownloadJobs               GalleryDownloadJob[]
   moments                           EventMoment[]
   blobUploadSessions                BlobUploadSession[]
+  photographerUploadLinks           PhotographerUploadLink[]
 
   @@index([createdAt])
   @@index([ownerId])
   @@index([billingTier])
-  @@index([photographerUploadTokenHash])
+}
+
+model PhotographerUploadLink {
+  id            String         @id @default(cuid())
+  eventId       String
+  event         Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  tokenHash     String         @unique
+  label         String?
+  expiresAt     DateTime?
+  revokedAt     DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  privateAssets PrivateAsset[]
+
+  @@index([eventId])
 }
 
 model EventMoment {
@@ -170,35 +183,35 @@ model EventMoment {
 }
 
 model Photo {
-  id              String       @id @default(uuid())
-  eventId         String
-  originalName    String
-  storedName      String
-  mimeType        String
-  size            Int
-  url             String
-  uploaderName    String?
-  caption         String?
-  status          PhotoStatus  @default(VISIBLE)
-  uploadSource    String       @default("mobile")
-  width           Int?
-  height          Int?
-  momentId        String?
-  contributorId   String?
+  id                      String                  @id @default(uuid())
+  eventId                 String
+  originalName            String
+  storedName              String
+  mimeType                String
+  size                    Int
+  url                     String
+  uploaderName            String?
+  caption                 String?
+  status                  PhotoStatus             @default(VISIBLE)
+  uploadSource            String                  @default("mobile")
+  width                   Int?
+  height                  Int?
+  momentId                String?
+  contributorId           String?
   // Server-derived only — never trust a client-supplied value. 'owner' when
   // the request carried a valid owner session matching this photo's event
   // owner at upload time, 'guest' otherwise. NULL on rows created before
   // this field existed: unknown, never treated as 'guest'. Analytics
   // attribution only — never used for authorization/entitlements.
-  uploadActorType String?
+  uploadActorType         String?
   // See DisplayDerivativeStatus above for the exact semantics. Schema
   // default is the conservative LEGACY_UNVERIFIED value — new-upload call
   // sites explicitly pass PENDING instead of relying on this default.
   displayDerivativeStatus DisplayDerivativeStatus @default(LEGACY_UNVERIFIED)
-  moment          EventMoment? @relation(fields: [momentId], references: [id], onDelete: SetNull)
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  event           Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  moment                  EventMoment?            @relation(fields: [momentId], references: [id], onDelete: SetNull)
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+  event                   Event                   @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@index([eventId, createdAt(sort: Desc)])
   @@index([status, createdAt(sort: Desc)])
@@ -207,19 +220,22 @@ model Photo {
 }
 
 model PrivateAsset {
-  id             String   @id @default(uuid())
-  eventId        String
-  originalName   String
-  storedName     String
-  mimeType       String
-  size           Int
-  url            String
-  uploadedByRole String?  @default("owner")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  event          Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  id                 String                  @id @default(uuid())
+  eventId            String
+  originalName       String
+  storedName         String
+  mimeType           String
+  size               Int
+  url                String
+  uploadedByRole     String?                 @default("owner")
+  photographerLinkId String?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  event              Event                   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  photographerLink   PhotographerUploadLink? @relation(fields: [photographerLinkId], references: [id], onDelete: SetNull)
 
   @@index([eventId, createdAt(sort: Desc)])
+  @@index([photographerLinkId])
 }
 
 model AdminCredential {
