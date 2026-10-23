@@ -145,6 +145,7 @@ model Event {
   galleryDownloadJobs               GalleryDownloadJob[]
   moments                           EventMoment[]
   blobUploadSessions                BlobUploadSession[]
+  pageViews                         EventPageView[]
   photographerUploadLinks           PhotographerUploadLink[]
 
   @@index([createdAt])
@@ -314,6 +315,16 @@ model UpsellEvent {
   @@index([eventName, upsellType])
   @@index([source])
   @@index([createdAt])
+  @@index([eventId])
+}
+
+model EventPageView {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([eventId, createdAt])
 }
 
 model BlobUploadSession {

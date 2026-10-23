@@ -2231,6 +2231,60 @@ const getOwnerEvent = async (request, slug) => {
   return jsonPrivate({ event: { ...safeEvent, hasPhotographerUploadLink } })
 }
 
+const getOwnerEventAnalytics = async (request, slug) => {
+  const ownerEmail = await requireOwner(request)
+  if (typeof ownerEmail !== 'string') {
+    return ownerEmail
+  }
+
+  const repository = await getGalleryRepository()
+  const event = await repository.getEventBySlugAndOwner(slug, ownerEmail)
+  if (!event) {
+    return jsonPrivate({ error: 'Event not found' }, 404)
+  }
+
+  const prisma = await getPrismaClient()
+  if (!prisma) {
+    return jsonPrivate({ error: 'Service temporarily unavailable, please retry' }, 503)
+  }
+
+  const [views, uploads, uploadsByActorRaw, upsellByEventName] = await Promise.all([
+    prisma.eventPageView.count({ where: { eventId: event.id } }),
+    prisma.photo.count({ where: { eventId: event.id, status: 'VISIBLE' } }),
+    prisma.photo.groupBy({
+      by: ['uploadActorType'],
+      where: { eventId: event.id, status: 'VISIBLE' },
+      _count: { id: true },
+    }),
+    prisma.upsellEvent.groupBy({
+      by: ['eventName'],
+      where: { eventId: event.id },
+      _count: { id: true },
+    }),
+  ])
+
+  const uploadsByActor = uploadsByActorRaw.reduce((acc, row) => {
+    acc[row.uploadActorType || 'unknown'] = row._count.id
+    return acc
+  }, {})
+
+  const funnelCount = (eventName) => upsellByEventName.find((row) => row.eventName === eventName)?._count.id || 0
+
+  return jsonPrivate({
+    views,
+    uploads,
+    uploadsByActor,
+    viewToUploadRate: views > 0 ? uploads / views : null,
+    originalQualityUnlocked: Boolean(event.originalDownloadUnlocked),
+    upsellFunnel: {
+      impressions: funnelCount('upsell_impression'),
+      clicks: funnelCount('upsell_click'),
+      checkoutStarts: funnelCount('upsell_checkout_start'),
+      conversions: funnelCount('upsell_conversion'),
+    },
+  })
+}
+
 const updateOwnerEvent = async (request, slug) => {
   const ownerEmail = await requireOwnerWithCsrf(request)
   if (typeof ownerEmail !== 'string') {
@@ -2555,6 +2609,10 @@ async function handleRoute(request, { params }) {
 
       if (segments.length === 3 && segments[1] === 'events' && method === 'GET') {
         return getOwnerEvent(request, segments[2])
+      }
+
+      if (segments.length === 4 && segments[1] === 'events' && segments[3] === 'analytics' && method === 'GET') {
+        return getOwnerEventAnalytics(request, segments[2])
       }
 
       if (segments.length === 3 && segments[1] === 'events' && method === 'PATCH') {
