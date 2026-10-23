@@ -86,6 +86,7 @@ model Owner {
   stripeBillingCursorSubscriptionId  String?
   lastStripeSubscriptionEventCreated BigInt?
   lastStripeInvoiceEventCreated      BigInt?
+  emailNotificationsEnabled          Boolean                   @default(true)
   createdAt                          DateTime                  @default(now())
   updatedAt                          DateTime                  @updatedAt
   events                             Event[]
@@ -133,6 +134,12 @@ model Event {
   archiveLocked                     Boolean              @default(false)
   gracePeriodUntil                  DateTime?
   coverUrl                          String?
+  pendingDigestPhotoCount           Int                  @default(0)
+  lastPhotoDigestSentAt             DateTime?
+  photoThresholdNotifiedAt          DateTime?
+  retentionReminderT30SentAt        DateTime?
+  retentionReminderT7SentAt         DateTime?
+  retentionReminderT0SentAt         DateTime?
   createdAt                         DateTime             @default(now())
   updatedAt                         DateTime             @updatedAt
   photos                            Photo[]
