@@ -27,10 +27,6 @@ import {
   EVENT_PRIVATE_DELIVERY_UPLOAD_COMPLETED,
   EVENT_PRIVATE_DELIVERY_DOWNLOADED,
   EVENT_PRIVATE_DELIVERY_DELETED,
-  EVENT_PHOTOGRAPHER_UPLOAD_LINK_CREATED,
-  EVENT_PHOTOGRAPHER_UPLOAD_LINK_COPIED,
-  EVENT_PHOTOGRAPHER_UPLOAD_LINK_REGENERATED,
-  EVENT_PHOTOGRAPHER_UPLOAD_LINK_REVOKED,
   EVENT_GALLERY_DOWNLOAD_CLICKED,
   EVENT_GALLERY_DOWNLOAD_COMPLETED,
   EVENT_GALLERY_DOWNLOAD_BLOCKED,
@@ -148,9 +144,6 @@ export default function DashboardPage() {
   if (!sessionExpiryGateRef.current) {
     sessionExpiryGateRef.current = createOwnerSessionExpiryGate()
   }
-  const [photographerLink, setPhotographerLink] = useState('')
-  const [photographerLinkBusy, setPhotographerLinkBusy] = useState(false)
-  const [photographerLinkCopied, setPhotographerLinkCopied] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState('newest')
   const [mobileWorkspaceOpen, setMobileWorkspaceOpen] = useState(false)
@@ -1061,55 +1054,6 @@ export default function DashboardPage() {
     uploadPrivateDeliveryFile(file)
   }
 
-  const generatePhotographerLink = async () => {
-    if (!selectedEvent) return
-    setPhotographerLinkBusy(true)
-    try {
-      const response = await csrfFetch(`/api/owner/events/${selectedEvent.slug}/photographer-link`, { method: 'POST' })
-      if (await consumeOwnerSessionFailure(response.status)) return
-      const payload = await response.json()
-      if (!response.ok) throw new Error(payload.error || t.unableToGenerateLink)
-      trackEvent(EVENT_PHOTOGRAPHER_UPLOAD_LINK_CREATED, { room_slug: selectedEvent.slug })
-      setPhotographerLink(payload.url)
-      setMessage(t.photographerLinkGenerated)
-    } catch (error) {
-      setMessage(error.message)
-    } finally {
-      setPhotographerLinkBusy(false)
-    }
-  }
-
-  const copyPhotographerLink = async () => {
-    if (!photographerLink) return
-    try {
-      await navigator.clipboard.writeText(photographerLink)
-      trackEvent(EVENT_PHOTOGRAPHER_UPLOAD_LINK_COPIED, { room_slug: selectedEvent?.slug })
-      setPhotographerLinkCopied(true)
-      setMessage(t.linkCopiedClipboard)
-      setTimeout(() => setPhotographerLinkCopied(false), 2000)
-    } catch {
-      setMessage(t.unableToCopyLink)
-    }
-  }
-
-  const revokePhotographerLink = async () => {
-    if (!selectedEvent) return
-    setPhotographerLinkBusy(true)
-    try {
-      const response = await csrfFetch(`/api/owner/events/${selectedEvent.slug}/photographer-link`, { method: 'DELETE' })
-      if (await consumeOwnerSessionFailure(response.status)) return
-      const payload = await response.json()
-      if (!response.ok) throw new Error(payload.error || t.unableToRevokeLink)
-      trackEvent(EVENT_PHOTOGRAPHER_UPLOAD_LINK_REVOKED, { room_slug: selectedEvent.slug })
-      setPhotographerLink('')
-      setMessage(t.photographerLinkRevoked)
-    } catch (error) {
-      setMessage(error.message)
-    } finally {
-      setPhotographerLinkBusy(false)
-    }
-  }
-
   useEffect(() => {
     loadSession()
   }, [])
@@ -1135,8 +1079,6 @@ export default function DashboardPage() {
     if (selectedEvent) {
       setNewEventName(selectedEvent.name)
       setIsEditingName(false)
-      setPhotographerLink('')
-      setPhotographerLinkCopied(false)
       if (resolveEffectiveEventAccessState({ billingTier: selectedEvent?.billingTier, originalDownloadUnlocked: selectedEvent?.originalDownloadUnlocked, ownerPlan: plan }).hasPrivateDelivery) {
         loadPrivateAssets(selectedEvent.slug)
       } else {
@@ -1482,9 +1424,6 @@ export default function DashboardPage() {
             privateAssets={privateAssets}
             privateDeliveryLoading={privateDeliveryLoading}
             privateDeliveryUploading={privateDeliveryUploading}
-            photographerLink={photographerLink}
-            photographerLinkBusy={photographerLinkBusy}
-            photographerLinkCopied={photographerLinkCopied}
             galleryDownloadBusy={galleryDownloadBusy}
             checkoutBusy={checkoutBusy}
             photoBusyId={busy.photoId}
@@ -1510,9 +1449,6 @@ export default function DashboardPage() {
             onPrivateUploadClick={() => privateDeliveryFileInputRef.current?.click()}
             onPrivateDownload={downloadPrivateAsset}
             onPrivateDelete={deletePrivateAsset}
-            onGeneratePhotoLink={generatePhotographerLink}
-            onCopyPhotoLink={copyPhotographerLink}
-            onRevokePhotoLink={revokePhotographerLink}
             onCoverUpdated={handleCoverUpdated}
             onOwnerSessionFailure={consumeOwnerSessionFailure}
             t={t}

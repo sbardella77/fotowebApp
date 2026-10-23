@@ -30,9 +30,6 @@ export function EventDetailPanel({
   privateAssets,
   privateDeliveryLoading,
   privateDeliveryUploading,
-  photographerLink,
-  photographerLinkBusy,
-  photographerLinkCopied,
   galleryDownloadBusy,
   checkoutBusy,
   photoBusyId,
@@ -49,9 +46,6 @@ export function EventDetailPanel({
   onPrivateUploadClick,
   onPrivateDownload,
   onPrivateDelete,
-  onGeneratePhotoLink,
-  onCopyPhotoLink,
-  onRevokePhotoLink,
   onCoverUpdated,
   onOwnerSessionFailure,
   t,
@@ -177,13 +171,9 @@ export function EventDetailPanel({
               onPrivateDownload={onPrivateDownload}
               onPrivateDelete={onPrivateDelete}
               busyDetail={busyDetail}
-              photographerLink={photographerLink}
-              photographerLinkBusy={photographerLinkBusy}
-              photographerLinkCopied={photographerLinkCopied}
-              onGeneratePhotoLink={onGeneratePhotoLink}
-              onCopyPhotoLink={onCopyPhotoLink}
-              onRevokePhotoLink={onRevokePhotoLink}
+              onOwnerSessionFailure={onOwnerSessionFailure}
               t={t}
+              tCommon={tCommon}
             />
           </TabsContent>
 
