@@ -20,10 +20,10 @@ const SETTINGS = readSource('app/dashboard/components/event-workspace-settings.j
 
 // ─── A. Four workspace tabs exist, i18n-driven ────────────────────────────────
 
-describe('EventDetailPanel — four workspace tabs', () => {
-  it('1: exactly four TabsTrigger values: overview, photos, delivery, settings', () => {
+describe('EventDetailPanel — five workspace tabs', () => {
+  it('1: exactly five TabsTrigger values: overview, photos, delivery, analytics, settings', () => {
     const values = [...PANEL.matchAll(/<TabsTrigger value="(\w+)"/g)].map((m) => m[1])
-    expect(values).toEqual(['overview', 'photos', 'delivery', 'settings'])
+    expect(values).toEqual(['overview', 'photos', 'delivery', 'analytics', 'settings'])
   })
 
   it('2: each tab label comes from the dashboard dictionary, not a hardcoded string', () => {
@@ -33,9 +33,9 @@ describe('EventDetailPanel — four workspace tabs', () => {
     expect(PANEL).toContain('{t.workspaceSettings}')
   })
 
-  it('3: exactly four TabsContent panels, one per tab value', () => {
+  it('3: exactly five TabsContent panels, one per tab value', () => {
     const values = [...PANEL.matchAll(/<TabsContent value="(\w+)"/g)].map((m) => m[1])
-    expect(values).toEqual(['overview', 'photos', 'delivery', 'settings'])
+    expect(values).toEqual(['overview', 'photos', 'delivery', 'analytics', 'settings'])
   })
 })
 
@@ -44,7 +44,7 @@ describe('EventDetailPanel — four workspace tabs', () => {
 describe('EventDetailPanel — inactive tabs stay mounted but truly hidden', () => {
   it('4: every TabsContent uses forceMount (no child unmounts on tab switch)', () => {
     const contentBlocks = PANEL.match(/<TabsContent[^>]*>/g) || []
-    expect(contentBlocks.length).toBe(4)
+    expect(contentBlocks.length).toBe(5)
     for (const block of contentBlocks) {
       expect(block).toContain('forceMount')
     }
