@@ -39,4 +39,17 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+const { withSentryConfig } = require('@sentry/nextjs/config');
+
+module.exports = withSentryConfig(nextConfig, {
+  silent: true,
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  // Source-map upload (needs SENTRY_AUTH_TOKEN) is opt-in: without an auth
+  // token this plugin step is a no-op, so the build is never blocked on
+  // Sentry account setup — see docs/production-deploy-checklist.md.
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  widenClientFileUpload: false,
+  disableLogger: true,
+  automaticVercelMonitors: false,
+});

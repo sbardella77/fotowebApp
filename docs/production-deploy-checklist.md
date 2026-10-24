@@ -19,6 +19,9 @@ Use this checklist before and after every production deployment, especially when
 - [ ] `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are set for transactional billing emails (dunning, checkout confirmations, cancellation).
 - [ ] Stripe Customer Portal is configured in the Stripe Dashboard (return URL, payment-method update, invoice history, subscription cancellation).
 - [ ] Upstash Redis is configured (`UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`) for production rate limiting.
+- [ ] `OPS_ALERT_EMAIL` is set so critical failures (login/password-reset errors, webhook failures, DB issues) reach an inbox — see `lib/server/ops-alerts.js`.
+- [ ] `SENTRY_DSN` (server/edge) and `NEXT_PUBLIC_SENTRY_DSN` (client) are set — see "Observability" below. The app builds and runs fine without them (Sentry no-ops), but error tracking is blind until they're set.
+- [ ] An external uptime monitor (e.g. Better Stack, UptimeRobot) pings `/api/health/db` and the public homepage every 1–5 minutes from outside Vercel, with alerting to email/Slack/SMS. Nothing in this repo can substitute for this — a total outage (bad deploy, DNS, Vercel incident) has no internal watcher.
 
 ## Deploy
 
@@ -103,6 +106,16 @@ Do **not**:
   - [ ] `invoice.payment_succeeded` after failure → payment recovered email received
   - [ ] `customer.subscription.deleted` (immediate) → cancellation email received
   - [ ] Webhook retry of the same event does not send duplicate emails
+
+## Observability
+
+Added 2026-10-24 after a production incident (merged migrations never applied, breaking owner login/password-reset for real users until caught manually by screenshot).
+
+- **`lib/server/ops-alerts.js`** — emails `OPS_ALERT_EMAIL` on critical/warning events. Already wired into all 8 crons, the Stripe webhook/checkout/portal routes, event routes, extra-free-event fulfillment, and (as of this incident) the owner login and forgot-password unexpected-error paths. Every call also becomes a Sentry event (see below), so new call sites get both channels for free.
+- **Sentry** (`@sentry/nextjs`) — captures unhandled exceptions across server, edge, and client (via `instrumentation.js`, `sentry.*.config.js`, and `app/global-error.tsx`). No-ops entirely if `SENTRY_DSN`/`NEXT_PUBLIC_SENTRY_DSN` are unset — safe to deploy before creating a Sentry account, but blind until they're set. Session replay is deliberately off (`replaysSessionSampleRate: 0`) — this app handles guest uploads and billing data.
+- **`/api/health/db`** — now does a real `prisma.owner.findFirst()` (every column Prisma Client currently knows about) after the connectivity `SELECT 1`, specifically to catch schema drift like this incident, not just a dead connection. Distinguishes `schema_mismatch` from `unavailable` in its response and alerts (throttled to 1 per 15 min per failure type) via `ops-alerts`.
+- **CI reminder** — a PR that adds a new `prisma/migrations/*/migration.sql` file gets a non-blocking GitHub Actions warning pointing back at this checklist (`scripts/check-pending-migration-reminder.mjs`). It cannot catch a migration that was merged and then simply never deployed — that's what the external uptime monitor and `/api/health/db` alerting are for.
+- **Still missing**: an external uptime monitor (see checklist item above) — nothing in this repo can detect a total outage from outside Vercel's own network.
 
 ## Emergency rollback note
 
