@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import * as Sentry from '@sentry/nextjs'
 import { resolveErrorBoundaryLocale, getErrorBoundaryCopy } from '@/lib/i18n/error-boundary'
 
 export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
@@ -10,6 +11,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
     } else {
       console.error('[global-error] App crashed:', error.message, 'digest:', error.digest)
     }
+    Sentry.captureException(error)
   }, [error])
 
   // First render must match server/browser exactly, so we start with the

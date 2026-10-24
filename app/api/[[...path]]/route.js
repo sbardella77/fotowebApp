@@ -51,6 +51,7 @@ import {
   findValidPasswordResetToken,
 } from '@/lib/server/password-reset-tokens'
 import { getGalleryRepository } from '@/lib/server/gallery-repository'
+import { sendOpsAlert } from '@/lib/server/ops-alerts'
 import { PhotographerLinkLimitError } from '@/lib/server/prisma-gallery-repository'
 import { createPasswordHash, verifyPassword, validatePassword } from '@/lib/server/owner-password'
 import {
@@ -1873,6 +1874,13 @@ const loginOwnerWithPassword = async (request) => {
       return jsonPrivate({ error: getSafeDbErrorMessage(error, '/api/owner/login') }, 503)
     }
     console.error('[api/owner/login] Unexpected error:', error)
+    await sendOpsAlert({
+      severity: 'critical',
+      type: 'auth:login:unexpected_error',
+      title: 'Owner login failing with an unexpected error',
+      message: error?.message,
+      context: { errorCode: error?.code, errorName: error?.name },
+    })
     return jsonPrivate({ error: 'Login temporarily unavailable. Please try again shortly.' }, 500)
   }
 }
@@ -1959,6 +1967,13 @@ const forgotOwnerPassword = async (request) => {
     }
   } catch (error) {
     console.error('[forgotOwnerPassword] Unexpected error:', serializeProviderError('db', 'forgot_owner_password', error))
+    await sendOpsAlert({
+      severity: 'critical',
+      type: 'auth:forgot_password:unexpected_error',
+      title: 'Password reset failing with an unexpected error',
+      message: error?.message,
+      context: { errorCode: error?.code, errorName: error?.name },
+    })
     return jsonPrivate({ error: 'Password reset is temporarily unavailable. Please try again later.' }, 503)
   }
 
