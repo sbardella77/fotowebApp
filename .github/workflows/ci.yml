@@ -29,6 +29,10 @@ jobs:
       - name: Generate Prisma Client
         run: npx prisma generate
 
+      - name: Pending migration reminder (non-blocking)
+        if: github.event_name == 'pull_request'
+        run: node scripts/check-pending-migration-reminder.mjs
+
       - name: Run tests
         run: npm test
 
