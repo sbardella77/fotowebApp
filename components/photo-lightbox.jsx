@@ -9,6 +9,9 @@ import {
   X,
   Lock,
   Check,
+  Share2,
+  Link2,
+  Heart,
 } from 'lucide-react'
 import {
   Dialog,
@@ -30,6 +33,7 @@ import { trackEvent } from '@/lib/analytics/track-client'
 import { csrfFetch } from '@/lib/client/csrf-fetch'
 import { resolveEffectiveEventAccessState } from '@/lib/event-access'
 import { trackUpsellImpression, trackUpsellClick } from '@/lib/analytics/upsell'
+import { buildShareLinks, canShareFiles, fetchPhotoShareFile, shareFile } from '@/lib/client/share-media'
 import {
   EVENT_DOWNLOAD_QUALITY_SELECTED,
   EVENT_ORIGINAL_DOWNLOAD_UNLOCK_CLICKED,
@@ -38,6 +42,7 @@ import {
   EVENT_GALLERY_DOWNLOAD_BLOCKED,
   EVENT_ORIGINAL_QUALITY_PAYWALL_VIEWED,
   EVENT_ORIGINAL_QUALITY_UNLOCK_CLICKED,
+  EVENT_MEDIA_SHARED,
 } from '@/lib/analytics/events'
 
 const SWIPE_THRESHOLD = 50
@@ -83,6 +88,9 @@ const PhotoLightbox = ({
   event = null,
   isOwner = false,
   className = '',
+  likedIds = null,
+  getLikeCount = null,
+  onToggleLike = null,
 }) => {
   // Photos are already filtered/normalized once by the parent (getRenderablePhotos).
   // selectedIndex refers to that same list, so the lightbox must not re-filter it.
@@ -93,6 +101,14 @@ const PhotoLightbox = ({
   const [downloaded, setDownloaded] = useState(false)
   const [unlockBusy, setUnlockBusy] = useState(false)
   const [unlockModalOpen, setUnlockModalOpen] = useState(false)
+  const [shareStatus, setShareStatus] = useState('') // '' | 'busy' | 'tap-again' | 'copied'
+  const [nativeShare, setNativeShare] = useState(false)
+  const shareFileCache = useRef(null) // { photoId, file }
+  const lastImageTap = useRef(0)
+  const [heartBurst, setHeartBurst] = useState(0)
+  const likesEnabled = typeof onToggleLike === 'function'
+  const isLiked = Boolean(photo && likedIds?.has(photo.id))
+  const likeCount = photo && getLikeCount ? getLikeCount(photo) : 0
 
   // Touch handling refs
   const touchStart = useRef({ x: 0, y: 0, time: 0 })
@@ -190,6 +206,59 @@ const PhotoLightbox = ({
     },
     [photo, selectedIndex, event?.slug, isFreeRoom]
   )
+
+  useEffect(() => {
+    setNativeShare(canShareFiles())
+  }, [])
+
+  useEffect(() => {
+    setShareStatus('')
+  }, [photo?.id])
+
+  const roomUrl = typeof window !== 'undefined' && event?.slug
+    ? `${window.location.origin}/event/${event.slug}`
+    : ''
+
+  const handleNativeShare = useCallback(async () => {
+    if (!photo?.id) return
+    try {
+      let file = shareFileCache.current?.photoId === photo.id ? shareFileCache.current.file : null
+      if (!file) {
+        setShareStatus('busy')
+        file = await fetchPhotoShareFile(photo.id)
+        shareFileCache.current = { photoId: photo.id, file }
+      }
+      const result = await shareFile(file, { title: event?.name })
+      // Safari drops the user gesture while the file downloads; the file is
+      // now cached, so a second tap shares synchronously.
+      setShareStatus(result === 'needs-gesture' ? 'tap-again' : '')
+      if (result === 'shared') {
+        trackEvent(EVENT_MEDIA_SHARED, { room_slug: event?.slug, photo_id: photo.id, channel: 'native', media_type: 'photo' })
+      }
+    } catch (e) {
+      setShareStatus('')
+      console.warn('[lightbox] share failed', e)
+    }
+  }, [photo?.id, event?.slug, event?.name])
+
+  const handleLinkShare = useCallback((network) => {
+    if (!roomUrl) return
+    const href = buildShareLinks({ pageUrl: roomUrl, text: event?.name || '' })[network]
+    window.open(href, '_blank', 'noopener,noreferrer')
+    trackEvent(EVENT_MEDIA_SHARED, { room_slug: event?.slug, photo_id: photo?.id, channel: network, media_type: 'photo' })
+  }, [roomUrl, event?.name, event?.slug, photo?.id])
+
+  const handleCopyLink = useCallback(async () => {
+    if (!roomUrl) return
+    try {
+      await navigator.clipboard.writeText(roomUrl)
+      setShareStatus('copied')
+      setTimeout(() => setShareStatus(''), 2000)
+      trackEvent(EVENT_MEDIA_SHARED, { room_slug: event?.slug, photo_id: photo?.id, channel: 'copy_link', media_type: 'photo' })
+    } catch (e) {
+      console.warn('[lightbox] copy link failed', e)
+    }
+  }, [roomUrl, event?.slug, photo?.id])
 
   const handleDownloadStandard = useCallback(() => {
     trackEvent(EVENT_DOWNLOAD_QUALITY_SELECTED, {
@@ -413,6 +482,68 @@ const PhotoLightbox = ({
                 size="icon"
                 variant="ghost"
                 className={`h-9 w-9 transition-colors ${
+                  shareStatus === 'copied'
+                    ? 'text-green-400 hover:text-green-300'
+                    : 'text-foreground/80 hover:bg-white/10 hover:text-foreground'
+                }`}
+                onClick={(e) => e.stopPropagation()}
+                aria-label={t.sharePhoto}
+                title={shareStatus === 'copied' ? t.linkCopied : t.sharePhoto}
+              >
+                {shareStatus === 'busy' ? <Loader2 className="h-5 w-5 animate-spin" /> : <Share2 className="h-5 w-5" />}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className={`border-border bg-surface text-foreground min-w-[15rem] ${themeClass}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {nativeShare ? (
+                <DropdownMenuItem
+                  className="cursor-pointer focus:bg-white/5 focus:text-foreground"
+                  onClick={handleNativeShare}
+                >
+                  <div className="flex flex-col py-1">
+                    <span className="text-sm font-medium">
+                      {shareStatus === 'tap-again' ? t.shareTapAgain : t.shareToApps}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{t.shareToAppsDesc}</span>
+                  </div>
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem
+                  className="cursor-pointer focus:bg-white/5 focus:text-foreground"
+                  onClick={handleDownloadStandard}
+                >
+                  <div className="flex flex-col py-1">
+                    <span className="text-sm font-medium">{t.shareInstagramTiktok}</span>
+                    <span className="text-xs text-muted-foreground">{t.shareInstagramTiktokDesc}</span>
+                  </div>
+                  <Download className="ml-auto h-4 w-4 shrink-0" />
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem className="cursor-pointer focus:bg-white/5 focus:text-foreground" onClick={() => handleLinkShare('facebook')}>
+                <span className="py-1 text-sm">Facebook</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer focus:bg-white/5 focus:text-foreground" onClick={() => handleLinkShare('whatsapp')}>
+                <span className="py-1 text-sm">WhatsApp</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer focus:bg-white/5 focus:text-foreground" onClick={() => handleLinkShare('x')}>
+                <span className="py-1 text-sm">X</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer focus:bg-white/5 focus:text-foreground" onClick={handleCopyLink}>
+                <span className="py-1 text-sm">{t.copyRoomLink}</span>
+                <Link2 className="ml-auto h-4 w-4 shrink-0" />
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                className={`h-9 w-9 transition-colors ${
                   downloaded
                     ? 'text-green-400 hover:text-green-300'
                     : 'text-foreground/80 hover:bg-white/10 hover:text-foreground'
@@ -552,8 +683,28 @@ const PhotoLightbox = ({
             ? ''
             : `transition-all duration-300 ${isNavigating ? 'scale-95 opacity-80' : 'scale-100 opacity-100'}`
         }`}
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation()
+          // Double tap / double click likes (never unlikes), Instagram-style.
+          // Timed on click so it works for both touch and mouse.
+          if (!likesEnabled || !photo.url) return
+          const now = Date.now()
+          if (now - lastImageTap.current < 300) {
+            lastImageTap.current = 0
+            onToggleLike(photo, true)
+            setHeartBurst((n) => n + 1)
+          } else {
+            lastImageTap.current = now
+          }
+        }}
       >
+        {heartBurst > 0 && !prefersReducedMotion && (
+          <Heart
+            key={heartBurst}
+            aria-hidden="true"
+            className="pointer-events-none absolute z-10 h-24 w-24 animate-ping fill-red-500 text-red-500 [animation-iteration-count:1]"
+          />
+        )}
         {photo.url ? (
           <ImageWithLoading key={photo.id} src={photo.url} alt={photo.originalName || t.photo} />
         ) : (
@@ -604,6 +755,22 @@ const PhotoLightbox = ({
           {t.swipeToNavigate}
         </div>
       </div>
+
+      {likesEnabled && (
+        <button
+          type="button"
+          aria-pressed={isLiked}
+          aria-label={isLiked ? t.unlikePhoto : t.likePhoto}
+          className="absolute bottom-6 right-4 z-20 flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-2 text-sm text-foreground/90 backdrop-blur-sm transition-transform active:scale-90"
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleLike(photo)
+          }}
+        >
+          <Heart className={`h-5 w-5 transition-colors ${isLiked ? 'fill-red-500 text-red-500' : ''}`} />
+          {likeCount > 0 && <span className="tabular-nums">{likeCount}</span>}
+        </button>
+      )}
 
       {/* Footer info */}
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pb-6 pt-12">

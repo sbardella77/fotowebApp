@@ -60,6 +60,7 @@ import { resolveEffectiveEventAccessState } from '@/lib/event-access'
 import { resolveAllUpsells } from '@/lib/upsell-context'
 import { UpsellRow } from '@/components/upsell-row'
 import { useToast } from '@/lib/hooks/use-toast'
+import { usePhotoLikes } from '@/lib/hooks/use-photo-likes'
 import { RoomNotFound } from '@/components/room/room-not-found'
 import { NewRoomShareBanner } from '@/components/room/new-room-share-banner'
 import { UPLOAD_STATUS, UploadProgressList } from '@/components/room/upload-progress-list'
@@ -188,6 +189,8 @@ export default function RoomPageClient({ slug, isNew }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeEvent?.slug])
+
+  const { likedIds, getLikeCount, toggleLike } = usePhotoLikes(activeEvent?.slug)
 
   const galleryPhotos = useMemo(() => {
     try { return getRenderablePhotos(photos) }
@@ -1422,6 +1425,8 @@ export default function RoomPageClient({ slug, isNew }) {
                     hasMore={hasMorePhotos}
                     onLoadMore={() => loadPhotos()}
                     loadingMore={loadingMorePhotos}
+                    likedIds={likedIds}
+                    getLikeCount={getLikeCount}
                   />
                 </div>
               </div>
@@ -1478,7 +1483,7 @@ export default function RoomPageClient({ slug, isNew }) {
       )}
 
       <EventQRModal isOpen={qrModalOpen} onClose={() => setQrModalOpen(false)} event={activeEvent} baseUrl={baseUrl} />
-      <PhotoLightbox onOpenChange={setLightboxOpen} onSelectIndex={setLightboxIndex} open={lightboxOpen} photos={galleryPhotos} selectedIndex={lightboxIndex} event={activeEvent} isOwner={isEventOwner} />
+      <PhotoLightbox onOpenChange={setLightboxOpen} onSelectIndex={setLightboxIndex} open={lightboxOpen} photos={galleryPhotos} selectedIndex={lightboxIndex} event={activeEvent} isOwner={isEventOwner} likedIds={likedIds} getLikeCount={getLikeCount} onToggleLike={toggleLike} />
       <ToastComponent />
     </main>
   )
