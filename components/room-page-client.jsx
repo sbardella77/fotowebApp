@@ -22,7 +22,7 @@ import PhotoGalleryGrid from '@/components/photo-gallery-grid'
 import PhotoLightbox from '@/components/photo-lightbox'
 import { EventQRModal } from '@/components/event-qr-modal'
 import { SnapRoomsIcon } from '@/components/marketing/logo'
-import { getSortedRenderablePhotos, getRenderablePhotos } from '@/lib/photo-utils'
+import { getSortedRenderablePhotos, getRenderablePhotos, isPendingVideo, mergePhotoUpdates } from '@/lib/photo-utils'
 import { optimizeImage } from '@/lib/client-image-optimizer'
 import { runWithConcurrency, isRetryableUploadHttpStatus, waitForOnline } from '@/lib/upload-utils'
 import { Badge } from '@/components/ui/badge'
@@ -86,6 +86,8 @@ function isSupportedImageFile(file) {
 const SUPPORTED_VIDEO_MIME_TYPES = ['video/mp4', 'video/quicktime', 'video/webm']
 const VIDEO_MIME_BY_EXTENSION = { '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm' }
 const MAX_VIDEO_SIZE = 150 * 1024 * 1024
+const VIDEO_POLL_INTERVAL_MS = 5000
+const VIDEO_POLL_MAX_MS = 10 * 60 * 1000
 
 // Returns the upload MIME type for a supported video, or null. Some mobile
 // browsers leave file.type empty, so the extension is the fallback.
@@ -811,6 +813,31 @@ export default function RoomPageClient({ slug, isNew }) {
       }
     }
   }
+
+  // Videos flip from PROCESSING to READY via the Mux webhook ~20 s after the
+  // upload finishes, with no client signal. While any is pending, re-read the
+  // newest page and swap just those items in place (scroll/pagination kept).
+  const hasPendingVideos = photos.some(isPendingVideo)
+  useEffect(() => {
+    if (!hasPendingVideos || !activeEvent?.slug) return undefined
+    const startedAt = Date.now()
+    const timer = window.setInterval(async () => {
+      if (Date.now() - startedAt > VIDEO_POLL_MAX_MS) { window.clearInterval(timer); return }
+      if (document.visibilityState === 'hidden') return
+      try {
+        const url = new URL(`/api/events/${activeEvent.slug}/photos`, window.location.origin)
+        url.searchParams.set('take', '48')
+        url.searchParams.set('sort', 'recent')
+        const response = await fetch(url.toString(), { cache: 'no-store' })
+        if (!response.ok) return
+        const data = await response.json()
+        setPhotos((current) => mergePhotoUpdates(current, data.photos || []))
+      } catch {
+        // next tick retries
+      }
+    }, VIDEO_POLL_INTERVAL_MS)
+    return () => window.clearInterval(timer)
+  }, [hasPendingVideos, activeEvent?.slug])
 
   const refreshGalleryAfterUpload = async () => {
     if (!activeEvent?.slug) return

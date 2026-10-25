@@ -257,3 +257,23 @@ describe('video DTO and guardrails', () => {
     expect(prisma.photo.updateMany).not.toHaveBeenCalled()
   })
 })
+
+describe('processing video refresh helpers', async () => {
+  const { isPendingVideo, mergePhotoUpdates } = await import('@/lib/photo-utils')
+
+  it('flags only uploading/processing videos as pending', () => {
+    expect(isPendingVideo({ mediaType: 'VIDEO', videoStatus: 'PROCESSING' })).toBe(true)
+    expect(isPendingVideo({ mediaType: 'VIDEO', videoStatus: 'UPLOADING' })).toBe(true)
+    expect(isPendingVideo({ mediaType: 'VIDEO', videoStatus: 'READY' })).toBe(false)
+    expect(isPendingVideo({ mediaType: 'IMAGE' })).toBe(false)
+  })
+
+  it('swaps updated items in place, keeping order, length and unrelated items', () => {
+    const current = [{ id: 'a', v: 1 }, { id: 'b', videoStatus: 'PROCESSING' }, { id: 'c', v: 1 }]
+    const next = mergePhotoUpdates(current, [{ id: 'b', videoStatus: 'READY' }, { id: 'z' }])
+    expect(next.map((p) => p.id)).toEqual(['a', 'b', 'c'])
+    expect(next[1].videoStatus).toBe('READY')
+    expect(next[0]).toBe(current[0])
+    expect(mergePhotoUpdates(current, [{ id: 'z' }])).toBe(current)
+  })
+})
