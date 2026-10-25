@@ -33,7 +33,7 @@ import { trackEvent } from '@/lib/analytics/track-client'
 import { csrfFetch } from '@/lib/client/csrf-fetch'
 import { resolveEffectiveEventAccessState } from '@/lib/event-access'
 import { trackUpsellImpression, trackUpsellClick } from '@/lib/analytics/upsell'
-import { buildShareLinks, canShareFiles, fetchPhotoShareFile, shareFile } from '@/lib/client/share-media'
+import { APP_UPLOAD_PAGES, buildShareLinks, canShareFiles, fetchPhotoShareFile, isMobileDevice, openFacebookShareDialog, shareFile } from '@/lib/client/share-media'
 import {
   EVENT_DOWNLOAD_QUALITY_SELECTED,
   EVENT_ORIGINAL_DOWNLOAD_UNLOCK_CLICKED,
@@ -145,7 +145,7 @@ const PhotoLightbox = ({
   const [unlockModalOpen, setUnlockModalOpen] = useState(false)
   const [shareStatus, setShareStatus] = useState('') // '' | 'busy' | 'tap-again' | 'copied'
   const [nativeShare, setNativeShare] = useState(false)
-  const shareFileCache = useRef(null) // { photoId, file }
+  const shareFileCache = useRef(null) // { photoId, promise, file }
   const lastImageTap = useRef(0)
   const [heartBurst, setHeartBurst] = useState(0)
   const likesEnabled = typeof onToggleLike === 'function'
@@ -166,6 +166,8 @@ const PhotoLightbox = ({
   const canDownloadOriginal = access.canDownloadOriginal
   const isFreeRoom = access.isFree
   const isVideo = photo?.mediaType === 'VIDEO'
+  // A video's shareable file is Mux's MP4, which exists only once READY.
+  const shareableNow = !isVideo || (Boolean(photo?.videoUrl) && !photo?.localPreview)
 
   useEffect(() => {
     if (open && isOwner && !canDownloadOriginal && event?.slug) {
@@ -252,7 +254,8 @@ const PhotoLightbox = ({
   )
 
   useEffect(() => {
-    setNativeShare(canShareFiles())
+    // The share sheet only lists Instagram/TikTok/Facebook on phones.
+    setNativeShare(canShareFiles() && isMobileDevice())
   }, [])
 
   useEffect(() => {
@@ -263,27 +266,56 @@ const PhotoLightbox = ({
     ? `${window.location.origin}/event/${event.slug}`
     : ''
 
-  const handleNativeShare = useCallback(async () => {
+  // The file must already be in memory when the user taps Instagram/TikTok/
+  // Facebook: Safari only opens the share sheet inside a fresh tap, and any
+  // await on a download in between makes it refuse (NotAllowedError). So
+  // the file is fetched as soon as the share menu OPENS (prefetchShareFile)
+  // and the tap shares synchronously.
+  const prefetchShareFile = useCallback(() => {
+    if (!nativeShare || !photo?.id || !shareableNow) return
+    if (shareFileCache.current?.photoId === photo.id) return
+    const entry = { photoId: photo.id, file: null, promise: null }
+    entry.promise = fetchPhotoShareFile(photo.id)
+      .then((file) => { entry.file = file; return file })
+      .catch((e) => { if (shareFileCache.current === entry) shareFileCache.current = null; throw e })
+    entry.promise.catch(() => {})
+    shareFileCache.current = entry
+  }, [nativeShare, photo?.id, shareableNow])
+
+  const handleShareTo = useCallback(async (channel) => {
     if (!photo?.id) return
+    const track = () => trackEvent(EVENT_MEDIA_SHARED, { room_slug: event?.slug, photo_id: photo.id, channel, media_type: isVideo ? 'video' : 'photo' })
+
+    if (!nativeShare) {
+      if (channel === 'facebook') {
+        if (roomUrl) { openFacebookShareDialog(roomUrl); track() }
+        return
+      }
+      // Desktop Instagram/TikTok: open the upload page inside this click
+      // (popup blockers), then save the file for the user to pick there.
+      window.open(APP_UPLOAD_PAGES[channel], '_blank', 'noopener,noreferrer')
+      await performDownload('standard')
+      setShareStatus('saved')
+      track()
+      return
+    }
+
     try {
-      let file = shareFileCache.current?.photoId === photo.id ? shareFileCache.current.file : null
+      const cached = shareFileCache.current?.photoId === photo.id ? shareFileCache.current : null
+      let file = cached?.file || null
       if (!file) {
         setShareStatus('busy')
-        file = await fetchPhotoShareFile(photo.id)
-        shareFileCache.current = { photoId: photo.id, file }
+        file = cached ? await cached.promise : await fetchPhotoShareFile(photo.id)
+        shareFileCache.current = { photoId: photo.id, file, promise: Promise.resolve(file) }
       }
       const result = await shareFile(file, { title: event?.name })
-      // Safari drops the user gesture while the file downloads; the file is
-      // now cached, so a second tap shares synchronously.
       setShareStatus(result === 'needs-gesture' ? 'tap-again' : '')
-      if (result === 'shared') {
-        trackEvent(EVENT_MEDIA_SHARED, { room_slug: event?.slug, photo_id: photo.id, channel: 'native', media_type: isVideo ? 'video' : 'photo' })
-      }
+      if (result === 'shared') track()
     } catch (e) {
-      setShareStatus('')
+      setShareStatus('failed')
       console.warn('[lightbox] share failed', e)
     }
-  }, [photo?.id, event?.slug, event?.name, isVideo])
+  }, [photo?.id, event?.slug, event?.name, isVideo, nativeShare, roomUrl, performDownload])
 
   const handleLinkShare = useCallback((network) => {
     if (!roomUrl) return
@@ -782,7 +814,7 @@ const PhotoLightbox = ({
               {likeCount > 0 && <span className="tabular-nums opacity-80">· {likeCount}</span>}
             </button>
           )}
-              <DropdownMenu>
+              <DropdownMenu onOpenChange={(isOpen) => { if (isOpen) prefetchShareFile() }}>
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
@@ -792,7 +824,7 @@ const PhotoLightbox = ({
                     aria-label={t.sharePhoto}
                   >
                     {shareStatus === 'busy' ? <Loader2 className="h-5 w-5 animate-spin" /> : <Share2 className="h-5 w-5" />}
-                    <span>{shareStatus === 'copied' ? t.linkCopied : shareStatus === 'tap-again' ? t.shareTapAgain : t.shareAction}</span>
+                    <span>{{ copied: t.linkCopied, 'tap-again': t.shareTapAgain, saved: t.shareSavedHint, failed: t.shareFailed }[shareStatus] || t.shareAction}</span>
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
@@ -801,33 +833,37 @@ const PhotoLightbox = ({
                   className={`border-border bg-surface text-foreground min-w-[15rem] ${themeClass}`}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  {nativeShare ? (
-                    <DropdownMenuItem
-                      className="cursor-pointer focus:bg-white/5 focus:text-foreground"
-                      onClick={handleNativeShare}
-                    >
-                      <div className="flex flex-col py-1">
-                        <span className="text-sm font-medium">
-                          {shareStatus === 'tap-again' ? t.shareTapAgain : t.shareToApps}
-                        </span>
-                        <span className="text-xs text-muted-foreground">{t.shareToAppsDesc}</span>
-                      </div>
-                    </DropdownMenuItem>
-                  ) : (
-                    <DropdownMenuItem
-                      className="cursor-pointer focus:bg-white/5 focus:text-foreground"
-                      onClick={handleDownloadStandard}
-                    >
-                      <div className="flex flex-col py-1">
-                        <span className="text-sm font-medium">{t.shareInstagramTiktok}</span>
-                        <span className="text-xs text-muted-foreground">{t.shareInstagramTiktokDesc}</span>
-                      </div>
-                      <Download className="ml-auto h-4 w-4 shrink-0" />
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem className="cursor-pointer focus:bg-white/5 focus:text-foreground" onClick={() => handleLinkShare('facebook')}>
-                    <span className="py-1 text-sm">Facebook</span>
-                  </DropdownMenuItem>
+                  {[
+                    { channel: 'instagram', label: 'Instagram' },
+                    { channel: 'tiktok', label: 'TikTok' },
+                    { channel: 'facebook', label: 'Facebook' },
+                  ].map(({ channel, label }) => {
+                    // Desktop Facebook shares the room link, so it never
+                    // needs the (possibly still encoding) video file.
+                    const needsFile = nativeShare || channel !== 'facebook'
+                    const disabled = needsFile && !shareableNow
+                    return (
+                      <DropdownMenuItem
+                        key={channel}
+                        disabled={disabled}
+                        className="cursor-pointer focus:bg-white/5 focus:text-foreground"
+                        onClick={() => handleShareTo(channel)}
+                      >
+                        <div className="flex flex-col py-1">
+                          <span className="text-sm font-medium">{label}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {disabled
+                              ? t.shareNotReady
+                              : nativeShare
+                                ? t.shareMobileHint
+                                : channel === 'facebook'
+                                  ? t.shareFacebookDesktopHint
+                                  : t.shareDesktopHint}
+                          </span>
+                        </div>
+                      </DropdownMenuItem>
+                    )
+                  })}
                   <DropdownMenuItem className="cursor-pointer focus:bg-white/5 focus:text-foreground" onClick={() => handleLinkShare('whatsapp')}>
                     <span className="py-1 text-sm">WhatsApp</span>
                   </DropdownMenuItem>
