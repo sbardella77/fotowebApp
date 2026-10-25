@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTranslations } from '@/components/i18n-provider'
+import { useRoomCopy } from '@/components/room/room-media-context'
 import { getQRCopy } from '@/lib/qr-copy'
 
 // Simple toast hook for internal use
@@ -76,7 +77,7 @@ export function EventQRModal({
   baseUrl = typeof window !== 'undefined' ? window.location.origin : '',
   className = ''
 }) {
-  const t = useTranslations('room')
+  const t = useRoomCopy()
   const tCommon = useTranslations('common')
   const { showToast, ToastComponent } = useToast()
   const qrContainerRef = useRef(null)

@@ -3,7 +3,7 @@
 import { AlertCircle, Heart, ImageIcon, ImageOff, Loader2, Play, RefreshCcw, Upload } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { useTranslations } from '@/components/i18n-provider'
+import { useRoomCopy } from '@/components/room/room-media-context'
 import { getRenderablePhotos } from '@/lib/photo-utils'
 
 const skeletonItems = Array.from({ length: 12 }, (_, index) => index)
@@ -102,7 +102,7 @@ const PhotoGalleryGrid = ({
   getLikeCount = null,
   onToggleLike = null,
 }) => {
-  const t = useTranslations('room')
+  const t = useRoomCopy()
   const safePhotos = getRenderablePhotos(photos)
 
   if (loading && safePhotos.length === 0) {
@@ -167,7 +167,7 @@ const PhotoGalleryGrid = ({
             className="group relative h-full w-full overflow-hidden rounded-xl bg-muted transition-transform duration-200 will-change-transform active:scale-95"
             onClick={() => onSelectPhoto?.(index)}
             type="button"
-            aria-label={`${t.photo} ${index + 1} / ${safePhotos.length}${photo.originalName ? `, ${photo.originalName}` : ''}`}
+            aria-label={`${photo.mediaType === 'VIDEO' ? t.video : t.photo} ${index + 1} / ${safePhotos.length}${photo.originalName ? `, ${photo.originalName}` : ''}`}
           >
             {photo.url ? (
               <ImageWithLazyLoad

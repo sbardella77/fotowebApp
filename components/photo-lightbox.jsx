@@ -28,7 +28,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useTranslations } from '@/components/i18n-provider'
+import { useRoomCopy } from '@/components/room/room-media-context'
 import { trackEvent } from '@/lib/analytics/track-client'
 import { csrfFetch } from '@/lib/client/csrf-fetch'
 import { resolveEffectiveEventAccessState } from '@/lib/event-access'
@@ -50,7 +50,7 @@ const SWIPE_VELOCITY = 0.5
 
 const ImageWithLoading = ({ src, alt }) => {
   const [status, setStatus] = useState('loading')
-  const t = useTranslations('room')
+  const t = useRoomCopy()
 
   return (
     <div className="relative flex h-full w-full items-center justify-center">
@@ -137,7 +137,7 @@ const PhotoLightbox = ({
   // Photos are already filtered/normalized once by the parent (getRenderablePhotos).
   // selectedIndex refers to that same list, so the lightbox must not re-filter it.
   const photo = photos[selectedIndex] || null
-  const t = useTranslations('room')
+  const t = useRoomCopy()
   const [isClosing, setIsClosing] = useState(false)
   const [isNavigating, setIsNavigating] = useState(false)
   const [downloaded, setDownloaded] = useState(false)
@@ -821,7 +821,7 @@ const PhotoLightbox = ({
                     className={`flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium backdrop-blur-sm transition-transform active:scale-95 ${
                       shareStatus === 'copied' ? 'bg-green-500/20 text-green-300' : 'bg-white/15 text-foreground hover:bg-white/25'
                     }`}
-                    aria-label={t.sharePhoto}
+                    aria-label={isVideo ? t.shareVideo : t.sharePhoto}
                   >
                     {shareStatus === 'busy' ? <Loader2 className="h-5 w-5 animate-spin" /> : <Share2 className="h-5 w-5" />}
                     <span>{{ copied: t.linkCopied, 'tap-again': t.shareTapAgain, saved: t.shareSavedHint, failed: t.shareFailed }[shareStatus] || t.shareAction}</span>

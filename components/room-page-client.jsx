@@ -61,6 +61,8 @@ import { resolveAllUpsells } from '@/lib/upsell-context'
 import { UpsellRow } from '@/components/upsell-row'
 import { useToast } from '@/lib/hooks/use-toast'
 import { usePhotoLikes } from '@/lib/hooks/use-photo-likes'
+import { withMediaCopy } from '@/lib/room-copy'
+import { RoomMediaContext } from '@/components/room/room-media-context'
 import { RoomNotFound } from '@/components/room/room-not-found'
 import { NewRoomShareBanner } from '@/components/room/new-room-share-banner'
 import { UPLOAD_STATUS, UploadProgressList } from '@/components/room/upload-progress-list'
@@ -113,11 +115,19 @@ function dedupePhotosById(photos) {
 }
 
 export default function RoomPageClient({ slug, isNew }) {
-  const t = useTranslations('room')
+  const roomCopy = useTranslations('room')
   const tCommon = useTranslations('common')
   const locale = useLocale()
   const [guestName, setGuestName] = useState('')
   const [activeEvent, setActiveEvent] = useState(null)
+  // "Photos & videos" copy only where videos can be uploaded (paid rooms);
+  // shared with child components through RoomMediaContext.
+  const videosAllowed = Boolean(activeEvent) && !resolveEffectiveEventAccessState({
+    billingTier: activeEvent.billingTier,
+    originalDownloadUnlocked: activeEvent.originalDownloadUnlocked,
+    ownerPlan: activeEvent.ownerPlan,
+  }).isFree
+  const t = useMemo(() => withMediaCopy(roomCopy, videosAllowed), [roomCopy, videosAllowed])
   const [uploads, setUploads] = useState([])
   const [busy, setBusy] = useState({ join: true, refresh: false })
   const [galleryLoading, setGalleryLoading] = useState(false)
@@ -1140,6 +1150,7 @@ export default function RoomPageClient({ slug, isNew }) {
   }
 
   return (
+    <RoomMediaContext.Provider value={videosAllowed}>
     <main className="relative min-h-screen bg-background font-body text-foreground">
       <div className="absolute inset-0 bg-grid opacity-[0.025] pointer-events-none" aria-hidden="true" />
 
@@ -1624,5 +1635,6 @@ export default function RoomPageClient({ slug, isNew }) {
       <PhotoLightbox onOpenChange={setLightboxOpen} onSelectIndex={setLightboxIndex} open={lightboxOpen} photos={galleryPhotos} selectedIndex={lightboxIndex} event={activeEvent} isOwner={isEventOwner} likedIds={likedIds} getLikeCount={getLikeCount} onToggleLike={toggleLike} />
       <ToastComponent />
     </main>
+    </RoomMediaContext.Provider>
   )
 }
