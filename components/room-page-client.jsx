@@ -86,7 +86,11 @@ function isSupportedImageFile(file) {
 const SUPPORTED_VIDEO_MIME_TYPES = ['video/mp4', 'video/quicktime', 'video/webm']
 const VIDEO_MIME_BY_EXTENSION = { '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm' }
 const MAX_VIDEO_SIZE = 150 * 1024 * 1024
-const VIDEO_POLL_INTERVAL_MS = 5000
+// Fast while a fresh upload is likely to flip (Mux usually needs 5-20 s),
+// then back off.
+const VIDEO_POLL_FAST_MS = 2000
+const VIDEO_POLL_FAST_WINDOW_MS = 2 * 60 * 1000
+const VIDEO_POLL_SLOW_MS = 5000
 const VIDEO_POLL_MAX_MS = 10 * 60 * 1000
 
 // Returns the upload MIME type for a supported video, or null. Some mobile
@@ -208,8 +212,18 @@ export default function RoomPageClient({ slug, isNew }) {
 
   const { likedIds, getLikeCount, toggleLike } = usePhotoLikes(activeEvent?.slug)
 
+  // photoId → object URL of the file this tab just uploaded, so the uploader
+  // sees and plays their video immediately while Mux encodes (revoked once
+  // Mux's MP4 takes over, and on unmount).
+  const localVideoUrlsRef = useRef(new Map())
+
   const galleryPhotos = useMemo(() => {
-    try { return getRenderablePhotos(photos) }
+    try {
+      return getRenderablePhotos(photos.map((photo) => {
+        const localUrl = isPendingVideo(photo) || (photo.mediaType === 'VIDEO' && !photo.videoUrl) ? localVideoUrlsRef.current.get(photo.id) : null
+        return localUrl ? { ...photo, videoUrl: localUrl, localPreview: true } : photo
+      }))
+    }
     catch (pipelineError) { console.error('[room] photo pipeline crashed', { slug: activeEvent?.slug, error: pipelineError }); return [] }
   }, [photos])
 
@@ -586,6 +600,7 @@ export default function RoomPageClient({ slug, isNew }) {
         xhr.onerror = () => reject(new Error('Video upload network error'))
         xhr.send(file)
       })
+      localVideoUrlsRef.current.set(initData.photoId, URL.createObjectURL(file))
       updateUpload({ progress: 100, status: UPLOAD_STATUS.DONE })
       return true
     } catch (error) {
@@ -817,26 +832,44 @@ export default function RoomPageClient({ slug, isNew }) {
   // Videos flip from PROCESSING to READY via the Mux webhook ~20 s after the
   // upload finishes, with no client signal. While any is pending, re-read the
   // newest page and swap just those items in place (scroll/pagination kept).
+  useEffect(() => () => { for (const url of localVideoUrlsRef.current.values()) URL.revokeObjectURL(url) }, [])
+  useEffect(() => {
+    for (const photo of photos) {
+      const localUrl = localVideoUrlsRef.current.get(photo.id)
+      if (localUrl && photo.videoStatus === 'READY') {
+        URL.revokeObjectURL(localUrl)
+        localVideoUrlsRef.current.delete(photo.id)
+      }
+    }
+  }, [photos])
+
   const hasPendingVideos = photos.some(isPendingVideo)
   useEffect(() => {
     if (!hasPendingVideos || !activeEvent?.slug) return undefined
     const startedAt = Date.now()
-    const timer = window.setInterval(async () => {
-      if (Date.now() - startedAt > VIDEO_POLL_MAX_MS) { window.clearInterval(timer); return }
-      if (document.visibilityState === 'hidden') return
-      try {
-        const url = new URL(`/api/events/${activeEvent.slug}/photos`, window.location.origin)
-        url.searchParams.set('take', '48')
-        url.searchParams.set('sort', 'recent')
-        const response = await fetch(url.toString(), { cache: 'no-store' })
-        if (!response.ok) return
-        const data = await response.json()
-        setPhotos((current) => mergePhotoUpdates(current, data.photos || []))
-      } catch {
-        // next tick retries
+    let timer = null
+    let cancelled = false
+    const tick = async () => {
+      const elapsed = Date.now() - startedAt
+      if (cancelled || elapsed > VIDEO_POLL_MAX_MS) return
+      if (document.visibilityState !== 'hidden') {
+        try {
+          const url = new URL(`/api/events/${activeEvent.slug}/photos`, window.location.origin)
+          url.searchParams.set('take', '48')
+          url.searchParams.set('sort', 'recent')
+          const response = await fetch(url.toString(), { cache: 'no-store' })
+          if (response.ok) {
+            const data = await response.json()
+            if (!cancelled) setPhotos((current) => mergePhotoUpdates(current, data.photos || []))
+          }
+        } catch {
+          // next tick retries
+        }
       }
-    }, VIDEO_POLL_INTERVAL_MS)
-    return () => window.clearInterval(timer)
+      if (!cancelled) timer = window.setTimeout(tick, elapsed < VIDEO_POLL_FAST_WINDOW_MS ? VIDEO_POLL_FAST_MS : VIDEO_POLL_SLOW_MS)
+    }
+    timer = window.setTimeout(tick, VIDEO_POLL_FAST_MS)
+    return () => { cancelled = true; window.clearTimeout(timer) }
   }, [hasPendingVideos, activeEvent?.slug])
 
   const refreshGalleryAfterUpload = async () => {
@@ -1531,6 +1564,7 @@ export default function RoomPageClient({ slug, isNew }) {
                     loadingMore={loadingMorePhotos}
                     likedIds={likedIds}
                     getLikeCount={getLikeCount}
+                    onToggleLike={toggleLike}
                   />
                 </div>
               </div>

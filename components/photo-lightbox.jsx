@@ -81,8 +81,23 @@ const ImageWithLoading = ({ src, alt }) => {
 
 // Mux's re-encoded MP4 rendition only (see normalizeVideoFields) — never the
 // uploaded original, which may carry GPS metadata.
+let nativeHlsSupport
+const canPlayNativeHls = () => {
+  if (nativeHlsSupport === undefined) {
+    try {
+      nativeHlsSupport = Boolean(document.createElement('video').canPlayType('application/vnd.apple.mpegurl'))
+    } catch {
+      nativeHlsSupport = false
+    }
+  }
+  return nativeHlsSupport
+}
+
 const LightboxVideo = ({ photo, t }) => {
-  if (!photo.videoUrl) {
+  // MP4 once Mux finished it (or the uploader's local file); before that,
+  // HLS on browsers that play it natively (iOS/Android) — seconds earlier.
+  const src = photo.videoUrl || (photo.hlsUrl && canPlayNativeHls() ? photo.hlsUrl : null)
+  if (!src) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 text-foreground/60">
         {photo.videoStatus === 'FAILED' ? <ImageOff className="h-10 w-10" /> : <Loader2 className="h-10 w-10 animate-spin" />}
@@ -93,7 +108,7 @@ const LightboxVideo = ({ photo, t }) => {
   return (
     <video
       key={photo.id}
-      src={photo.videoUrl}
+      src={src}
       poster={photo.url || undefined}
       controls
       playsInline
@@ -505,73 +520,11 @@ const PhotoLightbox = ({
           </div>
         )}
         <div className="flex items-center gap-1">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                size="icon"
-                variant="ghost"
-                className={`h-9 w-9 transition-colors ${
-                  shareStatus === 'copied'
-                    ? 'text-green-400 hover:text-green-300'
-                    : 'text-foreground/80 hover:bg-white/10 hover:text-foreground'
-                }`}
-                onClick={(e) => e.stopPropagation()}
-                aria-label={t.sharePhoto}
-                title={shareStatus === 'copied' ? t.linkCopied : t.sharePhoto}
-              >
-                {shareStatus === 'busy' ? <Loader2 className="h-5 w-5 animate-spin" /> : <Share2 className="h-5 w-5" />}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className={`border-border bg-surface text-foreground min-w-[15rem] ${themeClass}`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {nativeShare ? (
-                <DropdownMenuItem
-                  className="cursor-pointer focus:bg-white/5 focus:text-foreground"
-                  onClick={handleNativeShare}
-                >
-                  <div className="flex flex-col py-1">
-                    <span className="text-sm font-medium">
-                      {shareStatus === 'tap-again' ? t.shareTapAgain : t.shareToApps}
-                    </span>
-                    <span className="text-xs text-muted-foreground">{t.shareToAppsDesc}</span>
-                  </div>
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem
-                  className="cursor-pointer focus:bg-white/5 focus:text-foreground"
-                  onClick={handleDownloadStandard}
-                >
-                  <div className="flex flex-col py-1">
-                    <span className="text-sm font-medium">{t.shareInstagramTiktok}</span>
-                    <span className="text-xs text-muted-foreground">{t.shareInstagramTiktokDesc}</span>
-                  </div>
-                  <Download className="ml-auto h-4 w-4 shrink-0" />
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem className="cursor-pointer focus:bg-white/5 focus:text-foreground" onClick={() => handleLinkShare('facebook')}>
-                <span className="py-1 text-sm">Facebook</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer focus:bg-white/5 focus:text-foreground" onClick={() => handleLinkShare('whatsapp')}>
-                <span className="py-1 text-sm">WhatsApp</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer focus:bg-white/5 focus:text-foreground" onClick={() => handleLinkShare('x')}>
-                <span className="py-1 text-sm">X</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer focus:bg-white/5 focus:text-foreground" onClick={handleCopyLink}>
-                <span className="py-1 text-sm">{t.copyRoomLink}</span>
-                <Link2 className="ml-auto h-4 w-4 shrink-0" />
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
           {isVideo ? (
             <Button
               size="icon"
               variant="ghost"
-              disabled={!photo.videoUrl}
+              disabled={!photo.videoUrl || photo.localPreview}
               className={`h-9 w-9 transition-colors ${
                 downloaded ? 'text-green-400 hover:text-green-300' : 'text-foreground/80 hover:bg-white/10 hover:text-foreground'
               }`}
@@ -805,30 +758,89 @@ const PhotoLightbox = ({
       )}
 
       {/* Mobile swipe hint */}
-      <div className="pointer-events-none absolute bottom-16 left-0 right-0 flex justify-center sm:hidden">
+      <div className="pointer-events-none absolute top-16 left-0 right-0 flex justify-center sm:hidden">
         <div className="rounded-full bg-black/50 px-3 py-1 text-xs text-foreground/80 backdrop-blur-sm">
           {t.swipeToNavigate}
         </div>
       </div>
 
-      {likesEnabled && (
-        <button
-          type="button"
-          aria-pressed={isLiked}
-          aria-label={isLiked ? t.unlikePhoto : t.likePhoto}
-          className="absolute bottom-6 right-4 z-20 flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-2 text-sm text-foreground/90 backdrop-blur-sm transition-transform active:scale-90"
-          onClick={(e) => {
-            e.stopPropagation()
-            onToggleLike(photo)
-          }}
-        >
-          <Heart className={`h-5 w-5 transition-colors ${isLiked ? 'fill-red-500 text-red-500' : ''}`} />
-          {likeCount > 0 && <span className="tabular-nums">{likeCount}</span>}
-        </button>
-      )}
-
-      {/* Footer info */}
+      {/* Footer: like/share action bar + info */}
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pb-6 pt-12">
+        <div className="mx-auto mb-3 flex max-w-md items-center justify-center gap-3" onClick={(e) => e.stopPropagation()}>
+          {likesEnabled && (
+            <button
+              type="button"
+              aria-pressed={isLiked}
+              aria-label={isLiked ? t.unlikePhoto : t.likePhoto}
+              className={`flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium backdrop-blur-sm transition-transform active:scale-90 ${
+                isLiked ? 'bg-red-500/20 text-red-300' : 'bg-white/15 text-foreground hover:bg-white/25'
+              }`}
+              onClick={() => onToggleLike(photo)}
+            >
+              <Heart className={`h-5 w-5 transition-colors ${isLiked ? 'fill-red-500 text-red-500' : ''}`} />
+              <span>{t.likePhoto}</span>
+              {likeCount > 0 && <span className="tabular-nums opacity-80">· {likeCount}</span>}
+            </button>
+          )}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className={`flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium backdrop-blur-sm transition-transform active:scale-95 ${
+                      shareStatus === 'copied' ? 'bg-green-500/20 text-green-300' : 'bg-white/15 text-foreground hover:bg-white/25'
+                    }`}
+                    aria-label={t.sharePhoto}
+                  >
+                    {shareStatus === 'busy' ? <Loader2 className="h-5 w-5 animate-spin" /> : <Share2 className="h-5 w-5" />}
+                    <span>{shareStatus === 'copied' ? t.linkCopied : shareStatus === 'tap-again' ? t.shareTapAgain : t.shareAction}</span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="center"
+                  side="top"
+                  className={`border-border bg-surface text-foreground min-w-[15rem] ${themeClass}`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {nativeShare ? (
+                    <DropdownMenuItem
+                      className="cursor-pointer focus:bg-white/5 focus:text-foreground"
+                      onClick={handleNativeShare}
+                    >
+                      <div className="flex flex-col py-1">
+                        <span className="text-sm font-medium">
+                          {shareStatus === 'tap-again' ? t.shareTapAgain : t.shareToApps}
+                        </span>
+                        <span className="text-xs text-muted-foreground">{t.shareToAppsDesc}</span>
+                      </div>
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem
+                      className="cursor-pointer focus:bg-white/5 focus:text-foreground"
+                      onClick={handleDownloadStandard}
+                    >
+                      <div className="flex flex-col py-1">
+                        <span className="text-sm font-medium">{t.shareInstagramTiktok}</span>
+                        <span className="text-xs text-muted-foreground">{t.shareInstagramTiktokDesc}</span>
+                      </div>
+                      <Download className="ml-auto h-4 w-4 shrink-0" />
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem className="cursor-pointer focus:bg-white/5 focus:text-foreground" onClick={() => handleLinkShare('facebook')}>
+                    <span className="py-1 text-sm">Facebook</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer focus:bg-white/5 focus:text-foreground" onClick={() => handleLinkShare('whatsapp')}>
+                    <span className="py-1 text-sm">WhatsApp</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer focus:bg-white/5 focus:text-foreground" onClick={() => handleLinkShare('x')}>
+                    <span className="py-1 text-sm">X</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer focus:bg-white/5 focus:text-foreground" onClick={handleCopyLink}>
+                    <span className="py-1 text-sm">{t.copyRoomLink}</span>
+                    <Link2 className="ml-auto h-4 w-4 shrink-0" />
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+        </div>
         <div className="mx-auto max-w-md text-center">
           <p className="truncate text-sm font-medium text-foreground/90">
             {photo.originalName || t.untitled}

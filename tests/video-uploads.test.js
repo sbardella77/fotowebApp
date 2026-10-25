@@ -210,15 +210,32 @@ describe('mux helpers', () => {
 })
 
 describe('video DTO and guardrails', () => {
-  it('exposes Mux rendition URLs only when READY', () => {
-    expect(toGuestVideoFields({ videoStatus: 'PROCESSING', muxPlaybackId: 'abc0123456' })).toMatchObject({ url: null, videoUrl: null })
+  it('exposes nothing before the Mux asset is encoded', () => {
+    expect(toGuestVideoFields({ videoStatus: 'UPLOADING', muxPlaybackId: null })).toMatchObject({ url: null, videoUrl: null, hlsUrl: null })
+    expect(toGuestVideoFields({ videoStatus: 'FAILED', muxPlaybackId: 'abc0123456' })).toMatchObject({ url: null, videoUrl: null, hlsUrl: null })
+  })
+
+  it('serves poster + HLS as soon as the asset is encoded, MP4 only once READY', () => {
+    expect(toGuestVideoFields({ videoStatus: 'PROCESSING', muxPlaybackId: 'abc0123456' })).toMatchObject({
+      url: 'https://image.mux.com/abc0123456/thumbnail.jpg?width=640&fit_mode=preserve',
+      hlsUrl: 'https://stream.mux.com/abc0123456.m3u8',
+      videoUrl: null,
+    })
     expect(toGuestVideoFields({ videoStatus: 'READY', muxPlaybackId: 'abc0123456', durationSec: 12.6 })).toEqual({
       mediaType: 'VIDEO',
       videoStatus: 'READY',
       url: 'https://image.mux.com/abc0123456/thumbnail.jpg?width=640&fit_mode=preserve',
       videoUrl: 'https://stream.mux.com/abc0123456/highest.mp4',
+      hlsUrl: 'https://stream.mux.com/abc0123456.m3u8',
       durationSec: 13,
     })
+  })
+
+  it('client normalizer keeps local blob previews and Mux HLS, drops anything else', () => {
+    const p = normalizePublicPhoto({ id: 'p9', url: null, mediaType: 'VIDEO', videoUrl: 'blob:https://snaprooms.app/x', localPreview: true, hlsUrl: 'https://evil.example/a.m3u8' })
+    expect(p.videoUrl).toBe('blob:https://snaprooms.app/x')
+    expect(p.localPreview).toBe(true)
+    expect(p.hlsUrl).toBeNull()
   })
 
   it('never maps a VIDEO row to its mux:// storage reference, even for owners', () => {

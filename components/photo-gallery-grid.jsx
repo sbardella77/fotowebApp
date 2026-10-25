@@ -100,6 +100,7 @@ const PhotoGalleryGrid = ({
   loadingMore = false,
   likedIds = null,
   getLikeCount = null,
+  onToggleLike = null,
 }) => {
   const t = useTranslations('room')
   const safePhotos = getRenderablePhotos(photos)
@@ -159,9 +160,11 @@ const PhotoGalleryGrid = ({
     <div>
       <div className="grid grid-cols-3 gap-2 sm:gap-3 md:grid-cols-4">
         {safePhotos.map((photo, index) => (
+          // Wrapper, not a button: the heart below is its own button and
+          // buttons cannot nest.
+          <div key={photo.id} className="relative aspect-square">
           <button
-            key={photo.id}
-            className="group relative aspect-square overflow-hidden rounded-xl bg-muted transition-transform duration-200 will-change-transform active:scale-95"
+            className="group relative h-full w-full overflow-hidden rounded-xl bg-muted transition-transform duration-200 will-change-transform active:scale-95"
             onClick={() => onSelectPhoto?.(index)}
             type="button"
             aria-label={`${t.photo} ${index + 1} / ${safePhotos.length}${photo.originalName ? `, ${photo.originalName}` : ''}`}
@@ -171,6 +174,15 @@ const PhotoGalleryGrid = ({
                 src={photo.url}
                 alt={photo.originalName || `${t.photo} ${index + 1}`}
                 className="transition-transform duration-300 group-hover:scale-105"
+              />
+            ) : photo.mediaType === 'VIDEO' && photo.localPreview && photo.videoUrl ? (
+              // Uploader's own file while Mux encodes: first frame as thumbnail.
+              <video
+                src={`${photo.videoUrl}#t=0.1`}
+                muted
+                playsInline
+                preload="metadata"
+                className="h-full w-full object-cover"
               />
             ) : photo.mediaType === 'VIDEO' && photo.videoStatus !== 'FAILED' ? (
               // Video still being re-encoded by Mux — no poster yet.
@@ -189,19 +201,26 @@ const PhotoGalleryGrid = ({
               </div>
             )}
             <div className="absolute inset-0 bg-black/0 transition-colors duration-200 group-hover:bg-black/10" />
-            {photo.mediaType === 'VIDEO' && photo.url && (
+            {photo.mediaType === 'VIDEO' && (photo.url || photo.localPreview) && (
               <span className="pointer-events-none absolute left-1 top-1 flex items-center gap-0.5 rounded-full bg-black/50 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
                 <Play className="h-3 w-3 fill-white" />
                 {photo.durationSec ? formatDuration(photo.durationSec) : t.video}
               </span>
             )}
-            {getLikeCount && getLikeCount(photo) > 0 && (
-              <span className="pointer-events-none absolute bottom-1 right-1 flex items-center gap-0.5 rounded-full bg-black/50 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
-                <Heart className={`h-3 w-3 ${likedIds?.has(photo.id) ? 'fill-red-500 text-red-500' : ''}`} />
-                {getLikeCount(photo)}
-              </span>
-            )}
           </button>
+          {onToggleLike && (photo.url || photo.mediaType !== 'VIDEO') && (
+            <button
+              type="button"
+              aria-pressed={Boolean(likedIds?.has(photo.id))}
+              aria-label={likedIds?.has(photo.id) ? t.unlikePhoto : t.likePhoto}
+              className="absolute bottom-1 right-1 flex min-h-[32px] min-w-[32px] items-center justify-center gap-1 rounded-full bg-black/50 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm transition-transform active:scale-90"
+              onClick={() => onToggleLike(photo)}
+            >
+              <Heart className={`h-4 w-4 transition-colors ${likedIds?.has(photo.id) ? 'fill-red-500 text-red-500' : ''}`} />
+              {getLikeCount?.(photo) > 0 && <span className="tabular-nums">{getLikeCount(photo)}</span>}
+            </button>
+          )}
+          </div>
         ))}
         {loadingMore && Array.from({ length: 6 }).map((_, index) => (
           <div
