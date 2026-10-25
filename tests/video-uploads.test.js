@@ -89,7 +89,7 @@ describe('initVideoUpload', () => {
     expect(body.uploadUrl).toBe('https://storage.mux.com/up')
     const muxBody = JSON.parse(fetchSpy.mock.calls[0][1].body)
     expect(muxBody.cors_origin).toBe('http://localhost:3000')
-    expect(muxBody.new_asset_settings.passthrough).toBe(body.photoId)
+    expect(muxBody.new_asset_settings.passthrough).toBe(`${process.env.VERCEL_ENV || process.env.NODE_ENV}:${body.photoId}`)
     expect(muxBody.new_asset_settings.playback_policies).toEqual(['public'])
 
     const data = prisma.photo.create.mock.calls[0][0].data
@@ -145,13 +145,33 @@ describe('syncVideoAsset', () => {
     expect(prisma.photo.update.mock.calls[0][0].data.videoStatus).toBe('FAILED')
   })
 
-  it('deletes orphaned assets whose Photo row is gone', async () => {
+  it('deletes orphaned assets this environment minted whose Photo row is gone', async () => {
     const prisma = { photo: { findFirst: vi.fn().mockResolvedValue(null), update: vi.fn() } }
     const deleteAsset = vi.fn()
-    const result = await syncVideoAsset(prisma, 'asset1', { getAsset: async () => readyAsset, deleteAsset })
+    const asset = { ...readyAsset, passthrough: 'production:p1' }
+    const result = await syncVideoAsset(prisma, 'asset1', { getAsset: async () => asset, deleteAsset, scope: 'production' })
     expect(result.outcome).toBe('orphan_deleted')
     expect(deleteAsset).toHaveBeenCalledWith('asset1')
     expect(prisma.photo.update).not.toHaveBeenCalled()
+  })
+
+  it('never touches another environment\'s asset (shared Mux env: preview must not delete production videos)', async () => {
+    const prisma = { photo: { findFirst: vi.fn(), update: vi.fn() } }
+    const deleteAsset = vi.fn()
+    const asset = { ...readyAsset, passthrough: 'production:p1' }
+    const result = await syncVideoAsset(prisma, 'asset1', { getAsset: async () => asset, deleteAsset, scope: 'preview' })
+    expect(result.outcome).toBe('foreign_scope')
+    expect(deleteAsset).not.toHaveBeenCalled()
+    expect(prisma.photo.findFirst).not.toHaveBeenCalled()
+    expect(prisma.photo.update).not.toHaveBeenCalled()
+  })
+
+  it('does not delete legacy unscoped assets it cannot find (they may be another environment\'s)', async () => {
+    const prisma = { photo: { findFirst: vi.fn().mockResolvedValue(null), update: vi.fn() } }
+    const deleteAsset = vi.fn()
+    const result = await syncVideoAsset(prisma, 'asset1', { getAsset: async () => readyAsset, deleteAsset, scope: 'production' })
+    expect(result.outcome).toBe('not_found_unscoped')
+    expect(deleteAsset).not.toHaveBeenCalled()
   })
 
   it('never steps back from READY on a late event', async () => {
