@@ -26,6 +26,11 @@ export function DashboardPhotoCard({ photo, onApprove, onReject, onDelete, onOpe
             <Loader2 className="h-4 w-4 animate-spin" />
             Processing video…
           </div>
+        ) : isVideo ? (
+          // Hidden from guests; shown here so the owner can delete it.
+          <div className="aspect-square w-full bg-secondary flex flex-col items-center justify-center gap-1 px-3 text-center text-muted-foreground text-xs">
+            Video failed — please delete it and upload again
+          </div>
         ) : (
           <div className="aspect-square w-full bg-secondary flex items-center justify-center text-muted-foreground text-xs">
             No image

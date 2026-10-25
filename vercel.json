@@ -31,6 +31,10 @@
     {
       "path": "/api/cron/mark-expired-events",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/reconcile-videos",
+      "schedule": "*/15 * * * *"
     }
   ]
 }
