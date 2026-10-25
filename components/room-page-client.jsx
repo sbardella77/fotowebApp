@@ -71,6 +71,7 @@ import { ShareEventCard } from '@/components/room/share-event-card'
 import { ViralShareSection } from '@/components/room/viral-share-section'
 import { StickyUploadCta } from '@/components/room/sticky-upload-cta'
 import { GalleryBlockedModal } from '@/components/room/gallery-blocked-modal'
+import { nextRoomPollDelay } from '@/lib/room-poll'
 
 const CHUNK_SIZE = 1024 * 1024
 
@@ -181,6 +182,9 @@ export default function RoomPageClient({ slug, isNew }) {
   const photosControllerRef = useRef(null)
   const isFetchingRef = useRef(false)
   const pollTimeoutRef = useRef(null)
+  // Last time the room visibly changed (load, photo count change, own
+  // upload) — drives the adaptive poll cadence.
+  const lastRoomActivityAtRef = useRef(Date.now())
   const pollBackoffRef = useRef(3000)
   const consecutiveErrorsRef = useRef(0)
   const previousPhotoCountRef = useRef(0)
@@ -774,6 +778,7 @@ export default function RoomPageClient({ slug, isNew }) {
       else { uploadCompletedTracked.current = true; trackEvent(EVENT_UPLOAD_COMPLETED, { room_slug: activeEvent?.slug, batch_size: filesToUpload.length, ...funnelProps }) }
       await refreshGalleryAfterUpload()
       lastLocalUploadAt.current = Date.now()
+      lastRoomActivityAtRef.current = Date.now()
     } else {
       const someSucceeded = results.some(Boolean)
       setUploadSuccess(false)
@@ -1042,18 +1047,41 @@ export default function RoomPageClient({ slug, isNew }) {
       return undefined
     }
 
+    // Adaptive cadence (lib/room-poll.js): fast while photos arrive, up to
+    // 30 s when the room is quiet, and no polling at all while the tab is
+    // hidden — a phone in a pocket costs nothing. Returning to the tab
+    // refreshes immediately.
+    let stopped = false
     const schedulePoll = () => {
+      if (stopped) return
+      const delay = nextRoomPollDelay({
+        msSinceLastChange: Date.now() - lastRoomActivityAtRef.current,
+        consecutiveErrors: consecutiveErrorsRef.current,
+        errorBackoffMs: pollBackoffRef.current,
+      })
       pollTimeoutRef.current = window.setTimeout(async () => {
-        await loadEvent(activeEvent.slug, { silent: true })
-        // Schedule next poll only if still relevant
-        if (pollTimeoutRef.current !== null && !notFound) {
-          schedulePoll()
+        if (document.visibilityState === 'hidden') {
+          // Paused; onVisibilityChange resumes it.
+          pollTimeoutRef.current = null
+          return
         }
-      }, pollBackoffRef.current)
+        await loadEvent(activeEvent.slug, { silent: true })
+        if (!stopped && !notFound) schedulePoll()
+      }, delay)
+    }
+    const onVisibilityChange = async () => {
+      if (stopped || document.visibilityState !== 'visible') return
+      if (pollTimeoutRef.current) window.clearTimeout(pollTimeoutRef.current)
+      pollTimeoutRef.current = null
+      await loadEvent(activeEvent.slug, { silent: true })
+      if (!stopped && !notFound && pollTimeoutRef.current === null) schedulePoll()
     }
 
     schedulePoll()
+    document.addEventListener('visibilitychange', onVisibilityChange)
     return () => {
+      stopped = true
+      document.removeEventListener('visibilitychange', onVisibilityChange)
       if (pollTimeoutRef.current) {
         window.clearTimeout(pollTimeoutRef.current)
         pollTimeoutRef.current = null
@@ -1069,6 +1097,7 @@ export default function RoomPageClient({ slug, isNew }) {
     if (typeof activeEvent?.photoCount !== 'number') return
     const currentCount = activeEvent.photoCount
     const previousCount = previousPhotoCountRef.current
+    if (currentCount !== previousCount) lastRoomActivityAtRef.current = Date.now()
 
     if (ignoreNextPhotoCountChangeRef.current) {
       ignoreNextPhotoCountChangeRef.current = false
