@@ -1,6 +1,6 @@
 'use client'
 
-import { AlertCircle, ImageIcon, ImageOff, Loader2, RefreshCcw, Upload } from 'lucide-react'
+import { AlertCircle, Heart, ImageIcon, ImageOff, Loader2, RefreshCcw, Upload } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { useTranslations } from '@/components/i18n-provider'
@@ -93,6 +93,8 @@ const PhotoGalleryGrid = ({
   hasMore = false,
   onLoadMore,
   loadingMore = false,
+  likedIds = null,
+  getLikeCount = null,
 }) => {
   const t = useTranslations('room')
   const safePhotos = getRenderablePhotos(photos)
@@ -176,6 +178,12 @@ const PhotoGalleryGrid = ({
               </div>
             )}
             <div className="absolute inset-0 bg-black/0 transition-colors duration-200 group-hover:bg-black/10" />
+            {getLikeCount && getLikeCount(photo) > 0 && (
+              <span className="pointer-events-none absolute bottom-1 right-1 flex items-center gap-0.5 rounded-full bg-black/50 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
+                <Heart className={`h-3 w-3 ${likedIds?.has(photo.id) ? 'fill-red-500 text-red-500' : ''}`} />
+                {getLikeCount(photo)}
+              </span>
+            )}
           </button>
         ))}
         {loadingMore && Array.from({ length: 6 }).map((_, index) => (

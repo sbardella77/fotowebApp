@@ -210,6 +210,10 @@ model Photo {
   // default is the conservative LEGACY_UNVERIFIED value — new-upload call
   // sites explicitly pass PENDING instead of relying on this default.
   displayDerivativeStatus DisplayDerivativeStatus @default(LEGACY_UNVERIFIED)
+  // Denormalized PhotoLike count, kept in step with PhotoLike rows inside
+  // the same transaction (lib/server/photo-likes.js). Display only.
+  likeCount               Int                     @default(0)
+  likes                   PhotoLike[]
   moment                  EventMoment?            @relation(fields: [momentId], references: [id], onDelete: SetNull)
   createdAt               DateTime                @default(now())
   updatedAt               DateTime                @updatedAt
@@ -219,6 +223,21 @@ model Photo {
   @@index([status, createdAt(sort: Desc)])
   @@index([momentId, createdAt(sort: Desc)])
   @@index([displayDerivativeStatus])
+}
+
+// One heart per anonymous voter per photo. voterId is a server-issued
+// httpOnly cookie UUID (lib/server/photo-likes.js) — best-effort uniqueness,
+// never used for authorization, billing or gating.
+model PhotoLike {
+  id        String   @id @default(cuid())
+  photoId   String
+  photo     Photo    @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  eventId   String
+  voterId   String
+  createdAt DateTime @default(now())
+
+  @@unique([photoId, voterId])
+  @@index([eventId, voterId])
 }
 
 model PrivateAsset {
