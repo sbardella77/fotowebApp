@@ -83,6 +83,20 @@ function isSupportedImageFile(file) {
   return SUPPORTED_EXTENSIONS.some((ext) => name.endsWith(ext))
 }
 
+const SUPPORTED_VIDEO_MIME_TYPES = ['video/mp4', 'video/quicktime', 'video/webm']
+const VIDEO_MIME_BY_EXTENSION = { '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm' }
+const MAX_VIDEO_SIZE = 150 * 1024 * 1024
+
+// Returns the upload MIME type for a supported video, or null. Some mobile
+// browsers leave file.type empty, so the extension is the fallback.
+function getVideoMimeType(file) {
+  const type = file.type?.toLowerCase()
+  if (type && SUPPORTED_VIDEO_MIME_TYPES.includes(type)) return type
+  const name = file.name?.toLowerCase() || ''
+  const ext = Object.keys(VIDEO_MIME_BY_EXTENSION).find((e) => name.endsWith(e))
+  return ext ? VIDEO_MIME_BY_EXTENSION[ext] : null
+}
+
 function dedupePhotosById(photos) {
   const seen = new Set()
   return photos.filter((p) => {
@@ -531,6 +545,54 @@ export default function RoomPageClient({ slug, isNew }) {
 
   const MAX_FILE_SIZE = 25 * 1024 * 1024
 
+  // Videos go straight from the browser to Mux (one-shot upload URL minted by
+  // /api/uploads/video/init); Mux re-encodes them and a webhook flips the
+  // gallery tile from "processing" to playable.
+  const uploadVideoFile = async (file, momentId) => {
+    if (!activeEvent?.slug) return false
+    const localId = `${file.name}-${file.lastModified}`
+    const updateUpload = (next) => {
+      setUploads((current) => current.map((item) => (item.id === localId ? { ...item, ...next } : item)))
+    }
+    updateUpload({ progress: 4, status: UPLOAD_STATUS.UPLOADING, detail: t.uploading })
+    try {
+      const initResponse = await fetch('/api/uploads/video/init', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventSlug: activeEvent.slug,
+          fileName: file.name,
+          fileSize: file.size,
+          mimeType: getVideoMimeType(file),
+          uploaderName: guestName,
+          caption: '',
+          momentId: momentId || undefined,
+        }),
+      })
+      const initData = await initResponse.json().catch(() => ({}))
+      if (!initResponse.ok) {
+        updateUpload({ status: UPLOAD_STATUS.ERROR, errorMessage: initData.code === 'videos_require_upgrade' ? t.videosProOnly : (initData.error || tCommon.failed) })
+        return false
+      }
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+        xhr.open('PUT', initData.uploadUrl)
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) updateUpload({ progress: Math.max(4, Math.round((e.loaded / e.total) * 96)) })
+        }
+        xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Video upload failed: ${xhr.status}`)))
+        xhr.onerror = () => reject(new Error('Video upload network error'))
+        xhr.send(file)
+      })
+      updateUpload({ progress: 100, status: UPLOAD_STATUS.DONE })
+      return true
+    } catch (error) {
+      console.warn(`[room:${activeEvent.slug}] video upload failed`, error)
+      updateUpload({ status: UPLOAD_STATUS.ERROR, errorMessage: tCommon.failed })
+      return false
+    }
+  }
+
   const onFilesSelected = async (event) => {
     const fileList = Array.from(event.target.files || [])
     const input = event.target
@@ -538,17 +600,28 @@ export default function RoomPageClient({ slug, isNew }) {
     input.value = ''
     setUploadSuccess(false); setUploadFormatError(''); setShowViralSection(false); setPhotoLimitError(null)
     const supportedFiles = []; const unsupportedFiles = []; const oversizedFiles = []
+    const blockedVideos = []
     for (const file of fileList) {
-      if (!isSupportedImageFile(file)) { unsupportedFiles.push(file) }
+      if (getVideoMimeType(file)) {
+        // Server enforces this too; checking here just gives a clear message.
+        if (eventAccess.isFree) { blockedVideos.push(file) }
+        else if (file.size > MAX_VIDEO_SIZE) { oversizedFiles.push(file) }
+        else { supportedFiles.push(file) }
+      }
+      else if (!isSupportedImageFile(file)) { unsupportedFiles.push(file) }
       else if (file.size > MAX_FILE_SIZE) { oversizedFiles.push(file) }
       else { supportedFiles.push(file) }
+    }
+    if (blockedVideos.length > 0) {
+      setUploadFormatError(t.videosProOnly)
+      trackEvent(EVENT_UPLOAD_FILE_REJECTED, { room_slug: activeEvent?.slug, rejected_count: blockedVideos.length, reason: 'video_requires_upgrade' })
     }
     if (unsupportedFiles.length > 0) {
       setUploadFormatError(unsupportedFiles.length === 1 ? t.unsupportedFormatSingular : t.unsupportedFormatPlural)
       trackEvent(EVENT_UPLOAD_FILE_REJECTED, { room_slug: activeEvent?.slug, rejected_count: unsupportedFiles.length })
     }
     if (oversizedFiles.length > 0) {
-      setUploadFormatError(t.fileTooLarge)
+      setUploadFormatError(oversizedFiles.some(getVideoMimeType) ? t.videoTooLarge : t.fileTooLarge)
       trackEvent(EVENT_UPLOAD_FILE_REJECTED, { room_slug: activeEvent?.slug, rejected_count: oversizedFiles.length, reason: 'file_too_large' })
     }
     if (supportedFiles.length === 0) return
@@ -604,7 +677,10 @@ export default function RoomPageClient({ slug, isNew }) {
     const optimizationResults = []
     await Promise.all(
       filesToUpload.map(async (file) => {
-        const result = await optimizeImage(file)
+        // Videos are uploaded untouched; Mux does the re-encoding.
+        const result = getVideoMimeType(file)
+          ? { file, originalBytes: file.size, optimizedBytes: file.size, optimized: false }
+          : await optimizeImage(file)
         const localId = `${file.name}-${file.lastModified}`
         optimizedMap.set(localId, result.file)
         optimizationResults.push(result)
@@ -655,6 +731,7 @@ export default function RoomPageClient({ slug, isNew }) {
     // Upload with controlled concurrency (max 3)
     const tasks = filesToUpload.map((file) => async () => {
       const localId = `${file.name}-${file.lastModified}`
+      if (getVideoMimeType(file)) return uploadVideoFile(file, momentId)
       const optimized = optimizedMap.get(localId)
       return uploadSingleFile(file, optimized, momentId)
     })
@@ -1294,7 +1371,7 @@ export default function RoomPageClient({ slug, isNew }) {
               </div>
             </div>
 
-            <input ref={heroFileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={onFilesSelected} aria-label={t.addPhotos} />
+            <input ref={heroFileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm" multiple className="hidden" onChange={onFilesSelected} aria-label={t.addPhotos} />
 
             <UploadProgressList uploads={uploads} onRetry={retryUpload} canRetry={(id) => pendingFilesRef.current.has(id)} t={t} tCommon={tCommon} />
 

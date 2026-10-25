@@ -1,12 +1,17 @@
 'use client'
 
-import { AlertCircle, Heart, ImageIcon, ImageOff, Loader2, RefreshCcw, Upload } from 'lucide-react'
+import { AlertCircle, Heart, ImageIcon, ImageOff, Loader2, Play, RefreshCcw, Upload } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { useTranslations } from '@/components/i18n-provider'
 import { getRenderablePhotos } from '@/lib/photo-utils'
 
 const skeletonItems = Array.from({ length: 12 }, (_, index) => index)
+
+const formatDuration = (seconds) => {
+  const total = Math.max(0, Math.round(seconds || 0))
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
+}
 
 const ImageWithLazyLoad = ({ src, alt, className, onLoad }) => {
   const [status, setStatus] = useState('loading')
@@ -167,6 +172,12 @@ const PhotoGalleryGrid = ({
                 alt={photo.originalName || `${t.photo} ${index + 1}`}
                 className="transition-transform duration-300 group-hover:scale-105"
               />
+            ) : photo.mediaType === 'VIDEO' && photo.videoStatus !== 'FAILED' ? (
+              // Video still being re-encoded by Mux — no poster yet.
+              <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-muted">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/50" />
+                <span className="text-[10px] text-muted-foreground">{t.videoProcessing}</span>
+              </div>
             ) : (
               // No safe derivative exists for this photo yet (PENDING /
               // FAILED / LEGACY_UNVERIFIED) — explicit unavailable tile.
@@ -178,6 +189,12 @@ const PhotoGalleryGrid = ({
               </div>
             )}
             <div className="absolute inset-0 bg-black/0 transition-colors duration-200 group-hover:bg-black/10" />
+            {photo.mediaType === 'VIDEO' && photo.url && (
+              <span className="pointer-events-none absolute left-1 top-1 flex items-center gap-0.5 rounded-full bg-black/50 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
+                <Play className="h-3 w-3 fill-white" />
+                {photo.durationSec ? formatDuration(photo.durationSec) : t.video}
+              </span>
+            )}
             {getLikeCount && getLikeCount(photo) > 0 && (
               <span className="pointer-events-none absolute bottom-1 right-1 flex items-center gap-0.5 rounded-full bg-black/50 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
                 <Heart className={`h-3 w-3 ${likedIds?.has(photo.id) ? 'fill-red-500 text-red-500' : ''}`} />

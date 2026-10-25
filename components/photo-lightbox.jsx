@@ -79,6 +79,33 @@ const ImageWithLoading = ({ src, alt }) => {
   )
 }
 
+// Mux's re-encoded MP4 rendition only (see normalizeVideoFields) — never the
+// uploaded original, which may carry GPS metadata.
+const LightboxVideo = ({ photo, t }) => {
+  if (!photo.videoUrl) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 text-foreground/60">
+        {photo.videoStatus === 'FAILED' ? <ImageOff className="h-10 w-10" /> : <Loader2 className="h-10 w-10 animate-spin" />}
+        <span className="text-sm">{photo.videoStatus === 'FAILED' ? t.videoFailed : t.videoProcessing}</span>
+      </div>
+    )
+  }
+  return (
+    <video
+      key={photo.id}
+      src={photo.videoUrl}
+      poster={photo.url || undefined}
+      controls
+      playsInline
+      preload="metadata"
+      className="max-h-full max-w-full"
+      // Keep scrubbing the timeline from triggering swipe navigation.
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchEnd={(e) => e.stopPropagation()}
+    />
+  )
+}
+
 const PhotoLightbox = ({
   open,
   onOpenChange,
@@ -123,6 +150,7 @@ const PhotoLightbox = ({
   })
   const canDownloadOriginal = access.canDownloadOriginal
   const isFreeRoom = access.isFree
+  const isVideo = photo?.mediaType === 'VIDEO'
 
   useEffect(() => {
     if (open && isOwner && !canDownloadOriginal && event?.slug) {
@@ -185,7 +213,8 @@ const PhotoLightbox = ({
         const url = window.URL.createObjectURL(blob)
         const contentDisposition = response.headers.get('content-disposition')
         const fileNameMatch = contentDisposition?.match(/filename="([^"]+)"/)
-        const fileName = fileNameMatch ? decodeURIComponent(fileNameMatch[1]) : `photo-${photo.id || selectedIndex + 1}.jpg`
+        const fallbackExt = blob.type?.startsWith('video/') ? 'mp4' : 'jpg'
+        const fileName = fileNameMatch ? decodeURIComponent(fileNameMatch[1]) : `${isVideo ? 'video' : 'photo'}-${photo.id || selectedIndex + 1}.${fallbackExt}`
 
         const link = document.createElement('a')
         link.href = url
@@ -204,7 +233,7 @@ const PhotoLightbox = ({
         console.warn('[lightbox] download failed', e)
       }
     },
-    [photo, selectedIndex, event?.slug, isFreeRoom]
+    [photo, selectedIndex, event?.slug, isFreeRoom, isVideo]
   )
 
   useEffect(() => {
@@ -233,20 +262,20 @@ const PhotoLightbox = ({
       // now cached, so a second tap shares synchronously.
       setShareStatus(result === 'needs-gesture' ? 'tap-again' : '')
       if (result === 'shared') {
-        trackEvent(EVENT_MEDIA_SHARED, { room_slug: event?.slug, photo_id: photo.id, channel: 'native', media_type: 'photo' })
+        trackEvent(EVENT_MEDIA_SHARED, { room_slug: event?.slug, photo_id: photo.id, channel: 'native', media_type: isVideo ? 'video' : 'photo' })
       }
     } catch (e) {
       setShareStatus('')
       console.warn('[lightbox] share failed', e)
     }
-  }, [photo?.id, event?.slug, event?.name])
+  }, [photo?.id, event?.slug, event?.name, isVideo])
 
   const handleLinkShare = useCallback((network) => {
     if (!roomUrl) return
     const href = buildShareLinks({ pageUrl: roomUrl, text: event?.name || '' })[network]
     window.open(href, '_blank', 'noopener,noreferrer')
-    trackEvent(EVENT_MEDIA_SHARED, { room_slug: event?.slug, photo_id: photo?.id, channel: network, media_type: 'photo' })
-  }, [roomUrl, event?.name, event?.slug, photo?.id])
+    trackEvent(EVENT_MEDIA_SHARED, { room_slug: event?.slug, photo_id: photo?.id, channel: network, media_type: isVideo ? 'video' : 'photo' })
+  }, [roomUrl, event?.name, event?.slug, photo?.id, isVideo])
 
   const handleCopyLink = useCallback(async () => {
     if (!roomUrl) return
@@ -254,11 +283,11 @@ const PhotoLightbox = ({
       await navigator.clipboard.writeText(roomUrl)
       setShareStatus('copied')
       setTimeout(() => setShareStatus(''), 2000)
-      trackEvent(EVENT_MEDIA_SHARED, { room_slug: event?.slug, photo_id: photo?.id, channel: 'copy_link', media_type: 'photo' })
+      trackEvent(EVENT_MEDIA_SHARED, { room_slug: event?.slug, photo_id: photo?.id, channel: 'copy_link', media_type: isVideo ? 'video' : 'photo' })
     } catch (e) {
       console.warn('[lightbox] copy link failed', e)
     }
-  }, [roomUrl, event?.slug, photo?.id])
+  }, [roomUrl, event?.slug, photo?.id, isVideo])
 
   const handleDownloadStandard = useCallback(() => {
     trackEvent(EVENT_DOWNLOAD_QUALITY_SELECTED, {
@@ -538,93 +567,112 @@ const PhotoLightbox = ({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                size="icon"
-                variant="ghost"
-                className={`h-9 w-9 transition-colors ${
-                  downloaded
-                    ? 'text-green-400 hover:text-green-300'
-                    : 'text-foreground/80 hover:bg-white/10 hover:text-foreground'
-                }`}
-                onClick={(e) => e.stopPropagation()}
-                title={downloaded ? t.downloaded : t.downloadPhoto}
-              >
-                <Download className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className={`border-border bg-surface text-foreground min-w-[14rem] ${themeClass}`}
-              onClick={(e) => e.stopPropagation()}
+          {isVideo ? (
+            <Button
+              size="icon"
+              variant="ghost"
+              disabled={!photo.videoUrl}
+              className={`h-9 w-9 transition-colors ${
+                downloaded ? 'text-green-400 hover:text-green-300' : 'text-foreground/80 hover:bg-white/10 hover:text-foreground'
+              }`}
+              onClick={(e) => {
+                e.stopPropagation()
+                performDownload('standard')
+              }}
+              aria-label={t.downloadVideo}
+              title={downloaded ? t.downloaded : t.downloadVideo}
             >
-              <DropdownMenuItem
-                className="cursor-pointer focus:bg-white/5 focus:text-foreground"
-                onClick={handleDownloadStandard}
+              <Download className="h-5 w-5" />
+            </Button>
+          ) : (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className={`h-9 w-9 transition-colors ${
+                    downloaded
+                      ? 'text-green-400 hover:text-green-300'
+                      : 'text-foreground/80 hover:bg-white/10 hover:text-foreground'
+                  }`}
+                  onClick={(e) => e.stopPropagation()}
+                  title={downloaded ? t.downloaded : t.downloadPhoto}
+                >
+                  <Download className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className={`border-border bg-surface text-foreground min-w-[14rem] ${themeClass}`}
+                onClick={(e) => e.stopPropagation()}
               >
-                <div className="flex flex-col py-1">
-                  <span className="text-sm font-medium">{t.standardQuality}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {t.standardQualityDesc}
-                  </span>
-                </div>
-                <Check className="ml-auto h-4 w-4 text-success shrink-0" />
-              </DropdownMenuItem>
-
-              {canDownloadOriginal ? (
                 <DropdownMenuItem
                   className="cursor-pointer focus:bg-white/5 focus:text-foreground"
-                  onClick={handleDownloadOriginal}
+                  onClick={handleDownloadStandard}
                 >
                   <div className="flex flex-col py-1">
-                    <span className="text-sm font-medium">{t.originalQuality}</span>
+                    <span className="text-sm font-medium">{t.standardQuality}</span>
                     <span className="text-xs text-muted-foreground">
-                      {t.originalQualityDesc}
+                      {t.standardQualityDesc}
                     </span>
                   </div>
                   <Check className="ml-auto h-4 w-4 text-success shrink-0" />
                 </DropdownMenuItem>
-              ) : isOwner ? (
-                <DropdownMenuItem
-                  className="cursor-pointer focus:bg-white/5 focus:text-foreground"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    handleUnlock()
-                  }}
-                  disabled={unlockBusy}
-                >
-                  <div className="flex flex-col py-1">
-                    <span className="text-sm font-medium">{t.originalQuality}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {t.unlockForEveryone}
-                    </span>
-                  </div>
-                  {unlockBusy ? (
-                    <Loader2 className="ml-auto h-4 w-4 animate-spin text-primary shrink-0" />
-                  ) : (
+
+                {canDownloadOriginal ? (
+                  <DropdownMenuItem
+                    className="cursor-pointer focus:bg-white/5 focus:text-foreground"
+                    onClick={handleDownloadOriginal}
+                  >
+                    <div className="flex flex-col py-1">
+                      <span className="text-sm font-medium">{t.originalQuality}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {t.originalQualityDesc}
+                      </span>
+                    </div>
+                    <Check className="ml-auto h-4 w-4 text-success shrink-0" />
+                  </DropdownMenuItem>
+                ) : isOwner ? (
+                  <DropdownMenuItem
+                    className="cursor-pointer focus:bg-white/5 focus:text-foreground"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      handleUnlock()
+                    }}
+                    disabled={unlockBusy}
+                  >
+                    <div className="flex flex-col py-1">
+                      <span className="text-sm font-medium">{t.originalQuality}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {t.unlockForEveryone}
+                      </span>
+                    </div>
+                    {unlockBusy ? (
+                      <Loader2 className="ml-auto h-4 w-4 animate-spin text-primary shrink-0" />
+                    ) : (
+                      <Lock className="ml-auto h-4 w-4 text-primary shrink-0" />
+                    )}
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem
+                    className="cursor-pointer focus:bg-white/5 focus:text-foreground"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      setUnlockModalOpen(true)
+                    }}
+                  >
+                    <div className="flex flex-col py-1">
+                      <span className="text-sm font-medium">{t.originalQualityLockedGuest}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {t.unlockOriginalForEvent}
+                      </span>
+                    </div>
                     <Lock className="ml-auto h-4 w-4 text-primary shrink-0" />
-                  )}
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem
-                  className="cursor-pointer focus:bg-white/5 focus:text-foreground"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    setUnlockModalOpen(true)
-                  }}
-                >
-                  <div className="flex flex-col py-1">
-                    <span className="text-sm font-medium">{t.originalQualityLockedGuest}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {t.unlockOriginalForEvent}
-                    </span>
-                  </div>
-                  <Lock className="ml-auto h-4 w-4 text-primary shrink-0" />
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
 
           <Button
             size="icon"
@@ -687,7 +735,8 @@ const PhotoLightbox = ({
           e.stopPropagation()
           // Double tap / double click likes (never unlikes), Instagram-style.
           // Timed on click so it works for both touch and mouse.
-          if (!likesEnabled || !photo.url) return
+          // Videos keep native controls, so taps there are not likes.
+          if (!likesEnabled || !photo.url || isVideo) return
           const now = Date.now()
           if (now - lastImageTap.current < 300) {
             lastImageTap.current = 0
@@ -705,19 +754,25 @@ const PhotoLightbox = ({
             className="pointer-events-none absolute z-10 h-24 w-24 animate-ping fill-red-500 text-red-500 [animation-iteration-count:1]"
           />
         )}
-        {photo.url ? (
-          <ImageWithLoading key={photo.id} src={photo.url} alt={photo.originalName || t.photo} />
+        {isVideo ? (
+          <LightboxVideo photo={photo} t={t} />
         ) : (
-          // No safe derivative exists for this photo yet (PENDING / FAILED /
-          // LEGACY_UNVERIFIED) — the lightbox must never open an original,
-          // even for an owner/entitled viewer (display and download are
-          // separate trust boundaries; see the download menu above, which
-          // is unaffected and still fetches by photoId through the
-          // entitlement-gated route).
-          <div className="flex flex-col items-center justify-center gap-2 text-foreground/40">
-            <ImageOff className="h-10 w-10" />
-            <span className="text-sm">{t.failedToLoadImage}</span>
-          </div>
+          <>
+          {photo.url ? (
+            <ImageWithLoading key={photo.id} src={photo.url} alt={photo.originalName || t.photo} />
+          ) : (
+            // No safe derivative exists for this photo yet (PENDING / FAILED /
+            // LEGACY_UNVERIFIED) — the lightbox must never open an original,
+            // even for an owner/entitled viewer (display and download are
+            // separate trust boundaries; see the download menu above, which
+            // is unaffected and still fetches by photoId through the
+            // entitlement-gated route).
+            <div className="flex flex-col items-center justify-center gap-2 text-foreground/40">
+              <ImageOff className="h-10 w-10" />
+              <span className="text-sm">{t.failedToLoadImage}</span>
+            </div>
+          )}
+          </>
         )}
       </div>
 

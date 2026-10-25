@@ -33,6 +33,20 @@ enum BlobUploadKind {
 // application insert paths (lib/server/blob-upload-completion.js,
 // lib/server/prisma-gallery-repository.js#createPhoto) explicitly override
 // this default to PENDING for genuinely new uploads.
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+// Lifecycle of a VIDEO Photo row, driven by Mux webhooks
+// (lib/server/video-uploads.js). NULL for every IMAGE row.
+enum VideoStatus {
+  UPLOADING
+  PROCESSING
+  READY
+  FAILED
+}
+
 enum DisplayDerivativeStatus {
   LEGACY_UNVERIFIED
   PENDING
@@ -213,6 +227,17 @@ model Photo {
   // Denormalized PhotoLike count, kept in step with PhotoLike rows inside
   // the same transaction (lib/server/photo-likes.js). Display only.
   likeCount               Int                     @default(0)
+  // Videos live in Mux, never in Blob: guests only ever receive Mux's
+  // re-encoded renditions (metadata/GPS stripped), mirroring the EXIF-safe
+  // display derivative contract for images. VIDEO rows keep
+  // displayDerivativeStatus PENDING forever so every image-derivative
+  // consumer (resolveGuestPhotoUrl, covers, social images) skips them.
+  mediaType               MediaType               @default(IMAGE)
+  videoStatus             VideoStatus?
+  muxUploadId             String?                 @unique
+  muxAssetId              String?                 @unique
+  muxPlaybackId           String?
+  durationSec             Float?
   likes                   PhotoLike[]
   moment                  EventMoment?            @relation(fields: [momentId], references: [id], onDelete: SetNull)
   createdAt               DateTime                @default(now())

@@ -55,23 +55,34 @@ Cosa emerge dai numeri:
    ffmpeg su una Vercel Function costa circa $0,001–0,003 per video da 30 s, che diventano $0,20–1,20 per
    l'evento XL. È trascurabile, ma bisogna gestire coda e timeout.
 
-## 5. Raccomandazione
+## 5. Decisione: Mux (implementato nel branch `feat/video-uploads`)
 
-- **Fase 1 (MVP): opzione A con Vercel Blob.** I video MP4/MOV vengono caricati con il flusso di client upload
-  già esistente. Limiti: 60 s, 150 MB, solo nei piani a pagamento. Il poster si genera lato client
-  (frame del `<video>` disegnato su un canvas). La riproduzione usa `<video preload="none" playsinline>`.
-  Non servono nuovi fornitori.
-- **Fase 2: Mux.** Da adottare quando arrivano lamentele su buffering o compatibilità (ad esempio HEVC su
-  Android/desktop), oppure quando i video superano il 20% dei media. Le 100k minuti/mese di distribuzione
-  gratuita coprono a lungo la scala attuale, e il transcoding è gratuito.
-- Cloudflare Stream conviene solo con molte visualizzazioni e poca conservazione, cioè l'opposto del nostro profilo.
+L'opzione A (MP4 originale su Blob) è stata **scartata**: i video da telefono contengono la posizione GPS nei
+metadati del contenitore, e l'app garantisce già che gli ospiti ricevano solo rappresentazioni ripulite
+(derivato `sharp` per le foto). Servire l'originale violerebbe quel contratto. Mux ricodifica ogni video
+(metadati rimossi) con encoding gratuito.
 
-Modifiche necessarie per la Fase 1:
+Flusso:
 
-- Schema: `Photo.mediaType` (`IMAGE` | `VIDEO`), `durationSec`, `posterUrl`.
-- Limite di dimensione separato per i video.
-- Bypass del derivato `sharp` per i video.
-- Download ZIP già compatibile, perché copia i byte.
+1. `POST /api/uploads/video/init`: rate-limit, same-origin, stanza a pagamento (le Free sono rifiutate lato
+   server), max 150 MB, MP4/MOV/WebM, max 500 video per evento. Crea la riga `Photo` (`mediaType=VIDEO`,
+   `videoStatus=UPLOADING`) e un direct upload Mux con `passthrough = photo.id`.
+2. Il browser carica il file direttamente su Mux (PUT con progresso); il server non tocca i byte.
+3. `POST /api/webhooks/mux` (firma HMAC verificata): a ogni evento rilegge l'asset via API e aggiorna lo stato.
+   `READY` solo quando la rendition MP4 statica è pronta; video oltre 60 s (+5 s) vengono eliminati → `FAILED`.
+   Asset senza riga (foto eliminata durante l'elaborazione) vengono eliminati.
+4. Gli ospiti ricevono solo `https://stream.mux.com/<playbackId>/highest.mp4` e il poster `image.mux.com`;
+   gli id di asset e upload non escono mai dall'API. CSP: aggiunto `media-src https://stream.mux.com`.
+
+Guardrail: backfill derivate e moderazione ignorano i video; la cover dell'evento usa solo immagini; lo ZIP
+della galleria resta solo foto (i video si scaricano singolarmente via redirect all'MP4 Mux); eliminare una
+foto o un evento elimina l'asset Mux.
+
+Limiti noti: i video nascosti dalla moderazione restano raggiungibili da chi ha già l'URL (playback pubblico;
+evoluzione: signed playback); i like e la condivisione funzionano anche sui video.
+
+Configurazione: `MUX_TOKEN_ID`, `MUX_TOKEN_SECRET`, `MUX_WEBHOOK_SECRET` (webhook Mux → `/api/webhooks/mux`).
+Migrazione additiva `20261025190000_photo_videos`.
 
 ## 6. "Mi piace" (cuore) — implementato in questo branch
 

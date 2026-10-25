@@ -152,6 +152,13 @@ committed to the repository.
 |---|---|
 | `BLOB_READ_WRITE_TOKEN` | Vercel Blob |
 
+**Video (Mux)** — room videos; without these, video uploads return 503 and photos are unaffected
+
+| Variable | Notes |
+|---|---|
+| `MUX_TOKEN_ID` / `MUX_TOKEN_SECRET` | Mux access token with Video read+write |
+| `MUX_WEBHOOK_SECRET` | Signing secret of the webhook pointing at `/api/webhooks/mux` — environment-specific |
+
 **Stripe**
 
 | Variable | Notes |

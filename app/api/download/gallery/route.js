@@ -76,6 +76,9 @@ export async function GET(request) {
       where: {
         eventId: event.id,
         status: 'VISIBLE',
+        // Videos are served by Mux and downloaded individually; the
+        // synchronous ZIP stays image-only to keep its size bounded.
+        mediaType: 'IMAGE',
       },
       orderBy: { createdAt: 'desc' },
       select: {
