@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { Readable } from 'node:stream'
 import { ZipArchive } from 'archiver'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { getEffectiveEventAccessState } from '@/lib/server/event-access'
@@ -6,16 +7,20 @@ import { getDownloadFileName } from '@/lib/server/download-utils'
 import { resolveDownloadRepresentation } from '@/lib/server/download-representation'
 import { checkRateLimit, getClientIp, hashIdentifier, RATE_LIMITS } from '@/lib/server/rate-limiter'
 import { serializeProviderError } from '@/lib/server/safe-log'
+import { buildZipVideoNote, selectZipVideos } from '@/lib/server/gallery-zip-videos'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60
+// Videos make archives far larger than photo-only ones (see
+// lib/server/gallery-zip-videos.js for the size caps this budget covers).
+export const maxDuration = 300
 
 /**
  * GET /api/download/gallery?eventSlug={slug}
  *
- * Streams a ZIP archive of all visible photos for an event.
+ * Streams a ZIP archive of all visible photos and videos for an event.
  * - Free events: blocked (403)
- * - Paid events: includes all visible photos, unbranded
+ * - Paid events: includes all visible photos, unbranded, plus videos as
+ *   Mux MP4 renditions (capped; a note in the ZIP lists any left out)
  */
 export async function GET(request) {
   const logPrefix = '[download/gallery]'
@@ -76,8 +81,6 @@ export async function GET(request) {
       where: {
         eventId: event.id,
         status: 'VISIBLE',
-        // Videos are served by Mux and downloaded individually; the
-        // synchronous ZIP stays image-only to keep its size bounded.
         mediaType: 'IMAGE',
       },
       orderBy: { createdAt: 'desc' },
@@ -95,9 +98,17 @@ export async function GET(request) {
     const effectivePhotos = photos.slice(0, MAX_GALLERY_PHOTOS)
     const skippedCount = totalEligible - effectivePhotos.length
 
-    console.log(`${logPrefix} event=${event.slug} branded=${!access.hasUnbrandedDownloads} billingTier=${event.billingTier} totalEligible=${totalEligible} effective=${effectivePhotos.length} skipped=${skippedCount}`)
+    const videoRows = await prisma.photo.findMany({
+      where: { eventId: event.id, status: 'VISIBLE', mediaType: 'VIDEO' },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, originalName: true, storedName: true, size: true, videoStatus: true, muxPlaybackId: true },
+    })
+    const videoSelection = selectZipVideos(videoRows)
+    const videoNote = buildZipVideoNote(videoSelection)
 
-    if (photos.length === 0) {
+    console.log(`${logPrefix} event=${event.slug} branded=${!access.hasUnbrandedDownloads} billingTier=${event.billingTier} totalEligible=${totalEligible} effective=${effectivePhotos.length} skipped=${skippedCount} videos=${videoSelection.included.length} videosSkipped=${videoSelection.skipped.length} videosNotReady=${videoSelection.notReady.length}`)
+
+    if (photos.length === 0 && videoSelection.included.length === 0) {
       return NextResponse.json({ error: 'No photos available for download' }, { status: 404 })
     }
 
@@ -109,13 +120,10 @@ export async function GET(request) {
       .substring(0, 50)
     const zipFileName = `${safeEventName}_gallery.zip`
 
-    const stream = new ReadableStream({
-      start(controller) {
-        archive.on('data', (chunk) => controller.enqueue(chunk))
-        archive.on('end', () => controller.close())
-        archive.on('error', (err) => controller.error(err))
-      },
-    })
+    // Readable.toWeb propagates backpressure: the archive (and the Mux
+    // video streams feeding it) only advance as fast as the browser reads,
+    // so a multi-GB ZIP never buffers in function memory.
+    const stream = Readable.toWeb(archive)
 
     const routeStart = Date.now()
     let processedCount = 0
@@ -141,6 +149,31 @@ export async function GET(request) {
             // Skip failed photos, continue with the rest
           }
         }
+
+        for (const video of videoSelection.included) {
+          try {
+            const response = await fetch(video.sourceUrl)
+            if (!response.ok || !response.body) throw new Error(`Mux MP4 ${response.status}`)
+            const entryDone = new Promise((resolve, reject) => {
+              const onEntry = () => { archive.off('error', onError); resolve() }
+              const onError = (err) => { archive.off('entry', onEntry); reject(err) }
+              archive.once('entry', onEntry)
+              archive.once('error', onError)
+            })
+            // Already-compressed video: store, don't deflate.
+            archive.append(Readable.fromWeb(response.body), {
+              name: `videos/${getDownloadFileName(video, { extension: '.mp4' })}`,
+              store: true,
+            })
+            await entryDone
+            processedCount += 1
+          } catch (videoError) {
+            console.error(`${logPrefix} Failed to add video ${video.id}:`, videoError.message)
+            failedCount += 1
+          }
+        }
+
+        if (videoNote) archive.append(videoNote, { name: 'videos/README.txt' })
 
         await archive.finalize()
       } catch (archiveError) {

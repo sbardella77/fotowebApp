@@ -1,6 +1,6 @@
 'use client'
 
-import { Eye, EyeOff, Loader2, Trash2 } from 'lucide-react'
+import { Eye, EyeOff, Loader2, Play, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export function DashboardPhotoCard({ photo, onApprove, onReject, onDelete, onOpenLightbox, busyId }) {
@@ -13,16 +13,29 @@ export function DashboardPhotoCard({ photo, onApprove, onReject, onDelete, onOpe
   const isBusy = busyId === id
   const isVisible = status === 'VISIBLE'
   const isHidden = status === 'HIDDEN'
+  const isVideo = safePhoto.mediaType === 'VIDEO'
+  const durationSec = Math.max(0, Math.round(safePhoto.durationSec || 0))
 
   return (
     <div className="overflow-hidden surface-elevated rounded-xl transition-transform duration-200 hover:-translate-y-px">
-      <button className="block w-full text-left" onClick={onOpenLightbox} type="button">
+      <button className="relative block w-full text-left" onClick={onOpenLightbox} type="button">
         {url ? (
           <img alt={originalName} className="aspect-square w-full object-cover" src={url} />
+        ) : isVideo && safePhoto.videoStatus !== 'FAILED' ? (
+          <div className="aspect-square w-full bg-secondary flex flex-col items-center justify-center gap-1 text-muted-foreground text-xs">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Processing video…
+          </div>
         ) : (
           <div className="aspect-square w-full bg-secondary flex items-center justify-center text-muted-foreground text-xs">
             No image
           </div>
+        )}
+        {isVideo && url && (
+          <span className="pointer-events-none absolute left-2 top-2 flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-medium text-white">
+            <Play className="h-3 w-3 fill-white" />
+            {durationSec ? `${Math.floor(durationSec / 60)}:${String(durationSec % 60).padStart(2, '0')}` : 'Video'}
+          </span>
         )}
       </button>
       <div className="space-y-3 p-3">
