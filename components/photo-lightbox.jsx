@@ -679,7 +679,7 @@ const PhotoLightbox = ({
 
       {/* Main image area */}
       <div
-        className={`flex h-full items-center justify-center px-12 py-20 ${
+        className={`flex h-full items-center justify-center px-12 pb-36 pt-20 ${
           prefersReducedMotion
             ? ''
             : `transition-all duration-300 ${isNavigating ? 'scale-95 opacity-80' : 'scale-100 opacity-100'}`
