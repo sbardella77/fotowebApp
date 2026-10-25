@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { getEffectiveEventAccessState } from '@/lib/server/event-access'
 import { getDownloadFileName } from '@/lib/server/download-utils'
+import { toGuestVideoFields } from '@/lib/server/guest-video-fields'
 import {
   resolveDownloadRepresentation,
   OriginalDownloadForbiddenError,
@@ -44,9 +45,18 @@ export async function GET(request) {
 
     const photo = await prisma.photo.findFirst({
       where: { id: photoId, status: 'VISIBLE' },
-      select: { id: true, eventId: true, originalName: true, storedName: true, mimeType: true, url: true },
+      select: { id: true, eventId: true, originalName: true, storedName: true, mimeType: true, url: true, mediaType: true, videoStatus: true, muxPlaybackId: true },
     })
     if (!photo) return NextResponse.json({ error: 'Photo not found' }, { status: 404 })
+
+    // Videos: every viewer gets the same Mux MP4 rendition (re-encoded, no
+    // GPS/metadata), so quality tiers do not apply. Redirect instead of
+    // proxying — the bytes never pass through this function.
+    if (photo.mediaType === 'VIDEO') {
+      const { videoUrl } = toGuestVideoFields(photo)
+      if (!videoUrl) return NextResponse.json({ error: 'Video is still processing. Please try again.' }, { status: 503 })
+      return NextResponse.redirect(videoUrl, 302)
+    }
 
     const event = await prisma.event.findUnique({
       where: { id: photo.eventId },

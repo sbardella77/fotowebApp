@@ -23,6 +23,8 @@ export function buildCsp(nonce) {
     "font-src 'self' https://fonts.gstatic.com https://api.fontshare.com",
     "img-src 'self' blob: data: https:",
     "connect-src 'self' https:",
+    // Room videos are played straight from Mux's re-encoded MP4 rendition.
+    "media-src 'self' blob: https://stream.mux.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

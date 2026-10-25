@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { readFileSync } from 'fs'
-import { buildShareLinks, canShareFiles, fetchPhotoShareFile, shareFile } from '@/lib/client/share-media'
+import { APP_UPLOAD_PAGES, buildShareLinks, canShareFiles, fetchPhotoShareFile, isMobileDevice, openFacebookShareDialog, shareFile } from '@/lib/client/share-media'
 
 const file = new File([new Blob(['x'], { type: 'image/jpeg' })], 'a.jpg', { type: 'image/jpeg' })
 
@@ -37,5 +37,34 @@ describe('share-media', () => {
     const src = readFileSync('components/photo-lightbox.jsx', 'utf8')
     expect(src).toContain('fetchPhotoShareFile(photo.id)')
     expect(src).not.toMatch(/share[^\n]*photo\.url/i)
+  })
+
+  it('detects phones/tablets (share sheet lists the social apps) vs desktop', () => {
+    expect(isMobileDevice({ userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)' })).toBe(true)
+    expect(isMobileDevice({ userAgent: 'Mozilla/5.0 (Linux; Android 15)' })).toBe(true)
+    expect(isMobileDevice({ userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', maxTouchPoints: 5 })).toBe(true) // iPadOS
+    expect(isMobileDevice({ userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', maxTouchPoints: 0 })).toBe(false)
+    expect(isMobileDevice({ userAgent: 'Windows NT 10.0', userAgentData: { mobile: false } })).toBe(false)
+    expect(isMobileDevice(undefined)).toBe(false)
+  })
+
+  it('opens the Facebook share dialog as a sized popup on the sharer endpoint', () => {
+    const open = vi.fn()
+    openFacebookShareDialog('https://snaprooms.app/event/party', { open, screen: { width: 1400, height: 900 } })
+    const [href, name, features] = open.mock.calls[0]
+    expect(href).toBe('https://www.facebook.com/sharer/sharer.php?u=https%3A%2F%2Fsnaprooms.app%2Fevent%2Fparty')
+    expect(name).toBe('snaprooms-facebook-share')
+    expect(features).toContain('width=600')
+  })
+
+  it('points desktop Instagram/TikTok at their upload pages', () => {
+    expect(APP_UPLOAD_PAGES.instagram).toBe('https://www.instagram.com/')
+    expect(APP_UPLOAD_PAGES.tiktok).toBe('https://www.tiktok.com/upload')
+  })
+
+  it('lightbox lists Instagram, TikTok and Facebook as separate targets and prefetches on menu open', () => {
+    const src = readFileSync('components/photo-lightbox.jsx', 'utf8')
+    for (const channel of ['instagram', 'tiktok', 'facebook']) expect(src).toContain(`channel: '${channel}'`)
+    expect(src).toMatch(/onOpenChange=\{\(isOpen\) => \{ if \(isOpen\) prefetchShareFile\(\) \}\}/)
   })
 })

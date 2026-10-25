@@ -28,12 +28,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useTranslations } from '@/components/i18n-provider'
+import { useRoomCopy } from '@/components/room/room-media-context'
 import { trackEvent } from '@/lib/analytics/track-client'
 import { csrfFetch } from '@/lib/client/csrf-fetch'
 import { resolveEffectiveEventAccessState } from '@/lib/event-access'
 import { trackUpsellImpression, trackUpsellClick } from '@/lib/analytics/upsell'
-import { buildShareLinks, canShareFiles, fetchPhotoShareFile, shareFile } from '@/lib/client/share-media'
+import { APP_UPLOAD_PAGES, buildShareLinks, canShareFiles, fetchPhotoShareFile, isMobileDevice, openFacebookShareDialog, shareFile } from '@/lib/client/share-media'
 import {
   EVENT_DOWNLOAD_QUALITY_SELECTED,
   EVENT_ORIGINAL_DOWNLOAD_UNLOCK_CLICKED,
@@ -50,7 +50,7 @@ const SWIPE_VELOCITY = 0.5
 
 const ImageWithLoading = ({ src, alt }) => {
   const [status, setStatus] = useState('loading')
-  const t = useTranslations('room')
+  const t = useRoomCopy()
 
   return (
     <div className="relative flex h-full w-full items-center justify-center">
@@ -79,6 +79,48 @@ const ImageWithLoading = ({ src, alt }) => {
   )
 }
 
+// Mux's re-encoded MP4 rendition only (see normalizeVideoFields) — never the
+// uploaded original, which may carry GPS metadata.
+let nativeHlsSupport
+const canPlayNativeHls = () => {
+  if (nativeHlsSupport === undefined) {
+    try {
+      nativeHlsSupport = Boolean(document.createElement('video').canPlayType('application/vnd.apple.mpegurl'))
+    } catch {
+      nativeHlsSupport = false
+    }
+  }
+  return nativeHlsSupport
+}
+
+const LightboxVideo = ({ photo, t }) => {
+  // MP4 once Mux finished it (or the uploader's local file); before that,
+  // HLS on browsers that play it natively (iOS/Android) — seconds earlier.
+  const src = photo.videoUrl || (photo.hlsUrl && canPlayNativeHls() ? photo.hlsUrl : null)
+  if (!src) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 text-foreground/60">
+        {photo.videoStatus === 'FAILED' ? <ImageOff className="h-10 w-10" /> : <Loader2 className="h-10 w-10 animate-spin" />}
+        <span className="text-sm">{photo.videoStatus === 'FAILED' ? t.videoFailed : t.videoProcessing}</span>
+      </div>
+    )
+  }
+  return (
+    <video
+      key={photo.id}
+      src={src}
+      poster={photo.url || undefined}
+      controls
+      playsInline
+      preload="metadata"
+      className="max-h-full max-w-full"
+      // Keep scrubbing the timeline from triggering swipe navigation.
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchEnd={(e) => e.stopPropagation()}
+    />
+  )
+}
+
 const PhotoLightbox = ({
   open,
   onOpenChange,
@@ -95,7 +137,7 @@ const PhotoLightbox = ({
   // Photos are already filtered/normalized once by the parent (getRenderablePhotos).
   // selectedIndex refers to that same list, so the lightbox must not re-filter it.
   const photo = photos[selectedIndex] || null
-  const t = useTranslations('room')
+  const t = useRoomCopy()
   const [isClosing, setIsClosing] = useState(false)
   const [isNavigating, setIsNavigating] = useState(false)
   const [downloaded, setDownloaded] = useState(false)
@@ -103,7 +145,7 @@ const PhotoLightbox = ({
   const [unlockModalOpen, setUnlockModalOpen] = useState(false)
   const [shareStatus, setShareStatus] = useState('') // '' | 'busy' | 'tap-again' | 'copied'
   const [nativeShare, setNativeShare] = useState(false)
-  const shareFileCache = useRef(null) // { photoId, file }
+  const shareFileCache = useRef(null) // { photoId, promise, file }
   const lastImageTap = useRef(0)
   const [heartBurst, setHeartBurst] = useState(0)
   const likesEnabled = typeof onToggleLike === 'function'
@@ -123,6 +165,9 @@ const PhotoLightbox = ({
   })
   const canDownloadOriginal = access.canDownloadOriginal
   const isFreeRoom = access.isFree
+  const isVideo = photo?.mediaType === 'VIDEO'
+  // A video's shareable file is Mux's MP4, which exists only once READY.
+  const shareableNow = !isVideo || (Boolean(photo?.videoUrl) && !photo?.localPreview)
 
   useEffect(() => {
     if (open && isOwner && !canDownloadOriginal && event?.slug) {
@@ -185,7 +230,8 @@ const PhotoLightbox = ({
         const url = window.URL.createObjectURL(blob)
         const contentDisposition = response.headers.get('content-disposition')
         const fileNameMatch = contentDisposition?.match(/filename="([^"]+)"/)
-        const fileName = fileNameMatch ? decodeURIComponent(fileNameMatch[1]) : `photo-${photo.id || selectedIndex + 1}.jpg`
+        const fallbackExt = blob.type?.startsWith('video/') ? 'mp4' : 'jpg'
+        const fileName = fileNameMatch ? decodeURIComponent(fileNameMatch[1]) : `${isVideo ? 'video' : 'photo'}-${photo.id || selectedIndex + 1}.${fallbackExt}`
 
         const link = document.createElement('a')
         link.href = url
@@ -204,11 +250,12 @@ const PhotoLightbox = ({
         console.warn('[lightbox] download failed', e)
       }
     },
-    [photo, selectedIndex, event?.slug, isFreeRoom]
+    [photo, selectedIndex, event?.slug, isFreeRoom, isVideo]
   )
 
   useEffect(() => {
-    setNativeShare(canShareFiles())
+    // The share sheet only lists Instagram/TikTok/Facebook on phones.
+    setNativeShare(canShareFiles() && isMobileDevice())
   }, [])
 
   useEffect(() => {
@@ -219,34 +266,63 @@ const PhotoLightbox = ({
     ? `${window.location.origin}/event/${event.slug}`
     : ''
 
-  const handleNativeShare = useCallback(async () => {
+  // The file must already be in memory when the user taps Instagram/TikTok/
+  // Facebook: Safari only opens the share sheet inside a fresh tap, and any
+  // await on a download in between makes it refuse (NotAllowedError). So
+  // the file is fetched as soon as the share menu OPENS (prefetchShareFile)
+  // and the tap shares synchronously.
+  const prefetchShareFile = useCallback(() => {
+    if (!nativeShare || !photo?.id || !shareableNow) return
+    if (shareFileCache.current?.photoId === photo.id) return
+    const entry = { photoId: photo.id, file: null, promise: null }
+    entry.promise = fetchPhotoShareFile(photo.id)
+      .then((file) => { entry.file = file; return file })
+      .catch((e) => { if (shareFileCache.current === entry) shareFileCache.current = null; throw e })
+    entry.promise.catch(() => {})
+    shareFileCache.current = entry
+  }, [nativeShare, photo?.id, shareableNow])
+
+  const handleShareTo = useCallback(async (channel) => {
     if (!photo?.id) return
+    const track = () => trackEvent(EVENT_MEDIA_SHARED, { room_slug: event?.slug, photo_id: photo.id, channel, media_type: isVideo ? 'video' : 'photo' })
+
+    if (!nativeShare) {
+      if (channel === 'facebook') {
+        if (roomUrl) { openFacebookShareDialog(roomUrl); track() }
+        return
+      }
+      // Desktop Instagram/TikTok: open the upload page inside this click
+      // (popup blockers), then save the file for the user to pick there.
+      window.open(APP_UPLOAD_PAGES[channel], '_blank', 'noopener,noreferrer')
+      await performDownload('standard')
+      setShareStatus('saved')
+      track()
+      return
+    }
+
     try {
-      let file = shareFileCache.current?.photoId === photo.id ? shareFileCache.current.file : null
+      const cached = shareFileCache.current?.photoId === photo.id ? shareFileCache.current : null
+      let file = cached?.file || null
       if (!file) {
         setShareStatus('busy')
-        file = await fetchPhotoShareFile(photo.id)
-        shareFileCache.current = { photoId: photo.id, file }
+        file = cached ? await cached.promise : await fetchPhotoShareFile(photo.id)
+        shareFileCache.current = { photoId: photo.id, file, promise: Promise.resolve(file) }
       }
       const result = await shareFile(file, { title: event?.name })
-      // Safari drops the user gesture while the file downloads; the file is
-      // now cached, so a second tap shares synchronously.
       setShareStatus(result === 'needs-gesture' ? 'tap-again' : '')
-      if (result === 'shared') {
-        trackEvent(EVENT_MEDIA_SHARED, { room_slug: event?.slug, photo_id: photo.id, channel: 'native', media_type: 'photo' })
-      }
+      if (result === 'shared') track()
     } catch (e) {
-      setShareStatus('')
+      setShareStatus('failed')
       console.warn('[lightbox] share failed', e)
     }
-  }, [photo?.id, event?.slug, event?.name])
+  }, [photo?.id, event?.slug, event?.name, isVideo, nativeShare, roomUrl, performDownload])
 
   const handleLinkShare = useCallback((network) => {
     if (!roomUrl) return
     const href = buildShareLinks({ pageUrl: roomUrl, text: event?.name || '' })[network]
     window.open(href, '_blank', 'noopener,noreferrer')
-    trackEvent(EVENT_MEDIA_SHARED, { room_slug: event?.slug, photo_id: photo?.id, channel: network, media_type: 'photo' })
-  }, [roomUrl, event?.name, event?.slug, photo?.id])
+    trackEvent(EVENT_MEDIA_SHARED, { room_slug: event?.slug, photo_id: photo?.id, channel: network, media_type: isVideo ? 'video' : 'photo' })
+  }, [roomUrl, event?.name, event?.slug, photo?.id, isVideo])
 
   const handleCopyLink = useCallback(async () => {
     if (!roomUrl) return
@@ -254,11 +330,11 @@ const PhotoLightbox = ({
       await navigator.clipboard.writeText(roomUrl)
       setShareStatus('copied')
       setTimeout(() => setShareStatus(''), 2000)
-      trackEvent(EVENT_MEDIA_SHARED, { room_slug: event?.slug, photo_id: photo?.id, channel: 'copy_link', media_type: 'photo' })
+      trackEvent(EVENT_MEDIA_SHARED, { room_slug: event?.slug, photo_id: photo?.id, channel: 'copy_link', media_type: isVideo ? 'video' : 'photo' })
     } catch (e) {
       console.warn('[lightbox] copy link failed', e)
     }
-  }, [roomUrl, event?.slug, photo?.id])
+  }, [roomUrl, event?.slug, photo?.id, isVideo])
 
   const handleDownloadStandard = useCallback(() => {
     trackEvent(EVENT_DOWNLOAD_QUALITY_SELECTED, {
@@ -476,155 +552,112 @@ const PhotoLightbox = ({
           </div>
         )}
         <div className="flex items-center gap-1">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                size="icon"
-                variant="ghost"
-                className={`h-9 w-9 transition-colors ${
-                  shareStatus === 'copied'
-                    ? 'text-green-400 hover:text-green-300'
-                    : 'text-foreground/80 hover:bg-white/10 hover:text-foreground'
-                }`}
-                onClick={(e) => e.stopPropagation()}
-                aria-label={t.sharePhoto}
-                title={shareStatus === 'copied' ? t.linkCopied : t.sharePhoto}
-              >
-                {shareStatus === 'busy' ? <Loader2 className="h-5 w-5 animate-spin" /> : <Share2 className="h-5 w-5" />}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className={`border-border bg-surface text-foreground min-w-[15rem] ${themeClass}`}
-              onClick={(e) => e.stopPropagation()}
+          {isVideo ? (
+            <Button
+              size="icon"
+              variant="ghost"
+              disabled={!photo.videoUrl || photo.localPreview}
+              className={`h-9 w-9 transition-colors ${
+                downloaded ? 'text-green-400 hover:text-green-300' : 'text-foreground/80 hover:bg-white/10 hover:text-foreground'
+              }`}
+              onClick={(e) => {
+                e.stopPropagation()
+                performDownload('standard')
+              }}
+              aria-label={t.downloadVideo}
+              title={downloaded ? t.downloaded : t.downloadVideo}
             >
-              {nativeShare ? (
-                <DropdownMenuItem
-                  className="cursor-pointer focus:bg-white/5 focus:text-foreground"
-                  onClick={handleNativeShare}
+              <Download className="h-5 w-5" />
+            </Button>
+          ) : (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className={`h-9 w-9 transition-colors ${
+                    downloaded
+                      ? 'text-green-400 hover:text-green-300'
+                      : 'text-foreground/80 hover:bg-white/10 hover:text-foreground'
+                  }`}
+                  onClick={(e) => e.stopPropagation()}
+                  title={downloaded ? t.downloaded : t.downloadPhoto}
                 >
-                  <div className="flex flex-col py-1">
-                    <span className="text-sm font-medium">
-                      {shareStatus === 'tap-again' ? t.shareTapAgain : t.shareToApps}
-                    </span>
-                    <span className="text-xs text-muted-foreground">{t.shareToAppsDesc}</span>
-                  </div>
-                </DropdownMenuItem>
-              ) : (
+                  <Download className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className={`border-border bg-surface text-foreground min-w-[14rem] ${themeClass}`}
+                onClick={(e) => e.stopPropagation()}
+              >
                 <DropdownMenuItem
                   className="cursor-pointer focus:bg-white/5 focus:text-foreground"
                   onClick={handleDownloadStandard}
                 >
                   <div className="flex flex-col py-1">
-                    <span className="text-sm font-medium">{t.shareInstagramTiktok}</span>
-                    <span className="text-xs text-muted-foreground">{t.shareInstagramTiktokDesc}</span>
-                  </div>
-                  <Download className="ml-auto h-4 w-4 shrink-0" />
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem className="cursor-pointer focus:bg-white/5 focus:text-foreground" onClick={() => handleLinkShare('facebook')}>
-                <span className="py-1 text-sm">Facebook</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer focus:bg-white/5 focus:text-foreground" onClick={() => handleLinkShare('whatsapp')}>
-                <span className="py-1 text-sm">WhatsApp</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer focus:bg-white/5 focus:text-foreground" onClick={() => handleLinkShare('x')}>
-                <span className="py-1 text-sm">X</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer focus:bg-white/5 focus:text-foreground" onClick={handleCopyLink}>
-                <span className="py-1 text-sm">{t.copyRoomLink}</span>
-                <Link2 className="ml-auto h-4 w-4 shrink-0" />
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                size="icon"
-                variant="ghost"
-                className={`h-9 w-9 transition-colors ${
-                  downloaded
-                    ? 'text-green-400 hover:text-green-300'
-                    : 'text-foreground/80 hover:bg-white/10 hover:text-foreground'
-                }`}
-                onClick={(e) => e.stopPropagation()}
-                title={downloaded ? t.downloaded : t.downloadPhoto}
-              >
-                <Download className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className={`border-border bg-surface text-foreground min-w-[14rem] ${themeClass}`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <DropdownMenuItem
-                className="cursor-pointer focus:bg-white/5 focus:text-foreground"
-                onClick={handleDownloadStandard}
-              >
-                <div className="flex flex-col py-1">
-                  <span className="text-sm font-medium">{t.standardQuality}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {t.standardQualityDesc}
-                  </span>
-                </div>
-                <Check className="ml-auto h-4 w-4 text-success shrink-0" />
-              </DropdownMenuItem>
-
-              {canDownloadOriginal ? (
-                <DropdownMenuItem
-                  className="cursor-pointer focus:bg-white/5 focus:text-foreground"
-                  onClick={handleDownloadOriginal}
-                >
-                  <div className="flex flex-col py-1">
-                    <span className="text-sm font-medium">{t.originalQuality}</span>
+                    <span className="text-sm font-medium">{t.standardQuality}</span>
                     <span className="text-xs text-muted-foreground">
-                      {t.originalQualityDesc}
+                      {t.standardQualityDesc}
                     </span>
                   </div>
                   <Check className="ml-auto h-4 w-4 text-success shrink-0" />
                 </DropdownMenuItem>
-              ) : isOwner ? (
-                <DropdownMenuItem
-                  className="cursor-pointer focus:bg-white/5 focus:text-foreground"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    handleUnlock()
-                  }}
-                  disabled={unlockBusy}
-                >
-                  <div className="flex flex-col py-1">
-                    <span className="text-sm font-medium">{t.originalQuality}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {t.unlockForEveryone}
-                    </span>
-                  </div>
-                  {unlockBusy ? (
-                    <Loader2 className="ml-auto h-4 w-4 animate-spin text-primary shrink-0" />
-                  ) : (
+
+                {canDownloadOriginal ? (
+                  <DropdownMenuItem
+                    className="cursor-pointer focus:bg-white/5 focus:text-foreground"
+                    onClick={handleDownloadOriginal}
+                  >
+                    <div className="flex flex-col py-1">
+                      <span className="text-sm font-medium">{t.originalQuality}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {t.originalQualityDesc}
+                      </span>
+                    </div>
+                    <Check className="ml-auto h-4 w-4 text-success shrink-0" />
+                  </DropdownMenuItem>
+                ) : isOwner ? (
+                  <DropdownMenuItem
+                    className="cursor-pointer focus:bg-white/5 focus:text-foreground"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      handleUnlock()
+                    }}
+                    disabled={unlockBusy}
+                  >
+                    <div className="flex flex-col py-1">
+                      <span className="text-sm font-medium">{t.originalQuality}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {t.unlockForEveryone}
+                      </span>
+                    </div>
+                    {unlockBusy ? (
+                      <Loader2 className="ml-auto h-4 w-4 animate-spin text-primary shrink-0" />
+                    ) : (
+                      <Lock className="ml-auto h-4 w-4 text-primary shrink-0" />
+                    )}
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem
+                    className="cursor-pointer focus:bg-white/5 focus:text-foreground"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      setUnlockModalOpen(true)
+                    }}
+                  >
+                    <div className="flex flex-col py-1">
+                      <span className="text-sm font-medium">{t.originalQualityLockedGuest}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {t.unlockOriginalForEvent}
+                      </span>
+                    </div>
                     <Lock className="ml-auto h-4 w-4 text-primary shrink-0" />
-                  )}
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem
-                  className="cursor-pointer focus:bg-white/5 focus:text-foreground"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    setUnlockModalOpen(true)
-                  }}
-                >
-                  <div className="flex flex-col py-1">
-                    <span className="text-sm font-medium">{t.originalQualityLockedGuest}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {t.unlockOriginalForEvent}
-                    </span>
-                  </div>
-                  <Lock className="ml-auto h-4 w-4 text-primary shrink-0" />
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
 
           <Button
             size="icon"
@@ -678,7 +711,7 @@ const PhotoLightbox = ({
 
       {/* Main image area */}
       <div
-        className={`flex h-full items-center justify-center px-12 py-20 ${
+        className={`flex h-full items-center justify-center px-12 pb-36 pt-20 ${
           prefersReducedMotion
             ? ''
             : `transition-all duration-300 ${isNavigating ? 'scale-95 opacity-80' : 'scale-100 opacity-100'}`
@@ -687,7 +720,8 @@ const PhotoLightbox = ({
           e.stopPropagation()
           // Double tap / double click likes (never unlikes), Instagram-style.
           // Timed on click so it works for both touch and mouse.
-          if (!likesEnabled || !photo.url) return
+          // Videos keep native controls, so taps there are not likes.
+          if (!likesEnabled || !photo.url || isVideo) return
           const now = Date.now()
           if (now - lastImageTap.current < 300) {
             lastImageTap.current = 0
@@ -705,19 +739,25 @@ const PhotoLightbox = ({
             className="pointer-events-none absolute z-10 h-24 w-24 animate-ping fill-red-500 text-red-500 [animation-iteration-count:1]"
           />
         )}
-        {photo.url ? (
-          <ImageWithLoading key={photo.id} src={photo.url} alt={photo.originalName || t.photo} />
+        {isVideo ? (
+          <LightboxVideo photo={photo} t={t} />
         ) : (
-          // No safe derivative exists for this photo yet (PENDING / FAILED /
-          // LEGACY_UNVERIFIED) — the lightbox must never open an original,
-          // even for an owner/entitled viewer (display and download are
-          // separate trust boundaries; see the download menu above, which
-          // is unaffected and still fetches by photoId through the
-          // entitlement-gated route).
-          <div className="flex flex-col items-center justify-center gap-2 text-foreground/40">
-            <ImageOff className="h-10 w-10" />
-            <span className="text-sm">{t.failedToLoadImage}</span>
-          </div>
+          <>
+          {photo.url ? (
+            <ImageWithLoading key={photo.id} src={photo.url} alt={photo.originalName || t.photo} />
+          ) : (
+            // No safe derivative exists for this photo yet (PENDING / FAILED /
+            // LEGACY_UNVERIFIED) — the lightbox must never open an original,
+            // even for an owner/entitled viewer (display and download are
+            // separate trust boundaries; see the download menu above, which
+            // is unaffected and still fetches by photoId through the
+            // entitlement-gated route).
+            <div className="flex flex-col items-center justify-center gap-2 text-foreground/40">
+              <ImageOff className="h-10 w-10" />
+              <span className="text-sm">{t.failedToLoadImage}</span>
+            </div>
+          )}
+          </>
         )}
       </div>
 
@@ -750,30 +790,93 @@ const PhotoLightbox = ({
       )}
 
       {/* Mobile swipe hint */}
-      <div className="pointer-events-none absolute bottom-16 left-0 right-0 flex justify-center sm:hidden">
+      <div className="pointer-events-none absolute top-16 left-0 right-0 flex justify-center sm:hidden">
         <div className="rounded-full bg-black/50 px-3 py-1 text-xs text-foreground/80 backdrop-blur-sm">
           {t.swipeToNavigate}
         </div>
       </div>
 
-      {likesEnabled && (
-        <button
-          type="button"
-          aria-pressed={isLiked}
-          aria-label={isLiked ? t.unlikePhoto : t.likePhoto}
-          className="absolute bottom-6 right-4 z-20 flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-2 text-sm text-foreground/90 backdrop-blur-sm transition-transform active:scale-90"
-          onClick={(e) => {
-            e.stopPropagation()
-            onToggleLike(photo)
-          }}
-        >
-          <Heart className={`h-5 w-5 transition-colors ${isLiked ? 'fill-red-500 text-red-500' : ''}`} />
-          {likeCount > 0 && <span className="tabular-nums">{likeCount}</span>}
-        </button>
-      )}
-
-      {/* Footer info */}
+      {/* Footer: like/share action bar + info */}
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pb-6 pt-12">
+        <div className="mx-auto mb-3 flex max-w-md items-center justify-center gap-3" onClick={(e) => e.stopPropagation()}>
+          {likesEnabled && (
+            <button
+              type="button"
+              aria-pressed={isLiked}
+              aria-label={isLiked ? t.unlikePhoto : t.likePhoto}
+              className={`flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium backdrop-blur-sm transition-transform active:scale-90 ${
+                isLiked ? 'bg-red-500/20 text-red-300' : 'bg-white/15 text-foreground hover:bg-white/25'
+              }`}
+              onClick={() => onToggleLike(photo)}
+            >
+              <Heart className={`h-5 w-5 transition-colors ${isLiked ? 'fill-red-500 text-red-500' : ''}`} />
+              <span>{t.likePhoto}</span>
+              {likeCount > 0 && <span className="tabular-nums opacity-80">· {likeCount}</span>}
+            </button>
+          )}
+              <DropdownMenu onOpenChange={(isOpen) => { if (isOpen) prefetchShareFile() }}>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className={`flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium backdrop-blur-sm transition-transform active:scale-95 ${
+                      shareStatus === 'copied' ? 'bg-green-500/20 text-green-300' : 'bg-white/15 text-foreground hover:bg-white/25'
+                    }`}
+                    aria-label={isVideo ? t.shareVideo : t.sharePhoto}
+                  >
+                    {shareStatus === 'busy' ? <Loader2 className="h-5 w-5 animate-spin" /> : <Share2 className="h-5 w-5" />}
+                    <span>{{ copied: t.linkCopied, 'tap-again': t.shareTapAgain, saved: t.shareSavedHint, failed: t.shareFailed }[shareStatus] || t.shareAction}</span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="center"
+                  side="top"
+                  className={`border-border bg-surface text-foreground min-w-[15rem] ${themeClass}`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {[
+                    { channel: 'instagram', label: 'Instagram' },
+                    { channel: 'tiktok', label: 'TikTok' },
+                    { channel: 'facebook', label: 'Facebook' },
+                  ].map(({ channel, label }) => {
+                    // Desktop Facebook shares the room link, so it never
+                    // needs the (possibly still encoding) video file.
+                    const needsFile = nativeShare || channel !== 'facebook'
+                    const disabled = needsFile && !shareableNow
+                    return (
+                      <DropdownMenuItem
+                        key={channel}
+                        disabled={disabled}
+                        className="cursor-pointer focus:bg-white/5 focus:text-foreground"
+                        onClick={() => handleShareTo(channel)}
+                      >
+                        <div className="flex flex-col py-1">
+                          <span className="text-sm font-medium">{label}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {disabled
+                              ? t.shareNotReady
+                              : nativeShare
+                                ? t.shareMobileHint
+                                : channel === 'facebook'
+                                  ? t.shareFacebookDesktopHint
+                                  : t.shareDesktopHint}
+                          </span>
+                        </div>
+                      </DropdownMenuItem>
+                    )
+                  })}
+                  <DropdownMenuItem className="cursor-pointer focus:bg-white/5 focus:text-foreground" onClick={() => handleLinkShare('whatsapp')}>
+                    <span className="py-1 text-sm">WhatsApp</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer focus:bg-white/5 focus:text-foreground" onClick={() => handleLinkShare('x')}>
+                    <span className="py-1 text-sm">X</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer focus:bg-white/5 focus:text-foreground" onClick={handleCopyLink}>
+                    <span className="py-1 text-sm">{t.copyRoomLink}</span>
+                    <Link2 className="ml-auto h-4 w-4 shrink-0" />
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+        </div>
         <div className="mx-auto max-w-md text-center">
           <p className="truncate text-sm font-medium text-foreground/90">
             {photo.originalName || t.untitled}
