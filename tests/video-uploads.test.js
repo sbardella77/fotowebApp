@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync } from 'fs'
 import { createHmac } from 'crypto'
 
 vi.mock('@upstash/redis', () => ({ Redis: vi.fn() }))
@@ -193,7 +194,7 @@ describe('handleMuxWebhook', () => {
   })
 
   it('routes static rendition events (both spellings) by data.asset_id', async () => {
-    getPrismaClient.mockResolvedValue({ photo: { findFirst: vi.fn().mockResolvedValue(null), update: vi.fn() } })
+    getPrismaClient.mockResolvedValue({ photo: { findFirst: vi.fn().mockResolvedValue(null), update: vi.fn(), updateMany: vi.fn().mockResolvedValue({ count: 0 }) } })
     for (const type of ['video.asset.static_rendition.ready', 'video.asset.static_renditions.ready']) {
       const getAsset = vi.fn().mockResolvedValue(null)
       const res = await handleMuxWebhook(webhookRequest({ type, data: { id: 'rendition', asset_id: 'asset9' } }), { getAsset })
@@ -312,5 +313,74 @@ describe('processing video refresh helpers', async () => {
     expect(next[1].videoStatus).toBe('READY')
     expect(next[0]).toBe(current[0])
     expect(mergePhotoUpdates(current, [{ id: 'z' }])).toBe(current)
+  })
+})
+
+describe('stuck / vanished videos', async () => {
+  const { markVideoAssetGone, reconcileStuckVideos, STUCK_UPLOAD_MS } = await import('@/lib/server/video-uploads')
+  const NOW = Date.parse('2026-10-26T10:00:00Z')
+
+  it('marks a video FAILED (and clears its playback id) when its Mux asset is gone', async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 })
+    const prisma = { photo: { updateMany } }
+    await syncVideoAsset(prisma, 'gone', { getAsset: async () => null, uploadId: 'up9' })
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { mediaType: 'VIDEO', OR: [{ muxAssetId: 'gone' }, { muxUploadId: 'up9' }] },
+      data: { videoStatus: 'FAILED', muxPlaybackId: null },
+    })
+    expect(await markVideoAssetGone(prisma, {})).toBe(0)
+  })
+
+  it('handles video.asset.deleted webhooks', async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 })
+    getPrismaClient.mockResolvedValue({ photo: { updateMany } })
+    const raw = JSON.stringify({ type: 'video.asset.deleted', data: { id: 'a1' } })
+    const t = Math.floor(Date.now() / 1000)
+    const sig = `t=${t},v1=${createHmac('sha256', SECRET).update(`${t}.${raw}`).digest('hex')}`
+    const res = await handleMuxWebhook({ text: async () => raw, headers: { get: () => sig } })
+    expect(res.status).toBe(200)
+    expect(updateMany.mock.calls[0][0].where).toEqual({ mediaType: 'VIDEO', OR: [{ muxAssetId: 'a1' }] })
+  })
+
+  it('fails an abandoned upload (no asset ever created) after the upload window', async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 })
+    const prisma = {
+      photo: {
+        findMany: vi.fn().mockResolvedValue([{ id: 'p1', videoStatus: 'UPLOADING', muxUploadId: 'up1', muxAssetId: null, createdAt: new Date(NOW - STUCK_UPLOAD_MS - 1000) }]),
+        updateMany,
+      },
+    }
+    const stats = await reconcileStuckVideos(prisma, { now: NOW, deps: { getUpload: async () => ({ id: 'up1', status: 'timed_out' }) } })
+    expect(stats).toEqual({ checked: 1, repaired: 0, failed: 1 })
+    expect(updateMany).toHaveBeenCalledWith({ where: { id: 'p1', videoStatus: { in: ['UPLOADING', 'PROCESSING'] } }, data: { videoStatus: 'FAILED' } })
+  })
+
+  it('leaves a young upload alone', async () => {
+    const updateMany = vi.fn()
+    const prisma = { photo: { findMany: vi.fn().mockResolvedValue([{ id: 'p1', videoStatus: 'UPLOADING', muxUploadId: 'up1', muxAssetId: null, createdAt: new Date(NOW - 20 * 60 * 1000) }]), updateMany } }
+    const stats = await reconcileStuckVideos(prisma, { now: NOW, deps: { getUpload: async () => ({ id: 'up1', status: 'waiting' }) } })
+    expect(stats.failed).toBe(0)
+    expect(updateMany).not.toHaveBeenCalled()
+  })
+
+  it('repairs a video whose READY webhook was lost', async () => {
+    const update = vi.fn()
+    const prisma = {
+      photo: {
+        findMany: vi.fn().mockResolvedValue([{ id: 'p1', videoStatus: 'PROCESSING', muxUploadId: 'up1', muxAssetId: 'asset1', createdAt: new Date(NOW - 30 * 60 * 1000) }]),
+        findFirst: vi.fn().mockResolvedValue({ id: 'p1', eventId: 'e', videoStatus: 'PROCESSING', event: { slug: 'party' } }),
+        update,
+        updateMany: vi.fn(),
+      },
+    }
+    const asset = { id: 'asset1', status: 'ready', passthrough: 'test:p1', duration: 10, playback_ids: [{ id: 'PlaybackId0123', policy: 'public' }], static_renditions: { status: 'ready' } }
+    const stats = await reconcileStuckVideos(prisma, { now: NOW, deps: { getAsset: async () => asset, scope: 'test' } })
+    expect(stats).toEqual({ checked: 1, repaired: 1, failed: 0 })
+    expect(update.mock.calls[0][0].data.videoStatus).toBe('READY')
+  })
+
+  it('hides failed videos from the guest gallery', () => {
+    expect(normalizePublicPhoto({ id: 'v1', url: null, mediaType: 'VIDEO', videoStatus: 'FAILED' })).toBeNull()
+    expect(normalizePublicPhoto({ id: 'v2', url: null, mediaType: 'VIDEO', videoStatus: 'PROCESSING' })).not.toBeNull()
   })
 })
