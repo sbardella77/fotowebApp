@@ -390,6 +390,7 @@ export function CorporateLandingPage() {
           { q: t.faq4Question, a: t.faq4Answer },
           { q: t.faq5Question, a: t.faq5Answer },
           { q: t.faq6Question, a: t.faq6Answer },
+          { q: t.faq7Question, a: t.faq7Answer },
         ]}
       />
 

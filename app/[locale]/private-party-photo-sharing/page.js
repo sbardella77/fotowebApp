@@ -37,7 +37,7 @@ export default function PrivatePartyPhotoSharing({ params }) {
     path: '/private-party-photo-sharing',
     name: t.meta.privatePartyTitle,
     description: t.meta.privatePartyDescription,
-    questions: collectFaqPairs(t.privateParty, 'faq', 6),
+    questions: collectFaqPairs(t.privateParty, 'faq', 7),
   })
   return (
     <>

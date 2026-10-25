@@ -37,7 +37,7 @@ export default function CorporateEventPhotoSharing({ params }) {
     path: '/corporate-event-photo-sharing',
     name: t.meta.corporateTitle,
     description: t.meta.corporateDescription,
-    questions: collectFaqPairs(t.corporate, 'faq', 6),
+    questions: collectFaqPairs(t.corporate, 'faq', 7),
   })
   return (
     <>

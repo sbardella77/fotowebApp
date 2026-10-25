@@ -37,7 +37,7 @@ export default function BirthdayPhotoSharing({ params }) {
     path: '/birthday-photo-sharing',
     name: t.meta.birthdayTitle,
     description: t.meta.birthdayDescription,
-    questions: collectFaqPairs(t.birthday, 'faq', 6),
+    questions: collectFaqPairs(t.birthday, 'faq', 7),
   })
   return (
     <>

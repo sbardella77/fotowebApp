@@ -71,6 +71,7 @@ const eventTiers = [
     features: [
       { name: 'Active events', value: '1' },
       { name: 'Guest upload', value: true },
+      { name: 'Video uploads', value: false },
       { name: 'QR / public event link', value: true },
       { name: 'SnapRooms branding', value: 'On downloads' },
       { name: 'Single photo download', value: true },
@@ -91,11 +92,12 @@ const eventTiers = [
     target: 'Private hosts, birthdays, parties',
     description: 'Unlock unlimited photos, full gallery downloads, and a premium experience for one special event.',
     cta: { label: 'Upgrade this event', href: '/dashboard/login', variant: 'primary' },
-    benefits: ['proEventBenefit1', 'proEventBenefit2', 'proEventBenefit3'],
+    benefits: ['proEventBenefit1', 'proEventBenefit2', 'proEventBenefit3', 'videoUploadsBenefit'],
     storageKey: 'proEventBenefit4',
     features: [
       { name: 'Active events', value: '1 premium' },
       { name: 'Guest upload', value: true },
+      { name: 'Video uploads', value: true },
       { name: 'QR / public event link', value: true },
       { name: 'SnapRooms branding', value: 'Removed' },
       { name: 'Single photo download', value: true },
@@ -121,6 +123,7 @@ const eventTiers = [
     features: [
       { name: 'Active events', value: '1 premium' },
       { name: 'Guest upload', value: true },
+      { name: 'Video uploads', value: true },
       { name: 'QR / public event link', value: true },
       { name: 'SnapRooms branding', value: 'Removed' },
       { name: 'Single photo download', value: true },
@@ -147,11 +150,12 @@ const recurringTiers = [
     target: 'Photographers, planners, venues',
     description: 'Run multiple events for multiple clients. Commercial use included. Built for professionals who rely on SnapRooms every week.',
     cta: { label: 'Start Professional', href: '/dashboard/login', variant: 'outline' },
-    benefits: ['professionalBenefit1', 'professionalBenefit2', 'professionalBenefit3', 'professionalBenefit4'],
+    benefits: ['professionalBenefit1', 'professionalBenefit2', 'professionalBenefit3', 'professionalBenefit4', 'videoUploadsBenefit'],
     storageKey: 'professionalBenefit5',
     features: [
       { name: 'Active events', value: 'Multiple' },
       { name: 'Guest upload', value: true },
+      { name: 'Video uploads', value: true },
       { name: 'QR / public event link', value: true },
       { name: 'SnapRooms branding', value: 'Removed' },
       { name: 'Single photo download', value: true },
@@ -177,6 +181,7 @@ const recurringTiers = [
     features: [
       { name: 'Active events', value: 'Unlimited' },
       { name: 'Guest upload', value: true },
+      { name: 'Video uploads', value: true },
       { name: 'QR / public event link', value: true },
       { name: 'SnapRooms branding', value: 'Removed' },
       { name: 'Single photo download', value: true },
@@ -202,6 +207,7 @@ function getFaqs(t) {
     { q: t.pricingFaq6Question, a: t.pricingFaq6Answer },
     { q: t.pricingFaq7Question, a: t.pricingFaq7Answer },
     { q: t.pricingFaq8Question, a: t.pricingFaq8Answer },
+    { q: t.pricingFaq9Question, a: t.pricingFaq9Answer },
   ]
 }
 
@@ -259,6 +265,7 @@ function translateFeatureName(t, name) {
   const map = {
     'Active events': t.activeRooms,
     'Guest upload': t.guestUploads,
+    'Video uploads': t.videoUploads,
     'QR / public event link': t.qrPublicEventLink,
     'SnapRooms branding': t.snaproomsBranding,
     'Single photo download': t.singlePhotoDownload,
