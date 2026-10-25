@@ -349,6 +349,7 @@ export function LandingPage({
           { q: t.faq6Question, a: t.faq6Answer },
           { q: t.faq7Question, a: t.faq7Answer },
           { q: t.faq8Question, a: t.faq8Answer },
+          { q: t.faq9Question, a: t.faq9Answer },
         ]}
       />
 

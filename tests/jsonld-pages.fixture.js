@@ -15,27 +15,27 @@ export const JSONLD_PAGES = [
   {
     path: '/pricing',
     getNameDescription: (t) => [t.pricing.title + ' — SnapRooms', t.pricing.description],
-    faq: { namespaceKey: 'pricing', prefix: 'pricingFaq', count: 8 },
+    faq: { namespaceKey: 'pricing', prefix: 'pricingFaq', count: 9 },
   },
   {
     path: '/wedding-photo-sharing',
     getNameDescription: (t) => [t.meta.weddingTitle, t.meta.weddingDescription],
-    faq: { namespaceKey: 'wedding', prefix: 'faq', count: 7 },
+    faq: { namespaceKey: 'wedding', prefix: 'faq', count: 8 },
   },
   {
     path: '/birthday-photo-sharing',
     getNameDescription: (t) => [t.meta.birthdayTitle, t.meta.birthdayDescription],
-    faq: { namespaceKey: 'birthday', prefix: 'faq', count: 6 },
+    faq: { namespaceKey: 'birthday', prefix: 'faq', count: 7 },
   },
   {
     path: '/private-party-photo-sharing',
     getNameDescription: (t) => [t.meta.privatePartyTitle, t.meta.privatePartyDescription],
-    faq: { namespaceKey: 'privateParty', prefix: 'faq', count: 6 },
+    faq: { namespaceKey: 'privateParty', prefix: 'faq', count: 7 },
   },
   {
     path: '/corporate-event-photo-sharing',
     getNameDescription: (t) => [t.meta.corporateTitle, t.meta.corporateDescription],
-    faq: { namespaceKey: 'corporate', prefix: 'faq', count: 6 },
+    faq: { namespaceKey: 'corporate', prefix: 'faq', count: 7 },
   },
   {
     path: '/for-wedding-photographers',

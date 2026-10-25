@@ -63,7 +63,8 @@ describe('Wedding page — WhatsApp comparison FAQ (7th FAQ, SEO Wedding Landing
       expect(typeof w[`faq${i}Question`]).toBe('string')
       expect(typeof w[`faq${i}Answer`]).toBe('string')
     }
-    expect(w.faq8Question).toBeUndefined()
+    // faq8 is the video-uploads FAQ (feat/marketing-video-copy); nothing beyond it
+    expect(w.faq9Question).toBeUndefined()
   })
 
   it('primary CTA (create-event form) and secondary Pricing CTA are still present (no regression)', () => {

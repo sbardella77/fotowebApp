@@ -44,7 +44,7 @@ export default function Pricing({ params, searchParams }) {
     path: '/pricing',
     name: t.pricing.title + ' — SnapRooms',
     description: t.pricing.description,
-    questions: collectFaqPairs(t.pricing, 'pricingFaq', 8),
+    questions: collectFaqPairs(t.pricing, 'pricingFaq', 9),
   })
   return (
     <>

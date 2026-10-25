@@ -37,7 +37,7 @@ export default function WeddingPhotoSharing({ params }) {
     path: '/wedding-photo-sharing',
     name: t.meta.weddingTitle,
     description: t.meta.weddingDescription,
-    questions: collectFaqPairs(t.wedding, 'faq', 7),
+    questions: collectFaqPairs(t.wedding, 'faq', 8),
   })
   return (
     <>

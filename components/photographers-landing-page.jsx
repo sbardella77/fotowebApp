@@ -344,6 +344,7 @@ export function PhotographersLandingPage({ locale }) {
                   t.planFeature4,
                   t.planFeature5,
                   t.planFeature6,
+                  t.planFeature7,
                 ].map((item) => (
                   <li key={item} className="flex items-center gap-2 text-muted-foreground">
                     <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
