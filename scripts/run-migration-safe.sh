@@ -72,10 +72,15 @@ if ! node scripts/db-migration-preflight.cjs --env "$ENV_NAME"; then
   exit 1
 fi
 
+# prisma/schema.prisma declares `url = env("DATABASE_URL")`, and Prisma
+# refuses to load the schema when it is unset — even though migrate
+# connects through directUrl. Satisfy it with the SAME pre-flight-verified
+# DIRECT_URL, scoped to these two commands only (never exported), so the
+# runtime DATABASE_URL credential can never leak into a migration.
 echo "[run-migration-safe] Step 3/4: MIGRATE DEPLOY"
-npx prisma migrate deploy
+DATABASE_URL="$DIRECT_URL" npx prisma migrate deploy
 
 echo "[run-migration-safe] Step 4/4: MIGRATION STATUS"
-npx prisma migrate status
+DATABASE_URL="$DIRECT_URL" npx prisma migrate status
 
 echo "[run-migration-safe] Done. Remember to run the schema-verify step for this specific migration (see docs/production-deploy-checklist.md)."
