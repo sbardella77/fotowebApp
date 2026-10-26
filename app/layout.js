@@ -6,6 +6,7 @@ import { CookieConsentBanner } from '@/components/cookie-consent-banner'
 import { I18nProvider } from '@/components/i18n-provider'
 import { LocaleHtmlAttributes } from '@/components/locale-html-attributes'
 import { LOCALES, DEFAULT_LOCALE, LOCALE_COOKIE_NAME } from '@/lib/i18n/config'
+import { currencyForHeaders } from '@/lib/server/request-currency'
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
@@ -62,6 +63,7 @@ function App({ children }) {
   const cookieLocale = cookies().get(LOCALE_COOKIE_NAME)?.value
   const locale = LOCALES.includes(cookieLocale) ? cookieLocale : DEFAULT_LOCALE
   const nonce = headers().get('x-nonce')
+  const currency = currencyForHeaders(headers())
 
   return (
     <html lang={locale} suppressHydrationWarning>
@@ -71,7 +73,7 @@ function App({ children }) {
       <body
         className={`${spaceGrotesk.variable} ${inter.variable} ${jetbrainsMono.variable} min-h-screen bg-background font-sans text-foreground antialiased`}
       >
-        <I18nProvider initialLocale={locale}>
+        <I18nProvider initialLocale={locale} currency={currency}>
           <LocaleHtmlAttributes />
           <AnalyticsProvider>
             {children}

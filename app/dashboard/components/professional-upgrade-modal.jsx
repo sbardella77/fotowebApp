@@ -24,7 +24,7 @@ export function ProfessionalUpgradeModal({
     {
       id: 'monthly',
       label: t.professionalMonthlyLabel,
-      price: t.professionalMonthlyPrice || '€24',
+      price: t.professionalMonthlyPrice,
       interval: t.perMonth || '/ month',
       description: t.professionalMonthlyDescription,
       cta: t.startMonthly,
@@ -34,7 +34,7 @@ export function ProfessionalUpgradeModal({
     {
       id: 'annual',
       label: t.professionalAnnualLabel,
-      price: t.professionalAnnualPrice || '€240',
+      price: t.professionalAnnualPrice,
       interval: t.perYear || '/ year',
       description: t.professionalAnnualDescription,
       cta: t.startYearly,

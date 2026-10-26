@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { resolveCheckoutCurrency } from '@/lib/server/checkout-currency'
 import { getStripe } from '@/lib/server/stripe'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { verifyOwnerSessionToken } from '@/lib/server/owner-auth'
@@ -125,8 +126,13 @@ export async function POST(request) {
       metadata.ownerEmail = owner.email
     }
 
+    // Guests have no Stripe customer: the visitor's display currency applies.
+    const currency = await resolveCheckoutCurrency({ stripe, customerId: null, headerList: request.headers, priceId })
+    metadata.currency = currency
+
     const sessionConfig = {
       line_items: [{ price: priceId, quantity: 1 }],
+      currency,
       mode: 'payment',
       success_url: `${baseUrl}/event/${eventSlug}?unlock=success`,
       cancel_url: `${baseUrl}/event/${eventSlug}?unlock=cancelled`,

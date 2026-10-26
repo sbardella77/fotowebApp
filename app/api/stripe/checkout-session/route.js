@@ -14,6 +14,7 @@ import {
 } from '@/lib/analytics/events'
 import { sendOpsAlert } from '@/lib/server/ops-alerts'
 import { serializeProviderError, redactMessage } from '@/lib/server/safe-log'
+import { resolveCheckoutCurrency } from '@/lib/server/checkout-currency'
 
 export const dynamic = 'force-dynamic'
 
@@ -275,9 +276,12 @@ export async function POST(request) {
       })
     }
 
+    const currency = await resolveCheckoutCurrency({ stripe, customerId, headerList: request.headers, priceId })
+
     const sessionConfig = {
       customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],
+      currency,
       mode,
       success_url:
         intent === 'extra_event'
@@ -295,6 +299,7 @@ export async function POST(request) {
         upsellType: upsellType || intent,
         upsellSource: upsellSource || body.entryPoint || 'unknown',
         billingInterval: intent === 'professional' ? normalizedBillingInterval : '',
+        currency,
         ...(intent === 'extra_event' ? { productType: 'extra_free_event', restrictions: 'free_plan' } : {}),
         ...(extraFreeEventCheckout
           ? { postPurchaseAction, pendingCheckoutId: extraFreeEventCheckout.id }
