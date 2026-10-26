@@ -24,7 +24,7 @@ import { MarketingNav } from '@/components/marketing-nav'
 import { MarketingFooter } from '@/components/marketing-footer'
 import { trackEvent, trackPageView } from '@/lib/analytics/track-client'
 import { EVENT_LANDING_VIEW } from '@/lib/analytics/events'
-import { useTranslations, useLocale } from '@/components/i18n-provider'
+import { useTranslations, useLocale, useCurrency } from '@/components/i18n-provider'
 import { localizedPath } from '@/lib/i18n/config'
 import { SectionHeader } from '@/components/marketing/section-header'
 import { TrustStrip } from '@/components/marketing/trust-strip'
@@ -61,7 +61,7 @@ const eventTiers = [
     id: 'free',
     name: 'Free',
     badge: null,
-    price: '€0',
+    priceKey: 'free',
     interval: null,
     target: 'Trial users & small personal events',
     description: 'One room for a casual get-together. See how SnapRooms works before you upgrade.',
@@ -87,7 +87,7 @@ const eventTiers = [
     id: 'pro-event',
     name: 'Pro Event',
     badge: 'Most popular',
-    price: '€29',
+    priceKey: 'proEvent',
     interval: '/ event',
     target: 'Private hosts, birthdays, parties',
     description: 'Unlock unlimited photos, full gallery downloads, and a premium experience for one special event.',
@@ -113,7 +113,7 @@ const eventTiers = [
     id: 'wedding-pro',
     name: 'Wedding Pro',
     badge: null,
-    price: '€49',
+    priceKey: 'weddingPro',
     interval: '/ event',
     target: 'Couples & wedding hosts',
     description: 'Everything in Pro Event, with wedding-specific QR assets, longer access, and a premium experience designed for your big day.',
@@ -142,9 +142,9 @@ const recurringTiers = [
     id: 'professional',
     name: 'Professional',
     badge: null,
-    price: '€24',
+    priceKey: 'professionalMonthly',
     interval: '/ month',
-    annualPrice: '€240',
+    annualPriceKey: 'professionalAnnual',
     annualInterval: '/ year',
     annualBadgeKey: 'save48',
     target: 'Photographers, planners, venues',
@@ -280,6 +280,14 @@ function translateFeatureName(t, name) {
   return map[name] || name
 }
 
+// List prices come from lib/currency.js in the visitor's currency; Business
+// has no list price.
+function tierPrice(t, price, tier, annual = false) {
+  if (annual && tier.annualPriceKey) return price(tier.annualPriceKey)
+  if (tier.priceKey) return price(tier.priceKey)
+  return tier.price === 'Custom' ? t.businessPrice : tier.price
+}
+
 function translateFeatureValue(t, value) {
   if (value === 'Multiple') return t.multiple
   if (value === 'Dedicated') return t.dedicated
@@ -295,13 +303,14 @@ function translateFeatureValue(t, value) {
 
 function TierCard({ tier, index, delayOffset = 0, isHighlighted = false, billingInterval = null }) {
   const t = useTranslations('pricing')
+  const { price } = useCurrency()
   const [isAnnual, setIsAnnual] = useState(tier.id === 'professional' && billingInterval === 'annual')
 
   const displayName = translateTierName(t, tier)
   const displayTarget = translateTierTarget(t, tier)
   const displayDescription = translateTierDescription(t, tier)
   const isProfessional = tier.id === 'professional'
-  const displayPrice = isProfessional && isAnnual ? tier.annualPrice : tier.price
+  const displayPrice = tierPrice(t, price, tier, isProfessional && isAnnual)
   const displayInterval = isProfessional && isAnnual ? t.perYear : translateInterval(t, tier.interval)
   const displayBadge = isProfessional && isAnnual
     ? t[tier.annualBadgeKey]
@@ -445,6 +454,7 @@ function TierCard({ tier, index, delayOffset = 0, isHighlighted = false, billing
 
 export function PricingPage({ fromDashboard, highlightPlan, eventSlug, billingInterval = null }) {
   const t = useTranslations('pricing')
+  const { price } = useCurrency()
   const tCommon = useTranslations('common')
   const tLanding = useTranslations('landing')
   const tMeta = useTranslations('meta')
@@ -718,7 +728,7 @@ export function PricingPage({ fromDashboard, highlightPlan, eventSlug, billingIn
                     <span className="flex flex-1 items-center justify-between pr-3">
                       <span className="font-display text-base font-bold text-foreground">{translateTierName(t, tier)}</span>
                       <span className="text-right">
-                        <span className="font-display text-lg font-bold text-foreground">{tier.price}</span>
+                        <span className="font-display text-lg font-bold text-foreground">{tierPrice(t, price, tier)}</span>
                         {tier.interval && (
                           <span className="block text-xs font-normal text-muted-foreground">{translateInterval(t, tier.interval)}</span>
                         )}

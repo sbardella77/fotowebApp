@@ -77,13 +77,16 @@ describe('SoftwareApplication structured data', () => {
     }
   })
 
-  it('names every offer and prices it in EUR', () => {
+  it('offers every plan in EUR and USD at the same list price', () => {
     const node = getSoftwareApplicationNode({ locale: 'de' })
     expect(node['@type']).toBe('SoftwareApplication')
-    expect(node.offers).toHaveLength(PLAN_OFFERS.length)
+    expect(node.offers).toHaveLength(PLAN_OFFERS.length * 2)
+    for (const currency of ['EUR', 'USD']) {
+      const offers = node.offers.filter((o) => o.priceCurrency === currency)
+      expect(offers.map((o) => o.price)).toEqual(PLAN_OFFERS.map((p) => p.price))
+    }
     for (const offer of node.offers) {
       expect(offer.name).toBeTruthy()
-      expect(offer.priceCurrency).toBe('EUR')
       expect(offer.url).toBe('https://snaprooms.app/de/pricing')
     }
   })

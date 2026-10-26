@@ -6,6 +6,7 @@ import { LOCALES } from '@/lib/i18n/config'
 import { ARTICLES, ARTICLE_SECTION_LABEL, getArticle, getArticlesForLocale } from '@/lib/content/articles'
 import { getArticleNode } from '@/lib/structured-data/article'
 import { buildLlmsTxt } from '@/lib/seo/llms-txt'
+import { fillPriceTokensDeep } from '@/lib/currency'
 
 describe('editorial articles', () => {
   it('have unique locale+slug pairs in a supported locale', () => {
@@ -42,11 +43,13 @@ describe('editorial articles', () => {
     }
   })
 
-  it('SnapRooms prices quoted in the guides match the pricing page', () => {
+  it('quote SnapRooms prices only as currency tokens', () => {
     const text = JSON.stringify(ARTICLES)
-    for (const m of text.matchAll(/(Pro Event|Wedding Pro)[^0-9]{0,12}(\d+) €/g)) {
-      expect({ 'Pro Event': '29', 'Wedding Pro': '49' }[m[1]]).toBe(m[2])
-    }
+    expect(text).not.toMatch(/€|\$\d/)
+    expect(text).toContain('{{price.proEvent}}')
+    const filled = JSON.stringify(fillPriceTokensDeep(ARTICLES, 'usd', 'es'))
+    expect(filled).not.toContain('{{price.')
+    expect(filled).toMatch(/29\s\$/)
   })
 
   it('resolves each article only in its own locale', () => {

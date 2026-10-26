@@ -7,6 +7,7 @@ import { JsonLd } from '@/lib/structured-data/json-ld'
 import { getMarketingPageGraph } from '@/lib/structured-data/page-graph'
 import { collectFaqPairs } from '@/lib/structured-data/faq'
 import { withSocialMetadata } from '@/lib/seo/social-metadata'
+import { getRequestCurrency } from '@/lib/server/request-currency'
 
 export async function generateMetadata({ params }) {
   const { locale } = params
@@ -39,7 +40,9 @@ export default function Pricing({ params, searchParams }) {
   const highlightPlan = normalizePricingPlanParam(searchParams?.plan)
   const eventSlug = searchParams?.eventSlug || null
   const billingInterval = searchParams?.billing === 'annual' ? 'annual' : null
-  const t = getDictionary(locale)
+  // Visible FAQ answers quote prices in the visitor currency; the FAQPage
+  // schema must say the same.
+  const t = getDictionary(locale, getRequestCurrency())
   const graph = getMarketingPageGraph({
     locale,
     path: '/pricing',

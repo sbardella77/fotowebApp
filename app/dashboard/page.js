@@ -70,7 +70,6 @@ import { EventDetailPanel } from './components/event-detail-panel'
 import { DashboardPhotoCard } from './components/dashboard-photo-card'
 import { resolveEffectiveEventAccessState } from '@/lib/event-access'
 import { resolveDashboardExperience } from '@/lib/dashboard-experience'
-import { EXTRA_EVENT_PRICE_LABEL } from '@/lib/pricing-config'
 import { resolveCreateRoomState } from '@/lib/create-room-state'
 import { safeFetchJson } from '@/lib/dashboard-data-helpers'
 import { csrfFetch } from '@/lib/client/csrf-fetch'
@@ -877,7 +876,7 @@ export default function DashboardPage() {
       ctaPlan: 'extra_event',
       postPurchaseAction: 'create_event',
       hasPendingEventName: true,
-      priceLabel: EXTRA_EVENT_PRICE_LABEL,
+      priceLabel: t.extraEventOneTimePrice,
       restrictions: 'free_plan',
       extraEventCredits,
     })
@@ -1846,7 +1845,7 @@ export default function DashboardPage() {
                     <div className="space-y-2 rounded-lg border border-primary/10 bg-primary/5 p-3">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-semibold text-foreground">{t.extraEvent}</p>
-                        <p className="text-xs font-medium text-accent-dark">{EXTRA_EVENT_PRICE_LABEL}</p>
+                        <p className="text-xs font-medium text-accent-dark">{t.extraEventOneTimePrice}</p>
                       </div>
                       <p className="text-xs text-muted-foreground">{t.extraFreeEventDescription}</p>
                       <p className="text-xs text-muted-foreground/80">{t.extraFreeEventRestrictions}</p>
@@ -1866,7 +1865,7 @@ export default function DashboardPage() {
                     <div className="space-y-2 rounded-lg border border-border bg-secondary p-3">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-semibold text-foreground">{t.professional}</p>
-                        <p className="text-xs font-medium text-muted-foreground">{t.professionalMonthlyPrice || '€24 / month'}</p>
+                        <p className="text-xs font-medium text-muted-foreground">{t.professionalMonthlyPrice}</p>
                       </div>
                       <p className="text-xs text-muted-foreground">{t.professionalUnlimitedEvents}</p>
                       <Button

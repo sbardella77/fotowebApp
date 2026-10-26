@@ -29,6 +29,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useRoomCopy } from '@/components/room/room-media-context'
+import { useCurrency } from '@/components/i18n-provider'
 import { trackEvent } from '@/lib/analytics/track-client'
 import { csrfFetch } from '@/lib/client/csrf-fetch'
 import { resolveEffectiveEventAccessState } from '@/lib/event-access'
@@ -138,6 +139,7 @@ const PhotoLightbox = ({
   // selectedIndex refers to that same list, so the lightbox must not re-filter it.
   const photo = photos[selectedIndex] || null
   const t = useRoomCopy()
+  const { price } = useCurrency()
   const [isClosing, setIsClosing] = useState(false)
   const [isNavigating, setIsNavigating] = useState(false)
   const [downloaded, setDownloaded] = useState(false)
@@ -683,7 +685,7 @@ const PhotoLightbox = ({
           </DialogHeader>
           <div className="flex flex-col gap-4 pt-2">
             <div className="rounded-lg bg-muted/50 px-4 py-3 text-center">
-              <span className="text-2xl font-bold text-foreground">€1,99</span>
+              <span className="text-2xl font-bold text-foreground">{price('originalUnlock')}</span>
               <p className="mt-1 text-xs text-muted-foreground">{t.unlockOriginalForEvent}</p>
             </div>
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

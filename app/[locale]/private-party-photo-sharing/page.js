@@ -6,6 +6,7 @@ import { JsonLd } from '@/lib/structured-data/json-ld'
 import { getMarketingPageGraph } from '@/lib/structured-data/page-graph'
 import { collectFaqPairs } from '@/lib/structured-data/faq'
 import { withSocialMetadata } from '@/lib/seo/social-metadata'
+import { getRequestCurrency } from '@/lib/server/request-currency'
 
 export async function generateMetadata({ params }) {
   const { locale } = params
@@ -32,7 +33,9 @@ export async function generateMetadata({ params }) {
 export default function PrivatePartyPhotoSharing({ params }) {
   const { locale } = params
   if (!LOCALES.includes(locale)) notFound()
-  const t = getDictionary(locale)
+  // Visible FAQ answers quote prices in the visitor currency; the FAQPage
+  // schema must say the same.
+  const t = getDictionary(locale, getRequestCurrency())
   const graph = getMarketingPageGraph({
     locale,
     path: '/private-party-photo-sharing',
