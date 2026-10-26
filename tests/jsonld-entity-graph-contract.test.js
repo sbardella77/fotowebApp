@@ -65,7 +65,7 @@ describe('WebPage url/@id/inLanguage are consistent with the canonical URL schem
   })
 })
 
-describe('no pricing or Stripe data leaks into the structured-data module (Phase 1 keeps Offer/pricing out)', () => {
+describe('no Stripe data leaks into the structured-data module (offers use public list prices only)', () => {
   it('lib/structured-data source contains no currency symbols or Stripe references', async () => {
     const { readFileSync, readdirSync } = await import('fs')
     const { resolve, join } = await import('path')

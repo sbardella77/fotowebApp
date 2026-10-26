@@ -54,7 +54,7 @@ describe('middleware CSP/nonce wiring', () => {
 
   it('a redirect response (unprefixed public path) carries no CSP header — no body is rendered', () => {
     const response = middleware(makeRequest('/pricing'))
-    expect(response.status).toBe(307)
+    expect(response.status).toBe(308)
     expect(response.headers.get('content-security-policy')).toBeNull()
   })
 

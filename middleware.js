@@ -96,13 +96,22 @@ export function middleware(request) {
     return withCsp(NextResponse.next({ request: { headers: requestHeaders } }))
   }
 
-  // Detect best locale
-  const locale = detectLocale(request)
-
   // Redirect to locale-prefixed path, preserving query params. No body is
   // rendered, so no nonce/CSP is needed on the redirect response itself.
   const newUrl = request.nextUrl.clone()
-  newUrl.pathname = `/${locale}${pathname}`
+
+  // Deep unprefixed paths (/pricing, /wedding-photo-sharing, …) are legacy
+  // URLs from before locale prefixes. A temporary, visitor-dependent 307 led
+  // Google to keep them as canonical over /en/… ("Duplicate without
+  // user-selected canonical"), so they now move permanently to the
+  // x-default locale. Only the bare root still negotiates the visitor's
+  // language, and stays temporary because its target varies per visitor.
+  if (pathname !== '/') {
+    newUrl.pathname = `/${DEFAULT_LOCALE}${pathname}`
+    return NextResponse.redirect(newUrl, 308)
+  }
+
+  newUrl.pathname = `/${detectLocale(request)}${pathname}`
   return NextResponse.redirect(newUrl)
 }
 

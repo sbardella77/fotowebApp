@@ -5,12 +5,13 @@ import { getDictionary } from '@/lib/i18n/utils'
 import { JsonLd } from '@/lib/structured-data/json-ld'
 import { getMarketingPageGraph } from '@/lib/structured-data/page-graph'
 import { collectFaqPairs } from '@/lib/structured-data/faq'
+import { withSocialMetadata } from '@/lib/seo/social-metadata'
 
 export async function generateMetadata({ params }) {
   const { locale } = params
   if (!LOCALES.includes(locale)) notFound()
   const t = getDictionary(locale)
-  return {
+  return withSocialMetadata(locale, {
     title: t.meta.corporateTitle,
     description: t.meta.corporateDescription,
     alternates: {
@@ -25,7 +26,7 @@ export async function generateMetadata({ params }) {
         'x-default': '/en/corporate-event-photo-sharing',
       },
     },
-  }
+  })
 }
 
 export default function CorporateEventPhotoSharing({ params }) {
