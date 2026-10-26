@@ -5,16 +5,18 @@ import { localizedPath } from '@/lib/i18n/config'
 import { InstallCta } from '@/components/install-cta'
 import { SnapRoomsLogo } from '@/components/marketing/logo'
 import { OPEN_PREFERENCES_EVENT } from '@/components/cookie-consent-banner'
+import { getArticlesForLocale, ARTICLE_SECTION_LABEL } from '@/lib/content/articles'
 
 export function MarketingFooter() {
   const t = useTranslations('footer')
   const locale = useLocale()
+  const articles = getArticlesForLocale(locale)
 
   return (
     <footer className="border-t border-border">
       <div className="container px-4 py-14">
         <div className="mx-auto max-w-5xl">
-          <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
+          <div className={`grid gap-10 sm:grid-cols-2 ${articles.length > 0 ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
             <div className="sm:col-span-2 lg:col-span-1">
               <SnapRoomsLogo href={localizedPath(locale, '/')} size="sm" />
               <p className="mt-3 max-w-xs text-sm leading-relaxed text-muted-foreground">
@@ -45,6 +47,19 @@ export function MarketingFooter() {
                 <li><a href={localizedPath(locale, '/commercial-license')} className="text-sm text-muted-foreground transition-colors hover:text-foreground">{t.commercialLicense}</a></li>
               </ul>
             </div>
+
+            {articles.length > 0 && (
+              <div>
+                <p className="font-display text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  {ARTICLE_SECTION_LABEL[locale]}
+                </p>
+                <ul className="mt-4 space-y-2.5">
+                  {articles.map((a) => (
+                    <li key={a.slug}><a href={localizedPath(locale, `/${a.slug}`)} className="text-sm text-muted-foreground transition-colors hover:text-foreground">{a.navLabel}</a></li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <div>
               <p className="font-display text-xs font-semibold uppercase tracking-wider text-muted-foreground">

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { NextRequest } from 'next/server'
 import { middleware } from '@/middleware'
 import sitemap from '@/app/sitemap'
+import { ARTICLES } from '@/lib/content/articles'
 import { LOCALES, LOCALIZED_PUBLIC_PATHS } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/utils'
 import { withSocialMetadata, OG_LOCALE } from '@/lib/seo/social-metadata'
@@ -118,7 +119,11 @@ describe('llms.txt', () => {
 })
 
 describe('sitemap', () => {
-  it('no longer claims every URL changed at the last deploy', () => {
-    for (const entry of sitemap()) expect(entry.lastModified).toBeUndefined()
+  it('no longer claims every marketing URL changed at the last deploy', () => {
+    const guideUrls = new Set(ARTICLES.map((a) => `https://snaprooms.app/${a.locale}/${a.slug}`))
+    for (const entry of sitemap()) {
+      if (guideUrls.has(entry.url)) continue
+      expect(entry.lastModified).toBeUndefined()
+    }
   })
 })

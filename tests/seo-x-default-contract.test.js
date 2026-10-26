@@ -16,6 +16,9 @@ function findLocalizedPageFiles(dir) {
   const found = []
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry)
+    // [slug] holds single-language guides (lib/content/articles.js): they
+    // have no translations, so no hreflang map to check.
+    if (entry === '[slug]') continue
     if (statSync(full).isDirectory()) {
       found.push(...findLocalizedPageFiles(full))
     } else if (entry === 'page.js') {
