@@ -4,13 +4,14 @@ import { resolve } from 'path'
 import sitemap from '@/app/sitemap'
 import { LOCALES } from '@/lib/i18n/config'
 import { JSONLD_PAGES } from './jsonld-pages.fixture'
+import { ARTICLES } from '@/lib/content/articles'
 
 const ROOT = resolve(import.meta.dirname, '..')
 
 describe('sitemap is unaffected by the JSON-LD addition', () => {
-  it('still produces exactly 66 entries (11 paths x 6 locales)', () => {
-    expect(sitemap().length).toBe(66)
-    expect(sitemap().length).toBe(JSONLD_PAGES.length * LOCALES.length)
+  it('still produces exactly 66 marketing entries (11 paths x 6 locales), plus the guides', () => {
+    expect(sitemap().length - ARTICLES.length).toBe(66)
+    expect(sitemap().length - ARTICLES.length).toBe(JSONLD_PAGES.length * LOCALES.length)
   })
 })
 
