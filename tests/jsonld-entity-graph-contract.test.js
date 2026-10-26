@@ -33,11 +33,14 @@ describe('Organization and WebSite @ids are stable and locale-invariant', () => 
     }
   })
 
-  it('never fabricates Organization.legalName, sameAs, reviews, or ratings', () => {
+  it('never fabricates Organization.legalName, reviews, or ratings; sameAs is only the confirmed profiles', () => {
     const graph = buildGraph('en', JSONLD_PAGES[0])
     const org = findNode(graph, 'Organization')
     expect(org.legalName).toBeUndefined()
-    expect(org.sameAs).toBeUndefined()
+    expect(org.sameAs).toEqual([
+      'https://www.linkedin.com/company/146159907',
+      'https://www.instagram.com/snaprooms.app/',
+    ])
     expect(org.aggregateRating).toBeUndefined()
     expect(org.review).toBeUndefined()
   })
