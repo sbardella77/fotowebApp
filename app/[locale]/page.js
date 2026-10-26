@@ -4,12 +4,13 @@ import { getDictionary } from '@/lib/i18n/utils'
 import { HomePageClient } from '@/components/home-page-client'
 import { JsonLd } from '@/lib/structured-data/json-ld'
 import { getMarketingPageGraph } from '@/lib/structured-data/page-graph'
+import { withSocialMetadata } from '@/lib/seo/social-metadata'
 
 export async function generateMetadata({ params }) {
   const { locale } = params
   if (!LOCALES.includes(locale)) notFound()
   const t = getDictionary(locale)
-  return {
+  return withSocialMetadata(locale, {
     title: t.meta.homeTitle,
     description: t.meta.homeDescription,
     alternates: {
@@ -24,7 +25,7 @@ export async function generateMetadata({ params }) {
         'x-default': '/en',
       },
     },
-  }
+  })
 }
 
 export default function HomePage({ params }) {
@@ -36,6 +37,7 @@ export default function HomePage({ params }) {
     path: '/',
     name: t.meta.homeTitle,
     description: t.meta.homeDescription,
+    includeApp: true,
   })
   return (
     <>

@@ -16,6 +16,9 @@ const PUBLIC_PATHS = [
   { path: '/commercial-license', priority: 0.6, changeFrequency: 'monthly' },
 ]
 
+// No lastModified: it used to be new Date(), i.e. "changed at every deploy"
+// for all 66 URLs, which teaches Google to ignore the field. Leaving it out
+// is better than a date that is not tied to a real content change.
 export default function sitemap() {
   const entries = []
 
@@ -23,7 +26,6 @@ export default function sitemap() {
     for (const { path, priority, changeFrequency } of PUBLIC_PATHS) {
       entries.push({
         url: `${baseUrl}${localizedPath(locale, path)}`,
-        lastModified: new Date(),
         changeFrequency,
         priority,
       })

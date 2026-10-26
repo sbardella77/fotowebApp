@@ -29,7 +29,8 @@ const PAGE_FILES = findLocalizedPageFiles(LOCALE_APP_DIR)
 
 function readAlternatesBlock(filePath) {
   const source = readFileSync(filePath, 'utf8')
-  const match = source.match(/alternates:\s*{([\s\S]*?)}\s*,?\s*}\s*\n?\s*}/)
+  // `})` closes the withSocialMetadata(locale, { … }) wrapper.
+  const match = source.match(/alternates:\s*{([\s\S]*?)}\s*,?\s*}\)?\s*\n?\s*}/)
   expect(match, `${filePath} must contain an alternates block`).toBeTruthy()
   return { source, block: match[1] }
 }
