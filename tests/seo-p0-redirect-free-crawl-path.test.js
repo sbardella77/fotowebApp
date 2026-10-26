@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import sitemap from '@/app/sitemap'
+import { ARTICLES } from '@/lib/content/articles'
 import { LOCALES, LOCALIZED_PUBLIC_PATHS, localizedPath } from '@/lib/i18n/config'
 
 const ROOT = resolve(import.meta.dirname, '..')
@@ -27,8 +28,8 @@ const MARKETING_PATHS = [
 describe('sitemap emits only final, locale-prefixed URLs (SEO P0)', () => {
   const entries = sitemap()
 
-  it('produces exactly LOCALES.length x MARKETING_PATHS.length entries', () => {
-    expect(entries.length).toBe(LOCALES.length * MARKETING_PATHS.length)
+  it('produces exactly LOCALES.length x MARKETING_PATHS.length entries, plus one per single-locale guide', () => {
+    expect(entries.length).toBe(LOCALES.length * MARKETING_PATHS.length + ARTICLES.length)
   })
 
   it('every entry URL is locale-prefixed and never a bare marketing path', () => {

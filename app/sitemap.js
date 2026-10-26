@@ -1,4 +1,5 @@
 import { LOCALES, localizedPath } from '@/lib/i18n/config'
+import { ARTICLES } from '@/lib/content/articles'
 
 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, '') || 'https://snaprooms.app'
 
@@ -30,6 +31,16 @@ export default function sitemap() {
         priority,
       })
     }
+  }
+
+  // Guides exist in a single locale and carry a real edit date.
+  for (const article of ARTICLES) {
+    entries.push({
+      url: `${baseUrl}${localizedPath(article.locale, `/${article.slug}`)}`,
+      lastModified: new Date(`${article.updated}T00:00:00Z`),
+      changeFrequency: 'monthly',
+      priority: 0.7,
+    })
   }
 
   return entries
