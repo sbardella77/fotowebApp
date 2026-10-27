@@ -124,3 +124,8 @@ credentials.json
 # Local admin credential artifact (scrypt hash/salt for the `local` admin
 # auth driver) — must never be committed; see lib/server/admin-credential-store.js
 data/admin-auth.json
+
+# Local upload-session scratch space (local storage driver only). Must never
+# be committed: anything here ends up in the Vercel bundle, whose filesystem
+# is read-only, and the daily cleanup cron then fails trying to delete it.
+data/uploads/tmp/
