@@ -286,6 +286,18 @@ describe('cleanupExpiredLocalSessions', () => {
     vi.clearAllMocks()
   })
 
+  it('skips the filesystem entirely on Vercel, where it is read-only', async () => {
+    vi.stubEnv('VERCEL', '1')
+    try {
+      const result = await cleanupExpiredLocalSessions()
+      expect(result).toEqual({ scanned: 0, removed: 0 })
+      expect(readdir).not.toHaveBeenCalled()
+      expect(rm).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('returns scanned=0, removed=0 when TEMP_ROOT does not exist', async () => {
     readdir.mockRejectedValueOnce(new Error('ENOENT'))
     const result = await cleanupExpiredLocalSessions()
