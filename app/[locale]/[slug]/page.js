@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { ARTICLES, getArticle } from '@/lib/content/articles'
+import { ARTICLES, getArticle, getArticleAlternates } from '@/lib/content/articles'
 import { ArticlePage } from '@/components/marketing/article-page'
 import { JsonLd } from '@/lib/structured-data/json-ld'
 import { getMarketingPageGraph } from '@/lib/structured-data/page-graph'
@@ -24,6 +24,7 @@ export async function generateMetadata({ params }) {
     description: article.description,
     alternates: {
       canonical: `/${article.locale}/${article.slug}`,
+      languages: getArticleAlternates(article),
     },
   })
 }
