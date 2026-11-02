@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server'
 import { middleware } from '@/middleware'
 import sitemap from '@/app/sitemap'
 import { LOCALES } from '@/lib/i18n/config'
-import { ARTICLES, ARTICLE_SECTION_LABEL, getArticle, getArticlesForLocale } from '@/lib/content/articles'
+import { ARTICLES, ARTICLE_SECTION_LABEL, getArticle, getArticleAlternates, getArticlesForLocale } from '@/lib/content/articles'
 import { getArticleNode } from '@/lib/structured-data/article'
 import { buildLlmsTxt } from '@/lib/seo/llms-txt'
 import { fillPriceTokensDeep } from '@/lib/currency'
@@ -50,6 +50,20 @@ describe('editorial articles', () => {
     const filled = JSON.stringify(fillPriceTokensDeep(ARTICLES, 'usd', 'es'))
     expect(filled).not.toContain('{{price.')
     expect(filled).toMatch(/29\s\$/)
+  })
+
+  it('links each topic across locales with hreflang, one article per locale', () => {
+    for (const a of ARTICLES) {
+      expect(a.topic, a.slug).toBeTruthy()
+      const alternates = getArticleAlternates(a)
+      expect(alternates[a.locale]).toBe(`/${a.locale}/${a.slug}`)
+      const sameTopic = ARTICLES.filter((x) => x.topic === a.topic)
+      expect(Object.keys(alternates)).toHaveLength(sameTopic.length)
+    }
+    expect(getArticleAlternates(getArticle('it', 'alternativa-wedshoots'))).toEqual({
+      es: '/es/alternativa-wedshoots',
+      it: '/it/alternativa-wedshoots',
+    })
   })
 
   it('resolves each article only in its own locale', () => {
