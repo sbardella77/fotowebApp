@@ -131,6 +131,13 @@ describe('guest-facing consumers now render/resolve through resolveGuestPhotoUrl
     expect(fn[0]).toMatch(/resolveGuestPhotoUrl\(/)
   })
 
+  it('the paginated guest photo feed never selects storedName (it rebuilds the original Blob path)', () => {
+    const src = read('lib/server/prisma-gallery-repository.js')
+    const fn = /async getEventPhotosPaginated[\s\S]*?\n  \},/.exec(src)
+    expect(fn).not.toBeNull()
+    expect(fn[0]).not.toMatch(/storedName/)
+  })
+
   it('the public event-listing latestPhotoUrl fields (listEvents, getEventBySlug public path) resolve through resolveGuestPhotoUrl, never a raw passthrough', () => {
     const src = read('lib/server/prisma-gallery-repository.js')
     const listEventsFn = /async listEvents\(\)[\s\S]*?\n  \},/.exec(src)
