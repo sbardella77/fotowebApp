@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { getEffectiveEventAccessState } from '@/lib/server/event-access'
+import { getDownloadWatermark } from '@/lib/server/photographer-watermark-delivery'
 import { getDownloadFileName } from '@/lib/server/download-utils'
 import { toGuestVideoFields } from '@/lib/server/guest-video-fields'
 import {
@@ -65,17 +66,19 @@ export async function GET(request) {
     if (!event) return NextResponse.json({ error: 'Photo not found' }, { status: 404 })
 
     const access = await getEffectiveEventAccessState(prisma, event)
+    const watermark = await getDownloadWatermark(prisma, event, request)
     const representation = await resolveDownloadRepresentation({
       photo,
       requestedQuality: type,
       access,
+      watermark,
     })
     const fileName = getDownloadFileName(
       photo,
       representation.extension ? { extension: representation.extension } : {},
     )
 
-    console.log(`${logPrefix} event=${event.slug} photo=${photo.id} type=${type} representation=${representation.representation} durationMs=${Date.now() - start}`)
+    console.log(`${logPrefix} event=${event.slug} photo=${photo.id} type=${type} representation=${representation.representation} wm=${watermark?.revision || 'none'} durationMs=${Date.now() - start}`)
 
     return new NextResponse(representation.buffer, {
       status: 200,

@@ -355,6 +355,8 @@ describe('8 — GET /api/download/gallery still streams a Standard ZIP', () => {
     getPrismaClient.mockResolvedValue({
       event: { findUnique: vi.fn().mockResolvedValue(EVENT) },
       photo: { findMany: vi.fn().mockResolvedValue(photos) },
+      // No OwnerWatermark → no photographer watermark for this event.
+      owner: { findUnique: vi.fn().mockResolvedValue(null) },
     })
     const access = { canDownloadGallery: true, hasUnbrandedDownloads: true, canDownloadOriginal: true }
     const { getEffectiveEventAccessState } = await import('@/lib/server/event-access')

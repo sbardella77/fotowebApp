@@ -65,6 +65,13 @@ import {
   ADMIN_LIMITS,
 } from '@/lib/server/rate-limiter'
 import { requireCsrfProtection, verifySameOriginRequest } from '@/lib/server/csrf'
+import {
+  deleteWatermarkSettings,
+  getWatermarkSettings,
+  previewWatermark,
+  saveWatermarkSettings,
+  uploadWatermarkLogo,
+} from '@/lib/server/watermark-settings'
 import { withTiming } from '@/lib/server/timing'
 import { UploadTokenMismatchError } from '@/lib/server/storage/local-storage'
 import { trackServerEvent } from '@/lib/analytics/track-server'
@@ -2358,6 +2365,74 @@ const getOwnerNotificationPreferences = async (request) => {
   return jsonPrivate({ emailNotificationsEnabled: owner.emailNotificationsEnabled })
 }
 
+// ── Photographer watermark settings ────────────────────────────────────────
+// Logic lives in lib/server/watermark-settings.js; these wrappers only do
+// owner auth, CSRF, rate limiting and the Blob I/O.
+
+const headWatermarkLogo = async (pathname) => {
+  const { head, BlobNotFoundError } = await import('@vercel/blob')
+  try {
+    return (await head(pathname)).url
+  } catch (error) {
+    if (error instanceof BlobNotFoundError) return null
+    throw error
+  }
+}
+
+const putWatermarkLogo = async (pathname, buffer) => {
+  const { put } = await import('@vercel/blob')
+  // Content-addressed path: re-uploading the same logo is idempotent.
+  return put(pathname, buffer, { access: 'public', contentType: 'image/png', addRandomSuffix: false, allowOverwrite: true })
+}
+
+const withWatermarkOwner = async (request, { csrf, limit }, handler) => {
+  const ownerEmail = csrf ? await requireOwnerWithCsrf(request) : await requireOwner(request)
+  if (typeof ownerEmail !== 'string') return ownerEmail
+  if (limit) {
+    const rateLimitCheck = await checkOwnerRateLimit(request, ownerEmail, limit)
+    if (rateLimitCheck) return rateLimitCheck
+  }
+  const owner = await resolveCanonicalOwner(ownerEmail)
+  if (!owner) return jsonPrivate({ error: 'Owner not found' }, 404)
+  const prisma = await getPrismaClient()
+  if (!prisma) return jsonPrivate({ error: 'Service temporarily unavailable, please retry' }, 503)
+  let body = null
+  if (request.method !== 'GET' && request.method !== 'DELETE') {
+    try {
+      body = await request.json()
+    } catch {
+      return jsonPrivate({ error: 'Invalid JSON body' }, 400)
+    }
+  }
+  return handler({ prisma, ownerId: owner.id, body })
+}
+
+const getOwnerWatermark = (request) => withWatermarkOwner(request, { csrf: false }, async (ctx) => {
+  const result = await getWatermarkSettings(ctx)
+  return jsonPrivate(result.body, result.status)
+})
+
+const saveOwnerWatermark = (request) => withWatermarkOwner(request, { csrf: true, limit: OWNER_WRITE_LIMITS.watermarkWrite }, async (ctx) => {
+  const result = await saveWatermarkSettings({ ...ctx, headLogo: headWatermarkLogo })
+  return jsonPrivate(result.body, result.status)
+})
+
+const deleteOwnerWatermark = (request) => withWatermarkOwner(request, { csrf: true, limit: OWNER_WRITE_LIMITS.watermarkWrite }, async (ctx) => {
+  const result = await deleteWatermarkSettings(ctx)
+  return jsonPrivate(result.body, result.status)
+})
+
+const uploadOwnerWatermarkLogo = (request) => withWatermarkOwner(request, { csrf: true, limit: OWNER_WRITE_LIMITS.watermarkLogoUpload }, async (ctx) => {
+  const result = await uploadWatermarkLogo({ ...ctx, putLogo: putWatermarkLogo })
+  return jsonPrivate(result.body, result.status)
+})
+
+const previewOwnerWatermark = (request) => withWatermarkOwner(request, { csrf: true, limit: OWNER_WRITE_LIMITS.watermarkPreview }, async (ctx) => {
+  const result = await previewWatermark({ ...ctx, headLogo: headWatermarkLogo })
+  if (!result.image) return jsonPrivate(result.body, result.status)
+  return new NextResponse(result.image, { status: 200, headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-store' } })
+})
+
 const updateOwnerNotificationPreferences = async (request) => {
   const ownerEmail = await requireOwnerWithCsrf(request)
   if (typeof ownerEmail !== 'string') {
@@ -2608,6 +2683,17 @@ async function handleRoute(request, { params }) {
 
       if (segments.length === 2 && segments[1] === 'setup' && method === 'POST') {
         return setupOwnerPassword(request)
+      }
+
+      if (segments.length === 3 && segments[1] === 'account' && segments[2] === 'watermark') {
+        if (method === 'GET') return getOwnerWatermark(request)
+        if (method === 'PATCH') return saveOwnerWatermark(request)
+        if (method === 'DELETE') return deleteOwnerWatermark(request)
+      }
+
+      if (segments.length === 4 && segments[1] === 'account' && segments[2] === 'watermark' && method === 'POST') {
+        if (segments[3] === 'logo') return uploadOwnerWatermarkLogo(request)
+        if (segments[3] === 'preview') return previewOwnerWatermark(request)
       }
 
       if (segments.length === 3 && segments[1] === 'account' && segments[2] === 'notifications' && method === 'GET') {

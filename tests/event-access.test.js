@@ -197,3 +197,18 @@ describe('isEffectivePremiumActive scheduled cancellation', () => {
     ).toBe(false)
   })
 })
+
+describe('canUseCustomWatermark (photographer watermark)', () => {
+  it.each([
+    ['free owner, free event', { ownerPlan: null, billingTier: null }, false],
+    ['free owner, Pro Event', { ownerPlan: 'free', billingTier: 'pro_event' }, false],
+    ['free owner, Wedding Pro', { ownerPlan: 'free', billingTier: 'wedding_pro' }, false],
+    ['free owner, original unlocked', { ownerPlan: 'free', billingTier: null, originalDownloadUnlocked: true }, false],
+    ['professional', { ownerPlan: 'professional', subscriptionStatus: 'active' }, true],
+    ['business', { ownerPlan: 'business', subscriptionStatus: 'active' }, true],
+    ['legacy pro', { ownerPlan: 'pro' }, true],
+    ['professional canceled', { ownerPlan: 'professional', subscriptionStatus: 'canceled' }, false],
+  ])('%s → %s', (_label, params, expected) => {
+    expect(resolveEffectiveEventAccessState({ originalDownloadUnlocked: false, ...params }).canUseCustomWatermark).toBe(expected)
+  })
+})

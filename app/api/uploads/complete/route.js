@@ -22,6 +22,9 @@ import { getPhotoBuffer } from '@/lib/server/download-utils'
 import { validateRoomPhotoSource, PhotoSourceValidationError } from '@/lib/server/photo-source-validation'
 import { checkRoomUploadEntitlement } from '@/lib/server/entitlements'
 import { ensurePhotoDisplayDerivativeStatus } from '@/lib/server/photo-display-derivative-status'
+import { getActiveWatermarkForOwnerId } from '@/lib/server/photographer-watermark-delivery'
+import { ensurePhotoWatermarkDisplay } from '@/lib/server/photographer-watermark-derivative'
+import { resolveGuestPhotoUrl } from '@/lib/server/guest-photo-url'
 import { incrementPendingPhotoDigest } from '@/lib/server/photo-digest'
 import { notifyPhotoThresholdReachedOnce } from '@/lib/server/photo-threshold-notification'
 import { getAppUrl } from '@/lib/server/event-routes'
@@ -38,6 +41,43 @@ export const runtime = 'nodejs'
 async function ensurePhotoDisplayDerivative(photo, { operation, sourceBuffer }) {
   const prisma = await getPrismaClient()
   return ensurePhotoDisplayDerivativeStatus({ prisma, photo, operation, sourceBuffer })
+}
+
+/**
+ * Display derivatives for a just-uploaded photo, then the guest-safe photo
+ * DTO for the uploader's response.
+ *
+ * display-v1 first (unchanged), then — when the event owner has an active
+ * photographer watermark — the watermarked display derivative from the same
+ * in-memory buffer, and the response url is re-resolved with the watermark so
+ * the uploader never receives the clean rendition either. If the watermark
+ * lookup itself fails, the url is withheld (null) rather than risk serving
+ * the clean rendition; the gallery feed resolves it on the next fetch.
+ */
+async function ensureUploadDerivatives(photo, { operation, sourceBuffer }) {
+  const display = await ensurePhotoDisplayDerivative(photo, { operation, sourceBuffer })
+  if (photo?.mediaType === 'VIDEO') return photo
+
+  const prisma = await getPrismaClient()
+  let watermark = null
+  try {
+    const event = prisma ? await prisma.event.findUnique({ where: { id: photo.eventId }, select: { ownerId: true } }) : null
+    watermark = await getActiveWatermarkForOwnerId(prisma, event?.ownerId)
+  } catch (error) {
+    console.warn(`[${operation}] Watermark lookup failed for photo:`, photo.id, error?.name || 'Error')
+    return { ...photo, url: null }
+  }
+  if (!watermark) return photo
+
+  let watermarkDisplayRevision = null
+  if (display.status === 'READY') {
+    const result = await ensurePhotoWatermarkDisplay({ prisma, photo, spec: watermark, operation, sourceBuffer })
+    if (result.ok) watermarkDisplayRevision = watermark.revision
+  }
+  return {
+    ...photo,
+    url: resolveGuestPhotoUrl({ id: photo.id, displayDerivativeStatus: display.status, watermarkDisplayRevision }, { watermark }),
+  }
 }
 
 // Moved verbatim out of the legacy app/api/[[...path]]/route.js catch-all
@@ -156,7 +196,7 @@ export const POST = withTiming('completeUpload', async (request) => {
     // and validated during completion — present only on a fresh (non-
     // idempotent) success, undefined on the idempotent path, in which case
     // this falls back to its own fetch exactly as before.
-    await ensurePhotoDisplayDerivative(result.photo, { operation: 'completeUpload', sourceBuffer: result.sourceBuffer })
+    const responsePhoto = await ensureUploadDerivatives(result.photo, { operation: 'completeUpload', sourceBuffer: result.sourceBuffer })
 
     // Best-effort, same pattern as ensurePhotoDisplayDerivative above — never
     // blocks the response. Only on a fresh photo, not the idempotent-retry
@@ -174,7 +214,7 @@ export const POST = withTiming('completeUpload', async (request) => {
         // (uploadActorType) before this reaches the client — parity with
         // the local-upload path, where repository.createPhoto() already
         // normalizes its return value the same way.
-        photo: normalizePhotoRecord(result.photo),
+        photo: normalizePhotoRecord(responsePhoto),
         event: freshEvent,
         idempotent: result.idempotent,
       },
@@ -284,7 +324,7 @@ export const POST = withTiming('completeUpload', async (request) => {
   // `createPhoto` has already resolved successfully above, so `photo.id`/
   // `photo.url` are for a durably-committed row. Reuses the same buffer
   // already fetched and validated above — no second read.
-  await ensurePhotoDisplayDerivative(photo, { operation: 'completeUpload', sourceBuffer: localSourceBuffer })
+  const responsePhoto = await ensureUploadDerivatives(photo, { operation: 'completeUpload', sourceBuffer: localSourceBuffer })
 
   if (prisma) {
     await incrementPendingPhotoDigest(prisma, event.id)
@@ -293,7 +333,7 @@ export const POST = withTiming('completeUpload', async (request) => {
   const freshEvent = await repository.getEventBySlug(event.slug)
 
   return json({
-    photo,
+    photo: responsePhoto,
     event: freshEvent,
   }, 201)
 })
