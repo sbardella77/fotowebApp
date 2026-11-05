@@ -8,6 +8,7 @@ import { Switch } from '@/components/ui/switch'
 import { useTranslations } from '@/components/i18n-provider'
 import { csrfFetch } from '@/lib/client/csrf-fetch'
 import { safeFetchJson } from '@/lib/dashboard-data-helpers'
+import WatermarkSettingsCard from '@/app/dashboard/components/watermark-settings-card'
 import {
   classifyOwnerApiFailure,
   createOwnerSessionExpiryGate,
@@ -145,6 +146,10 @@ export default function AccountSettingsPage() {
         {error && (
           <p className="mt-3 text-xs text-destructive">{error}</p>
         )}
+
+        <div className="mt-6">
+          <WatermarkSettingsCard onSessionFailure={consumeOwnerSessionFailure} />
+        </div>
       </main>
     </div>
   )
