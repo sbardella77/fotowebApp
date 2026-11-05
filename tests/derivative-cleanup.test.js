@@ -304,14 +304,14 @@ describe('deletePhotoDerivativesBatch — bounded, sequential batching', () => {
 // ─── §21 / §22 / §24 reconciliation sweep ───────────────────────────────────
 
 describe('cleanupPhotoDerivatives — scanned prefixes', () => {
-  it('scans ONLY the two current version prefixes (§21, §32)', async () => {
+  it('scans ONLY the current version prefixes plus the photographer-watermark ones (§21, §32)', async () => {
     getPrismaClient.mockResolvedValue(fakePrisma(new Map()))
     queueListPages([{ blobs: [], hasMore: false }, { blobs: [], hasMore: false }])
 
     await cleanupPhotoDerivatives({ logger: silentLogger })
 
-    expect(list).toHaveBeenCalledTimes(2)
-    expect(list.mock.calls.map(([o]) => o.prefix)).toEqual(['derivatives/wm-v2/', 'derivatives/display-v1/'])
+    expect(list).toHaveBeenCalledTimes(4)
+    expect(list.mock.calls.map(([o]) => o.prefix)).toEqual(['derivatives/wm-v2/', 'derivatives/display-v1/', 'derivatives/pwm-v1/', 'watermarks/'])
     for (const [options] of list.mock.calls) {
       expect(options.prefix).not.toBe('derivatives/')
       expect(options.limit).toBe(DERIVATIVE_LIST_PAGE_SIZE)
@@ -460,9 +460,10 @@ describe('cleanupPhotoDerivatives — pagination and batching (§42, §25, §26)
 
     const stats = await cleanupPhotoDerivatives({ logger: silentLogger })
 
-    expect(list).toHaveBeenCalledTimes(4)
-    expect(list.mock.calls.map(([o]) => o.cursor)).toEqual([undefined, 'c1', 'c2', undefined])
-    expect(stats.pages).toBe(4)
+    // + one empty page each for the pwm and watermark-logo passes
+    expect(list).toHaveBeenCalledTimes(6)
+    expect(list.mock.calls.map(([o]) => o.cursor)).toEqual([undefined, 'c1', 'c2', undefined, undefined, undefined])
+    expect(stats.pages).toBe(6)
     expect(stats.scanned).toBe(4)
     expect(deletedPaths()).toHaveLength(4)
   })
@@ -476,7 +477,8 @@ describe('cleanupPhotoDerivatives — pagination and batching (§42, §25, §26)
 
     await cleanupPhotoDerivatives({ logger: silentLogger })
 
-    expect(list).toHaveBeenCalledTimes(2)
+    // two kinds + the pwm and watermark-logo passes, one page each
+    expect(list).toHaveBeenCalledTimes(4)
   })
 
   it('§25 issues exactly one DB lookup per page, not one per object', async () => {
@@ -616,7 +618,7 @@ describe('cleanupPhotoDerivatives — reports aggregates only (§28)', () => {
     const stats = await cleanupPhotoDerivatives({ logger: silentLogger })
 
     expect(stats).toEqual({
-      pages: 2,
+      pages: 4,
       scanned: 3,
       valid: 2,
       malformedIgnored: 1,
@@ -624,6 +626,8 @@ describe('cleanupPhotoDerivatives — reports aggregates only (§28)', () => {
       hiddenDeleted: 1,
       absentDeleted: 0,
       deleteFailures: 0,
+      pwmStaleRevisionDeleted: 0,
+      watermarkLogosDeleted: 0,
     })
 
     const serialized = JSON.stringify(stats)
