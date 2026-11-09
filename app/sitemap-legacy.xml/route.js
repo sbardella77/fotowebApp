@@ -1,6 +1,4 @@
-import { LOCALIZED_PUBLIC_PATHS } from '@/lib/i18n/config'
-
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, '') || 'https://snaprooms.app'
+import { legacyUrls } from '@/lib/seo/legacy-urls'
 
 // Temporary migration sitemap: the legacy unprefixed marketing URLs
 // (/pricing, /wedding-photo-sharing, …) that 308 to /en/… since Oct 2026.
@@ -11,10 +9,6 @@ const baseUrl = process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, '') || 'https:/
 //
 // Remove this route (and its robots.txt entry) once Search Console reports
 // every URL below as "Page with redirect".
-export function legacyUrls() {
-  return LOCALIZED_PUBLIC_PATHS.filter((path) => path !== '/').map((path) => `${baseUrl}${path}`)
-}
-
 export function GET() {
   const body = [
     '<?xml version="1.0" encoding="UTF-8"?>',
