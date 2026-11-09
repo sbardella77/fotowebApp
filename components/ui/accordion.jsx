@@ -30,10 +30,16 @@ const AccordionTrigger = React.forwardRef(({ className, children, ...props }, re
 ))
 AccordionTrigger.displayName = AccordionPrimitive.Trigger.displayName
 
+// forceMount keeps closed answers in the server-rendered HTML. Without it
+// Radix only mounts the content once a visitor opens the item, so Google saw
+// FAQ answers in the FAQPage JSON-LD but not on the page, and AI crawlers
+// (GPTBot, ClaudeBot, PerplexityBot run no JS and click nothing) never saw
+// them. A closed item is display:none, so the close animation is skipped.
 const AccordionContent = React.forwardRef(({ className, children, ...props }, ref) => (
   <AccordionPrimitive.Content
     ref={ref}
-    className="overflow-hidden text-sm data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down"
+    forceMount
+    className="overflow-hidden text-sm data-[state=closed]:hidden data-[state=open]:animate-accordion-down"
     {...props}>
     <div className={cn("pb-4 pt-0", className)}>{children}</div>
   </AccordionPrimitive.Content>
