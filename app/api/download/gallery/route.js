@@ -3,6 +3,7 @@ import { Readable } from 'node:stream'
 import { ZipArchive } from 'archiver'
 import { getPrismaClient } from '@/lib/server/prisma-client'
 import { getEffectiveEventAccessState } from '@/lib/server/event-access'
+import { getDownloadWatermark } from '@/lib/server/photographer-watermark-delivery'
 import { getDownloadFileName } from '@/lib/server/download-utils'
 import { resolveDownloadRepresentation } from '@/lib/server/download-representation'
 import { checkRateLimit, getClientIp, hashIdentifier, RATE_LIMITS } from '@/lib/server/rate-limiter'
@@ -76,6 +77,10 @@ export async function GET(request) {
       )
     }
 
+    // Guests get the owner's photographer watermark; the owner's own
+    // session downloads clean. A lookup failure fails the request.
+    const watermark = await getDownloadWatermark(prisma, event, request)
+
     // Fetch all visible photos for this event
     const photos = await prisma.photo.findMany({
       where: {
@@ -106,7 +111,7 @@ export async function GET(request) {
     const videoSelection = selectZipVideos(videoRows)
     const videoNote = buildZipVideoNote(videoSelection)
 
-    console.log(`${logPrefix} event=${event.slug} branded=${!access.hasUnbrandedDownloads} billingTier=${event.billingTier} totalEligible=${totalEligible} effective=${effectivePhotos.length} skipped=${skippedCount} videos=${videoSelection.included.length} videosSkipped=${videoSelection.skipped.length} videosNotReady=${videoSelection.notReady.length}`)
+    console.log(`${logPrefix} event=${event.slug} branded=${!access.hasUnbrandedDownloads} wm=${watermark?.revision || 'none'} billingTier=${event.billingTier} totalEligible=${totalEligible} effective=${effectivePhotos.length} skipped=${skippedCount} videos=${videoSelection.included.length} videosSkipped=${videoSelection.skipped.length} videosNotReady=${videoSelection.notReady.length}`)
 
     if (photos.length === 0 && videoSelection.included.length === 0) {
       return NextResponse.json({ error: 'No photos available for download' }, { status: 404 })
@@ -139,6 +144,7 @@ export async function GET(request) {
               photo,
               requestedQuality: 'standard',
               access,
+              watermark,
             })
             const fileName = getDownloadFileName(photo, { extension: representation.extension || undefined })
             archive.append(representation.buffer, { name: fileName })

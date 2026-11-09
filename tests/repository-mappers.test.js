@@ -87,7 +87,6 @@ describe('normalizePhotoRecord', () => {
       id: raw.id,
       eventId: raw.eventId,
       originalName: raw.originalName,
-      storedName: raw.storedName,
       mimeType: raw.mimeType,
       size: raw.size,
       uploaderName: raw.uploaderName,
@@ -96,6 +95,23 @@ describe('normalizePhotoRecord', () => {
       momentId: raw.momentId,
       contributorId: raw.contributorId,
     })
+  })
+
+  it('never includes storedName in a guest DTO, for images and videos alike', () => {
+    expect(normalizePhotoRecord(makeRawPhoto())).not.toHaveProperty('storedName')
+    expect(normalizePhotoRecord(makeRawPhoto({ mediaType: 'VIDEO', videoStatus: 'READY', muxPlaybackId: 'pb-1' }))).not.toHaveProperty('storedName')
+  })
+
+  it('keeps storedName on the owner-authenticated path (guestSafe: false)', () => {
+    const raw = makeRawPhoto()
+    expect(normalizePhotoRecord(raw, { guestSafe: false }).storedName).toBe(raw.storedName)
+  })
+
+  it('normalizeEventRecord strips storedName from every guest photo', () => {
+    const dto = normalizeEventRecord({ event: { id: 'event-1', createdAt: new Date(), updatedAt: new Date() }, photos: [makeRawPhoto(), makeRawPhoto({ id: 'photo-2' })] })
+    for (const photo of dto.photos) {
+      expect(photo).not.toHaveProperty('storedName')
+    }
   })
 
   it('serializes createdAt/updatedAt to ISO strings', () => {

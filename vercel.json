@@ -35,6 +35,10 @@
     {
       "path": "/api/cron/reconcile-videos",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/regenerate-watermark-derivatives",
+      "schedule": "*/10 * * * *"
     }
   ]
 }

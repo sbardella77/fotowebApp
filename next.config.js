@@ -3,6 +3,12 @@ const nextConfig = {
   experimental: {
     // Remove if not using Server Components
     serverComponentsExternalPackages: ['mongodb', 'sharp', 'archiver'],
+    // Watermark assets are read from disk at runtime (lib/server/watermark.js,
+    // lib/server/photographer-watermark-render.js). public/ is served by the
+    // CDN and is not part of a function bundle unless traced explicitly.
+    outputFileTracingIncludes: {
+      '/api/**/*': ['./public/watermark/**/*'],
+    },
   },
   webpack(config, { dev }) {
     if (dev) {
