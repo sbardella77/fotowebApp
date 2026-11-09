@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import robots from '@/app/robots'
 import sitemap from '@/app/sitemap'
-import { GET, legacyUrls } from '@/app/sitemap-legacy.xml/route'
+import { GET } from '@/app/sitemap-legacy.xml/route'
+import { legacyUrls } from '@/lib/seo/legacy-urls'
 import { metadata as uploadMetadata } from '@/app/photographer-upload/layout'
 import { LOCALIZED_PUBLIC_PATHS } from '@/lib/i18n/config'
 
