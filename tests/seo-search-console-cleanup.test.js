@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest'
+import { NextRequest } from 'next/server'
+import { middleware } from '@/middleware'
 import robots from '@/app/robots'
 import sitemap from '@/app/sitemap'
 import { GET } from '@/app/sitemap-legacy.xml/route'
@@ -29,16 +31,64 @@ describe('legacy migration sitemap', () => {
   })
 })
 
+function request(path) {
+  return new NextRequest(new URL(path, 'https://snaprooms.app'))
+}
+
+describe('legacy URLs converge on their /en/… page in a single hop', () => {
+  it('/wedding-photo-sharing 308s straight to a final /en/wedding-photo-sharing', () => {
+    const first = middleware(request('/wedding-photo-sharing'))
+    expect(first.status).toBe(308)
+    const target = new URL(first.headers.get('location'))
+    expect(target.href).toBe('https://snaprooms.app/en/wedding-photo-sharing')
+
+    const second = middleware(request(target.pathname))
+    expect(second.status).not.toBe(307)
+    expect(second.status).not.toBe(308)
+    expect(second.headers.get('location')).toBeNull()
+  })
+
+  it('every URL in the legacy sitemap is one the middleware 308s to its /en/… page', () => {
+    for (const url of legacyUrls()) {
+      const { pathname } = new URL(url)
+      const response = middleware(request(pathname))
+      expect(response.status).toBe(308)
+      expect(new URL(response.headers.get('location')).pathname).toBe(`/en${pathname}`)
+    }
+  })
+
+  it('the main sitemap lists the final URL and not the redirecting one', () => {
+    const urls = sitemap().map((e) => e.url)
+    expect(urls).toContain('https://snaprooms.app/en/wedding-photo-sharing')
+    expect(urls).not.toContain('https://snaprooms.app/wedding-photo-sharing')
+  })
+})
+
 describe('robots.txt', () => {
-  it('announces both sitemaps and keeps private upload links out of the crawl', () => {
+  it('announces both sitemaps', () => {
     const r = robots()
     expect(r.sitemap).toEqual(['https://snaprooms.app/sitemap.xml', 'https://snaprooms.app/sitemap-legacy.xml'])
-    expect(r.rules.disallow).toContain('/photographer-upload')
+  })
+
+  it('lets Google crawl upload links, otherwise it could never read their noindex', () => {
+    const { disallow } = robots().rules
+    expect(disallow.some((rule) => '/photographer-upload/tok_test_dummy'.startsWith(rule))).toBe(false)
+  })
+
+  it('keeps the existing private disallow rules', () => {
+    expect(robots().rules.disallow).toEqual(['/dashboard', '/admin', '/event', '/api'])
   })
 })
 
 describe('photographer upload pages', () => {
   it('are noindex', () => {
     expect(uploadMetadata.robots).toEqual({ index: false, follow: false })
+  })
+
+  it('are still served as-is: no locale redirect for a token link', () => {
+    const response = middleware(request('/photographer-upload/tok_test_dummy'))
+    expect(response.status).not.toBe(307)
+    expect(response.status).not.toBe(308)
+    expect(response.headers.get('location')).toBeNull()
   })
 })

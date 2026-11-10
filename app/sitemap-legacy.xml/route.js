@@ -7,8 +7,13 @@ import { legacyUrls } from '@/lib/seo/legacy-urls'
 // user"). Listing them here makes Google recrawl them, see the 308 and move
 // the signals to /en/…. The main sitemap stays redirect-free on purpose.
 //
-// Remove this route (and its robots.txt entry) once Search Console reports
-// every URL below as "Page with redirect".
+// A redirect alone is not enough: Google only sees a 308 when it recrawls the
+// old URL, and nothing links to these URLs any more, so a URL Google still
+// treats as canonical may wait weeks for that recrawl.
+//
+// Remove this route (and its robots.txt entry) once URL Inspection reports
+// every URL below as "Page with redirect" (or not indexed) and
+// /en/wedding-photo-sharing as its own Google-selected canonical.
 export function GET() {
   const body = [
     '<?xml version="1.0" encoding="UTF-8"?>',
