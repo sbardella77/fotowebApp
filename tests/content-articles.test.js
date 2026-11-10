@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { NextRequest } from 'next/server'
 import { middleware } from '@/middleware'
 import sitemap from '@/app/sitemap'
-import { LOCALES } from '@/lib/i18n/config'
-import { ARTICLES, ARTICLE_SECTION_LABEL, getArticle, getArticleAlternates, getArticlesForLocale } from '@/lib/content/articles'
+import { LOCALES, LOCALIZED_PUBLIC_PATHS } from '@/lib/i18n/config'
+import { ARTICLES, ARTICLE_PAGE_LABELS, ARTICLE_SECTION_LABEL, getArticle, getArticleAlternates, getArticlesForLocale } from '@/lib/content/articles'
 import { getArticleNode } from '@/lib/structured-data/article'
 import { buildLlmsTxt } from '@/lib/seo/llms-txt'
 import { fillPriceTokensDeep } from '@/lib/currency'
@@ -98,5 +98,28 @@ describe('editorial articles', () => {
     const a = ARTICLES[0]
     const response = middleware(new NextRequest(new URL(`/${a.locale}/${a.slug}`, 'https://snaprooms.app')))
     expect([307, 308]).not.toContain(response.status)
+  })
+
+  it('has every page label in each locale that has articles', () => {
+    const keys = Object.keys(ARTICLE_PAGE_LABELS.es)
+    for (const locale of new Set(ARTICLES.map((a) => a.locale))) {
+      for (const key of keys) expect(ARTICLE_PAGE_LABELS[locale]?.[key], `${locale}.${key}`).toBeTruthy()
+    }
+  })
+
+  it('links sections only to pages that exist in the article locale', () => {
+    for (const a of ARTICLES) {
+      for (const section of a.sections) {
+        if (!section.link) continue
+        const { path } = section.link
+        const isArticle = Boolean(getArticle(a.locale, path.slice(1)))
+        expect(LOCALIZED_PUBLIC_PATHS.includes(path) || isArticle, `${a.slug} → ${path}`).toBe(true)
+      }
+    }
+  })
+
+  it('never promises original-resolution uploads (guest photos are resized to 2400 px)', () => {
+    const text = JSON.stringify(ARTICLES)
+    expect(text).not.toMatch(/resolución original|risoluzione originale|archivos originales|con gli originali/)
   })
 })
