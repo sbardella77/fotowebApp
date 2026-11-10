@@ -4,16 +4,34 @@ import { useEffect, useState } from 'react'
 import { AlertCircle, CheckCircle2, Eye, ImagePlus, Loader2, Lock, TrendingUp } from 'lucide-react'
 import { safeFetchJson } from '@/lib/dashboard-data-helpers'
 
-function KpiCard({ icon: Icon, label, value, sub }) {
+// The analytics tab lives in the narrow event side panel, so layouts here are
+// sized for the panel, not the viewport: a four-column grid at a desktop
+// breakpoint would squeeze each card to ~90px and clip labels and values.
+function KpiCard({ icon: Icon, label, value, children }) {
   return (
-    <div className="rounded-xl border border-border bg-surface p-5 shadow-subtle">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <Icon className="h-4 w-4" />
-        <span className="text-xs font-medium uppercase tracking-wider">{label}</span>
+    <div className="min-w-0 rounded-xl border border-border bg-surface p-4 shadow-subtle">
+      <div className="flex items-start gap-2 text-muted-foreground">
+        <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+        <span className="text-xs font-medium leading-snug">{label}</span>
       </div>
-      <p className="mt-2 font-display text-2xl font-bold text-foreground">{value}</p>
-      {sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
+      {children || <p className="mt-2 truncate font-display text-2xl font-bold tabular-nums text-foreground">{value}</p>}
     </div>
+  )
+}
+
+function FunnelStep({ label, value, max, rate }) {
+  const width = max > 0 ? Math.max((value / max) * 100, value > 0 ? 2 : 0) : 0
+  return (
+    <li>
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="min-w-0 text-sm text-foreground">{label}</span>
+        <span className="shrink-0 font-display text-base font-bold tabular-nums text-foreground">{value.toLocaleString()}</span>
+      </div>
+      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-secondary">
+        <div className="h-full rounded-full bg-primary" style={{ width: `${width}%` }} />
+      </div>
+      {rate && <p className="mt-1 text-xs text-muted-foreground">{rate}</p>}
+    </li>
   )
 }
 
@@ -49,7 +67,7 @@ export function EventWorkspaceAnalytics({ event, onOwnerSessionFailure, t }) {
         if (onOwnerSessionFailure && (await onOwnerSessionFailure(response.status))) return
         const { ok, payload } = await safeFetchJson(response, { fallback: {} })
         if (cancelled) return
-        if (!ok) throw new Error(payload.error || t.analyticsError || 'Unable to load analytics')
+        if (!ok) throw new Error(payload.error || t.eventAnalyticsError || 'Unable to load analytics')
         setData(payload)
       } catch (err) {
         if (!cancelled) setError(err.message)
@@ -61,7 +79,7 @@ export function EventWorkspaceAnalytics({ event, onOwnerSessionFailure, t }) {
     return () => {
       cancelled = true
     }
-  }, [event?.slug, onOwnerSessionFailure, t.analyticsError])
+  }, [event?.slug, onOwnerSessionFailure, t.eventAnalyticsError])
 
   if (loading) {
     return (
@@ -73,13 +91,15 @@ export function EventWorkspaceAnalytics({ event, onOwnerSessionFailure, t }) {
   }
 
   if (error) {
-    return <EmptyState title={t.analyticsError || 'Unable to load analytics'} description={error} />
+    return <EmptyState title={t.eventAnalyticsError || 'Unable to load analytics'} description={error} />
   }
 
   if (!data) return null
 
   const { views, uploads, viewToUploadRate, originalQualityUnlocked, upsellFunnel } = data
-  const viewToUploadPct = viewToUploadRate != null ? `${(viewToUploadRate * 100).toFixed(1)}%` : '—'
+  // uploads / views: guests often upload many photos in one visit, so this is
+  // a per-view count, not a percentage (184 photos over 1 view read "18400%").
+  const photosPerView = viewToUploadRate != null ? viewToUploadRate.toLocaleString(undefined, { maximumFractionDigits: 1 }) : '—'
 
   const funnelSteps = [
     { label: t.analyticsImpressions, value: upsellFunnel?.impressions || 0 },
@@ -87,6 +107,13 @@ export function EventWorkspaceAnalytics({ event, onOwnerSessionFailure, t }) {
     { label: t.analyticsCheckoutStarts, value: upsellFunnel?.checkoutStarts || 0 },
     { label: t.analyticsConversions, value: upsellFunnel?.conversions || 0 },
   ]
+  const funnelMax = funnelSteps[0].value
+  const stepRate = (i) => {
+    const prev = funnelSteps[i - 1]?.value
+    if (!prev) return null
+    const pct = `${((funnelSteps[i].value / prev) * 100).toFixed(1)}%`
+    return (t.eventAnalyticsStepRate || '{rate} of previous step').replace('{rate}', pct)
+  }
 
   return (
     <div className="space-y-8">
@@ -97,38 +124,35 @@ export function EventWorkspaceAnalytics({ event, onOwnerSessionFailure, t }) {
         />
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3">
             <KpiCard icon={Eye} label={t.eventAnalyticsViews || 'Gallery views'} value={views.toLocaleString()} />
             <KpiCard icon={ImagePlus} label={t.eventAnalyticsUploads || 'Photos uploaded'} value={uploads.toLocaleString()} />
-            <KpiCard
-              icon={TrendingUp}
-              label={t.eventAnalyticsViewToUpload || 'View → upload rate'}
-              value={viewToUploadPct}
-            />
-            <KpiCard
-              icon={originalQualityUnlocked ? CheckCircle2 : Lock}
-              label={t.eventAnalyticsOriginalQuality || 'Original Quality'}
-              value={originalQualityUnlocked ? (t.eventAnalyticsUnlocked || 'Unlocked') : (t.eventAnalyticsLocked || 'Not unlocked')}
-            />
+            <KpiCard icon={TrendingUp} label={t.eventAnalyticsPhotosPerView || 'Photos per view'} value={photosPerView} />
+            <KpiCard icon={originalQualityUnlocked ? CheckCircle2 : Lock} label={t.eventAnalyticsOriginalQuality || 'Original quality'}>
+              <p
+                className={`mt-3 inline-flex max-w-full items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+                  originalQualityUnlocked ? 'bg-primary/15 text-accent-dark' : 'bg-secondary text-muted-foreground'
+                }`}
+              >
+                {originalQualityUnlocked ? (t.eventAnalyticsUnlocked || 'Unlocked') : (t.eventAnalyticsLocked || 'Locked')}
+              </p>
+            </KpiCard>
           </div>
 
           <div>
-            <SectionTitle>{t.analyticsFunnel}</SectionTitle>
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {funnelSteps.map((step, i) => (
-                <div key={i} className="relative rounded-xl border border-border bg-surface p-4 text-center shadow-subtle">
-                  <p className="font-mono text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{step.label}</p>
-                  <p className="mt-2 font-display text-2xl font-bold text-foreground">{step.value.toLocaleString()}</p>
-                  {i > 0 && (
-                    <p className="mt-1 text-xs font-medium text-muted-foreground">
-                      {(() => {
-                        const prev = funnelSteps[i - 1].value
-                        return prev > 0 ? `${((step.value / prev) * 100).toFixed(1)}%` : '0.0%'
-                      })()}
-                    </p>
-                  )}
-                </div>
-              ))}
+            <SectionTitle>{t.eventAnalyticsFunnelTitle || t.analyticsFunnel || 'Upgrade funnel'}</SectionTitle>
+            <div className="mt-4 rounded-xl border border-border bg-surface p-4 shadow-subtle">
+              {funnelMax === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {t.eventAnalyticsFunnelEmpty || 'No upgrade prompts have been shown for this event yet.'}
+                </p>
+              ) : (
+                <ol className="space-y-4">
+                  {funnelSteps.map((step, i) => (
+                    <FunnelStep key={i} label={step.label} value={step.value} max={funnelMax} rate={i > 0 ? stepRate(i) : null} />
+                  ))}
+                </ol>
+              )}
             </div>
           </div>
         </>
