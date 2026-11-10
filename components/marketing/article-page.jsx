@@ -2,20 +2,13 @@ import { MarketingNav } from '@/components/marketing-nav'
 import { MarketingFooter } from '@/components/marketing-footer'
 import { Button } from '@/components/ui/button'
 import { localizedPath } from '@/lib/i18n/config'
-import { getArticle } from '@/lib/content/articles'
+import { getArticle, ARTICLE_PAGE_LABELS } from '@/lib/content/articles'
 
 /**
  * Long-form guide / comparison page (lib/content/articles.js). Server
  * component on purpose: the whole text is in the initial HTML, which is what
  * search engines and AI crawlers read.
  */
-
-const DATE_LABEL = { es: 'Actualizado el' }
-const FAQ_LABEL = { es: 'Preguntas frecuentes' }
-const SOURCES_LABEL = { es: 'Fuentes' }
-const RELATED_LABEL = { es: 'Sigue leyendo' }
-const START_LABEL = { es: 'Crear evento gratis' }
-const PRICING_LABEL = { es: 'Ver precios' }
 
 function formatDate(locale, iso) {
   return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(
@@ -56,6 +49,7 @@ function ArticleTable({ head, rows }) {
 
 export function ArticlePage({ article }) {
   const { locale } = article
+  const labels = ARTICLE_PAGE_LABELS[locale]
   const related = (article.related || []).map((slug) => getArticle(locale, slug)).filter(Boolean)
 
   return (
@@ -70,7 +64,7 @@ export function ArticlePage({ article }) {
               {article.h1}
             </h1>
             <p className="mt-4 text-sm text-muted-foreground">
-              {DATE_LABEL[locale]} <time dateTime={article.updated}>{formatDate(locale, article.updated)}</time>
+              {labels.date} <time dateTime={article.updated}>{formatDate(locale, article.updated)}</time>
             </p>
             <div className="mt-8 space-y-4 text-lg leading-relaxed text-muted-foreground">
               {article.intro.map((p, i) => <p key={i}>{p}</p>)}
@@ -104,7 +98,7 @@ export function ArticlePage({ article }) {
 
           {article.faq?.length > 0 && (
             <section className="mt-16">
-              <h2 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">{FAQ_LABEL[locale]}</h2>
+              <h2 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">{labels.faq}</h2>
               <dl className="mt-6 divide-y divide-border rounded-2xl border border-border bg-surface">
                 {article.faq.map((item, i) => (
                   <div key={i} className="px-5 py-4">
@@ -121,17 +115,17 @@ export function ArticlePage({ article }) {
             <p className="mx-auto mt-3 max-w-xl text-muted-foreground">{article.cta.desc}</p>
             <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Button size="lg" className="cta-primary" asChild>
-                <a href={localizedPath(locale, '/wedding-photo-sharing')}>{START_LABEL[locale]}</a>
+                <a href={localizedPath(locale, '/wedding-photo-sharing')}>{labels.start}</a>
               </Button>
               <Button size="lg" variant="outline" className="border-border bg-transparent" asChild>
-                <a href={localizedPath(locale, '/pricing')}>{PRICING_LABEL[locale]}</a>
+                <a href={localizedPath(locale, '/pricing')}>{labels.pricing}</a>
               </Button>
             </div>
           </section>
 
           {related.length > 0 && (
-            <nav className="mt-12" aria-label={RELATED_LABEL[locale]}>
-              <p className="font-display text-xs font-semibold uppercase tracking-wider text-muted-foreground">{RELATED_LABEL[locale]}</p>
+            <nav className="mt-12" aria-label={labels.related}>
+              <p className="font-display text-xs font-semibold uppercase tracking-wider text-muted-foreground">{labels.related}</p>
               <ul className="mt-3 space-y-2">
                 {related.map((r) => (
                   <li key={r.slug}>
@@ -148,7 +142,11 @@ export function ArticlePage({ article }) {
             <footer className="mt-12 border-t border-border pt-6 text-xs leading-relaxed text-muted-foreground">
               {article.sources && (
                 <p>
-                  {SOURCES_LABEL[locale]}:{' '}
+                  {labels.sources}
+                  {article.checkedOn && (
+                    <> ({labels.checkedOn} <time dateTime={article.checkedOn}>{formatDate(locale, article.checkedOn)}</time>)</>
+                  )}
+                  :{' '}
                   {article.sources.map((s, i) => (
                     <span key={s.href}>
                       {i > 0 && ' · '}
