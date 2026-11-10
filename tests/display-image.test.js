@@ -251,7 +251,8 @@ describe('SECURITY: Free-display monetization boundary', () => {
   })
 
   it('output is strictly smaller than a 2400px client-optimizer original', async () => {
-    // Guest uploads are already capped at 2400 by lib/client-image-optimizer.
+    // Historical guest uploads were capped at 2400 client-side; new ones keep
+    // their full resolution.
     // The display rendition must stay materially below that ceiling or the
     // paid unlock has no product meaning.
     const m = await meta(await transformDisplayImage(await jpegFixture(2400, 1800)))

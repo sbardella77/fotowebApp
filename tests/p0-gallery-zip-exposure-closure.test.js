@@ -345,8 +345,8 @@ describe('7 — room page: >200 photos never starts the async flow', () => {
 
 // ─── 8. ≤200 SYNC STILL WORKS ───────────────────────────────────────────────
 
-describe('8 — GET /api/download/gallery still streams a Standard ZIP', () => {
-  it('entitled event → 200 private/no-store ZIP built via the Standard resolver', async () => {
+describe('8 — GET /api/download/gallery still streams a private ZIP', () => {
+  it('entitled event → 200 private/no-store ZIP of the originals', async () => {
     const photos = [
       { id: 'p1', originalName: 'a.jpg', storedName: 'a.jpg', mimeType: 'image/jpeg', url: 'https://x.public.blob.vercel-storage.com/events/wedding/a.jpg' },
       { id: 'p2', originalName: 'b.jpg', storedName: 'b.jpg', mimeType: 'image/jpeg', url: 'https://x.public.blob.vercel-storage.com/events/wedding/b.jpg' },
@@ -361,11 +361,11 @@ describe('8 — GET /api/download/gallery still streams a Standard ZIP', () => {
     getEffectiveEventAccessState.mockResolvedValue(access)
     const { resolveDownloadRepresentation } = await import('@/lib/server/download-representation')
     resolveDownloadRepresentation.mockImplementation(async ({ photo }) => ({
-      quality: 'standard',
-      buffer: Buffer.from(`display-v1:${photo.id}`),
+      quality: 'original',
+      buffer: Buffer.from(`source:${photo.id}`),
       contentType: 'image/jpeg',
-      extension: '.jpg',
-      representation: 'display-v1',
+      extension: null,
+      representation: 'source',
     }))
 
     const { GET } = await import('@/app/api/download/gallery/route')
@@ -382,8 +382,9 @@ describe('8 — GET /api/download/gallery still streams a Standard ZIP', () => {
     expect(bytes.subarray(0, 2).toString()).toBe('PK')
 
     expect(resolveDownloadRepresentation).toHaveBeenCalledTimes(2)
+    // Gallery download implies a paid event, which may download originals.
     for (const [args] of resolveDownloadRepresentation.mock.calls) {
-      expect(args.requestedQuality).toBe('standard')
+      expect(args.requestedQuality).toBe('original')
     }
     const blob = await import('@vercel/blob')
     expect(blob.put).not.toHaveBeenCalled()
