@@ -8,7 +8,6 @@ import {
   Loader2,
   X,
   Lock,
-  Check,
   Share2,
   Link2,
   Heart,
@@ -175,7 +174,7 @@ const PhotoLightbox = ({
     if (open && isOwner && !canDownloadOriginal && event?.slug) {
       trackUpsellImpression({
         upsellType: 'original_quality_unlock',
-        source: 'lightbox_download_menu',
+        source: 'lightbox_unlock_link',
         eventSlug: event.slug,
         eventId: event.id,
         ownerPlan: event.ownerPlan,
@@ -368,7 +367,7 @@ const PhotoLightbox = ({
       })
       trackUpsellClick({
         upsellType: 'original_quality_unlock',
-        source: 'lightbox_download_menu',
+        source: 'lightbox_unlock_link',
         eventSlug: event.slug,
         eventId: event.id,
         ownerPlan: event.ownerPlan,
@@ -397,10 +396,10 @@ const PhotoLightbox = ({
       room_slug: event?.slug,
       event_id: event?.id,
       source: 'lightbox',
-      actor_type: 'guest',
+      actor_type: isOwner ? 'owner' : 'guest',
     })
     handleUnlock()
-  }, [event?.slug, event?.id, handleUnlock])
+  }, [event?.slug, event?.id, isOwner, handleUnlock])
 
   // Touch event handlers for swipe
   const onTouchStart = (e) => {
@@ -572,93 +571,27 @@ const PhotoLightbox = ({
               <Download className="h-5 w-5" />
             </Button>
           ) : (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className={`h-9 w-9 transition-colors ${
-                    downloaded
-                      ? 'text-green-400 hover:text-green-300'
-                      : 'text-foreground/80 hover:bg-white/10 hover:text-foreground'
-                  }`}
-                  onClick={(e) => e.stopPropagation()}
-                  title={downloaded ? t.downloaded : t.downloadPhoto}
-                >
-                  <Download className="h-5 w-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className={`border-border bg-surface text-foreground min-w-[14rem] ${themeClass}`}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <DropdownMenuItem
-                  className="cursor-pointer focus:bg-white/5 focus:text-foreground"
-                  onClick={handleDownloadStandard}
-                >
-                  <div className="flex flex-col py-1">
-                    <span className="text-sm font-medium">{t.standardQuality}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {t.standardQualityDesc}
-                    </span>
-                  </div>
-                  <Check className="ml-auto h-4 w-4 text-success shrink-0" />
-                </DropdownMenuItem>
-
-                {canDownloadOriginal ? (
-                  <DropdownMenuItem
-                    className="cursor-pointer focus:bg-white/5 focus:text-foreground"
-                    onClick={handleDownloadOriginal}
-                  >
-                    <div className="flex flex-col py-1">
-                      <span className="text-sm font-medium">{t.originalQuality}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {t.originalQualityDesc}
-                      </span>
-                    </div>
-                    <Check className="ml-auto h-4 w-4 text-success shrink-0" />
-                  </DropdownMenuItem>
-                ) : isOwner ? (
-                  <DropdownMenuItem
-                    className="cursor-pointer focus:bg-white/5 focus:text-foreground"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      handleUnlock()
-                    }}
-                    disabled={unlockBusy}
-                  >
-                    <div className="flex flex-col py-1">
-                      <span className="text-sm font-medium">{t.originalQuality}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {t.unlockForEveryone}
-                      </span>
-                    </div>
-                    {unlockBusy ? (
-                      <Loader2 className="ml-auto h-4 w-4 animate-spin text-primary shrink-0" />
-                    ) : (
-                      <Lock className="ml-auto h-4 w-4 text-primary shrink-0" />
-                    )}
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem
-                    className="cursor-pointer focus:bg-white/5 focus:text-foreground"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      setUnlockModalOpen(true)
-                    }}
-                  >
-                    <div className="flex flex-col py-1">
-                      <span className="text-sm font-medium">{t.originalQualityLockedGuest}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {t.unlockOriginalForEvent}
-                      </span>
-                    </div>
-                    <Lock className="ml-auto h-4 w-4 text-primary shrink-0" />
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            // One click, best quality the event allows: originals on paid
+            // plans and unlocked events, Standard on Free. Free viewers get
+            // the unlock link under the photo instead of a quality menu.
+            <Button
+              size="icon"
+              variant="ghost"
+              className={`h-9 w-9 transition-colors ${
+                downloaded
+                  ? 'text-green-400 hover:text-green-300'
+                  : 'text-foreground/80 hover:bg-white/10 hover:text-foreground'
+              }`}
+              onClick={(e) => {
+                e.stopPropagation()
+                if (canDownloadOriginal) handleDownloadOriginal()
+                else handleDownloadStandard()
+              }}
+              aria-label={t.downloadPhoto}
+              title={downloaded ? t.downloaded : t.downloadPhoto}
+            >
+              <Download className="h-5 w-5" />
+            </Button>
           )}
 
           <Button
@@ -676,7 +609,7 @@ const PhotoLightbox = ({
         </div>
       </div>
 
-      {/* Guest unlock modal */}
+      {/* Original-quality unlock modal (Free events, owner and guests) */}
       <Dialog open={unlockModalOpen} onOpenChange={setUnlockModalOpen}>
         <DialogContent className="border-border bg-surface text-foreground dark sm:max-w-md">
           <DialogHeader>
@@ -879,6 +812,18 @@ const PhotoLightbox = ({
                 </DropdownMenuContent>
               </DropdownMenu>
         </div>
+        {!isVideo && !canDownloadOriginal && (
+          <div className="mx-auto mb-2 flex max-w-md justify-center" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium text-primary underline-offset-4 hover:underline"
+              onClick={() => setUnlockModalOpen(true)}
+            >
+              <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+              {t.unlockOriginalCta}
+            </button>
+          </div>
+        )}
         <div className="mx-auto max-w-md text-center">
           <p className="truncate text-sm font-medium text-foreground/90">
             {photo.originalName || t.untitled}

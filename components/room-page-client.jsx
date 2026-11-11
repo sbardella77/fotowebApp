@@ -23,7 +23,6 @@ import PhotoLightbox from '@/components/photo-lightbox'
 import { EventQRModal } from '@/components/event-qr-modal'
 import { SnapRoomsIcon } from '@/components/marketing/logo'
 import { getSortedRenderablePhotos, getRenderablePhotos, isPendingVideo, mergePhotoUpdates } from '@/lib/photo-utils'
-import { optimizeImage } from '@/lib/client-image-optimizer'
 import { runWithConcurrency, isRetryableUploadHttpStatus, waitForOnline } from '@/lib/upload-utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -708,10 +707,11 @@ export default function RoomPageClient({ slug, isNew }) {
     const optimizationResults = []
     await Promise.all(
       filesToUpload.map(async (file) => {
-        // Videos are uploaded untouched; Mux does the re-encoding.
-        const result = getVideoMimeType(file)
-          ? { file, originalBytes: file.size, optimizedBytes: file.size, optimized: false }
-          : await optimizeImage(file)
+        // Every file is uploaded untouched: photos keep the resolution and
+        // quality they were taken at (no WhatsApp-style shrinking), and
+        // videos are re-encoded by Mux. Private EXIF (GPS) is removed when an
+        // original is downloaded, see lib/server/strip-private-metadata.js.
+        const result = { file, originalBytes: file.size, optimizedBytes: file.size, optimized: false }
         const localId = `${file.name}-${file.lastModified}`
         optimizedMap.set(localId, result.file)
         optimizationResults.push(result)

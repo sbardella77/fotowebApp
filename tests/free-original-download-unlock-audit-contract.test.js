@@ -27,9 +27,11 @@ function readComponent(relPath) {
 describe('Free original-quality unlock — chain is complete, root cause is a missing Production env var', () => {
   it('the lightbox still shows the €1.99 unlock CTA for a guest on a locked Free event (unchanged — not hidden)', () => {
     const source = readComponent('components/photo-lightbox.jsx')
-    expect(source).toContain('t.unlockForEveryone')
+    // Since the quality menu was removed, the CTA is a link under the photo
+    // that opens the price dialog, for the owner and guests alike.
     expect(source).toContain('t.unlockOriginalForEvent')
     expect(source).toContain('t.unlockOriginalCta')
+    expect(source).toMatch(/!isVideo && !canDownloadOriginal && \([\s\S]*?setUnlockModalOpen\(true\)/)
   })
 
   it('the unlock click handler still calls the real checkout API (not a stub/no-op)', () => {
@@ -62,22 +64,17 @@ describe('Free original-quality unlock — chain is complete, root cause is a mi
 })
 
 describe('Standard Quality download is unaffected by the Bug A audit', () => {
-  it('Standard Quality remains present and wired to its own unconditional handler', () => {
+  it('the one-click download falls back to Standard whenever originals are not allowed', () => {
     const source = readComponent('components/photo-lightbox.jsx')
-    expect(source).toContain('t.standardQuality')
-    expect(source).toContain('handleDownloadStandard')
-    // Standard Quality has no gating condition around it (always rendered),
-    // unlike the Original Quality branch which is gated on canDownloadOriginal/isOwner.
-    const standardIdx = source.indexOf('onClick={handleDownloadStandard}')
-    const originalIdx = source.indexOf('canDownloadOriginal ? (')
-    expect(standardIdx).toBeGreaterThan(-1)
-    expect(originalIdx).toBeGreaterThan(standardIdx)
+    expect(source).toMatch(/if \(canDownloadOriginal\) handleDownloadOriginal\(\)\s*else handleDownloadStandard\(\)/)
   })
 })
 
 describe('Paid-event / already-unlocked behavior is unaffected', () => {
   it('canDownloadOriginal already-unlocked path (paid events, or an unlocked Free event) renders the real download option, not the paywall', () => {
     const source = readComponent('components/photo-lightbox.jsx')
-    expect(source).toMatch(/canDownloadOriginal \? \(\s*<DropdownMenuItem[\s\S]*?onClick={handleDownloadOriginal}/)
+    expect(source).toMatch(/if \(canDownloadOriginal\) handleDownloadOriginal\(\)/)
+    // and no quality menu: there is nothing to choose on a paid event.
+    expect(source).not.toContain('t.standardQualityDesc')
   })
 })

@@ -51,7 +51,7 @@ describe('Download Representation Contract v1', () => {
     expect(metadata.exif).toBeUndefined()
   })
 
-  it('ORIGINAL returns exact source bytes when entitled', async () => {
+  it('ORIGINAL returns the source image data, minus private metadata, when entitled', async () => {
     const source = await sourceFixture()
     const result = await resolveDownloadRepresentation({
       photo,
@@ -64,8 +64,12 @@ describe('Download Representation Contract v1', () => {
     expect(result.representation).toBe('source')
     expect(result.contentType).toBe('image/jpeg')
     expect(result.extension).toBeNull()
-    expect(result.buffer.length).toBe(source.length)
-    expect(sha256(result.buffer)).toBe(sha256(source))
+    // Same pixels, no re-encode: only metadata segments are removed (see
+    // tests/strip-private-metadata.test.js).
+    const raw = async (b) => sharp(b).raw().toBuffer()
+    expect(sha256(await raw(result.buffer))).toBe(sha256(await raw(source)))
+    expect((await sharp(result.buffer).metadata()).width).toBe(4000)
+    expect(result.buffer.length).toBeLessThanOrEqual(source.length)
   })
 
   it('ORIGINAL fails closed when entitlement is absent and never loads source', async () => {

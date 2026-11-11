@@ -17,6 +17,19 @@ import { checkRateLimit, getClientIp, hashIdentifier, RATE_LIMITS } from '@/lib/
 export const dynamic = 'force-dynamic'
 export const maxDuration = 20
 
+const STREAM_CHUNK_BYTES = 256 * 1024
+
+function bufferToStream(buffer) {
+  let offset = 0
+  return new ReadableStream({
+    pull(controller) {
+      if (offset >= buffer.length) return controller.close()
+      controller.enqueue(new Uint8Array(buffer.subarray(offset, offset + STREAM_CHUNK_BYTES)))
+      offset += STREAM_CHUNK_BYTES
+    },
+  })
+}
+
 /** GET /api/download/photo?photoId={id}&type={standard|original} */
 export async function GET(request) {
   const logPrefix = '[download/photo]'
@@ -77,10 +90,13 @@ export async function GET(request) {
 
     console.log(`${logPrefix} event=${event.slug} photo=${photo.id} type=${type} representation=${representation.representation} durationMs=${Date.now() - start}`)
 
-    return new NextResponse(representation.buffer, {
+    // Streamed, not a buffered body: buffered function responses are capped
+    // at 4.5 MB on Vercel, and original phone photos are often larger.
+    return new NextResponse(bufferToStream(representation.buffer), {
       status: 200,
       headers: {
         'Content-Type': representation.contentType,
+        'Content-Length': String(representation.buffer.length),
         'Content-Disposition': `attachment; filename="${encodeURIComponent(fileName)}"`,
         'Cache-Control': 'private, max-age=300',
       },

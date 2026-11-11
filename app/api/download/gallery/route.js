@@ -59,6 +59,7 @@ export async function GET(request) {
         slug: true,
         name: true,
         billingTier: true,
+        originalDownloadUnlocked: true,
         ownerId: true,
       },
     })
@@ -137,7 +138,9 @@ export async function GET(request) {
           try {
             const representation = await resolveDownloadRepresentation({
               photo,
-              requestedQuality: 'standard',
+              // Paid events get the originals, the same as the single-photo
+              // download; Free events keep the branded Standard rendition.
+              requestedQuality: access.canDownloadOriginal === true ? 'original' : 'standard',
               access,
             })
             const fileName = getDownloadFileName(photo, { extension: representation.extension || undefined })
