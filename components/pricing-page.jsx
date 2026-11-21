@@ -30,6 +30,7 @@ import { SectionHeader } from '@/components/marketing/section-header'
 import { TrustStrip } from '@/components/marketing/trust-strip'
 import { AuthAwarePricingCta } from '@/components/auth-aware-pricing-cta'
 import { AuthAwareFinalCta } from '@/components/auth-aware-final-cta'
+import { ArticleLink } from '@/components/marketing/article-link'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import {
   Accordion,
@@ -858,6 +859,7 @@ export function PricingPage({ fromDashboard, highlightPlan, eventSlug, billingIn
                 </div>
               ))}
             </div>
+            <ArticleLink locale={locale} topic="wedshoots-comparison" className="mt-8" />
           </div>
         </div>
       </section>
