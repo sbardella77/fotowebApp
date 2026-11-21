@@ -63,12 +63,38 @@ describe('editorial articles', () => {
     expect(getArticleAlternates(getArticle('it', 'alternativa-wedshoots'))).toEqual({
       es: '/es/alternativa-wedshoots',
       it: '/it/alternativa-wedshoots',
+      en: '/en/wedshoots-alternative',
+    })
+    expect(getArticleAlternates(getArticle('es', 'guia-fotos-invitados-boda'))).toEqual({
+      es: '/es/guia-fotos-invitados-boda',
+      it: '/it/guida-foto-invitati-matrimonio',
+      en: '/en/wedding-guest-photos-guide',
     })
   })
 
   it('resolves each article only in its own locale', () => {
     expect(getArticle('en', 'alternativa-wedshoots')).toBeNull()
-    expect(getArticlesForLocale('en')).toEqual([])
+    expect(getArticle('es', 'wedshoots-alternative')).toBeNull()
+    expect(getArticlesForLocale('en').map((a) => a.slug)).toEqual([
+      'wedding-guest-photos-guide',
+      'wedshoots-alternative',
+    ])
+  })
+
+  it('English comparison cites the English WedShoots pages it was checked against', () => {
+    const a = getArticle('en', 'wedshoots-alternative')
+    expect(a.sources.map((s) => s.href)).toEqual([
+      'https://www.wedshoots.com/uk',
+      'https://www.hitched.co.uk/album-wedding-wedshoots',
+    ])
+    expect(a.intro.join(' ')).toContain('21 November 2026')
+    expect(a.checkedOn).toBe('2026-11-21')
+  })
+
+  it('English articles render prices in the visitor currency', () => {
+    const filled = JSON.stringify(fillPriceTokensDeep(getArticlesForLocale('en'), 'usd', 'en'))
+    expect(filled).not.toContain('{{price.')
+    expect(filled).toContain('$29')
   })
 
   it('is listed in the sitemap with its real edit date', () => {
@@ -91,7 +117,9 @@ describe('editorial articles', () => {
     expect(node['@type']).toBe('Article')
     expect(node.headline).toBe(a.h1)
     expect(node.mainEntityOfPage['@id']).toBe(`https://snaprooms.app/${a.locale}/${a.slug}#webpage`)
-    expect(node.dateModified).toBe(a.updated)
+    // Google's Article check wants ISO 8601 date-times with a time zone.
+    expect(node.datePublished).toBe(`${a.published}T00:00:00+00:00`)
+    expect(node.dateModified).toBe(`${a.updated}T00:00:00+00:00`)
   })
 
   it('locale-prefixed article URLs pass through middleware without a redirect', () => {
