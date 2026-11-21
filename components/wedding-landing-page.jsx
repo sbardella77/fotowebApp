@@ -43,6 +43,7 @@ import { UseCaseCards } from '@/components/marketing/use-case-cards'
 import { ProblemSection } from '@/components/marketing/problem-section'
 import { SectionHeader } from '@/components/marketing/section-header'
 import { LandingCrossLinkSection } from '@/components/marketing/landing-cross-link-section'
+import { GuideLinks } from '@/components/marketing/guide-links'
 import { useScrollReveal } from '@/lib/hooks/use-scroll-reveal'
 import { useCreateEventForm } from '@/lib/hooks/use-create-event-form'
 
@@ -530,6 +531,10 @@ export function WeddingLandingPage({ locale = 'en' }) {
           </div>
         </div>
       </section>
+
+      {/* Guides for this locale, linked from the body so they are not only
+          reachable from the footer. Renders nothing where there are no guides. */}
+      <GuideLinks locale={locale} />
 
       {/* Professional Redirect — photo-first cards, same visual language as
           the main landing's UseCasePreview (not the component itself: that
