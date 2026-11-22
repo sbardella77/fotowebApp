@@ -87,7 +87,7 @@ function isSupportedImageFile(file) {
 
 const SUPPORTED_VIDEO_MIME_TYPES = ['video/mp4', 'video/quicktime', 'video/webm']
 const VIDEO_MIME_BY_EXTENSION = { '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm' }
-const MAX_VIDEO_SIZE = 150 * 1024 * 1024
+const MAX_VIDEO_SIZE = 1024 * 1024 * 1024
 // Fast while a fresh upload is likely to flip (Mux usually needs 5-20 s),
 // then back off.
 const VIDEO_POLL_FAST_MS = 2000

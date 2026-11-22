@@ -68,7 +68,7 @@ describe('initVideoUpload', () => {
 
   it('rejects oversized files and non-video types', async () => {
     getPrismaClient.mockResolvedValue({})
-    expect((await initVideoUpload(initRequest({ ...validInit, fileSize: 151 * 1024 * 1024 }))).status).toBe(400)
+    expect((await initVideoUpload(initRequest({ ...validInit, fileSize: 1024 * 1024 * 1024 + 1 }))).status).toBe(400)
     expect((await initVideoUpload(initRequest({ ...validInit, mimeType: 'image/jpeg' }))).status).toBe(400)
   })
 
@@ -141,7 +141,7 @@ describe('syncVideoAsset', () => {
   it('deletes and fails videos longer than the cap', async () => {
     const prisma = { photo: { findFirst: vi.fn().mockResolvedValue(photoRow), update: vi.fn() } }
     const deleteAsset = vi.fn()
-    await syncVideoAsset(prisma, 'asset1', { getAsset: async () => ({ ...readyAsset, duration: 120 }), deleteAsset })
+    await syncVideoAsset(prisma, 'asset1', { getAsset: async () => ({ ...readyAsset, duration: 400 }), deleteAsset })
     expect(deleteAsset).toHaveBeenCalledWith('asset1')
     expect(prisma.photo.update.mock.calls[0][0].data.videoStatus).toBe('FAILED')
   })
