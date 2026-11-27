@@ -1344,7 +1344,7 @@ const createAdminEvent = async (request) => {
   // createEvent() is also the direct PUBLIC handler for POST /events (guest
   // room creation); see listAdminEvents above for why headers are stripped
   // here rather than changing the shared handler.
-  return stripPublicCorsHeaders(await createEvent(request))
+  return stripPublicCorsHeaders(await createEvent(request, { trustedCaller: true }))
 }
 
 const getAdminEvent = async (request, slug) => {
@@ -2038,6 +2038,7 @@ const resetOwnerPassword = async (request) => {
     await prisma.$transaction(async (tx) => {
       const fresh = await tx.ownerPasswordResetToken.findUnique({
         where: { id: tokenRecord.id },
+        include: { owner: { select: { emailVerifiedAt: true } } },
       })
       if (!fresh || fresh.usedAt || fresh.expiresAt <= new Date()) {
         throw new Error('INVALID_TOKEN')
@@ -2050,6 +2051,9 @@ const resetOwnerPassword = async (request) => {
           passwordSalt: salt,
           passwordChangedAt: new Date(),
           sessionVersion: { increment: 1 },
+          // Consuming a token mailed to this address proves the owner
+          // controls the mailbox — lifts the unverified upload cap.
+          emailVerifiedAt: fresh.owner?.emailVerifiedAt ?? new Date(),
         },
       })
 
@@ -2172,6 +2176,7 @@ const setupOwnerPassword = async (request) => {
     await prisma.$transaction(async (tx) => {
       const fresh = await tx.ownerPasswordResetToken.findUnique({
         where: { id: tokenRecord.id },
+        include: { owner: { select: { emailVerifiedAt: true } } },
       })
       if (!fresh || fresh.usedAt || fresh.expiresAt <= new Date()) {
         throw new Error('INVALID_TOKEN')
@@ -2184,6 +2189,9 @@ const setupOwnerPassword = async (request) => {
           passwordSalt: salt,
           passwordChangedAt: new Date(),
           sessionVersion: { increment: 1 },
+          // Consuming a token mailed to this address proves the owner
+          // controls the mailbox — lifts the unverified upload cap.
+          emailVerifiedAt: fresh.owner?.emailVerifiedAt ?? new Date(),
         },
       })
 

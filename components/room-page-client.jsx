@@ -71,6 +71,7 @@ import { ViralShareSection } from '@/components/room/viral-share-section'
 import { StickyUploadCta } from '@/components/room/sticky-upload-cta'
 import { GalleryBlockedModal } from '@/components/room/gallery-blocked-modal'
 import { nextRoomPollDelay } from '@/lib/room-poll'
+import { UNVERIFIED_PHOTO_LIMIT } from '@/lib/email-verification'
 
 const CHUNK_SIZE = 1024 * 1024
 
@@ -114,7 +115,7 @@ function dedupePhotosById(photos) {
   })
 }
 
-export default function RoomPageClient({ slug, isNew }) {
+export default function RoomPageClient({ slug, isNew, needsEmailVerification = false }) {
   const roomCopy = useTranslations('room')
   const tCommon = useTranslations('common')
   const locale = useLocale()
@@ -1350,7 +1351,19 @@ export default function RoomPageClient({ slug, isNew }) {
                 )}
                 {photoLimitError && (
                   <div className="mt-6 rounded-xl border border-warning/20 bg-warning/10 px-5 py-4 text-left">
-                    {isEventOwner ? (
+                    {photoLimitError.upgradePath === 'verify_email' ? (
+                      // Unverified-owner cap: lifted by verifying, not by paying —
+                      // no pricing CTA here. The creator usually isn't signed in
+                      // yet, so both audiences see the verify message.
+                      <>
+                        <p className="text-sm font-semibold text-warning">{t.verifyEmailLimitTitle}</p>
+                        <p className="mt-1 text-xs font-light text-muted-foreground">
+                          {isEventOwner
+                            ? t.verifyEmailLimitOwnerHint.replace('{max}', String(photoLimitError.max ?? ''))
+                            : t.verifyEmailLimitGuest}
+                        </p>
+                      </>
+                    ) : isEventOwner ? (
                       <>
                         <p className="text-sm font-semibold text-warning">{t.freeLimitReached}</p>
                         <p className="mt-1 text-xs font-light text-muted-foreground">{t.upgradeToContinueOwner}</p>
@@ -1624,6 +1637,11 @@ export default function RoomPageClient({ slug, isNew }) {
 
             {isNew && !newRoomBannerDismissed && (
               <NewRoomShareBanner event={activeEvent} baseUrl={baseUrl} onDismiss={() => setNewRoomBannerDismissed(true)} showToast={showToast} onShowQR={() => { trackEvent(EVENT_QR_OPENED, { room_slug: activeEvent?.slug, source: 'new_room_banner' }); setQrModalOpen(true) }} />
+            )}
+            {isNew && needsEmailVerification && (
+              <p className="mt-2 rounded-xl border border-border bg-raised px-4 py-3 text-xs text-muted-foreground">
+                {t.newRoomVerifyEmailHint.replace('{max}', String(UNVERIFIED_PHOTO_LIMIT))}
+              </p>
             )}
 
             <InstallCta mode="room" className="mt-2" />

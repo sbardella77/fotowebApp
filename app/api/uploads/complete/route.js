@@ -126,7 +126,9 @@ export const POST = withTiming('completeUpload', async (request) => {
             },
             { distinctId: `room:${error.details.eventSlug}`, personProfile: false },
           )
-          await notifyPhotoThresholdReachedOnce(prisma, {
+          // The one-shot "upgrade" email is for the real free cap; the
+          // unverified cap is lifted by verifying, not by paying.
+          if (error.details.upgradePath !== 'verify_email') await notifyPhotoThresholdReachedOnce(prisma, {
             eventId: error.details.eventId,
             max: error.details.max,
             appUrl: getAppUrl(),
@@ -221,7 +223,7 @@ export const POST = withTiming('completeUpload', async (request) => {
         },
         { distinctId: `room:${event.slug}`, personProfile: false }
       )
-      await notifyPhotoThresholdReachedOnce(prisma, {
+      if (entitlement.upgradePath !== 'verify_email') await notifyPhotoThresholdReachedOnce(prisma, {
         eventId: event.id,
         max: entitlement.max,
         appUrl: getAppUrl(),

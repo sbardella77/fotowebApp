@@ -19,6 +19,7 @@ Use this checklist before and after every production deployment, especially when
 - [ ] `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are set for transactional billing emails (dunning, checkout confirmations, cancellation).
 - [ ] Stripe Customer Portal is configured in the Stripe Dashboard (return URL, payment-method update, invoice history, subscription cancellation).
 - [ ] Upstash Redis is configured (`UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`) for production rate limiting.
+- [ ] `NEXT_PUBLIC_TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` are set (Cloudflare Turnstile, hostname `snaprooms.app` + preview domains) — without them public room creation has no bot check.
 - [ ] `OPS_ALERT_EMAIL` is set so critical failures (login/password-reset errors, webhook failures, DB issues) reach an inbox — see `lib/server/ops-alerts.js`.
 - [ ] `SENTRY_DSN` (server/edge) and `NEXT_PUBLIC_SENTRY_DSN` (client) are set — see "Observability" below. The app builds and runs fine without them (Sentry no-ops), but error tracking is blind until they're set.
 - [ ] An external uptime monitor (e.g. Better Stack, UptimeRobot) pings `/api/health/db` and the public homepage every 1–5 minutes from outside Vercel, with alerting to email/Slack/SMS. Nothing in this repo can substitute for this — a total outage (bad deploy, DNS, Vercel incident) has no internal watcher.

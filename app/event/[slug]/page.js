@@ -59,5 +59,5 @@ export async function generateMetadata({ params }) {
 
 export default function EventPage({ params, searchParams }) {
   const { slug } = params
-  return <RoomPageClient slug={slug} isNew={searchParams?.new === '1'} />
+  return <RoomPageClient slug={slug} isNew={searchParams?.new === '1'} needsEmailVerification={searchParams?.verify === '1'} />
 }

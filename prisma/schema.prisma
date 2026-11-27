@@ -101,6 +101,10 @@ model Owner {
   lastStripeSubscriptionEventCreated BigInt?
   lastStripeInvoiceEventCreated      BigInt?
   emailNotificationsEnabled          Boolean                   @default(true)
+  // Set when the owner proves control of the mailbox by consuming an
+  // emailed setup/reset token. NULL = unverified: free rooms stay capped at
+  // UNVERIFIED_PHOTO_LIMIT (lib/server/entitlements.js) until then.
+  emailVerifiedAt                    DateTime?
   createdAt                          DateTime                  @default(now())
   updatedAt                          DateTime                  @updatedAt
   events                             Event[]
