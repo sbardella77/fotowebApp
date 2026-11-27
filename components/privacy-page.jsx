@@ -72,7 +72,7 @@ export function PrivacyPage({ locale = 'en' }) {
               {t.privacyTitle}
             </h1>
             <p className="mt-3 text-sm text-muted-foreground">
-              {t.lastUpdated}
+              {t.privacyLastUpdated}
             </p>
           </div>
         </div>
@@ -142,6 +142,7 @@ export function PrivacyPage({ locale = 'en' }) {
                 <Bullet>{t.securityDesc2}</Bullet>
                 <Bullet>{t.securityDesc3}</Bullet>
                 <Bullet>{t.securityDesc4}</Bullet>
+                <Bullet>{t.securityDesc5}</Bullet>
               </ul>
             </Section>
 

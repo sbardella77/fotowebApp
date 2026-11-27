@@ -1144,7 +1144,7 @@ export default function RoomPageClient({ slug, isNew, needsEmailVerification = f
   }, [activeEvent?.slug])
   useEffect(() => {
     if (isNew && typeof window !== 'undefined') {
-      try { const url = new URL(window.location.href); if (url.searchParams.has('new')) { url.searchParams.delete('new'); window.history.replaceState({}, '', url.toString()) } }
+      try { const url = new URL(window.location.href); if (url.searchParams.has('new') || url.searchParams.has('verify')) { url.searchParams.delete('new'); url.searchParams.delete('verify'); window.history.replaceState({}, '', url.toString()) } }
       catch (e) { console.warn(e) }
     }
   }, [isNew])
