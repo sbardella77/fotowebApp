@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { usePathname } from 'next/navigation'
+import { getMarketingLanguageLinks } from '@/lib/i18n/marketing-language-links'
 import { Globe, Check } from 'lucide-react'
 import { useLocale, useSetLocale } from '@/components/i18n-provider'
 import { LOCALES, LOCALE_LABELS } from '@/lib/i18n/config'
@@ -10,6 +12,7 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 
 export function LanguageSwitcher({ className = '' }) {
   const locale = useLocale()
+  const languageLinks = getMarketingLanguageLinks(usePathname())
   const setLocale = useSetLocale()
   const [open, setOpen] = useState(false)
 
@@ -48,12 +51,21 @@ export function LanguageSwitcher({ className = '' }) {
       >
         <div role="listbox" aria-label="Select language">
           {LOCALES.map((l) => (
-            <button
+            <LanguageOption
               key={l}
+              href={languageLinks?.[l]}
+              hrefLang={l}
               type="button"
               role="option"
               aria-selected={l === locale}
-              onClick={() => handleSelect(l)}
+              onClick={() => {
+                if (languageLinks) {
+                  if (l !== locale) trackEvent(EVENT_LANGUAGE_SWITCHED, { from_language: locale, to_language: l })
+                  setOpen(false)
+                } else {
+                  handleSelect(l)
+                }
+              }}
               className={`flex w-full items-center justify-between px-3 py-2.5 text-left text-sm transition-colors first:rounded-t-lg last:rounded-b-lg hover:bg-accent hover:text-accent-foreground ${
                 l === locale
                   ? 'bg-accent text-accent-foreground font-medium'
@@ -64,10 +76,18 @@ export function LanguageSwitcher({ className = '' }) {
               {l === locale && (
                 <Check className="h-4 w-4 text-accent-dark shrink-0 ml-2" />
               )}
-            </button>
+            </LanguageOption>
           ))}
         </div>
       </PopoverContent>
     </Popover>
+  )
+}
+
+function LanguageOption({ href, hrefLang, type, children, ...props }) {
+  return href ? (
+    <a href={href} hrefLang={hrefLang} {...props}>{children}</a>
+  ) : (
+    <button type={type} {...props}>{children}</button>
   )
 }

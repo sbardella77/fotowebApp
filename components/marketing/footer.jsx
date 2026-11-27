@@ -1,7 +1,9 @@
 'use client'
 
 import { useTranslations, useLocale } from '@/components/i18n-provider'
-import { localizedPath } from '@/lib/i18n/config'
+import { localizedPath, LOCALE_LABELS } from '@/lib/i18n/config'
+import { usePathname } from 'next/navigation'
+import { getMarketingLanguageLinks } from '@/lib/i18n/marketing-language-links'
 import { InstallCta } from '@/components/install-cta'
 import { SnapRoomsLogo } from '@/components/marketing/logo'
 import { OPEN_PREFERENCES_EVENT } from '@/components/cookie-consent-banner'
@@ -10,6 +12,7 @@ import { getArticlesForLocale, ARTICLE_SECTION_LABEL } from '@/lib/content/artic
 export function MarketingFooter() {
   const t = useTranslations('footer')
   const locale = useLocale()
+  const languageLinks = getMarketingLanguageLinks(usePathname())
   const articles = getArticlesForLocale(locale)
 
   return (
@@ -81,6 +84,18 @@ export function MarketingFooter() {
               </ul>
             </div>
           </div>
+
+          {languageLinks && (
+            <nav aria-label="Languages" className="mt-10 flex flex-wrap justify-center gap-x-5 gap-y-3 border-t border-border pt-8">
+              {Object.entries(languageLinks).map(([language, href]) => (
+                <a key={language} href={href} hrefLang={language} lang={language}
+                  aria-current={language === locale ? 'page' : undefined}
+                  className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+                  {LOCALE_LABELS[language]}
+                </a>
+              ))}
+            </nav>
+          )}
 
           <div className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-border pt-8 sm:flex-row">
             <p className="text-xs text-muted-foreground">
