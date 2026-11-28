@@ -189,6 +189,13 @@ committed to the repository.
 | `RESEND_FROM_EMAIL` | |
 | `OPS_ALERT_EMAIL` | |
 
+**Bot protection (Cloudflare Turnstile)**
+
+| Variable | Notes |
+|---|---|
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Widget site key. Unset → no challenge (dev) |
+| `TURNSTILE_SECRET_KEY` | Server secret. Unset → room creation skips the check |
+
 **Analytics**
 
 | Variable | Notes |

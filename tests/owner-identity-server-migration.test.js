@@ -93,7 +93,7 @@ describe('owner auth (app/api/[[...path]]/route.js) — no email-derived distinc
     expect(ROUTE).not.toMatch(/distinctId: clientIp/)
     expect(ROUTE).not.toMatch(/client_ip: clientIp/)
     const rateLimitMatches = ROUTE.match(/distinctId: 'rate_limit:[a-z_]+', personProfile: false/g) || []
-    expect(rateLimitMatches.length).toBe(3)
+    expect(rateLimitMatches.length).toBe(4) // + create_event_captcha (Turnstile refusal)
   })
 })
 

@@ -132,7 +132,7 @@ describe('4. rate-limit-hit events: no IP as Person identity, and raw IP dropped
 
   it('all three use a technical rate_limit:<reason> identity with personProfile:false', () => {
     const matches = ROUTE.match(/distinctId: 'rate_limit:[a-z_]+', personProfile: false/g) || []
-    expect(matches.length).toBe(3)
+    expect(matches.length).toBe(4) // + create_event_captcha (Turnstile refusal)
   })
 
   it('raw client_ip is no longer captured as an event property either', () => {
@@ -141,7 +141,7 @@ describe('4. rate-limit-hit events: no IP as Person identity, and raw IP dropped
 
   it('the reason property (which endpoint was rate-limited) is preserved — the operationally useful dimension', () => {
     const matches = ROUTE.match(/EVENT_RATE_LIMIT_HIT, \{ reason: '[a-z_]+' \}/g) || []
-    expect(matches.length).toBe(3)
+    expect(matches.length).toBe(4) // + create_event_captcha (Turnstile refusal)
   })
 })
 

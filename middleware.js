@@ -18,7 +18,10 @@ import {
 export function buildCsp(nonce) {
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}'`,
+    // Cloudflare Turnstile (bot check on room creation): its loader script
+    // and the challenge iframe both come from challenges.cloudflare.com.
+    `script-src 'self' 'nonce-${nonce}' https://challenges.cloudflare.com`,
+    "frame-src https://challenges.cloudflare.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://api.fontshare.com",
     "font-src 'self' https://fonts.gstatic.com https://api.fontshare.com",
     "img-src 'self' blob: data: https:",
